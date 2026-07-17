@@ -2,6 +2,17 @@
 
 Versionado documental con [Semantic Versioning](https://semver.org/lang/es/). La v1.0.0 corresponderá a la Bible cerrada según el criterio del capítulo 1.1.
 
+## [0.5.2] — 2026-07-17
+
+### Cambiado
+- Capítulo 2.2 v0.3.0: incorpora las 19 correcciones de su revisión adversarial — convención † en la tabla de capacidades, gate de hito con autoridad exclusiva del CEO, circuito de fracaso anclado a D3/actas, regla de la ventana con registro automático y pausas/reinicios, exclusiones binarias por sistema (control + notificaciones), capacidad 5 sin sugerencias hasta M3, criterios R2-R4 como marco, supuestos de entorno validables por el inventario del 2.3, y fine-tuning fuera del roadmap actual (no para siempre). Pasa a "En revisión (gate del CEO)".
+
+## [0.5.1] — 2026-07-17
+
+### Cambiado
+- Capítulo 2.1 v1.1.0: aplicadas las 8 correcciones de P-001, **ratificadas por el CEO** — momento mágico citado textualmente de la D2, convención † para desarrollos del CTO, criterios-marco con umbrales delegados a 2.5, zona intermedia adjudicada por el CEO, límites verificables de vigilancia/afecto remitidos a 2.4 y Libro V, "ningún proveedor único", visión de largo plazo condicionada a apertura de terceros.
+- P-001 cerrado en decisiones/pendientes.md.
+
 ## [0.5.0] — 2026-07-17
 
 ### Cambiado

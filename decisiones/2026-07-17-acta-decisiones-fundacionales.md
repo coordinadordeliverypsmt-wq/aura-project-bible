@@ -1,6 +1,6 @@
 ---
 documento: "Acta de Decisiones Fundacionales"
-version: 1.0.0
+version: 1.1.0
 autor: "Mauricio (CEO) — registrada por Fable (CTO)"
 fecha: 2026-07-17
 estado: "Vinculante"
@@ -8,6 +8,9 @@ historial:
   - version: 1.0.0
     fecha: 2026-07-17
     cambio: "Registro de las 8 decisiones fundacionales + principio adicional y autorización de Fase D1"
+  - version: 1.1.0
+    fecha: 2026-07-17
+    cambio: "D10 — Filosofía de Desarrollo (sistema vivo) agregada por el CEO al aprobar el capítulo 1.1"
 ---
 
 # Acta de Decisiones Fundacionales — 2026-07-17
@@ -67,6 +70,11 @@ Aprobado **Git + Markdown**. Toda la documentación vive en el repositorio. Vers
 
 Principio arquitectónico obligatorio para todo el proyecto: **toda acción crítica deberá poder ser auditada, explicada y revertida. Nunca sacrificar seguridad por comodidad. Toda decisión tomada por AURA deberá ser explicable.**
 *Impacta: 3.1 (Principio #1), 5.3, 4.3.*
+
+## D10 — Filosofía de Desarrollo: sistema vivo (2026-07-17, segunda sesión)
+
+AURA nunca será un producto terminado: será un **sistema vivo**. Cada módulo deberá diseñarse para evolucionar. Toda nueva capacidad deberá poder incorporarse **sin rediseñar el sistema**. AURA deberá aprender continuamente. Su arquitectura deberá permitir crecer durante muchos años. La **compatibilidad hacia atrás** será una prioridad. La **modularidad** será obligatoria. **No existirán componentes monolíticos. Toda inteligencia será desacoplada.**
+*Impacta: 3.1 (principios), 2.1 (visión), 3.3/3.4 (contratos y plugins con compatibilidad hacia atrás), 4.4 (aprendizaje continuo).*
 
 ## Autorización
 

@@ -2,6 +2,17 @@
 
 Versionado documental con [Semantic Versioning](https://semver.org/lang/es/). La v1.0.0 corresponderá a la Bible cerrada según el criterio del capítulo 1.1.
 
+## [0.3.0] — 2026-07-17
+
+### Agregado
+- Acta fundacional v1.1.0: **D10 — Filosofía de Desarrollo** (sistema vivo: modularidad obligatoria, sin monolitos, inteligencia desacoplada, compatibilidad hacia atrás).
+- Capítulo 1.2 (Sistema de ADRs) en borrador: criterios de obligatoriedad, ciclo de vida, regla de oro operativa y plan de formalización de decisiones.
+- Plantilla oficial de ADR y **ADR-0001 — Arquitectura local-first estricta** (`proposed`, origen acta D1).
+
+### Cambiado
+- **Capítulo 1.1 APROBADO por el CEO** (v1.0.0) — primer documento normativo aprobado de la Bible.
+- 3.1: contenido previsto incorpora la filosofía de sistema vivo (D10).
+
 ## [0.2.1] — 2026-07-17
 
 ### Agregado

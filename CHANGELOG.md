@@ -2,6 +2,14 @@
 
 Versionado documental con [Semantic Versioning](https://semver.org/lang/es/). La v1.0.0 corresponderá a la Bible cerrada según el criterio del capítulo 1.1.
 
+## [0.2.1] — 2026-07-17
+
+### Agregado
+- Registro del Brief Fundacional del CEO (2026-07-16) como documento vinculante de rango 1.
+
+### Cambiado
+- Capítulo 1.1 v0.3.0: incorpora las 20 correcciones de la revisión adversarial interna (2 críticos, veredicto "aprobar con correcciones"): relación actas↔constitución, clases de artefactos normativos/operativos, reglas para conflictos entre borradores, regla de gates pendientes, veto técnico precisado, regla verificable de uso de Opus, RACI corregida, autoridad por transición de estados y criterio de cierre separado en mínimo del acta D7 + desarrollos del CTO. Pasa a estado "En revisión (gate del CEO)".
+
 ## [0.2.0] — 2026-07-17
 
 ### Agregado

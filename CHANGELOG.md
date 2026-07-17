@@ -2,6 +2,13 @@
 
 Versionado documental con [Semantic Versioning](https://semver.org/lang/es/). La v1.0.0 corresponderá a la Bible cerrada según el criterio del capítulo 1.1.
 
+## [0.5.0] — 2026-07-17
+
+### Cambiado
+- **Capítulo 2.1 APROBADO por el CEO** (v1.0.0) — tercer capítulo P0 aprobado.
+- Capítulo 2.2 (Alcance del MVP y Roadmap) en borrador: 9 capacidades D2, hitos M1-M3, exclusiones y releases R2-R4; a revisión adversarial.
+- Publicación HTML/PDF regenerada (incluye 2.1).
+
 ## [0.4.0] — 2026-07-17
 
 ### Agregado

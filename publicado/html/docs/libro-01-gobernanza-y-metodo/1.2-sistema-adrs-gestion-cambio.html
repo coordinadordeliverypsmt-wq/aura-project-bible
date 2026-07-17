@@ -1,0 +1,160 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sistema de ADRs y Gestión del Cambio — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.1.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-17 · <b>fecha_aprobacion</b>: 2026-07-17 · <b>autor</b>: Fable (CTO, AURA Labs) · <b>responsable</b>: Fable · <b>prioridad</b>: P0</div>
+<h1 id="12-sistema-de-adrs-y-gestion-del-cambio">1.2 — Sistema de ADRs y Gestión del Cambio</h1>
+<blockquote>
+<p><strong>Estado:</strong> Aprobado (CEO, 2026-07-17) · <strong>Prioridad:</strong> P0 · <strong>Responsable:</strong> Fable</p>
+</blockquote>
+<h2 id="resumen-ejecutivo">Resumen ejecutivo</h2>
+<p>Define el instrumento único de cambio arquitectónico del proyecto: el ADR. Establece cuándo es obligatorio, quién propone y quién decide (siempre el CEO), su ciclo de vida completo, la regla de oro operativa (la Bible cambia antes que el código, anclada a commits verificables) y el plan de formalización de las decisiones fundacionales D1-D13.</p>
+<h2 id="1-proposito">1. Propósito</h2>
+<p>Definir el instrumento único con el que AURA Labs registra, aprueba, cambia y revierte decisiones de arquitectura: el <strong>Architecture Decision Record (ADR)</strong>. Este capítulo materializa la regla de oro de la constitución: <em>la Bible cambia antes que el código</em>.</p>
+<h2 id="2-que-es-un-adr">2. Qué es un ADR</h2>
+<p>Un ADR es un documento corto que captura <strong>una</strong> decisión arquitectónica: su contexto, las alternativas evaluadas, la decisión tomada, sus consecuencias y su trazabilidad hacia los capítulos afectados. La historia de decisiones queda completa y auditable — coherente con el principio Human-in-the-Loop (acta D9).</p>
+<p><strong>Inmutabilidad del contenido decisional:</strong> tras la aceptación, el Contexto, las Alternativas, la Decisión y las Consecuencias <strong>no se editan</strong> — un cambio de decisión exige un ADR nuevo que supersede al anterior. Sí se actualizan los metadatos de ciclo de vida (<code>estado</code>, <code>fecha-resolucion</code>, <code>superseded-por</code>), y las correcciones puramente editoriales (typos, enlaces rotos) se permiten como mantenimiento operativo (1.1 §3.1) sin alterar el sentido, dejando constancia en el commit.</p>
+<h2 id="3-cuando-un-adr-es-obligatorio">3. Cuándo un ADR es obligatorio</h2>
+<p>Requieren ADR:</p>
+<ol>
+<li>Selección, reemplazo o retiro de una tecnología, proveedor, protocolo o framework.</li>
+<li>Definición o cambio de un contrato entre módulos (eventos, APIs internas, contrato de plugin) — incluida cualquier ruptura de compatibilidad hacia atrás (acta D10).</li>
+<li>Decisiones de seguridad, privacidad o autonomía (fronteras de datos, permisos, guardrails).</li>
+<li>Cualquier cambio que contradiga o modifique un capítulo en estado <code>Aprobado</code> o un ADR <code>accepted</code>. <strong>Excepción:</strong> los cambios al capítulo 1.1 siguen exclusivamente el proceso de enmienda constitucional (1.1 §5); un ADR puede, a lo sumo, recomendar iniciar una enmienda.</li>
+<li>Decisiones difíciles o costosas de revertir, aunque no encajen en las categorías anteriores.</li>
+</ol>
+<p><strong>No</strong> requieren ADR: decisiones locales y reversibles dentro de un capítulo aún en borrador (se registran en el propio capítulo), artefactos operativos y correcciones editoriales. Ante la duda decide Fable; cada decisión suya de "no requiere ADR" se anota en la sección de decisiones del capítulo afectado y se presenta como punto explícito del checklist del siguiente gate, donde el CEO puede revertirla.</p>
+<h2 id="4-quien-propone-y-quien-redacta">4. Quién propone y quién redacta</h2>
+<p>Cualquier rol — <strong>incluido el CEO</strong> — puede originar la necesidad de un ADR. La redacción corresponde a Fable, o a Opus/Sonnet bajo revisión de Fable (RACI de 1.1 §4.1). Haiku no redacta ADRs (1.1: no modifica contenido normativo). El decisor es siempre el CEO.</p>
+<h2 id="5-plantilla-oficial">5. Plantilla oficial</h2>
+<p>La plantilla vive en <a href="../../adr/plantilla-adr.html"><code>adr/plantilla-adr.md</code></a> y es la única válida. Campos del frontmatter: <code>numero</code>, <code>titulo</code>, <code>estado</code>, <code>fecha</code> (de propuesta), <code>fecha-resolucion</code> (cuando el CEO resuelve), <code>decisor</code> (siempre el CEO), <code>proponente</code>, <code>impacta</code> (capítulos), <code>origen</code> (acta/decisión que la motiva), <code>reabre</code> (ADR rechazado que se reabre, si aplica), <code>supersede</code> / <code>superseded-por</code>, <code>motivo-rechazo</code> (obligatorio si <code>rejected</code>). Secciones: Contexto · Alternativas consideradas · Decisión · Consecuencias · <strong>Impacto</strong> (mandato del acta D11: evaluación explícita de seguridad, privacidad, modularidad, costo, experiencia de usuario y mantenimiento futuro) · Trazabilidad.</p>
+<p>Cuando la decisión llega al CEO con opciones de implementación, las alternativas se presentan en los 4 niveles del acta D3 (Económica · Balanceada · Profesional · Enterprise). <strong>Excepción:</strong> si la decisión de fondo ya fue tomada por el CEO en acta y el ADR solo la formaliza, los 4 niveles no aplican y el ADR lo declara.</p>
+<h2 id="6-ciclo-de-vida-y-numeracion">6. Ciclo de vida y numeración</h2>
+<p>Estados: <code>proposed</code> → <code>accepted</code> | <code>rejected</code> | <code>withdrawn</code>; un <code>accepted</code> puede pasar a <code>deprecated</code> o <code>superseded</code> (referenciando al ADR que lo reemplaza).</p>
+<ul>
+<li>Conforme a la constitución (1.1 §3.1, documentos normativos): <strong>solo el CEO</strong> mueve un ADR a <code>accepted</code> o <code>rejected</code>; un <code>rejected</code> registra su <code>motivo-rechazo</code>. La transición <code>accepted</code> → <code>deprecated</code> también corresponde solo al CEO, o resulta del ADR que lo supersede.</li>
+<li><code>withdrawn</code>: el proponente retira la propuesta antes del gate, con nota del motivo.</li>
+<li>Un <code>proposed</code> sin respuesta del CEO <strong>sigue pendiente y visible</strong> en el índice de ADRs; no expira ni bloquea otros trabajos (coherente con 1.1 §3.2.6 y §4.4).</li>
+<li>Un tema rechazado solo puede re-proponerse con <strong>número nuevo</strong>, campo <code>reabre</code> apuntando al ADR rechazado y un contexto nuevo que justifique reabrirlo.</li>
+<li>Numeración <code>ADR-NNNN</code> incremental, nunca reutilizada; archivo <code>adr/NNNN-slug.md</code>. El índice (<code>adr/README.md</code>) es un artefacto operativo mantenido por Haiku y validado por Fable.</li>
+</ul>
+<h2 id="7-la-regla-de-oro-operativa">7. La regla de oro, operativa</h2>
+<p>Secuencia obligatoria para todo cambio arquitectónico:</p>
+<ol>
+<li>Propuesta → se redacta el ADR en <code>proposed</code>.</li>
+<li>Gate del CEO → <code>accepted</code> (o <code>rejected</code> / <code>withdrawn</code>).</li>
+<li>Los capítulos afectados (listados en <code>impacta</code>) y el CHANGELOG se actualizan <strong>en el mismo commit o serie inmediata de commits</strong> que registra el paso a <code>accepted</code>. Ningún gate posterior puede abrirse con esa actualización pendiente.</li>
+<li>Solo entonces puede implementarse en código.</li>
+</ol>
+<p><strong>Regla transitoria (fase documental):</strong> cuando un capítulo listado en <code>impacta</code> aún no existe o está <code>No iniciado</code>, la obligación se difiere a su redacción: el capítulo nace ya conforme al ADR y lo lista en su sección "Decisiones aplicables".</p>
+<p>Está prohibido escribir código que dependa de un ADR en <code>proposed</code>. Un ADR <code>accepted</code> cuyos capítulos existentes no fueron actualizados es un conflicto de rango 3 vs 4 y se resuelve según la constitución (1.1 §3.2): prevalece el ADR y el capítulo se corrige.</p>
+<h2 id="8-trazabilidad-y-verificacion">8. Trazabilidad y verificación</h2>
+<ul>
+<li>Cada ADR lista en <code>impacta</code> los capítulos que modifica; cada capítulo afectado lista los ADRs que lo gobiernan en su sección "Decisiones aplicables".</li>
+<li>El campo <code>origen</code> conecta el ADR con el acta que lo motiva. Regla acta→ADR (1.1 §3.2.5): al aceptarse el ADR, este pasa a ser la fuente vigente y el acta queda como registro histórico, <strong>salvo indicación contraria del CEO</strong>.</li>
+<li><strong>Verificación por evento (no por calendario):</strong> la consistencia ADR↔capítulos se verifica como parte del checklist pre-gate de Fable y en cada aceptación de ADR; el resultado se anota en <code>adr/README.md</code>, distinguiendo "capítulo pendiente de creación" de "capítulo desactualizado".</li>
+</ul>
+<h2 id="9-formalizacion-de-las-decisiones-fundacionales">9. Formalización de las decisiones fundacionales</h2>
+<p>El acta declara que las decisiones vinculantes "se formalizarán como ADRs una vez aprobado el capítulo 1.2". La tabla siguiente es la <strong>interpretación propuesta por el CTO de esa formalización, sujeta a ratificación del CEO en este gate</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Instrumento</th>
+<th>Origen</th>
+<th>Título / destino</th>
+<th>Cuándo</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ADR-0001</td>
+<td>Acta D1</td>
+<td>Postura local-first estricta</td>
+<td><strong>Adjunto, en <code>proposed</code></strong> — valida la plantilla</td>
+</tr>
+<tr>
+<td>ADR-0002</td>
+<td>Acta D8</td>
+<td>Plataforma documental y generador de sitio (4 niveles)</td>
+<td>Con el capítulo 1.4</td>
+</tr>
+<tr>
+<td>ADR-0003</td>
+<td>Acta D4</td>
+<td>Niveles de autonomía inicial y listas verde/roja</td>
+<td>Con el capítulo 5.3</td>
+</tr>
+<tr>
+<td>ADR-0004</td>
+<td>Acta D10</td>
+<td>Arquitectura modular y compatibilidad hacia atrás</td>
+<td>Con el capítulo 3.1</td>
+</tr>
+<tr>
+<td>ADR-0005+</td>
+<td>Acta D3 (parcial)</td>
+<td>Stack tecnológico (uno por decisión mayor, con 4 niveles)</td>
+<td>Con el capítulo 3.6</td>
+</tr>
+<tr>
+<td>Capítulos</td>
+<td>Actas D2, D5, D6, D7</td>
+<td>Se materializan directamente en 2.2, 5.4, 2.4 y 1.1 citando el acta como origen — <strong>sin ADR propio</strong></td>
+<td>Según índice</td>
+</tr>
+<tr>
+<td>Transversal</td>
+<td>Acta D3</td>
+<td>Formato de 4 niveles: ya vigente en esta plantilla, 1.1 §4.3 y capítulos 1.5/3.6</td>
+<td>Vigente</td>
+</tr>
+<tr>
+<td>Transversal</td>
+<td>Acta D9</td>
+<td>Human-in-the-Loop: se materializa en 3.1 (Principio #1), 5.3 y 4.3 — sin ADR propio</td>
+<td>Según índice</td>
+</tr>
+</tbody>
+</table>
+<h2 id="decisiones-tomadas">Decisiones tomadas</h2>
+<ul>
+<li>Sistema de ADRs como instrumento único de cambio arquitectónico, con autoridad de aceptación exclusiva del CEO.</li>
+<li>Plan de formalización de las decisiones fundacionales (tabla §9), ratificado por el CEO en el gate del 2026-07-17.</li>
+<li>Matriz de impacto obligatoria en todo ADR (acta D11).</li>
+</ul>
+<h3 id="decisiones-aplicables-adrs">Decisiones aplicables (ADRs)</h3>
+<ul>
+<li><a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001 — Postura local-first estricta</a> (<code>accepted</code>) — gobierna la sección 9 de este capítulo.</li>
+</ul>
+<h2 id="riesgos">Riesgos</h2>
+<ul>
+<li>Incumplimiento silencioso de la regla de oro si los gates no verifican la consistencia ADR↔capítulos (mitigado: verificación por evento, §8).</li>
+<li>Acumulación de <code>proposed</code> sin resolver que vuelva ilegible el índice (mitigado: visibles en <code>adr/README.md</code>, sin bloquear).</li>
+</ul>
+<h2 id="proximos-pasos">Próximos pasos</h2>
+<ul>
+<li>ADR-0002 (plataforma documental) con el capítulo 1.4 · ADR-0003 (autonomía) con el 5.3 · ADR-0004 (modularidad) con el 3.1 · ADR-0005+ (stack) con el 3.6.</li>
+</ul>
+<h2 id="referencias-cruzadas">Referencias cruzadas</h2>
+<ul>
+<li><a href="1.1-constitucion-roles-autoridad.html">Constitución (1.1)</a> — jerarquía normativa y autoridad de aprobación</li>
+<li><a href="../../decisiones/2026-07-17-acta-decisiones-fundacionales.html">Acta de Decisiones Fundacionales</a> · <a href="../../decisiones/2026-07-16-brief-fundacional.html">Brief Fundacional</a></li>
+<li><a href="../../adr/plantilla-adr.html">Plantilla oficial de ADR</a> · <a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001 (proposed)</a></li>
+</ul>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

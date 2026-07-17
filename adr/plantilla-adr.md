@@ -35,6 +35,17 @@ Pros: … / Contras: … <"Descartada por el proponente (motivo)" — la palabra
 
 **Positivas:** … · **Negativas:** … · **Riesgos aceptados:** …
 
+## Impacto (acta D11 — obligatorio)
+
+| Dimensión | Impacto |
+|---|---|
+| Seguridad | … |
+| Privacidad | … |
+| Modularidad | … |
+| Costo | … |
+| Experiencia de usuario | … |
+| Mantenimiento futuro | … |
+
 ## Trazabilidad
 
 Capítulos a actualizar: … · Módulos de código afectados (futuro): "—" mientras no exista código.

@@ -1,0 +1,233 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Constitución del Proyecto, Roles y Autoridad — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.1.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-17 · <b>fecha_aprobacion</b>: 2026-07-17 · <b>autor</b>: Fable (CTO, AURA Labs) · <b>responsable</b>: Fable · <b>prioridad</b>: P0</div>
+<h1 id="11-constitucion-del-proyecto-roles-y-autoridad">1.1 — Constitución del Proyecto, Roles y Autoridad</h1>
+<blockquote>
+<p><strong>Estado:</strong> Aprobado (CEO, 2026-07-17) · <strong>Prioridad:</strong> P0 · <strong>Responsable:</strong> Fable</p>
+</blockquote>
+<h2 id="resumen-ejecutivo">Resumen ejecutivo</h2>
+<p>Constitución de AURA Labs: la Bible es la fuente única de verdad; jerarquía normativa con las actas del CEO en la cima; roles y límites del CEO y los 4 agentes IA con matriz RACI; proceso de enmienda; niveles y estados documentales; y criterio de cierre de la Bible v1.0 (mínimo del acta D7 + desarrollos del CTO aprobados).</p>
+<h2 id="1-proposito">1. Propósito</h2>
+<p>Este capítulo es la constitución de AURA Labs: define qué es la Project Bible, quién tiene autoridad sobre qué, cómo se resuelven los conflictos entre documentos, cómo se enmienda esta misma constitución y cuándo la Bible v1.0 se declara terminada. Todo otro documento del proyecto está subordinado a este, con la única excepción de las actas del CEO (sección 3).</p>
+<h2 id="2-que-es-la-bible-y-que-no-es">2. Qué es la Bible — y qué no es</h2>
+<p>La <strong>AURA Project Bible</strong> es la fuente oficial y única de verdad del proyecto AURA. Toda decisión de producto, arquitectura, seguridad o ingeniería debe estar alineada con ella. Si la realidad y la Bible divergen, una de dos: se corrige la realidad o se enmienda la Bible — nunca se convive con la divergencia.</p>
+<p><strong>La Bible es:</strong> el registro vivo de las decisiones vigentes y su porqué; el contrato entre el CEO y el equipo de agentes IA; el criterio de aceptación de todo trabajo futuro.</p>
+<p><strong>La Bible no es:</strong> un archivo histórico de ideas descartadas (eso vive en actas y ADRs supersedidos), un manual de usuario, ni un sustituto del código — cuando exista código, este implementa lo que la Bible diseña.</p>
+<p><strong>Regla de oro:</strong> <em>la Bible cambia antes que el código.</em> Ninguna arquitectura se modifica sin actualizar primero la documentación mediante el proceso de ADRs (capítulo 1.2).</p>
+<h2 id="3-jerarquia-normativa">3. Jerarquía normativa</h2>
+<p>En caso de conflicto entre documentos, prevalece el de mayor rango:</p>
+<ol>
+<li><strong>Actas y brief fundacional del CEO</strong> (<code>decisiones/</code>) — vinculantes y supremos.</li>
+<li><strong>Esta constitución</strong> (capítulo 1.1).</li>
+<li><strong>ADRs en estado <code>accepted</code></strong> (<code>adr/</code>).</li>
+<li><strong>Capítulos de la Bible en estado <code>Aprobado</code></strong>.</li>
+<li><strong>Guías, plantillas y anexos aprobados.</strong></li>
+<li><strong>Borradores y capítulos en revisión</strong> — sin valor normativo pleno (ver regla 4 de la sección 3.2).</li>
+</ol>
+<h3 id="31-documentos-normativos-y-artefactos-operativos">3.1 Documentos normativos y artefactos operativos</h3>
+<ul>
+<li><strong>Documentos normativos</strong> (actas, constitución, ADRs, capítulos, guías): contienen reglas y decisiones; siguen el ciclo de estados de la sección 6 y solo el CEO los aprueba.</li>
+<li><strong>Artefactos operativos</strong> (<code>INDICE.md</code>, <code>CHANGELOG.md</code>, glosario, catálogos, correcciones de formato): no crean reglas — solo reflejan lo ya decidido en documentos normativos. Los mantienen Haiku y Sonnet y los valida Fable, <strong>sin gate del CEO</strong>. Si un artefacto operativo contradice un documento normativo, prevalece el normativo y el operativo se corrige.</li>
+</ul>
+<h3 id="32-reglas-de-resolucion-de-conflictos">3.2 Reglas de resolución de conflictos</h3>
+<ol>
+<li>Entre documentos de distinto rango, prevalece el de mayor rango.</li>
+<li>A igual rango, prevalece el de <strong>fecha de aprobación del CEO</strong> más reciente; a igual fecha, decide el CEO.</li>
+<li>Quien detecte un conflicto lo corrige <strong>antes de cerrar la sesión de trabajo</strong> en que se detectó, o lo registra como pendiente visible para el siguiente gate.</li>
+<li><strong>Entre borradores</strong> (sin valor normativo): Fable decide provisionalmente, deja constancia en el borrador afectado y somete el conflicto al CEO en el gate correspondiente. Mientras un capítulo no esté aprobado, la base de trabajo de los agentes son las actas del CEO y los capítulos ya aprobados.</li>
+<li><strong>Acta → ADR:</strong> cuando una decisión de acta se formaliza como ADR <code>accepted</code>, el ADR pasa a ser la fuente vigente y el acta queda como registro histórico, salvo indicación contraria del CEO.</li>
+<li>El silencio o la ausencia de objeción <strong>no</strong> constituye aprobación: solo la aprobación explícita del CEO cambia el estado de un documento normativo.</li>
+</ol>
+<h2 id="4-roles-y-autoridad">4. Roles y autoridad</h2>
+<p>Las definiciones de roles provienen del <a href="../../decisiones/2026-07-16-brief-fundacional.html">Brief Fundacional del CEO (2026-07-16)</a>, de rango 1. Las precisiones marcadas con † son desarrollos del CTO que se vuelven exigibles al aprobarse este capítulo.</p>
+<table>
+<thead>
+<tr>
+<th>Rol</th>
+<th>Titular</th>
+<th>Mandato</th>
+<th>Límites</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>CEO / Product Owner / Director</strong></td>
+<td>Mauricio</td>
+<td>Define visión, prioridades y alcance; única autoridad de aprobación final; puede anular cualquier veto técnico de forma explícita y por escrito</td>
+<td>Su autoridad de aprobación no es delegable a ningún agente</td>
+</tr>
+<tr>
+<td><strong>CTO · Chief AI Officer</strong></td>
+<td>Fable (IA)</td>
+<td>Arquitectura, estándares, planeación, razonamiento profundo, descomposición de problemas, coordinación de agentes; veto técnico suspensivo†</td>
+<td>No aprueba su propio trabajo; no escribe código de producción de AURA (diagramas, pseudocodigo, ejemplos ilustrativos y tooling documental <strong>no</strong> constituyen código a efectos de esta regla†)</td>
+</tr>
+<tr>
+<td><strong>Chief Software Architect</strong></td>
+<td>Opus (IA)</td>
+<td>Los capítulos que el índice le asigna; otros problemas extremadamente complejos <strong>solo con autorización previa de Fable registrada por escrito</strong>†</td>
+<td>No se usa para trabajo asignado a otros roles sin esa autorización</td>
+</tr>
+<tr>
+<td><strong>Engineering Manager</strong></td>
+<td>Sonnet (IA)</td>
+<td>Redacción técnica de capítulos; futura implementación, pruebas y refactorización</td>
+<td>No aprueba capítulos; no toma decisiones de arquitectura sin ADR</td>
+</tr>
+<tr>
+<td><strong>Software Assistant</strong></td>
+<td>Haiku (IA)</td>
+<td>Artefactos operativos y tareas repetitivas</td>
+<td>No modifica contenido normativo</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Veto técnico del CTO†:</strong> suspende una <strong>propuesta técnica</strong> hasta que el CEO decida con ambas posiciones por escrito. No aplica contra instrucciones directas del CEO: en ese caso se convierte en objeción escrita que acompaña la ejecución. Toda anulación de veto queda registrada en acta.</p>
+<h3 id="41-matriz-raci">4.1 Matriz RACI</h3>
+<table>
+<thead>
+<tr>
+<th>Decisión / Artefacto</th>
+<th>CEO</th>
+<th>Fable</th>
+<th>Opus</th>
+<th>Sonnet</th>
+<th>Haiku</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Visión, alcance, prioridades</td>
+<td><strong>A</strong></td>
+<td>R</td>
+<td>C</td>
+<td>C</td>
+<td>I</td>
+</tr>
+<tr>
+<td>Arquitectura y ADRs</td>
+<td><strong>A</strong></td>
+<td>R¹</td>
+<td>C¹</td>
+<td>C</td>
+<td>I</td>
+</tr>
+<tr>
+<td>Redacción de capítulos</td>
+<td><strong>A</strong></td>
+<td>C²</td>
+<td>R²</td>
+<td>R²</td>
+<td>I</td>
+</tr>
+<tr>
+<td>Artefactos operativos</td>
+<td>I</td>
+<td><strong>A</strong></td>
+<td>—</td>
+<td>C</td>
+<td>R</td>
+</tr>
+</tbody>
+</table>
+<p>¹ En los capítulos que el índice asigna a Opus, R = Opus y Fable = C.
+² R = el redactor que el índice asigna a cada capítulo (Sonnet por defecto). Fable actúa como revisor pre-gate, salvo cuando es el redactor: en ese caso revisa Sonnet.</p>
+<p>La autoridad sobre <strong>emergencias del futuro sistema en operación</strong> (kill switch) se definirá en el capítulo 5.3; por defecto, toda emergencia escala de inmediato al CEO.</p>
+<h3 id="42-reparto-de-redaccion">4.2 Reparto de redacción</h3>
+<p>Para distribuir la carga de redacción y evitar cuellos de botella: el <strong>Responsable</strong> de un capítulo diseña su estructura, decide su contenido y firma su calidad; la <strong>redacción inicial</strong> la ejecuta Sonnet salvo en los capítulos asignados a Opus o redactados por Fable. Todo capítulo pasa por revisión de un agente distinto del redactor antes del gate. Ningún agente aprueba su propio trabajo normativo.</p>
+<h3 id="43-escalamiento">4.3 Escalamiento</h3>
+<p>Cadena: <strong>Haiku → Sonnet → Fable → CEO.</strong> Todo escalamiento al CEO pasa por Fable, quien adjunta por escrito la posición de Opus cuando difiera de la suya; en desacuerdos arquitectónicos entre Fable y Opus, decide el CEO con ambas posiciones.</p>
+<p><strong>Formato de 4 niveles (acta D3):</strong> cuando una alternativa técnica llega a decisión del CEO (gate o ADR), se presenta en 4 niveles — Económica, Balanceada, Profesional, Enterprise. Los desacuerdos internos entre agentes se resuelven en la cadena de escalamiento <strong>sin</strong> ese formato.</p>
+<h3 id="44-gates-pendientes">4.4 Gates pendientes</h3>
+<p>Mientras un gate espera respuesta del CEO, los agentes pueden avanzar borradores de capítulos siguientes marcándolos en su frontmatter como <code>condicionado-a: "&lt;capítulo pendiente&gt;"</code>. Si el gate resulta en cambios, los borradores condicionados se actualizan antes de su propio gate. Un gate pendiente <strong>jamás</strong> autoriza a un agente a aprobar en nombre del CEO.</p>
+<h2 id="5-proceso-de-enmienda-constitucional">5. Proceso de enmienda constitucional</h2>
+<p>Modificar este capítulo exige: (1) propuesta escrita con motivación y texto nuevo, (2) análisis de impacto sobre la jerarquía normativa y los capítulos dependientes, (3) aprobación explícita del CEO, (4) incremento de versión y registro en historial y CHANGELOG.</p>
+<p><strong>Relación con las actas:</strong> un acta del CEO (rango 1) puede contradecir esta constitución; en tal caso el acta <strong>prevalece de inmediato</strong> y obliga a tramitar la enmienda correspondiente antes de cerrar la sesión de trabajo en que se registró, o como pendiente visible del siguiente gate. Ningún documento de rango inferior (3-6) puede contradecir esta constitución mientras esté vigente.</p>
+<h2 id="6-niveles-de-capitulo-y-estados-documentales">6. Niveles de capítulo y estados documentales</h2>
+<p><strong>Niveles:</strong> <em>Completo</em> (plantilla íntegra: objetivo, contenido, decisiones, diagramas cuando apliquen, riesgos) o <em>Stub aprobado</em> (máximo 2 páginas: objetivo, decisiones clave, qué falta y cuándo se completará). En la v1.0, los capítulos P2/P3 no pueden exceder el nivel stub.</p>
+<p><strong>Estados y autoridad por transición:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Transición</th>
+<th>Autoridad</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>No iniciado</code> → <code>Borrador</code></td>
+<td>El redactor asignado</td>
+</tr>
+<tr>
+<td><code>Borrador</code> → <code>En revisión</code></td>
+<td>El Responsable del capítulo</td>
+</tr>
+<tr>
+<td><code>En revisión</code> → <code>Aprobado</code></td>
+<td><strong>Solo el CEO</strong></td>
+</tr>
+<tr>
+<td>cualquiera → <code>Obsoleto</code></td>
+<td>Solo mediante el ADR o la enmienda que supersede al documento</td>
+</tr>
+</tbody>
+</table>
+<p>El detalle operativo (plantillas, checklist de calidad, Definition of Done) se desarrolla en el capítulo 1.4.</p>
+<h2 id="7-criterio-de-cierre-de-la-bible-v10">7. Criterio de cierre de la Bible v1.0</h2>
+<p>El <strong>acta D7 (2026-07-17, rango 1) fija el mínimo vinculante</strong>: no se escribirá una sola línea de código hasta que P0 esté aprobado · P1 esté aprobado · la arquitectura esté validada · los riesgos estén identificados · el roadmap esté aprobado · los ADRs principales estén documentados.</p>
+<p>Esta constitución <strong>desarrolla</strong> ese mínimo con las siguientes precisiones del CTO, que se vuelven exigibles al aprobarse este capítulo:</p>
+<ol>
+<li><em>"P0 y P1 aprobados"</em> = los 5 capítulos P0 y los 28 P1 en estado <code>Aprobado</code>; los 3 stubs (7.4, 5.6, 7.5) aprobados a nivel stub.</li>
+<li><em>"Arquitectura validada"</em> = vistas C4 (3.2) revisadas y consistentes con los requisitos (2.5).</li>
+<li><em>"Riesgos identificados"</em> = registro de riesgos poblado y aceptado por el CEO (5.1 + riesgos por capítulo).</li>
+<li><em>"Roadmap aprobado"</em> = capítulo 2.2 con hitos M1-M3 y releases post-MVP.</li>
+<li><em>"ADRs principales"</em> (interpretación del CTO, trazable a D1, D3, D4 y D8; el CEO puede ampliarla o reducirla): ADR-0001 local-first, ADR de stack (3.6), ADR de sitio documental (1.4), ADR de autonomía inicial (5.3).</li>
+<li><strong>Condición adicional propuesta por el CTO:</strong> walking skeleton definido (capítulo 7.3) como puente verificable hacia la implementación.</li>
+</ol>
+<p>Cumplido el criterio, el CEO declara la <strong>Bible v1.0.0</strong> y autoriza la fase de implementación.</p>
+<h2 id="decisiones-tomadas">Decisiones tomadas</h2>
+<ul>
+<li>Jerarquía normativa de 6 rangos con reglas de resolución de conflictos (§3).</li>
+<li>Distinción documentos normativos / artefactos operativos (§3.1).</li>
+<li>Roles, RACI, veto técnico suspensivo, regla verificable de uso de Opus y gates pendientes (§4).</li>
+<li>Criterio de cierre de la v1.0 (§7). Origen: actas D1-D10 y brief fundacional.</li>
+</ul>
+<h3 id="decisiones-aplicables-adrs">Decisiones aplicables (ADRs)</h3>
+<ul>
+<li>Ninguna: los cambios a este capítulo siguen exclusivamente el proceso de enmienda (§5; 1.2 §3.4).</li>
+</ul>
+<h2 id="riesgos">Riesgos</h2>
+<ul>
+<li>CEO como única autoridad de aprobación (mitigado: gates pendientes §4.4).</li>
+<li>Deriva documentación-realidad si la disciplina de ADRs se relaja (mitigado: verificación por evento, 1.2 §8).</li>
+</ul>
+<h2 id="proximos-pasos">Próximos pasos</h2>
+<ul>
+<li>Aplicar el checklist de gates en cada capítulo; tramitar enmiendas cuando nuevas actas lo exijan.</li>
+</ul>
+<h2 id="referencias-cruzadas">Referencias cruzadas</h2>
+<ul>
+<li><a href="../../decisiones/2026-07-16-brief-fundacional.html">Brief Fundacional del CEO — 2026-07-16</a></li>
+<li><a href="../../decisiones/2026-07-17-acta-decisiones-fundacionales.html">Acta de Decisiones Fundacionales — 2026-07-17</a></li>
+<li><a href="../../INDICE.html">Índice maestro</a></li>
+<li>Capítulo 1.2 — Sistema de ADRs (define el instrumento de cambio)</li>
+</ul>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

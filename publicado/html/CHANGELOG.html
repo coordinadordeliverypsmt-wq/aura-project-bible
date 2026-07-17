@@ -1,0 +1,84 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CHANGELOG — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="index.html">← Índice de la Bible</a></p>
+<h1 id="changelog-aura-project-bible">Changelog — AURA Project Bible</h1>
+<p>Versionado documental con <a href="https://semver.org/lang/es/">Semantic Versioning</a>. La v1.0.0 corresponderá a la Bible cerrada según el criterio del capítulo 1.1.</p>
+<h2 id="040-2026-07-17">[0.4.0] — 2026-07-17</h2>
+<h3 id="agregado">Agregado</h3>
+<ul>
+<li>Acta v1.2.0: <strong>D11</strong> (matriz de impacto obligatoria en ADRs), <strong>D12</strong> (modo de trabajo documental: archivos + PDF/HTML al aprobar, terminal solo resúmenes) y <strong>D13</strong> (estructura estándar de capítulo legible por humanos e IA).</li>
+<li><code>herramientas/publicar.py</code>: generación automática de HTML navegable y PDF de los documentos aprobados (<code>publicado/</code>).</li>
+</ul>
+<h3 id="cambiado">Cambiado</h3>
+<ul>
+<li><strong>Capítulo 1.2 APROBADO por el CEO</strong> (v1.1.0, incluye matriz D11).</li>
+<li><strong>ADR-0001 <code>accepted</code></strong> con las 2 reglas adicionales del CTO aceptadas expresamente; incorpora matriz de impacto D11.</li>
+<li>Estructura estándar D13 aplicada a los 36 capítulos (resumen ejecutivo, decisiones, riesgos, próximos pasos, referencias cruzadas); los 7 capítulos impactados por el ADR-0001 lo listan en "Decisiones aplicables".</li>
+</ul>
+<h2 id="031-2026-07-17">[0.3.1] — 2026-07-17</h2>
+<h3 id="cambiado_1">Cambiado</h3>
+<ul>
+<li>Capítulo 1.2 v0.3.0, plantilla de ADR y ADR-0001: incorporan las 20 correcciones de la segunda revisión adversarial — inmutabilidad decisional precisada, estados <code>withdrawn</code>/re-propuesta, campos <code>fecha-resolucion</code>/<code>motivo-rechazo</code>/<code>reabre</code>, regla de oro anclada a commits, regla transitoria para capítulos inexistentes, excepción de enmienda constitucional, verificación por evento, D3/D9 incorporadas al plan de formalización, y ADR-0001 separa el texto literal de la D1 de las reglas adicionales del CTO. El 1.2 pasa a "En revisión (gate del CEO)".</li>
+</ul>
+<h2 id="030-2026-07-17">[0.3.0] — 2026-07-17</h2>
+<h3 id="agregado_1">Agregado</h3>
+<ul>
+<li>Acta fundacional v1.1.0: <strong>D10 — Filosofía de Desarrollo</strong> (sistema vivo: modularidad obligatoria, sin monolitos, inteligencia desacoplada, compatibilidad hacia atrás).</li>
+<li>Capítulo 1.2 (Sistema de ADRs) en borrador: criterios de obligatoriedad, ciclo de vida, regla de oro operativa y plan de formalización de decisiones.</li>
+<li>Plantilla oficial de ADR y <strong>ADR-0001 — Arquitectura local-first estricta</strong> (<code>proposed</code>, origen acta D1).</li>
+</ul>
+<h3 id="cambiado_2">Cambiado</h3>
+<ul>
+<li><strong>Capítulo 1.1 APROBADO por el CEO</strong> (v1.0.0) — primer documento normativo aprobado de la Bible.</li>
+<li>3.1: contenido previsto incorpora la filosofía de sistema vivo (D10).</li>
+</ul>
+<h2 id="021-2026-07-17">[0.2.1] — 2026-07-17</h2>
+<h3 id="agregado_2">Agregado</h3>
+<ul>
+<li>Registro del Brief Fundacional del CEO (2026-07-16) como documento vinculante de rango 1.</li>
+</ul>
+<h3 id="cambiado_3">Cambiado</h3>
+<ul>
+<li>Capítulo 1.1 v0.3.0: incorpora las 20 correcciones de la revisión adversarial interna (2 críticos, veredicto "aprobar con correcciones"): relación actas↔constitución, clases de artefactos normativos/operativos, reglas para conflictos entre borradores, regla de gates pendientes, veto técnico precisado, regla verificable de uso de Opus, RACI corregida, autoridad por transición de estados y criterio de cierre separado en mínimo del acta D7 + desarrollos del CTO. Pasa a estado "En revisión (gate del CEO)".</li>
+</ul>
+<h2 id="020-2026-07-17">[0.2.0] — 2026-07-17</h2>
+<h3 id="agregado_3">Agregado</h3>
+<ul>
+<li>Esqueleto completo de la Bible: 7 libros, 36 capítulos con frontmatter (versión, autor, fecha, estado, prioridad, responsable, dependencias, historial).</li>
+<li>Índice maestro v0.2 (post-decisiones del CEO): 5 P0 · 28 P1 · 1 P2 · 2 P3 · 3 stubs.</li>
+<li>Acta de decisiones fundacionales del CEO (2026-07-17) — vinculante.</li>
+<li>Estructura de ADRs (plantilla pendiente del capítulo 1.2).</li>
+<li>Primer borrador del capítulo 1.1 (Constitución del Proyecto, Roles y Autoridad) — en revisión.</li>
+</ul>
+<h3 id="cambiado-respecto-al-indice-v01-propuesto">Cambiado (respecto al índice v0.1 propuesto)</h3>
+<ul>
+<li>Capítulos 4.4, 6.2, 6.3, 6.4 y 6.5 suben a P1 completo (el MVP del CEO incluye avatar, aprendizaje continuo, voz, hogar y control del computador).</li>
+<li>6.4 incorpora el Centro único de notificaciones.</li>
+<li>3.1 incorpora el principio obligatorio Human-in-the-Loop, la postura local-first estricta y el requisito multi-usuario-ready.</li>
+<li>5.3 incorpora las listas verde/roja de autonomía decididas por el CEO.</li>
+<li>1.5 y 3.6 incorporan el formato de alternativas en 4 niveles (Económica/Balanceada/Profesional/Enterprise).</li>
+</ul>
+<h2 id="010-2026-07-16">[0.1.0] — 2026-07-16</h2>
+<h3 id="agregado_4">Agregado</h3>
+<ul>
+<li>Propuesta de índice sintetizada por panel multi-agente (5 arquitectos + 2 críticos adversariales), presentada al CEO.</li>
+</ul>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

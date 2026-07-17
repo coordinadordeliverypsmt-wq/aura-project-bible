@@ -4,10 +4,11 @@ Instrumento definido en el [capítulo 1.2](../docs/libro-01-gobernanza-y-metodo/
 
 | Nº | Título | Estado | Origen | Impacta |
 |---|---|---|---|---|
-| [ADR-0001](0001-postura-local-first-estricta.md) | Postura local-first estricta | proposed | Acta D1 | 3.1, 3.2, 3.5, 4.1, 4.2, 5.5, 7.4 |
+| [ADR-0001](0001-postura-local-first-estricta.md) | Postura local-first estricta | **accepted** (2026-07-17) | Acta D1 | 3.1, 3.2, 3.5, 4.1, 4.2, 5.5, 7.4 |
 
 ## Registro de verificaciones de consistencia ADR↔capítulos
 
 | Fecha | Evento | Resultado |
 |---|---|---|
 | 2026-07-17 | Pre-gate 1.2 | ADR-0001: los 7 capítulos en `impacta` están `No iniciado` → pendientes de creación (regla transitoria 1.2 §7); ninguno desactualizado |
+| 2026-07-17 | Aceptación ADR-0001 | Sin capítulos desactualizados; los 7 impactados nacerán conformes (sus esqueletos ya lo listan en "Decisiones aplicables") |

@@ -9,7 +9,7 @@
 *La constitución del proyecto: quién decide, cómo se documenta y cómo vive la Bible misma.*
 
 - **1.1 Constitución del Proyecto, Roles y Autoridad** `[P0 · Fable · Aprobado]` — Definir la Bible como fuente única de verdad, los roles del equipo y el criterio de terminación de la propia v1.0.
-- **1.2 Sistema de ADRs y Gestión del Cambio** `[P0 · Fable · No iniciado]` — Instituir el mecanismo formal para registrar y superseder toda decisión arquitectónica.
+- **1.2 Sistema de ADRs y Gestión del Cambio** `[P0 · Fable · Aprobado]` — Instituir el mecanismo formal para registrar y superseder toda decisión arquitectónica.
 - **1.3 Proceso de Trabajo por Fases** `[P1 · Fable · No iniciado]` — Definir el método de fases cerradas con gates de aprobación del CEO.
 - **1.4 Estándares Documentales, Plantillas y Ciclo de Vida de la Bible** `[P1 · Sonnet (mantiene Haiku) · No iniciado]` — Fijar la calidad mínima verificable de todo documento y cómo se versiona la Bible durante años.
 - **1.5 Restricciones de Negocio: Presupuesto, Legal y Licencias** `[P1 · Fable (inventario: Haiku) · No iniciado]` — Hacer visibles las restricciones económicas y legales que condicionan decisiones P0/P1.

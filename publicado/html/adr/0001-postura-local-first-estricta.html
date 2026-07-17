@@ -1,0 +1,87 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Postura local-first estricta — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="../index.html">← Índice de la Bible</a></p><div class="meta"><b>estado</b>: accepted · <b>fecha</b>: 2026-07-17 · <b>fecha-resolucion</b>: 2026-07-17</div>
+<h1 id="adr-0001-postura-local-first-estricta">ADR-0001 — Postura local-first estricta</h1>
+<h2 id="contexto">Contexto</h2>
+<p>AURA custodiará el activo más sensible imaginable: la memoria de años de la vida de su usuario, más credenciales, documentos, fotografías y control de dispositivos físicos. El CEO fijó la privacidad como pilar fundamental (acta D1). Una postura de datos ambigua contaminaría cada decisión posterior de memoria, orquestación y despliegue.</p>
+<p><em>Formato de alternativas:</em> los 4 niveles del acta D3 <strong>no aplican</strong> — la decisión de fondo ya fue tomada por el CEO en acta; este ADR solo la formaliza. (Criterio reutilizable por ADR-0003 y ADR-0004, en la misma situación.)</p>
+<h2 id="alternativas-consideradas">Alternativas consideradas</h2>
+<h3 id="a-nube-primero">A. Nube-primero</h3>
+<p>Pros: operación simple, sin hardware propio. Contras: datos íntimos en infraestructura de terceros. <strong>Descartada por el proponente:</strong> contradice frontalmente la D1.</p>
+<h3 id="b-hibrido-permisivo-datos-en-nube-salvo-lo-marcado-sensible">B. Híbrido permisivo (datos en nube salvo lo marcado sensible)</h3>
+<p>Pros: flexible. Contras: la clasificación por excepción falla hacia el lado inseguro; carga cognitiva permanente. <strong>Descartada por el proponente:</strong> incompatible con la D1.</p>
+<h3 id="c-local-first-estricto-formaliza-la-d1">C. Local-first estricto (formaliza la D1)</h3>
+<p>Pros: soberanía total por defecto; la excepción requiere autorización explícita. Contras: exige hardware local dimensionado y disciplina de sincronización.</p>
+<h2 id="decision">Decisión</h2>
+<p><strong>Contenido de la D1 (texto del CEO):</strong></p>
+<ol>
+<li>La información personal, memoria, documentos, fotografías, credenciales, dispositivos, automatizaciones y datos privados permanecen <strong>siempre bajo control del usuario</strong>.</li>
+<li>La nube solo puede usarse para: (a) consultar modelos de IA, (b) sincronizar información <strong>previamente autorizada</strong>, (c) respaldos <strong>cifrados</strong>, (d) servicios externos <strong>explícitamente aprobados</strong>.</li>
+<li>Toda comunicación va cifrada, sin excepción.</li>
+</ol>
+<p><strong>Reglas adicionales propuestas por el CTO</strong> (no formaban parte de la D1; <strong>aceptadas expresamente por el CEO en el gate del 2026-07-17</strong>):</p>
+<ol>
+<li>"Bajo control del usuario" se interpreta por defecto como hardware propio del usuario; el uso de infraestructura remota controlada por el usuario requiere aprobación explícita.</li>
+<li>Todo dato enviado a un modelo de IA externo pasa antes por minimización (reglas de detalle en el capítulo 5.5).</li>
+</ol>
+<h2 id="consecuencias">Consecuencias</h2>
+<p><strong>Positivas:</strong> soberanía de datos; superficie de exfiltración mínima; cumplimiento de la D1 verificable por diseño.
+<strong>Negativas:</strong> inversión en hardware local (dimensionamiento en 3.2/7.4); complejidad de sincronización selectiva; los modelos frontier se usan vía API — con minimización previa si se acepta la regla 5.
+<strong>Riesgos aceptados:</strong> el hardware local es un punto de falla físico — se mitiga con la estrategia de respaldos cifrados (3.5, 7.4).</p>
+<h2 id="impacto-acta-d11">Impacto (acta D11)</h2>
+<table>
+<thead>
+<tr>
+<th>Dimensión</th>
+<th>Impacto</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Seguridad</td>
+<td>Positivo alto: superficie de exfiltración mínima; los secretos nunca salen del perímetro</td>
+</tr>
+<tr>
+<td>Privacidad</td>
+<td>Positivo máximo: materializa el pilar D1 por diseño</td>
+</tr>
+<tr>
+<td>Modularidad</td>
+<td>Neutro: exige que cada plugin declare su frontera local/nube (refuerza contratos, D10)</td>
+</tr>
+<tr>
+<td>Costo</td>
+<td>Negativo controlado: hardware local propio + APIs de inferencia; sin costos de almacenamiento en nube</td>
+</tr>
+<tr>
+<td>Experiencia de usuario</td>
+<td>Mixto: latencia local excelente; funciones frontier dependen de conectividad y minimización</td>
+</tr>
+<tr>
+<td>Mantenimiento futuro</td>
+<td>Negativo controlado: el usuario opera su propio hardware (respaldos y actualizaciones en 7.4)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="trazabilidad">Trazabilidad</h2>
+<p>Capítulos a actualizar: 3.1 (principio estructural), 3.2 (topología), 3.5 (residencia y cifrado), 4.1 (memoria local), 4.2 (enrutamiento por privacidad), 5.5 (fronteras y minimización), 7.4 (respaldos) — todos <code>No iniciado</code>: aplica la regla transitoria de 1.2 §7 (nacen conformes al ADR).
+Módulos de código afectados (futuro): —</p>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

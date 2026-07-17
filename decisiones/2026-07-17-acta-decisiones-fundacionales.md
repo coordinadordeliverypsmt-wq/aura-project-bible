@@ -1,6 +1,6 @@
 ---
 documento: "Acta de Decisiones Fundacionales"
-version: 1.1.0
+version: 1.2.0
 autor: "Mauricio (CEO) — registrada por Fable (CTO)"
 fecha: 2026-07-17
 estado: "Vinculante"
@@ -11,6 +11,9 @@ historial:
   - version: 1.1.0
     fecha: 2026-07-17
     cambio: "D10 — Filosofía de Desarrollo (sistema vivo) agregada por el CEO al aprobar el capítulo 1.1"
+  - version: 1.2.0
+    fecha: 2026-07-17
+    cambio: "D11 (matriz de impacto en ADRs), D12 (modo de trabajo documental) y D13 (estructura estándar de capítulo) agregadas por el CEO al aprobar el capítulo 1.2"
 ---
 
 # Acta de Decisiones Fundacionales — 2026-07-17
@@ -75,6 +78,21 @@ Principio arquitectónico obligatorio para todo el proyecto: **toda acción crí
 
 AURA nunca será un producto terminado: será un **sistema vivo**. Cada módulo deberá diseñarse para evolucionar. Toda nueva capacidad deberá poder incorporarse **sin rediseñar el sistema**. AURA deberá aprender continuamente. Su arquitectura deberá permitir crecer durante muchos años. La **compatibilidad hacia atrás** será una prioridad. La **modularidad** será obligatoria. **No existirán componentes monolíticos. Toda inteligencia será desacoplada.**
 *Impacta: 3.1 (principios), 2.1 (visión), 3.3/3.4 (contratos y plugins con compatibilidad hacia atrás), 4.4 (aprendizaje continuo).*
+
+## D11 — Matriz de impacto obligatoria en ADRs (2026-07-17, tercer gate)
+
+Todo ADR deberá indicar explícitamente su impacto en: **seguridad, privacidad, modularidad, costo, experiencia de usuario y mantenimiento futuro**.
+*Impacta: 1.2 §5, plantilla de ADR, todos los ADRs futuros (y ADR-0001 por actualización autorizada).*
+
+## D12 — Modo de trabajo documental (2026-07-17, tercer gate)
+
+No se imprimirán documentos extensos en la terminal. Todo documento se guarda como archivo Markdown en el repositorio. La terminal muestra únicamente: resumen ejecutivo, cambios realizados, archivos modificados y preguntas que requieren aprobación. Cuando un documento quede **aprobado** se generan automáticamente su versión Markdown, PDF y HTML navegable, y se actualiza el índice de la Bible. Toda la documentación debe poder abrirse desde VS Code.
+*Impacta: 1.4, flujo de trabajo del CTO y agentes, `herramientas/publicar.py`.*
+
+## D13 — Estructura estándar de capítulo, legible por humanos e IA (2026-07-17, tercer gate)
+
+Toda la documentación deberá ser legible tanto por humanos como por IA. Cada capítulo incluirá automáticamente: **Resumen ejecutivo · Objetivo · Decisiones tomadas · Riesgos · Dependencias · Próximos pasos · Referencias cruzadas**. Todo se mantiene sincronizado automáticamente.
+*Impacta: 1.4 (plantillas), los 36 capítulos de la Bible.*
 
 ## Autorización
 

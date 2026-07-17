@@ -2,6 +2,17 @@
 
 Versionado documental con [Semantic Versioning](https://semver.org/lang/es/). La v1.0.0 corresponderá a la Bible cerrada según el criterio del capítulo 1.1.
 
+## [0.4.0] — 2026-07-17
+
+### Agregado
+- Acta v1.2.0: **D11** (matriz de impacto obligatoria en ADRs), **D12** (modo de trabajo documental: archivos + PDF/HTML al aprobar, terminal solo resúmenes) y **D13** (estructura estándar de capítulo legible por humanos e IA).
+- `herramientas/publicar.py`: generación automática de HTML navegable y PDF de los documentos aprobados (`publicado/`).
+
+### Cambiado
+- **Capítulo 1.2 APROBADO por el CEO** (v1.1.0, incluye matriz D11).
+- **ADR-0001 `accepted`** con las 2 reglas adicionales del CTO aceptadas expresamente; incorpora matriz de impacto D11.
+- Estructura estándar D13 aplicada a los 36 capítulos (resumen ejecutivo, decisiones, riesgos, próximos pasos, referencias cruzadas); los 7 capítulos impactados por el ADR-0001 lo listan en "Decisiones aplicables".
+
 ## [0.3.1] — 2026-07-17
 
 ### Cambiado

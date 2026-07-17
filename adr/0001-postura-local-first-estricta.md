@@ -1,9 +1,9 @@
 ---
 numero: ADR-0001
 titulo: "Postura local-first estricta"
-estado: proposed
+estado: accepted
 fecha: 2026-07-17
-fecha-resolucion: "—"
+fecha-resolucion: 2026-07-17
 decisor: "Mauricio (CEO)"
 proponente: "Fable (CTO)"
 impacta: ["3.1", "3.2", "3.5", "4.1", "4.2", "5.5", "7.4"]
@@ -41,7 +41,7 @@ Pros: soberanía total por defecto; la excepción requiere autorización explíc
 2. La nube solo puede usarse para: (a) consultar modelos de IA, (b) sincronizar información **previamente autorizada**, (c) respaldos **cifrados**, (d) servicios externos **explícitamente aprobados**.
 3. Toda comunicación va cifrada, sin excepción.
 
-**Reglas adicionales propuestas por el CTO** (no forman parte de la D1; el CEO las acepta o rechaza junto con este ADR):
+**Reglas adicionales propuestas por el CTO** (no formaban parte de la D1; **aceptadas expresamente por el CEO en el gate del 2026-07-17**):
 
 4. "Bajo control del usuario" se interpreta por defecto como hardware propio del usuario; el uso de infraestructura remota controlada por el usuario requiere aprobación explícita.
 5. Todo dato enviado a un modelo de IA externo pasa antes por minimización (reglas de detalle en el capítulo 5.5).
@@ -51,6 +51,17 @@ Pros: soberanía total por defecto; la excepción requiere autorización explíc
 **Positivas:** soberanía de datos; superficie de exfiltración mínima; cumplimiento de la D1 verificable por diseño.
 **Negativas:** inversión en hardware local (dimensionamiento en 3.2/7.4); complejidad de sincronización selectiva; los modelos frontier se usan vía API — con minimización previa si se acepta la regla 5.
 **Riesgos aceptados:** el hardware local es un punto de falla físico — se mitiga con la estrategia de respaldos cifrados (3.5, 7.4).
+
+## Impacto (acta D11)
+
+| Dimensión | Impacto |
+|---|---|
+| Seguridad | Positivo alto: superficie de exfiltración mínima; los secretos nunca salen del perímetro |
+| Privacidad | Positivo máximo: materializa el pilar D1 por diseño |
+| Modularidad | Neutro: exige que cada plugin declare su frontera local/nube (refuerza contratos, D10) |
+| Costo | Negativo controlado: hardware local propio + APIs de inferencia; sin costos de almacenamiento en nube |
+| Experiencia de usuario | Mixto: latencia local excelente; funciones frontier dependen de conectividad y minimización |
+| Mantenimiento futuro | Negativo controlado: el usuario opera su propio hardware (respaldos y actualizaciones en 7.4) |
 
 ## Trazabilidad
 

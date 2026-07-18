@@ -1,10 +1,13 @@
 """Event Bus in-process (contrato de 3.3). Implementa el mismo contrato que NATS (ADR-0006):
 at-least-once conceptual, orden por trace_id, correlación. Swap a NATS = cambiar esta clase, no los consumidores."""
+
 from __future__ import annotations
-import asyncio
+
 from collections import defaultdict
-from .contracts import Event, EventBus
+
 from . import observability as obs
+from .contracts import Event
+
 
 class InProcessEventBus:
     def __init__(self):

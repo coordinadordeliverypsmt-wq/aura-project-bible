@@ -35,24 +35,27 @@ Pros: reemplazo y ampliación sin afectar el ecosistema; longevidad. Contras: co
 **Contenido de las actas D10 y D14 (texto del CEO):**
 
 1. Ningún módulo podrá diseñarse con límites artificiales.
-2. Todo componente deberá poder ser reemplazado o ampliado sin afectar el resto del ecosistema.
-3. La arquitectura deberá soportar crecimiento durante muchos años; la compatibilidad hacia atrás es prioridad.
-4. Ninguna integración será exclusiva de un proveedor.
-5. Todo componente expondrá interfaces estables (API o contratos) para permitir reemplazos futuros.
-6. La modularidad es obligatoria; no existirán componentes monolíticos; toda inteligencia será desacoplada.
-7. Siempre que sea posible se privilegiará la modularidad sobre la simplicidad inmediata.
+2. Cada módulo deberá diseñarse para evolucionar (D10).
+3. Toda nueva capacidad deberá poder incorporarse sin rediseñar el sistema (D10).
+4. Todo componente deberá poder ser reemplazado o ampliado sin afectar el resto del ecosistema.
+5. La arquitectura deberá soportar crecimiento durante muchos años; la compatibilidad hacia atrás es prioridad.
+6. AURA deberá aprender continuamente (D10) — materialización en el capítulo 4.4.
+7. Ninguna integración será exclusiva de un proveedor.
+8. Todo componente expondrá interfaces estables (API o contratos) para permitir reemplazos futuros.
+9. La modularidad es obligatoria; no existirán componentes monolíticos; toda inteligencia será desacoplada.
+10. Siempre que sea posible se privilegiará la modularidad sobre la simplicidad inmediata.
 
-**Reglas operativas propuestas por el CTO** (no formaban parte de las actas; **aceptadas expresamente por el CEO en el gate del 2026-07-17**):
+**Reglas operativas propuestas por el CTO** (no formaban parte de las actas; **aceptadas expresamente por el CEO** el 2026-07-17; enmendadas el mismo día por el paquete P-002 autorizado — ver Historial de enmiendas):
 
-8. "Interfaz estable" significa: contrato versionado con SemVer; toda ruptura de compatibilidad exige ADR (1.2 §3.2) y un periodo de convivencia con la versión anterior.
-9. "Límite artificial" significa: toda restricción no impuesta por una decisión del CEO, una ley física/técnica o un ADR — los supuestos de capacidad (nº de usuarios, dispositivos, proveedores) se declaran en el contrato, nunca se cablean en el código.
-10. **Salvaguarda anti-sobre-ingeniería:** la modularidad prevalece "siempre que sea posible" (D14), pero cada módulo o capa nueva debe justificarse por necesidad presente o por una evolución prevista **documentada**; la modularidad especulativa sin caso de evolución identificado se rechaza en revisión. Un equipo de 1 humano no puede mantener módulos que no defienden su existencia.
+11. "Interfaz estable" significa: contrato versionado con SemVer; toda ruptura de compatibilidad exige ADR (1.2 §3.2) y un periodo de convivencia con la versión anterior. **Política de deprecación (P-002.11):** la convivencia TERMINA — máximo **2 versiones mayores vivas por contrato** como default; la ventana de convivencia tiene término fijado en el ADR de ruptura, y el retiro de la versión antigua es criterio de cierre de ese ADR. Los valores exactos se afinan en 3.3/3.4.
+12. "Límite artificial" significa: toda restricción no impuesta por una decisión del CEO, una ley física/técnica o un ADR — los supuestos de capacidad (nº de usuarios, dispositivos, proveedores) se declaran en el contrato, nunca se cablean en el código.
+13. **Salvaguarda anti-sobre-ingeniería (versión fuerte, aprobada por el CEO en el gate D2):** esta regla **acota deliberadamente la D14.10** — "posible" se interpreta como "sostenible por el equipo real de mantenimiento". Cada módulo o capa nueva debe justificarse por necesidad presente o por una evolución prevista **documentada**; la modularidad especulativa sin caso de evolución identificado **se rechaza en revisión**. El CEO ratificó (gate D2) que AURA priorizará siempre soluciones sostenibles de largo plazo aunque impliquen mayor esfuerzo inicial; la sostenibilidad, no la velocidad, es el criterio de desempate.
 
 ## Consecuencias
 
 **Positivas:** el sistema sobrevive al reemplazo de cualquier proveedor, protocolo o módulo; las 9 capacidades del MVP nacen sobre contratos que R2-R4 amplían sin romper.
 **Negativas:** costo inicial mayor por contrato; disciplina de versionado permanente.
-**Riesgos aceptados:** sobre-modularización (mitigada por la regla 10); latencia de contratos frente a prototipado rápido.
+**Riesgos aceptados:** sobre-modularización (mitigada por la regla 13); latencia de contratos frente a prototipado rápido.
 
 ## Impacto (acta D11)
 
@@ -69,3 +72,11 @@ Pros: reemplazo y ampliación sin afectar el ecosistema; longevidad. Contras: co
 
 Capítulos a actualizar: 3.1 (principios), 3.3 (contratos de eventos/API), 3.4 (contrato de plugins), 3.6 (criterios de stack), 6.1 (contrato de adaptador) — 3.1 en borrador nace conforme; el resto `No iniciado` (regla transitoria 1.2 §7).
 Módulos de código afectados (futuro): —
+
+## Historial de enmiendas
+
+Este ADR fue aceptado y, el mismo día, enmendado por el paquete **P-002** que el CEO autorizó expresamente (excepción al principio de inmutabilidad de 1.2 §2, ejercida por la autoridad de rango 1):
+
+- **P-002.9 (errata):** el bloque "texto del CEO" omitía tres cláusulas de la D10 (módulos diseñados para evolucionar; capacidades nuevas sin rediseñar; aprendizaje continuo). Se incorporaron — el ADR es la fuente vigente (1.2 §3.2.5) y esos mandatos del CEO no podían quedar fuera.
+- **P-002.10 (regla 13, versión fuerte):** la salvaguarda anti-sobre-ingeniería declara frontalmente que acota la D14.10.
+- **P-002.11 (regla 11):** política de deprecación — la convivencia de versiones termina.

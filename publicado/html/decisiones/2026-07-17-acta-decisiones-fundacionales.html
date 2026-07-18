@@ -17,7 +17,7 @@ font-family:Helvetica,Arial,sans-serif}
 .meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
 font-size:.85em;font-family:Helvetica,Arial,sans-serif}
 </style></head><body>
-<p><a href="../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.3.0 · <b>estado</b>: Vinculante · <b>fecha</b>: 2026-07-17 · <b>autor</b>: Mauricio (CEO) — registrada por Fable (CTO)</div>
+<p><a href="../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.4.0 · <b>estado</b>: Vinculante · <b>fecha</b>: 2026-07-17 · <b>autor</b>: Mauricio (CEO) — registrada por Fable (CTO)</div>
 <h1 id="acta-de-decisiones-fundacionales-2026-07-17">Acta de Decisiones Fundacionales — 2026-07-17</h1>
 <p>El CEO ratificó el método de trabajo y el índice de la Bible (v0.1 → v0.2), y resolvió las 8 decisiones abiertas. Estas decisiones son <strong>vinculantes</strong>: prevalecen sobre cualquier capítulo y se formalizarán como ADRs una vez aprobado el capítulo 1.2.</p>
 <h2 id="d1-postura-de-datos-local-first-estricto">D1 — Postura de datos: local-first estricto</h2>
@@ -70,6 +70,12 @@ memoria permanente · conversación natural por voz · avatar interactivo · con
 <h2 id="d15-deber-de-disenso-y-alerta-de-arquitectura-del-cto-2026-07-17-cuarto-gate">D15 — Deber de disenso y Alerta de Arquitectura del CTO (2026-07-17, cuarto gate)</h2>
 <p>Además de redactar la Bible, el CTO actúa como tal: si detecta que una decisión — incluida una del CEO — puede comprometer el proyecto dentro de 5 o 10 años, debe <strong>detener el proceso y levantar una ALERTA DE ARQUITECTURA</strong>. No debe continuar simplemente porque el CEO no lo haya mencionado. Debe cuestionar las decisiones del CEO cuando exista una alternativa claramente superior. El CEO prefiere una discusión técnica hoy que una mala arquitectura mañana.
 <em>Impacta: 1.1 (enmienda al rol del CTO), flujo de todos los gates.</em></p>
+<h2 id="d16-estructura-obligatoria-de-la-alerta-de-arquitectura-2026-07-17-gate-d2">D16 — Estructura obligatoria de la Alerta de Arquitectura (2026-07-17, gate D2)</h2>
+<p>Toda ALERTA DE ARQUITECTURA deberá incluir obligatoriamente, en este orden: <strong>(1) Problema detectado · (2) Riesgos si se ignora · (3) Tres alternativas posibles · (4) Recomendación del CTO · (5) Impacto en costo · (6) Impacto en rendimiento · (7) Impacto en seguridad · (8) Impacto en mantenibilidad · (9) Impacto a 10 años · (10) Compatibilidad con versiones anteriores.</strong> El CEO no quiere solo una recomendación: quiere entender el porqué técnico antes de aprobar.
+<em>Impacta: 1.1 §4, plantilla <code>decisiones/alertas/plantilla-alerta.md</code>, toda alerta futura.</em></p>
+<h2 id="d17-ceo-executive-summary-por-fase-2026-07-17-gate-d2">D17 — CEO Executive Summary por fase (2026-07-17, gate D2)</h2>
+<p>Al finalizar cada fase importante, el CTO generará un documento <strong>CEO Executive Summary</strong> que sintetice, en lenguaje ejecutivo, lo decidido, lo construido, los riesgos vivos y lo pendiente de la fase.
+<em>Impacta: 1.3 (cierre de fase), <code>resumenes-ejecutivos/</code>.</em></p>
 <h2 id="autorizacion">Autorización</h2>
 <p>El CEO autoriza el inicio de la <strong>Fase D1</strong>: redacción de los 5 capítulos P0 (1.1 → 1.2 → 2.1 → 2.2 → 3.1), cada uno con gate de aprobación del CEO.</p>
 <div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>

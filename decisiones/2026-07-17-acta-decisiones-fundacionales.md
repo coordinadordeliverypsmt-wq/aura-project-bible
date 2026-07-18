@@ -1,6 +1,6 @@
 ---
 documento: "Acta de Decisiones Fundacionales"
-version: 1.3.0
+version: 1.4.0
 autor: "Mauricio (CEO) — registrada por Fable (CTO)"
 fecha: 2026-07-17
 estado: "Vinculante"
@@ -17,6 +17,9 @@ historial:
   - version: 1.3.0
     fecha: 2026-07-17
     cambio: "D14 (Evolución Permanente → ADR-0004) y D15 (deber de disenso y Alerta de Arquitectura del CTO) agregadas por el CEO al aprobar el capítulo 2.2"
+  - version: 1.4.0
+    fecha: 2026-07-17
+    cambio: "D16 (estructura obligatoria de 10 secciones de la Alerta de Arquitectura) y D17 (CEO Executive Summary por fase) agregadas por el CEO en el gate de la Fase D2"
 ---
 
 # Acta de Decisiones Fundacionales — 2026-07-17
@@ -106,6 +109,16 @@ Todo componente desarrollado para AURA deberá cumplir el principio de **Evoluci
 
 Además de redactar la Bible, el CTO actúa como tal: si detecta que una decisión — incluida una del CEO — puede comprometer el proyecto dentro de 5 o 10 años, debe **detener el proceso y levantar una ALERTA DE ARQUITECTURA**. No debe continuar simplemente porque el CEO no lo haya mencionado. Debe cuestionar las decisiones del CEO cuando exista una alternativa claramente superior. El CEO prefiere una discusión técnica hoy que una mala arquitectura mañana.
 *Impacta: 1.1 (enmienda al rol del CTO), flujo de todos los gates.*
+
+## D16 — Estructura obligatoria de la Alerta de Arquitectura (2026-07-17, gate D2)
+
+Toda ALERTA DE ARQUITECTURA deberá incluir obligatoriamente, en este orden: **(1) Problema detectado · (2) Riesgos si se ignora · (3) Tres alternativas posibles · (4) Recomendación del CTO · (5) Impacto en costo · (6) Impacto en rendimiento · (7) Impacto en seguridad · (8) Impacto en mantenibilidad · (9) Impacto a 10 años · (10) Compatibilidad con versiones anteriores.** El CEO no quiere solo una recomendación: quiere entender el porqué técnico antes de aprobar.
+*Impacta: 1.1 §4, plantilla `decisiones/alertas/plantilla-alerta.md`, toda alerta futura.*
+
+## D17 — CEO Executive Summary por fase (2026-07-17, gate D2)
+
+Al finalizar cada fase importante, el CTO generará un documento **CEO Executive Summary** que sintetice, en lenguaje ejecutivo, lo decidido, lo construido, los riesgos vivos y lo pendiente de la fase.
+*Impacta: 1.3 (cierre de fase), `resumenes-ejecutivos/`.*
 
 ## Autorización
 

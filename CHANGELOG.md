@@ -2,6 +2,18 @@
 
 Versionado documental con [Semantic Versioning](https://semver.org/lang/es/). La v1.0.0 corresponderá a la Bible cerrada según el criterio del capítulo 1.1.
 
+## [0.8.0] — 2026-07-17
+
+### Agregado
+- Acta v1.4.0: **D16** (estructura obligatoria de 10 secciones para toda Alerta de Arquitectura) y **D17** (CEO Executive Summary por fase).
+- **CEO Executive Summary de la Fase D1** (`resumenes-ejecutivos/`).
+- Plantilla obligatoria de Alerta de Arquitectura (`decisiones/alertas/plantilla-alerta.md`).
+
+### Cambiado
+- **ALERTA-001 RESUELTA — Opción A** aprobada por el CEO: Event Bus como plano de control; streams de voz/video/pantalla/sensores por canales dedicados de baja latencia; correlación por Correlation ID / Trace ID.
+- **Paquete P-002 aplicado (11 correcciones, autorizado por el CEO):** capítulo 3.1 v1.1.0 (bus como plano de control, memoria fuera del núcleo, jerarquía de principios acotada, P-ARQ-7 sujeta a ADR-0001, P-ARQ-8 fiel a D7, checklist +3 preguntas) y **ADR-0004 enmendado** (3 cláusulas D10 restituidas, regla 13 versión fuerte, regla 11 con política de deprecación).
+- Constitución 1.1 v1.3.0: enmienda D16 (estructura de alertas).
+
 ## [0.7.1] — 2026-07-17
 
 ### Agregado

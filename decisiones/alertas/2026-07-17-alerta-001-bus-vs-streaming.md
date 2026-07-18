@@ -1,6 +1,6 @@
 ---
 documento: "ALERTA DE ARQUITECTURA 001"
-estado: "Activa — pendiente de gate extraordinario del CEO"
+estado: "RESUELTA — Opción A aprobada por el CEO (2026-07-17)"
 fecha: 2026-07-17
 emisor: "Fable (CTO), conforme al acta D15 y la constitución 1.1 §4"
 riesgo-horizonte: "MVP (hito M1) y 5-10 años"
@@ -21,6 +21,12 @@ El capítulo 3.1 (Aprobado) declara que percepciones, decisiones y acciones viaj
 
 *Los 4 niveles del acta D3 no aplican: no es una compra/selección de tecnología sino una corrección estructural; las opciones son de diseño.*
 
-## Resolución propuesta
+## Resolución (CEO, 2026-07-17)
 
-Aprobar la **Opción A** en gate extraordinario → se aplica como corrección al 3.1 §2.1 dentro del paquete P-002, y 3.3/6.2/6.5 nacen con el alcance corregido.
+**Aprobada la Opción A.** Ratificado por el CEO:
+- El **Event Bus será el plano de control** del sistema.
+- Toda **acción discreta** (eventos, comandos, auditoría, memoria, decisiones, permisos y automatizaciones) viaja por el Event Bus.
+- Los flujos de **voz, video, pantalla, sensores y demás transmisiones en tiempo real** usan **canales dedicados de baja latencia**.
+- Ambos mundos permanecen correlacionados mediante **Correlation ID / Trace ID** para conservar la trazabilidad completa (D9, P-ARQ-7).
+
+Aplicado en el 3.1 §2.1 (v1.1.0, paquete P-002); 3.3, 6.2 y 6.5 nacen con este alcance. Trabajo desbloqueado.

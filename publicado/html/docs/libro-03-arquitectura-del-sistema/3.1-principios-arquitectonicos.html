@@ -17,36 +17,38 @@ font-family:Helvetica,Arial,sans-serif}
 .meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
 font-size:.85em;font-family:Helvetica,Arial,sans-serif}
 </style></head><body>
-<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.0.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-17 · <b>fecha_aprobacion</b>: 2026-07-17 · <b>autor</b>: Fable (CTO, AURA Labs) · <b>responsable</b>: Fable · <b>prioridad</b>: P0</div>
+<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.1.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-17 · <b>fecha_aprobacion</b>: 2026-07-17 · <b>autor</b>: Fable (CTO, AURA Labs) · <b>responsable</b>: Fable · <b>prioridad</b>: P0</div>
 <h1 id="31-principios-arquitectonicos-y-decisiones-estructurales">3.1 — Principios Arquitectónicos y Decisiones Estructurales</h1>
 <blockquote>
-<p><strong>Estado:</strong> Aprobado (CEO, 2026-07-17) · <strong>Prioridad:</strong> P0 · <strong>Responsable:</strong> Fable</p>
+<p><strong>Estado:</strong> Aprobado (CEO, 2026-07-17; rev. v1.1.0 P-002 + ALERTA-001) · <strong>Prioridad:</strong> P0 · <strong>Responsable:</strong> Fable</p>
 </blockquote>
 <p><em>Convención † (1.1 §4): desarrollo del CTO que se vuelve exigible con la aprobación de este capítulo — no es texto de actas del CEO.</em></p>
 <h2 id="resumen-ejecutivo">Resumen ejecutivo</h2>
-<p>Ocho principios arquitectónicos — encabezados por Human-in-the-Loop, local-first estricto y Evolución Permanente — que toda decisión técnica futura debe respetar, con su origen normativo explícito. Se declara el estilo estructural propuesto (núcleo event-driven + plugins por contrato†), los cuatro trade-offs fundamentales ya resueltos por actas, el checklist de evaluación arquitectónica que todo ADR debe superar, y el mecanismo de Alerta de Arquitectura (D15). Con este capítulo se cierra el conjunto P0 de la Bible.</p>
+<p>Ocho principios arquitectónicos — encabezados por Human-in-the-Loop, local-first estricto y Evolución Permanente — que toda decisión técnica futura debe respetar, con su origen normativo explícito. Se declara el estilo estructural (Event Bus como <strong>plano de control</strong> + streams en tiempo real por <strong>canales dedicados</strong>, resolución de la ALERTA-001), tres trade-offs resueltos por actas más uno propuesto por el CTO†, el checklist de evaluación arquitectónica que todo ADR debe superar, y el mecanismo de Alerta de Arquitectura (D15/D16). Con este capítulo se cierra el conjunto P0 de la Bible.</p>
 <h2 id="objetivo">Objetivo</h2>
 <p>Fijar los principios innegociables y las decisiones estructurales de referencia para que ningún diseño posterior (Libros III-VII) deba re-litigar lo ya decidido, y para que toda excepción sea visible vía ADR.</p>
 <h2 id="1-los-ocho-principios-p-arq">1. Los ocho principios (P-ARQ)</h2>
-<p>Cada principio cita su fuente de rango 1. El orden es jerárquico: ante conflicto entre principios, prevalece el de número menor†.</p>
+<p>Cada principio cita su fuente de rango 1. <strong>Regla de precedencia (P-002.3†):</strong> ante conflicto entre principios, <strong>P-ARQ-1 (seguridad/HITL) y P-ARQ-2 (privacidad) prevalecen siempre</strong>; todo otro conflicto entre principios se resuelve por ADR documentando ambas lecturas. Esta jerarquía <strong>nunca ordena actas de rango 1 entre sí</strong> — ese conflicto escala al CEO (1.1 §3.2).</p>
 <p><strong>P-ARQ-1 — Human-in-the-Loop (acta D9).</strong> Toda acción crítica es auditable, explicable y reversible. Nunca se sacrifica seguridad por comodidad. Toda decisión de AURA debe poder explicarse. Materialización: 5.3 (permisos y kill switch), 4.3 (trazabilidad de agentes).</p>
 <p><strong>P-ARQ-2 — Local-first estricto (acta D1, ADR-0001).</strong> Los datos del usuario viven bajo su control; la nube solo para los 4 usos autorizados; todo cifrado; minimización antes de todo modelo externo. Materialización: 3.2, 3.5, 5.5.</p>
-<p><strong>P-ARQ-3 — Evolución Permanente (actas D10 y D14, ADR-0004).</strong> Sin límites artificiales; todo reemplazable y ampliable sin afectar el ecosistema; interfaces estables versionadas; compatibilidad hacia atrás; modularidad obligatoria, sin monolitos, inteligencia desacoplada — con la salvaguarda anti-sobre-ingeniería de la regla 10 del ADR-0004. Materialización: 3.3, 3.4, 6.1.</p>
-<p><strong>P-ARQ-4 — Ningún proveedor único (brief fundacional).</strong> Toda dependencia externa (modelo de IA, protocolo, servicio) pasa por una capa de abstracción con al menos una alternativa viable identificada†. Materialización: 4.2, 6.1.</p>
+<p><strong>P-ARQ-3 — Evolución Permanente (actas D10 y D14, ADR-0004).</strong> Sin límites artificiales; todo reemplazable y ampliable sin afectar el ecosistema; interfaces estables (actas) — versionadas según la regla 11 del ADR-0004†; compatibilidad hacia atrás; modularidad obligatoria, sin monolitos, inteligencia desacoplada — con la salvaguarda anti-sobre-ingeniería de la regla 13 del ADR-0004. Materialización: 3.3, 3.4, 6.1.</p>
+<p><strong>P-ARQ-4 — Ningún proveedor único (brief fundacional).</strong> Toda dependencia externa (modelo de IA, protocolo, servicio) pasa por una capa de abstracción con al menos una <strong>alternativa viable</strong> identificada. Definición operativa†: "viable" = cubre las capacidades del contrato que AURA realmente usa, con licencia y costo evaluados y una prueba de humo documentada en el ADR de adopción. Valida el revisor pre-gate del ADR (1.1 §4.2); se re-verifica por evento (release mayor, o cambio de licencia/precio del proveedor primario). Materialización: 4.2, 6.1.</p>
 <p><strong>P-ARQ-5 — Multi-usuario-ready desde el día uno (acta D5).</strong> Identidad, memoria, permisos, automatizaciones y preferencias se modelan por usuario aunque la v1 opere solo con Mauricio. Materialización: 3.5, 5.4, 4.1.</p>
 <p><strong>P-ARQ-6 — La mejor herramienta para cada problema (brief fundacional).</strong> Las selecciones tecnológicas se deciden por ADR con alternativas en los 4 niveles del acta D3. Materialización: 3.6.</p>
-<p><strong>P-ARQ-7 — Observabilidad desde el nacimiento†.</strong> Un sistema event-driven distribuido sin trazas es indepurable, y P-ARQ-1 exige explicabilidad: todo componente emite logs estructurados y todo evento es trazable de la percepción a la acción. Materialización: 3.3, 7.4.</p>
-<p><strong>P-ARQ-8 — Diseñar antes de programar (brief fundacional, acta D7).</strong> Ningún código sin capítulo y ADRs aplicables aprobados; el walking skeleton (7.3) es la primera validación en código de esta arquitectura.</p>
+<p><strong>P-ARQ-7 — Observabilidad desde el nacimiento†.</strong> Un sistema event-driven distribuido sin trazas es indepurable, y P-ARQ-1 exige explicabilidad: todo componente emite logs estructurados y todo evento es trazable de la percepción a la acción. <strong>Los logs, trazas y telemetría son datos del usuario</strong> y quedan íntegramente sujetos al ADR-0001 (residencia local, cifrado, minimización antes de cualquier servicio externo); su retención y redacción se definen en 7.4/5.5. Materialización: 3.3, 7.4.</p>
+<p><strong>P-ARQ-8 — Diseñar antes de programar (brief fundacional, acta D7).</strong> Fiel a la D7: <strong>no se escribe una sola línea de código hasta que la Bible v1.0 cumpla su criterio de cierre</strong> (1.1 §7). Desarrollo del CTO para la fase de implementación†: una vez abierta esa fase, ningún módulo se codifica sin su capítulo y ADRs aplicables aprobados. El walking skeleton (7.3) es la primera validación en código de esta arquitectura.</p>
 <h2 id="2-decisiones-estructurales-de-referencia">2. Decisiones estructurales de referencia</h2>
-<h3 id="21-estilo-estructural-nucleo-event-driven-plugins-por-contrato">2.1 Estilo estructural: núcleo event-driven + plugins por contrato†</h3>
-<p>Propuesta del CTO sujeta a este gate (los contratos formales se especifican en 3.3 y 3.4):</p>
+<h3 id="21-estilo-estructural-event-bus-plano-de-control-canales-dedicados-streams">2.1 Estilo estructural: Event Bus (plano de control) + canales dedicados (streams)</h3>
+<p>Resolución de la <strong>ALERTA-001</strong>, aprobada por el CEO (Opción A, 2026-07-17). Los contratos formales se especifican en 3.3 (bus) y 3.4/6.1 (plugins):</p>
 <ul>
-<li><strong>Bus de eventos como sistema nervioso:</strong> percepciones, decisiones y acciones viajan como eventos versionados. Por qué: desacoplamiento total entre módulos (P-ARQ-3), trazabilidad nativa de cada decisión (P-ARQ-1/7) e integración natural de dispositivos heterogéneos.</li>
+<li><strong>El Event Bus es el plano de control.</strong> Toda <strong>acción discreta</strong> — eventos, comandos, auditoría, operaciones de memoria, decisiones, permisos y automatizaciones — viaja por el bus como evento versionado, trazable de la percepción a la acción (P-ARQ-1/7).</li>
+<li><strong>Los streams en tiempo real van por canales dedicados de baja latencia.</strong> Voz, video, pantalla, sensores y demás transmisiones continuas <strong>no</strong> atraviesan el bus (destruiría el presupuesto de latencia conversacional del hito M1). Ambos mundos permanecen <strong>correlacionados mediante Correlation ID / Trace ID</strong>, de modo que cada stream se ancla a los eventos de control (inicio, fin, decisiones) y se preserva la trazabilidad completa (D9). El <strong>presupuesto de latencia conversacional</strong> es requisito explícito: lo cuantifica 2.5 y lo respeta 3.3.</li>
 <li><strong>Toda capacidad es un plugin sobre contrato estable:</strong> proveedores de IA, domótica, control de sistemas, voz y avatar se conectan mediante el contrato de 3.4/6.1 — nada se conecta directo al núcleo.</li>
-<li><strong>El núcleo cognitivo es pequeño†:</strong> orquestación, memoria, permisos y bus. Todo lo demás es reemplazable sin tocar el núcleo.</li>
-<li>Alternativas descartadas por el proponente: monolito modular (contradice D14.6) y microservicios plenos (sobre-ingeniería para un despliegue doméstico — regla 10 del ADR-0004; el estilo elegido permite evolucionar hacia servicios si un módulo lo justifica).</li>
+<li><strong>El núcleo es mínimo (P-002.2†).</strong> Criterio de pertenencia: solo lo que <strong>no puede fallar de forma aislada sin detener todo el sistema</strong> — orquestación, permisos y el bus. <strong>La memoria NO está en el núcleo:</strong> es un módulo con contrato versionado (interfaz en el núcleo, implementación reemplazable fuera), coherente con D10 ("toda inteligencia será desacoplada"); sus operaciones viajan por el bus como acciones discretas.</li>
+<li>Alternativas descartadas por el proponente: monolito (contradice D10 — "no existirán componentes monolíticos"; ADR-0004 punto 9) y microservicios plenos (sobre-ingeniería para un despliegue doméstico — regla 13 del ADR-0004; el estilo elegido permite evolucionar hacia servicios si un módulo lo justifica).</li>
 </ul>
-<h3 id="22-trade-offs-fundamentales-resueltos-por-actas">2.2 Trade-offs fundamentales (resueltos por actas)</h3>
+<h3 id="22-trade-offs-fundamentales">2.2 Trade-offs fundamentales</h3>
+<p>Los trade-offs 1-3 son resoluciones ya tomadas en actas (referencia); el 4 es propuesta del CTO†.</p>
 <table>
 <thead>
 <tr>
@@ -58,8 +60,8 @@ font-size:.85em;font-family:Helvetica,Arial,sans-serif}
 <tbody>
 <tr>
 <td>Modularidad vs simplicidad inmediata</td>
-<td>Modularidad, con justificación documentada por módulo</td>
-<td>D14 + ADR-0004 regla 10</td>
+<td>Modularidad (D14.10); con justificación documentada por módulo†</td>
+<td>D14 + ADR-0004 regla 13†</td>
 </tr>
 <tr>
 <td>Seguridad vs autonomía/comodidad</td>
@@ -72,54 +74,57 @@ font-size:.85em;font-family:Helvetica,Arial,sans-serif}
 <td>D1, ADR-0001</td>
 </tr>
 <tr>
-<td>Latencia vs calidad cognitiva</td>
-<td>La conversación manda: enrutar por presupuesto de latencia y escalar a modelos profundos cuando el contexto lo permite†</td>
-<td>derivado de D2 (M1 primero)</td>
+<td>Latencia vs calidad cognitiva†</td>
+<td>La conversación manda: enrutar por presupuesto de latencia y escalar a modelos profundos cuando el contexto lo permite</td>
+<td>derivado de D2 (M1 primero)†</td>
 </tr>
 </tbody>
 </table>
 <h3 id="23-checklist-de-evaluacion-arquitectonica">2.3 Checklist de evaluación arquitectónica†</h3>
-<p>Todo ADR y todo diseño de capítulo técnico debe responder, además de la matriz D11:</p>
+<p>Todo ADR y todo diseño de capítulo técnico debe responder, además de la matriz D11, con <strong>una línea de evidencia por respuesta</strong>; lo verifica el revisor pre-gate (1.1 §4.2), no el autor:</p>
 <ol>
 <li>¿Respeta la frontera local-first (ADR-0001)?</li>
-<li>¿Rompe compatibilidad hacia atrás? (si sí: ADR obligatorio + convivencia de versiones, ADR-0004 regla 8)</li>
-<li>¿Introduce dependencia de un proveedor único? (si sí: rechazado o con plan de salida explícito)</li>
-<li>¿Expone contrato versionado? ¿Declara sus supuestos de capacidad en el contrato? (ADR-0004 regla 9)</li>
+<li>¿Rompe compatibilidad hacia atrás? (si sí: ADR obligatorio + convivencia de versiones con término, ADR-0004 regla 11)</li>
+<li>¿Introduce dependencia de un proveedor único? (si sí: rechazado o con plan de salida explícito y alternativa viable, P-ARQ-4)</li>
+<li>¿Expone contrato versionado? ¿Declara sus supuestos de capacidad en el contrato? (ADR-0004 regla 12)</li>
 <li>¿Sus acciones son auditables y explicables (P-ARQ-1) y sus eventos trazables (P-ARQ-7)?</li>
 <li>¿Funciona con N usuarios aunque opere con 1 (P-ARQ-5)?</li>
-<li>¿El módulo nuevo defiende su existencia (ADR-0004 regla 10)?</li>
+<li>¿El módulo nuevo defiende su existencia (ADR-0004 regla 13)?</li>
+<li><strong>¿Declara y respeta su presupuesto de latencia cuando toca el camino conversacional?</strong> (§2.1, 2.5)</li>
+<li><strong>¿Sus acciones con efectos físicos son idempotentes o tienen deduplicación?</strong> (→ 3.3)</li>
+<li><strong>¿Define su comportamiento degradado sin conectividad?</strong> (P-ARQ-2, roadmap R2)</li>
 </ol>
-<h3 id="24-alerta-de-arquitectura-acta-d15">2.4 Alerta de Arquitectura (acta D15)</h3>
-<p>Mecanismo vigente por enmienda constitucional (1.1 §4): riesgo a 5-10 años detectado → alerta en <code>decisiones/alertas/</code> → trabajo afectado suspendido → gate extraordinario del CEO. Este capítulo lo incorpora como parte del proceso arquitectónico normal, no como excepción.</p>
+<h3 id="24-alerta-de-arquitectura-actas-d15-y-d16">2.4 Alerta de Arquitectura (actas D15 y D16)</h3>
+<p>Vigente por el <strong>acta D15</strong> (rango 1) y desarrollado por la enmienda constitucional 1.1 §4 (v1.2.0, ratificada por el CEO el 2026-07-17): riesgo a 5-10 años detectado → alerta con la <strong>estructura obligatoria de 10 secciones del acta D16</strong> en <code>decisiones/alertas/</code> → trabajo afectado suspendido → gate extraordinario del CEO. La ALERTA-001 (bus vs streams) fue la primera aplicación de este mecanismo. Es parte del proceso arquitectónico normal, no una excepción.</p>
 <h2 id="decisiones-tomadas">Decisiones tomadas</h2>
 <ul>
-<li>Ocho principios P-ARQ con fuente normativa: P-ARQ-1/2/3/5/6/8 derivan de actas y brief; <strong>P-ARQ-4 (formulación operativa), P-ARQ-7 y la jerarquía de principios son desarrollos del CTO†</strong>.</li>
-<li>Estilo estructural núcleo event-driven + plugins†, trade-off de latencia† y checklist† — sujetos a este gate.</li>
-<li>Trade-offs 1-3 de §2.2: resoluciones ya tomadas en actas (referencia, no decisión nueva).</li>
+<li>Ocho principios P-ARQ con fuente normativa: P-ARQ-1/2/3/5/6/8 derivan de actas y brief; <strong>P-ARQ-4 (definición operativa), P-ARQ-7 y la regla de precedencia son desarrollos del CTO†</strong>.</li>
+<li>Estilo estructural: Event Bus plano de control + canales dedicados (resolución ALERTA-001, aprobada por el CEO); núcleo mínimo con la memoria fuera de él†.</li>
+<li>Trade-offs 1-3: resoluciones ya tomadas en actas (referencia); trade-off 4 y checklist: desarrollos del CTO†.</li>
 </ul>
 <h3 id="decisiones-aplicables-adrs">Decisiones aplicables (ADRs)</h3>
 <ul>
-<li><a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001 — Postura local-first estricta</a> (<code>accepted</code>) — este capítulo nace conforme (P-ARQ-2).</li>
-<li><a href="../../adr/0004-evolucion-permanente.html">ADR-0004 — Evolución Permanente</a> (<code>accepted</code>, 2026-07-17) — P-ARQ-3 y §2.1 nacen conformes a él.</li>
+<li><a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001 — Postura local-first estricta</a> (<code>accepted</code>) — este capítulo nace conforme (P-ARQ-2, P-ARQ-7).</li>
+<li><a href="../../adr/0004-evolucion-permanente.html">ADR-0004 — Evolución Permanente</a> (<code>accepted</code>, enmendado por P-002) — P-ARQ-3 y §2.1 nacen conformes a él.</li>
 </ul>
 <h2 id="riesgos">Riesgos</h2>
 <ul>
-<li><strong>Sobre-modularización</strong> en un equipo de 1 humano (mitigación: ADR-0004 regla 10 y checklist punto 7).</li>
-<li><strong>Complejidad operativa del event-driven</strong> (garantías de entrega, idempotencia) — se resuelve en 3.3; el riesgo de eventos con efectos físicos duplicados es de los más serios del proyecto.</li>
-<li><strong>Jerarquía de principios simplista:</strong> conflictos reales pueden requerir matices que el orden numérico no captura — la válvula es el ADR y, en riesgo estructural, la Alerta D15.</li>
+<li><strong>Sobre-modularización</strong> en un equipo de 1 humano (mitigación: ADR-0004 regla 13 y checklist punto 7).</li>
+<li><strong>Complejidad operativa del event-driven</strong> (garantías de entrega, idempotencia) — se resuelve en 3.3; el riesgo de eventos con efectos físicos duplicados es de los más serios del proyecto (checklist punto 9).</li>
+<li><strong>Correlación bus↔streams:</strong> un Correlation ID perdido rompe la trazabilidad de una interacción de voz; 3.3 debe garantizar la correlación como invariante.</li>
 </ul>
 <h2 id="dependencias">Dependencias</h2>
 <p>Capítulos: 2.1 (Aprobado v1.1.0), 2.2 (Aprobado). Alimenta: todo el Libro III, 4.x, 5.x, 6.1.</p>
 <h2 id="proximos-pasos">Próximos pasos</h2>
 <ul>
-<li>Revisión adversarial → gate del CEO (cierra el conjunto P0) junto con la aceptación del ADR-0004 y la ratificación de la enmienda 1.1 v1.2.0.</li>
-<li>Tras la aprobación: inicia la Fase D2 (28 capítulos P1 según el grafo de dependencias del índice).</li>
+<li>Con el conjunto P0 cerrado, la Fase D2 redacta los 28 capítulos P1 según las prioridades del índice.</li>
+<li>3.3 (bus + correlación + idempotencia), 6.2 (voz) y 6.5 (avatar) nacen con la arquitectura de la ALERTA-001 (Opción A).</li>
 </ul>
 <h2 id="referencias-cruzadas">Referencias cruzadas</h2>
 <ul>
-<li><a href="../../decisiones/2026-07-17-acta-decisiones-fundacionales.html">Acta de Decisiones (D1-D15)</a> · <a href="../../decisiones/2026-07-16-brief-fundacional.html">Brief Fundacional</a></li>
-<li><a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001</a> · <a href="../../adr/0004-evolucion-permanente.html">ADR-0004</a> · <a href="../libro-01-gobernanza-y-metodo/1.1-constitucion-roles-autoridad.html">Constitución 1.1 (v1.2.0)</a></li>
-<li><a href="../libro-02-vision-y-producto/2.2-alcance-mvp-roadmap-releases.html">2.2 Alcance del MVP</a> · Capítulos destino: 3.2-3.6, 4.2, 5.3, 6.1</li>
+<li><a href="../../decisiones/2026-07-17-acta-decisiones-fundacionales.html">Acta de Decisiones (D1-D17)</a> · <a href="../../decisiones/2026-07-16-brief-fundacional.html">Brief Fundacional</a></li>
+<li><a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001</a> · <a href="../../adr/0004-evolucion-permanente.html">ADR-0004</a> · <a href="../../decisiones/alertas/2026-07-17-alerta-001-bus-vs-streaming.html">ALERTA-001</a></li>
+<li><a href="../libro-01-gobernanza-y-metodo/1.1-constitucion-roles-autoridad.html">Constitución 1.1 (v1.3.0)</a> · <a href="../libro-02-vision-y-producto/2.2-alcance-mvp-roadmap-releases.html">2.2 Alcance del MVP</a> · Capítulos destino: 3.2-3.6, 4.2, 5.3, 6.1</li>
 </ul>
 <div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
 </body></html>

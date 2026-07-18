@@ -2,6 +2,11 @@
 
 Versionado documental con [Semantic Versioning](https://semver.org/lang/es/). La v1.0.0 corresponderá a la Bible cerrada según el criterio del capítulo 1.1.
 
+## [0.16.0] — 2026-07-18 — LIBRO V COMPLETO
+
+### Hito
+- **Libro V (Seguridad y Confianza) COMPLETO:** 5.1 Modelo de Amenazas, 5.2 Seguridad de IA (prompt injection), 5.3 Autonomía Gobernada (HITL/kill switch), 5.4 Identidad y Secretos, 5.5 Privacidad y Soberanía + 5.6 stub. Aprobados por el CTO (delegación D22). 26 capítulos aprobados + 1 stub.
+
 ## [0.15.0] — 2026-07-18 — LIBRO IV COMPLETO
 
 ### Hito

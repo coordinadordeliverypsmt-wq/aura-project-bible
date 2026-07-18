@@ -45,12 +45,12 @@
 ## Libro V — Seguridad y Confianza
 *Que un sistema con acceso total a tu vida digital sea tu mayor protección, no tu mayor riesgo.*
 
-- **5.1 Modelo de Amenazas** `[P1 · Fable · No iniciado]` — Identificar sistemáticamente qué puede salir mal con una IA que ve todo y puede actuar.
-- **5.2 Seguridad de IA: Prompt Injection, Sandboxing y Memoria** `[P1 · Opus · No iniciado]` — Que contenido malicioso externo jamás escale a acciones reales sobre el hogar o los sistemas.
-- **5.3 Autonomía Gobernada: Permisos, Human-in-the-Loop y Kill Switch** `[P1 · Fable · No iniciado]` — Materializar la política de autonomía decidida por el CEO.
-- **5.4 Identidad, Secretos y Control de Acceso** `[P1 · Sonnet · No iniciado]` — Quién puede hablar con AURA y cómo se custodian decenas de credenciales sin un punto único de fuga.
-- **5.5 Privacidad y Soberanía de Datos** `[P1 · Fable · No iniciado]` — Materializar la postura local-first estricta decidida por el CEO.
-- **5.6 Seguridad Activa del Ecosistema** ⊘ `[P3 · Sonnet · No iniciado]` — AURA como guardián proactivo de la red y dispositivos del usuario (post-MVP).
+- **5.1 Modelo de Amenazas** `[P1 · Fable · Aprobado]` — Identificar sistemáticamente qué puede salir mal con una IA que ve todo y puede actuar.
+- **5.2 Seguridad de IA: Prompt Injection, Sandboxing y Memoria** `[P1 · Opus · Aprobado]` — Que contenido malicioso externo jamás escale a acciones reales sobre el hogar o los sistemas.
+- **5.3 Autonomía Gobernada: Permisos, Human-in-the-Loop y Kill Switch** `[P1 · Fable · Aprobado]` — Materializar la política de autonomía decidida por el CEO.
+- **5.4 Identidad, Secretos y Control de Acceso** `[P1 · Sonnet · Aprobado]` — Quién puede hablar con AURA y cómo se custodian decenas de credenciales sin un punto único de fuga.
+- **5.5 Privacidad y Soberanía de Datos** `[P1 · Fable · Aprobado]` — Materializar la postura local-first estricta decidida por el CEO.
+- **5.6 Seguridad Activa del Ecosistema** ⊘ `[P3 · Sonnet · Aprobado (stub)]` — AURA como guardián proactivo de la red y dispositivos del usuario (post-MVP).
 
 ## Libro VI — Interacción e Integraciones
 *Cómo AURA percibe y actúa sobre el mundo.*

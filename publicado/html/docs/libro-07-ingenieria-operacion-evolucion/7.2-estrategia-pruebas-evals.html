@@ -1,0 +1,62 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Estrategia de Pruebas y Evals de IA — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.0.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-18 · <b>fecha_aprobacion</b>: 2026-07-18 · <b>autor</b>: Sonnet (Engineering Manager) — aprobación CTO por delegación D22 · <b>responsable</b>: Sonnet · <b>prioridad</b>: P1</div>
+<h1 id="72-estrategia-de-pruebas-y-evals-de-ia">7.2 — Estrategia de Pruebas y Evals de IA</h1>
+<blockquote>
+<p><strong>Estado:</strong> Aprobado (CTO por delegación D22, 2026-07-18) · <strong>Nivel:</strong> Completo · <strong>Responsable:</strong> Sonnet</p>
+</blockquote>
+<p><em>Convención † (1.1 §4): desarrollo del arquitecto/EM exigible con la aprobación; no es texto de actas del CEO.</em></p>
+<h2 id="resumen-ejecutivo">Resumen ejecutivo</h2>
+<p>Define cómo se verifica software clásico <strong>y</strong> el comportamiento no determinista de la IA. Especifica la pirámide de pruebas, las <strong>evals</strong> de comportamiento de LLMs y del router, las pruebas de <strong>guardrails y red teaming</strong> (5.2), la verificación de los <strong>umbrales oficiales del 2.5</strong> (latencia, memoria, anticipación, consistencia inter-modelo, HITL) y los criterios de aceptación por release. Es el instrumento que da evidencia a los gates de hito (2.2 §3.2).</p>
+<h2 id="1-piramide-de-pruebas">1. Pirámide de pruebas</h2>
+<p>Unitarias e integración para el software clásico; contratos (3.3/3.4) verificados; pruebas end-to-end de flujos (voz→acción). Idempotencia de efectos físicos (3.3 §3) probada explícitamente.</p>
+<h2 id="2-evals-de-ia">2. Evals de IA</h2>
+<p>Suites de evaluación por criterio-marco (2.5), derivadas de los escenarios (2.3): recall y no-fabricación de memoria (2.5 §5.2), enrutamiento y fallback del router (4.2), <strong>consistencia inter-modelo ≥90%</strong> (2.4 §7.4, 2.5 §5.5). LLM-as-judge + evaluación humana.</p>
+<h2 id="3-guardrails-y-red-teaming">3. Guardrails y red teaming</h2>
+<p>Pruebas adversariales (5.2 §5) que intentan romper guardrails, inducir acciones y exfiltrar datos; <strong>tolerancia cero</strong> a adulación, afecto simulado, fabricación y fuga (2.5 §5.5). HITL sobre lista roja probado con <strong>tolerancia cero a falsos negativos</strong> (2.5 §5.4).</p>
+<h2 id="4-verificacion-de-umbrales-y-aceptacion">4. Verificación de umbrales y aceptación</h2>
+<p>Cada umbral oficial (2.5 §5) tiene su prueba; el resultado, con <strong>registro automático</strong> (2.2 §3.4), es la evidencia que el CEO usa en el gate de hito y de R1. Criterios de aceptación por release.</p>
+<h2 id="decisiones-tomadas">Decisiones tomadas</h2>
+<p>Ejecución de lo previsto en el índice sobre el stack aprobado; desarrollos † aprobados por delegación D22.</p>
+<h3 id="decisiones-aplicables-adrs">Decisiones aplicables (ADRs)</h3>
+<ul>
+<li>Umbrales de <a href="../libro-02-vision-y-producto/2.5-requisitos-atributos-calidad.html">2.5</a> y guardrails de <a href="../libro-05-seguridad-y-confianza/5.2-seguridad-ia-prompt-injection.html">5.2</a>/<a href="../libro-02-vision-y-producto/2.4-personalidad-etica-limites.html">2.4</a>: objeto de las pruebas.</li>
+</ul>
+<h3 id="evaluacion-por-las-cinco-preguntas-d21">Evaluación por las cinco preguntas (D21)</h3>
+<p>(1) 10 años: evals evolucionan con el sistema. (2) Menos dependencia: pruebas propias. (3) Sustituir sin rediseñar: evals por contrato. (4) Equipo pequeño: automatización en CI. (5) Sistema vivo: cada cambio se verifica. Sin respuesta negativa → sin Alerta.</p>
+<h2 id="riesgos">Riesgos</h2>
+<ul>
+<li><strong>Umbral sin instrumentar:</strong> mitigación: registro automático (§4); es la deuda que 2.5 delegó aquí.</li>
+<li><strong>Regresión al cambiar de modelo:</strong> mitigación: eval de consistencia antes de habilitar (§2).</li>
+</ul>
+<h2 id="dependencias">Dependencias</h2>
+<p>Capítulos: <strong>7.1</strong> (estándares), <strong>2.5</strong> (umbrales). Verifica: 4.1, 4.2, 2.4, 5.2, 5.3, 6.2 y todos los criterios-marco. Alimenta: gates de hito (2.2 §3.2).</p>
+<h2 id="proximos-pasos">Próximos pasos</h2>
+<ul>
+<li>Se ejecuta en cada release; provee la evidencia del gate de hito.</li>
+</ul>
+<h2 id="referencias-cruzadas">Referencias cruzadas</h2>
+<ul>
+<li><a href="../libro-02-vision-y-producto/2.5-requisitos-atributos-calidad.html">2.5 Requisitos</a> · <a href="../libro-05-seguridad-y-confianza/5.2-seguridad-ia-prompt-injection.html">5.2 Seguridad de IA</a> · <a href="7.1-estandares-desarrollo-codigo.html">7.1 Estándares de Código</a> · <a href="../../INDICE.html">Índice maestro</a></li>
+</ul>
+<h2 id="aprobacion-del-cto-delegacion-d22">Aprobación del CTO (delegación D22)</h2>
+<p>Revisión ejecutiva conforme al acta D22: <strong>(1) Alcance</strong> — ejecuta lo previsto en el índice sobre el stack aprobado; sin capacidades nuevas. <strong>(2) Consistencia</strong> — respeta ADR-0001..0009, umbrales del 2.5 y P-ARQ. <strong>(3) Cinco preguntas (D21)</strong> — afirmativas. <strong>(4) Materia reservada</strong> — ninguna. <strong>Veredicto: APROBADO por el CTO (delegación D22), 2026-07-18.</strong></p>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

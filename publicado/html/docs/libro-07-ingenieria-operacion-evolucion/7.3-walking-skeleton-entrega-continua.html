@@ -1,0 +1,60 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Walking Skeleton y Entrega Continua — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.0.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-18 · <b>fecha_aprobacion</b>: 2026-07-18 · <b>autor</b>: Sonnet (Engineering Manager) — aprobación CTO por delegación D22 · <b>responsable</b>: Sonnet · <b>prioridad</b>: P1</div>
+<h1 id="73-walking-skeleton-y-entrega-continua">7.3 — Walking Skeleton y Entrega Continua</h1>
+<blockquote>
+<p><strong>Estado:</strong> Aprobado (CTO por delegación D22, 2026-07-18) · <strong>Nivel:</strong> Completo · <strong>Responsable:</strong> Sonnet</p>
+</blockquote>
+<p><em>Convención † (1.1 §4): desarrollo del arquitecto/EM exigible con la aprobación; no es texto de actas del CEO.</em></p>
+<h2 id="resumen-ejecutivo">Resumen ejecutivo</h2>
+<p>Define el <strong>corte mínimo de código que valida la arquitectura</strong> al cerrar la Bible — el puente documentación → implementación (criterio de cierre 1.1 §7). Especifica el walking skeleton (un flujo extremo a extremo delgado que atraviesa núcleo, bus, un plugin y la memoria), el pipeline <strong>CI mínimo</strong>, el despliegue doméstico reversible (Docker) y el rollback. Es lo primero que se construirá tras la aprobación de la auditoría.</p>
+<h2 id="1-walking-skeleton">1. Walking skeleton</h2>
+<p>El corte mínimo que ejercita la arquitectura completa de extremo a extremo: <strong>voz → STT local → orquestador → memoria → una acción por Permisos → un adaptador (p. ej. HA encender luz) → respuesta hablada</strong>, con el Event Bus (NATS), Trace ID y un registro de auditoría. No es el MVP: es la prueba de que los contratos (3.3/3.4/3.5) y el stack (ADR-0005..0009) encajan.</p>
+<h2 id="2-ci-minimo-y-despliegue">2. CI mínimo y despliegue</h2>
+<p>Pipeline CI que corre linting (7.1) y las pruebas base (7.2); despliegue doméstico con <strong>Docker</strong> reversible; entornos dev/prod locales (ADR-0001). Rollback verificado.</p>
+<h2 id="3-rol-en-el-cierre-de-la-bible">3. Rol en el cierre de la Bible</h2>
+<p>El walking skeleton es una <strong>condición de cierre de la v1.0</strong> (1.1 §7): valida que la arquitectura documentada es construible antes de comprometerse al MVP completo. Se ejecuta <strong>después</strong> de la Auditoría Técnica Integral y su aprobación por el CEO.</p>
+<h2 id="decisiones-tomadas">Decisiones tomadas</h2>
+<p>Ejecución de lo previsto en el índice sobre el stack aprobado; desarrollos † aprobados por delegación D22.</p>
+<h3 id="decisiones-aplicables-adrs">Decisiones aplicables (ADRs)</h3>
+<ul>
+<li>Todo el stack (<a href="../../adr/">ADR-0005..0009</a>) y los contratos (3.3/3.4/3.5): el walking skeleton los valida en código.</li>
+</ul>
+<h3 id="evaluacion-por-las-cinco-preguntas-d21">Evaluación por las cinco preguntas (D21)</h3>
+<p>(1) 10 años: valida la base sobre la que se crece. (2) Menos dependencia: prueba la sustituibilidad. (3) Sustituir sin rediseñar: verifica los contratos. (4) Equipo pequeño: corte mínimo. (5) Sistema vivo: primer latido del sistema. Sin respuesta negativa → sin Alerta.</p>
+<h2 id="riesgos">Riesgos</h2>
+<ul>
+<li><strong>La arquitectura no encaja en código:</strong> el walking skeleton existe precisamente para descubrirlo temprano; si falla, Alerta de Arquitectura antes del MVP.</li>
+<li><strong>Despliegue no reversible:</strong> mitigación: Docker + rollback (§2).</li>
+</ul>
+<h2 id="dependencias">Dependencias</h2>
+<p>Capítulos: <strong>7.1</strong> (estándares), <strong>3.3</strong> (bus). Valida: toda la arquitectura del Libro III y el stack. Es condición de cierre de la Bible (1.1 §7).</p>
+<h2 id="proximos-pasos">Próximos pasos</h2>
+<ul>
+<li>Se construye tras la aprobación de la Auditoría Técnica Integral por el CEO.</li>
+</ul>
+<h2 id="referencias-cruzadas">Referencias cruzadas</h2>
+<ul>
+<li><a href="../libro-01-gobernanza-y-metodo/1.1-constitucion-roles-autoridad.html">1.1 §7 (criterio de cierre)</a> · <a href="../libro-03-arquitectura-del-sistema/3.3-nucleo-event-driven-contratos.html">3.3 Núcleo Event-Driven</a> · <a href="7.2-estrategia-pruebas-evals.html">7.2 Pruebas</a> · <a href="../../INDICE.html">Índice maestro</a></li>
+</ul>
+<h2 id="aprobacion-del-cto-delegacion-d22">Aprobación del CTO (delegación D22)</h2>
+<p>Revisión ejecutiva conforme al acta D22: <strong>(1) Alcance</strong> — ejecuta lo previsto en el índice sobre el stack aprobado; sin capacidades nuevas. <strong>(2) Consistencia</strong> — respeta ADR-0001..0009, umbrales del 2.5 y P-ARQ. <strong>(3) Cinco preguntas (D21)</strong> — afirmativas. <strong>(4) Materia reservada</strong> — ninguna. <strong>Veredicto: APROBADO por el CTO (delegación D22), 2026-07-18.</strong></p>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

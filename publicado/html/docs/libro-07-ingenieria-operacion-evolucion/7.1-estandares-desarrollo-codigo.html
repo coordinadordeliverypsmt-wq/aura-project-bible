@@ -1,0 +1,62 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Estándares de Desarrollo y Código — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.0.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-18 · <b>fecha_aprobacion</b>: 2026-07-18 · <b>autor</b>: Sonnet (Engineering Manager) — aprobación CTO por delegación D22 · <b>responsable</b>: Sonnet · <b>prioridad</b>: P1</div>
+<h1 id="71-estandares-de-desarrollo-y-codigo">7.1 — Estándares de Desarrollo y Código</h1>
+<blockquote>
+<p><strong>Estado:</strong> Aprobado (CTO por delegación D22, 2026-07-18) · <strong>Nivel:</strong> Completo · <strong>Responsable:</strong> Sonnet</p>
+</blockquote>
+<p><em>Convención † (1.1 §4): desarrollo del arquitecto/EM exigible con la aprobación; no es texto de actas del CEO.</em></p>
+<h2 id="resumen-ejecutivo">Resumen ejecutivo</h2>
+<p>Fija las reglas de calidad de código antes de la primera línea, sobre el stack aprobado (Python, ADR-0005). Define el estilo y linting, la revisión de código y la Definition of Done de ingeniería, la gestión de dependencias con <strong>supply chain security</strong> (SBOM, firmas — 3.4 §4), la estructura de repositorios y la documentación en código. Traduce los principios (3.1) y la Evolución Permanente en disciplina de ingeniería.</p>
+<h2 id="1-stack-y-estilo">1. Stack y estilo</h2>
+<p>Python (ADR-0005) como lenguaje base; estilo con linter/formateador estándar del ecosistema; tipado estático donde aporte. Otros lenguajes solo vía Alerta de Arquitectura (ADR-0005).</p>
+<h2 id="2-revision-y-definition-of-done-de-ingenieria">2. Revisión y Definition of Done de ingeniería</h2>
+<p>Todo cambio pasa por revisión (paralela al reparto RACI 1.1 §4.2); DoD de ingeniería: pruebas (7.2), sin secretos en código (5.4), contratos versionados (ADR-0004 r11), documentación en código, y las cinco preguntas (D21) para cambios estructurales.</p>
+<h2 id="3-dependencias-y-supply-chain">3. Dependencias y supply chain</h2>
+<p>Gestión de dependencias con SBOM (3.4 §4, 1.5 §4.1); dependencias auditables, firmadas; se prefieren libres y sustituibles (D19, licencias permisivas 1.5 §5). Ninguna dependencia que cierre el futuro comercial/open source.</p>
+<h2 id="4-estructura-de-repositorios">4. Estructura de repositorios</h2>
+<p>Contenido de la Bible y código en Git (D8); estructura modular espejo de la arquitectura (contenedores del 3.2 como módulos). El núcleo y cada plugin en su límite claro (3.4).</p>
+<h2 id="decisiones-tomadas">Decisiones tomadas</h2>
+<p>Ejecución de lo previsto en el índice sobre el stack aprobado; desarrollos † aprobados por delegación D22.</p>
+<h3 id="decisiones-aplicables-adrs">Decisiones aplicables (ADRs)</h3>
+<ul>
+<li><a href="../../adr/0005-lenguaje-runtime-nucleo.html">ADR-0005</a> (<code>accepted</code>): Python. <a href="../../adr/0004-evolucion-permanente.html">ADR-0004</a>: contratos versionados. <a href="../libro-01-gobernanza-y-metodo/1.4-estandares-documentales-ciclo-vida-bible.html">1.4</a>: estándares documentales homólogos.</li>
+</ul>
+<h3 id="evaluacion-por-las-cinco-preguntas-d21">Evaluación por las cinco preguntas (D21)</h3>
+<p>(1) 10 años: estándares independientes de moda. (2) Menos dependencia: dependencias sustituibles. (3) Sustituir sin rediseñar: módulos por contrato. (4) Equipo pequeño: convenciones simples. (5) Sistema vivo: disciplina que sostiene la evolución. Sin respuesta negativa → sin Alerta.</p>
+<h2 id="riesgos">Riesgos</h2>
+<ul>
+<li><strong>Deuda técnica temprana:</strong> mitigación: DoD de ingeniería + revisión.</li>
+<li><strong>Dependencia con licencia incompatible:</strong> mitigación: inventario 1.5 §4.1 + default permisivo (D19).</li>
+</ul>
+<h2 id="dependencias">Dependencias</h2>
+<p>Capítulos: <strong>3.6</strong> (stack), <strong>1.4</strong> (estándares documentales). Alimenta: 7.2 (pruebas), 7.3 (walking skeleton), y toda la fase de construcción.</p>
+<h2 id="proximos-pasos">Próximos pasos</h2>
+<ul>
+<li>7.3 aplica estos estándares al primer código (walking skeleton).</li>
+</ul>
+<h2 id="referencias-cruzadas">Referencias cruzadas</h2>
+<ul>
+<li><a href="../libro-03-arquitectura-del-sistema/3.6-seleccion-stack-tecnologico.html">3.6 Stack</a> · <a href="../libro-01-gobernanza-y-metodo/1.4-estandares-documentales-ciclo-vida-bible.html">1.4 Estándares Documentales</a> · <a href="../../adr/0005-lenguaje-runtime-nucleo.html">ADR-0005</a> · <a href="../../INDICE.html">Índice maestro</a></li>
+</ul>
+<h2 id="aprobacion-del-cto-delegacion-d22">Aprobación del CTO (delegación D22)</h2>
+<p>Revisión ejecutiva conforme al acta D22: <strong>(1) Alcance</strong> — ejecuta lo previsto en el índice sobre el stack aprobado; sin capacidades nuevas. <strong>(2) Consistencia</strong> — respeta ADR-0001..0009, umbrales del 2.5 y P-ARQ. <strong>(3) Cinco preguntas (D21)</strong> — afirmativas. <strong>(4) Materia reservada</strong> — ninguna. <strong>Veredicto: APROBADO por el CTO (delegación D22), 2026-07-18.</strong></p>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

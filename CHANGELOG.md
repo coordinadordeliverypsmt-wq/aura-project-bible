@@ -2,6 +2,15 @@
 
 Versionado documental con [Semantic Versioning](https://semver.org/lang/es/). La v1.0.0 corresponderá a la Bible cerrada según el criterio del capítulo 1.1.
 
+## [0.17.0] — 2026-07-18 — CONTENIDO DE LA BIBLE v1.0 COMPLETO
+
+### Hito mayor
+- **Libros VI y VII COMPLETOS.** Con ello, **todo el contenido de la AURA Project Bible v1.0 está redactado y aprobado**: 36/36 capítulos (33 completos + 3 stubs), 9 ADRs aceptados, 2 Alertas resueltas, 23 decisiones del CEO.
+- CEO Executive Summary de Libros V-VII generado (D17).
+
+### Pendiente para cerrar la v1.0
+- **Auditoría Técnica Integral** (CTO como auditor externo) sobre los 16 aspectos exigidos por el CEO → informe único → aprobación del CEO → autorización de construcción.
+
 ## [0.16.0] — 2026-07-18 — LIBRO V COMPLETO
 
 ### Hito

@@ -55,20 +55,20 @@
 ## Libro VI — Interacción e Integraciones
 *Cómo AURA percibe y actúa sobre el mundo.*
 
-- **6.1 Contrato de Adaptador de Dominio** `[P1 · Fable · No iniciado]` — La abstracción común que normaliza cualquier dispositivo o servicio integrable.
-- **6.2 Interacción por Voz** `[P1 · Sonnet · No iniciado]` — El pipeline de voz completo con latencia que haga la conversación natural (capacidad núcleo del MVP).
-- **6.3 Integración de Referencia: Home Assistant + MQTT** `[P1 · Sonnet · No iniciado]` — Anclar el control básico del hogar (MVP) en la primera integración real.
-- **6.4 Control de Sistemas, Automatización y Centro de Notificaciones** `[P1 · Sonnet · No iniciado]` — Las manos digitales del MVP: control básico del computador, motor de automatización y centro único de notificaciones.
-- **6.5 Avatar Interactivo y Presencia** `[P1 · Sonnet · No iniciado]` — La representación visual interactiva de AURA (capacidad del MVP por decisión del CEO).
+- **6.1 Contrato de Adaptador de Dominio** `[P1 · Fable · Aprobado]` — La abstracción común que normaliza cualquier dispositivo o servicio integrable.
+- **6.2 Interacción por Voz** `[P1 · Sonnet · Aprobado]` — El pipeline de voz completo con latencia que haga la conversación natural (capacidad núcleo del MVP).
+- **6.3 Integración de Referencia: Home Assistant + MQTT** `[P1 · Sonnet · Aprobado]` — Anclar el control básico del hogar (MVP) en la primera integración real.
+- **6.4 Control de Sistemas, Automatización y Centro de Notificaciones** `[P1 · Sonnet · Aprobado]` — Las manos digitales del MVP: control básico del computador, motor de automatización y centro único de notificaciones.
+- **6.5 Avatar Interactivo y Presencia** `[P1 · Sonnet · Aprobado]` — La representación visual interactiva de AURA (capacidad del MVP por decisión del CEO).
 
 ## Libro VII — Ingeniería, Operación y Evolución
 *Los estándares con los que AURA se construye, se prueba y sobrevive años.*
 
-- **7.1 Estándares de Desarrollo y Código** `[P1 · Sonnet · No iniciado]` — Fijar las reglas de calidad de código antes de la primera línea.
-- **7.2 Estrategia de Pruebas y Evals de IA** `[P1 · Sonnet · No iniciado]` — Cómo se verifica software clásico + comportamiento no determinista de LLMs.
-- **7.3 Walking Skeleton y Entrega Continua** `[P1 · Sonnet · No iniciado]` — El corte mínimo de código que valida la arquitectura al cerrar la Bible.
-- **7.4 Operación Mínima Viable** ⊘ `[P2 · Sonnet · No iniciado]` — Lo operacional imprescindible, colapsado en un capítulo.
-- **7.5 Visión Evolutiva: hacia el Sistema Operativo Cognitivo** ⊘ `[P3 · Fable · No iniciado]` — Horizontes post-MVP en máximo 2 páginas.
+- **7.1 Estándares de Desarrollo y Código** `[P1 · Sonnet · Aprobado]` — Fijar las reglas de calidad de código antes de la primera línea.
+- **7.2 Estrategia de Pruebas y Evals de IA** `[P1 · Sonnet · Aprobado]` — Cómo se verifica software clásico + comportamiento no determinista de LLMs.
+- **7.3 Walking Skeleton y Entrega Continua** `[P1 · Sonnet · Aprobado]` — El corte mínimo de código que valida la arquitectura al cerrar la Bible.
+- **7.4 Operación Mínima Viable** ⊘ `[P2 · Sonnet · Aprobado (stub)]` — Lo operacional imprescindible, colapsado en un capítulo.
+- **7.5 Visión Evolutiva: hacia el Sistema Operativo Cognitivo** ⊘ `[P3 · Fable · Aprobado (stub)]` — Horizontes post-MVP en máximo 2 páginas.
 
 ---
 **Totales:** 36 capítulos · P0: 5 · P1: 28 · P2: 1 · P3: 2 · Stubs: 3 · Completos: 33

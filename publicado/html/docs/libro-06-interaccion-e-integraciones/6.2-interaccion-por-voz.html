@@ -1,0 +1,63 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Interacción por Voz — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.0.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-18 · <b>fecha_aprobacion</b>: 2026-07-18 · <b>autor</b>: Sonnet (Engineering Manager) — aprobación CTO por delegación D22 · <b>responsable</b>: Sonnet · <b>prioridad</b>: P1</div>
+<h1 id="62-interaccion-por-voz">6.2 — Interacción por Voz</h1>
+<blockquote>
+<p><strong>Estado:</strong> Aprobado (CTO por delegación D22, 2026-07-18) · <strong>Prioridad:</strong> P1 · <strong>Responsable:</strong> Sonnet</p>
+</blockquote>
+<p><em>Convención † (1.1 §4): desarrollo del arquitecto/EM exigible con la aprobación; no es texto de actas del CEO.</em></p>
+<h2 id="resumen-ejecutivo">Resumen ejecutivo</h2>
+<p>Diseña el pipeline de voz completo con la latencia que hace natural la conversación (capacidad núcleo del MVP, hito M1). Usa <strong>Whisper (STT) + Piper (TTS) locales</strong> (ADR-0008), respeta el <strong>presupuesto de latencia oficial</strong> (2.5 §5.1: P50 ≤ 800 ms, barge-in ≤ 300 ms) por <strong>canales dedicados</strong> fuera del bus (ALERTA-001, 3.2), e incorpora español latino como voz base (2.4 §6), accesibilidad, internacionalización y la privacidad del micrófono siempre-escucha.</p>
+<h2 id="1-pipeline">1. Pipeline</h2>
+<p><code>wake word → captura → STT (Whisper local) → NLU/orquestación (4.2) → TTS (Piper local) → salida</code>. El audio viaja por <strong>canal dedicado de baja latencia</strong> con <code>trace_id</code>; los eventos de control (fin de turno, transcripción) por el bus (3.3 §4). Streaming por etapas para cumplir el presupuesto (2.5 §5.1).</p>
+<h2 id="2-latencia-y-barge-in">2. Latencia y barge-in</h2>
+<p>Presupuesto por etapa (2.5 §5.1): captura+VAD ≤150 ms, STT en streaming, primer token LLM ≤500 ms, primer audio TTS ≤300 ms. <strong>Barge-in ≤300 ms</strong> (AURA calla al detectar voz del usuario).</p>
+<h2 id="3-voz-idioma-y-accesibilidad">3. Voz, idioma y accesibilidad</h2>
+<p>Voz base <strong>español latino</strong> (2.4 §6); AURA se adapta al idioma del usuario (internacionalización). Accesibilidad e inclusión como requisito. La voz de AURA es identidad estable (D6).</p>
+<h2 id="4-privacidad-del-microfono">4. Privacidad del micrófono</h2>
+<p>El micrófono siempre-escucha procesa <strong>localmente</strong> (Whisper local, ADR-0008); el audio no sale del perímetro salvo contingencia minimizada (ADR-0008/ADR-0001). El wake word activa; fuera de él no se transmite.</p>
+<h2 id="decisiones-tomadas">Decisiones tomadas</h2>
+<p>Ejecución de capacidades del MVP (2.2) sobre los contratos del Libro III; desarrollos † aprobados por delegación D22.</p>
+<h3 id="decisiones-aplicables-adrs">Decisiones aplicables (ADRs)</h3>
+<ul>
+<li><a href="../../adr/0008-voz-whisper-piper.html">ADR-0008</a> (<code>accepted</code>): Whisper+Piper locales.</li>
+<li><a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001</a> (<code>accepted</code>): audio local.</li>
+</ul>
+<h3 id="evaluacion-por-las-cinco-preguntas-d21">Evaluación por las cinco preguntas (D21)</h3>
+<p>(1) 10 años: motores de voz sustituibles por contrato. (2) Menos dependencia: voz local. (3) Sustituir sin rediseñar: adaptador de voz. (4) Equipo pequeño: modelos libres. (5) Sistema vivo: mejora con mejores modelos. Sin respuesta negativa → sin Alerta.</p>
+<h2 id="riesgos">Riesgos</h2>
+<ul>
+<li><strong>Latencia que rompe la naturalidad (M1):</strong> el riesgo central del MVP; mitigación: canales dedicados + streaming (§1-2); si no converge, circuito de fracaso (2.2 §3.5).</li>
+<li><strong>Fuga por micrófono:</strong> mitigación: procesamiento local, wake word (§4).</li>
+</ul>
+<h2 id="dependencias">Dependencias</h2>
+<p>Capítulos: <strong>2.4</strong> (voz base, personalidad), <strong>4.2</strong> (router). Se apoya en 2.5 §5.1 (latencia), 6.1 (adaptador), ADR-0008. Alimenta: 6.5 (avatar sincronizado), 4.5 (KCM usa STT).</p>
+<h2 id="proximos-pasos">Próximos pasos</h2>
+<ul>
+<li>6.5 sincroniza el avatar con este pipeline; 7.2 mide la latencia.</li>
+</ul>
+<h2 id="referencias-cruzadas">Referencias cruzadas</h2>
+<ul>
+<li><a href="../libro-02-vision-y-producto/2.4-personalidad-etica-limites.html">2.4 Personalidad §6</a> · <a href="../libro-02-vision-y-producto/2.5-requisitos-atributos-calidad.html">2.5 §5.1</a> · <a href="../../adr/0008-voz-whisper-piper.html">ADR-0008</a> · <a href="../../INDICE.html">Índice maestro</a></li>
+</ul>
+<h2 id="aprobacion-del-cto-delegacion-d22">Aprobación del CTO (delegación D22)</h2>
+<p>Revisión ejecutiva conforme al acta D22: <strong>(1) Alcance</strong> — ejecuta capacidades del MVP (2.2) sobre los contratos del Libro III y el stack (ADR-0005..0009); sin capacidades nuevas. <strong>(2) Consistencia</strong> — respeta ADR-0001/0004, permisos D4/D9 (5.3), umbrales del 2.5 y P-ARQ. <strong>(3) Cinco preguntas (D21)</strong> — afirmativas. <strong>(4) Materia reservada</strong> — ninguna. <strong>Veredicto: APROBADO por el CTO (delegación D22), 2026-07-18.</strong></p>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

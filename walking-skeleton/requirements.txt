@@ -1,2 +1,9 @@
-# Walking Skeleton: solo stdlib de Python 3.11+ (asyncio, dataclasses). Sin dependencias externas.
-# Produccion (Bible): nats-py (ADR-0006), qdrant-client (ADR-0007), openai-whisper/piper (ADR-0008).
+# Walking Skeleton — dependencias
+# Núcleo (mocks tras contrato): solo stdlib de Python 3.11+.
+# Bus real validado: nats-py (cliente) + binario nats-server v2.10.22 (ADR-0006).
+nats-py>=2.6
+# Producción (Bible), pendientes del entorno real de despliegue:
+#   qdrant-client        # memoria vectorial (ADR-0007)
+#   faster-whisper       # STT local (ADR-0008)  — requiere CPU/GPU adecuada
+#   piper-tts            # TTS local (ADR-0008)
+#   openai / anthropic / google-generativeai  # LLMs R1 (requieren claves de API)

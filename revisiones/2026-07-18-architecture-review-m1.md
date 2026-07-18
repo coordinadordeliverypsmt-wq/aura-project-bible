@@ -3,7 +3,7 @@ documento: "Architecture Review M1"
 version: 1.0.0
 autor: "Fable (CTO), revisión de coherencia arquitectónica"
 fecha: 2026-07-18
-estado: "En revisión (gate del CEO)"
+estado: "Aprobada por el CEO (2026-07-18)"
 ---
 
 # Architecture Review M1 — Estado consolidado del proyecto AURA
@@ -128,4 +128,4 @@ Cobertura de pruebas: **25 pruebas** (21 activas + 2 skip stack real + contratos
 
 ## Conclusión
 
-La arquitectura de la Bible v1.0 **se mantiene coherente** tras la transición al stack real; la transición no introdujo contradicciones. El único hallazgo de inconsistencia (trazabilidad de ADRs de stack) quedó resuelto. Con la aprobación de esta revisión y el cierre de HC-1 en hardware objetivo, el proyecto está listo para el Milestone M1.
+La arquitectura de la Bible v1.0 **se mantiene coherente** tras la transición al stack real. **APROBADA por el CEO el 2026-07-18**; sin Alerta por la trazabilidad de ADRs (refinamiento documental, no contradicción). **Milestone M1 autorizado** con criterios de seguimiento (ver `milestones/M1-plan.md`): HC-1 abierto hasta validar en hardware; backups/recuperación de memoria e implementación del kill switch son prioridades de M1.

@@ -1,6 +1,6 @@
 ---
 documento: "Acta de Decisiones Fundacionales"
-version: 1.8.0
+version: 1.9.0
 autor: "Mauricio (CEO) — registrada por Fable (CTO)"
 fecha: 2026-07-17
 estado: "Vinculante"
@@ -32,6 +32,9 @@ historial:
   - version: 1.8.0
     fecha: 2026-07-18
     cambio: "D24 (stack local-first sin dependencia de proveedores para validación/baseline; HC-1 pendiente de validación en entorno objetivo; análisis comparativo open source por ADR antes de adoptar componentes; gestión proactiva de entorno)"
+  - version: 1.9.0
+    fecha: 2026-07-18
+    cambio: "D25 (Architecture Review al cierre de cada milestone) y D26 (sin ADR/dependencia nueva sin reducir complejidad o beneficio medible) agregadas por el CEO al aprobar la Architecture Review M1 y autorizar el Milestone M1"
 ---
 
 # Acta de Decisiones Fundacionales — 2026-07-17
@@ -166,6 +169,16 @@ Se incorpora como **capacidad oficial** de AURA un **Módulo de Captura de Conoc
 
 Para validar HC-1 y como baseline reproducible del proyecto **no se utilizarán APIs comerciales ni claves de terceros**. La arquitectura debe ser **independiente de proveedores, reproducible y basada preferentemente en tecnologías locales y de código abierto** (o la mejor alternativa técnicamente justificada). Los modelos de nube (D2: ChatGPT/Claude/Gemini) siguen siendo **recursos opcionales** detrás del router (4.2), pero el sistema **no depende** de ellos: el camino por defecto y de validación es local. **HC-1 se registra como "Pendiente de validación en entorno objetivo"**, no como fallido. **Antes de adoptar definitivamente** cualquier componente (Ollama, Faster-Whisper, Piper, Qdrant, etc.) se realiza un **análisis comparativo open source registrado en ADR** (criterios: rendimiento, mantenimiento, comunidad, portabilidad, facilidad de integración, proyección a largo plazo). **Gestión proactiva de entorno:** si se identifica una dependencia/herramienta/servicio necesario, el CTO lo informa con anticipación (por qué, en qué fase, cómo instalarlo, si es automatizable) y prepara scripts reproducibles, para evitar bloqueos por dependencias no previstas. No se solicitan claves de API ni soluciones propietarias salvo justificación arquitectónica documentada y aprobada.
 *Impacta: ADR-0006..0013, entorno/ (scripts y stack de producción), validación de HC-1.*
+
+## D25 — Architecture Review al cierre de cada milestone (2026-07-18)
+
+Al finalizar **cada milestone** se ejecuta una **Architecture Review** con el mismo formato consolidado (estado de ADRs y decisiones, cumplimiento de requisitos, trazabilidad Bible↔ADR↔código↔pruebas, riesgos y recomendaciones), para que la evolución del proyecto siga siendo **controlada, trazable y alineada con la Bible y los ADR**. Ningún milestone se declara cerrado sin su Architecture Review aprobada por el CEO.
+*Impacta: 1.3 (cierre de milestone), revisiones/.*
+
+## D26 — Disciplina de incorporación: sin complejidad injustificada (2026-07-18)
+
+**Ningún ADR nuevo ni ninguna dependencia nueva** se incorpora sin **demostrar** que reduce complejidad o aporta un **beneficio medible**. La justificación se documenta (en el ADR o en la nota de la dependencia) con la métrica o el criterio de beneficio. Refuerza la regla 13 del ADR-0004 (anti-sobre-ingeniería) y el acta D24 (entorno).
+*Impacta: 1.2 (criterio de ADR), 3.6/entorno (dependencias), toda incorporación futura.*
 
 ## Autorización
 

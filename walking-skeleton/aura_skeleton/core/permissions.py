@@ -28,10 +28,14 @@ RED = {
 
 
 class PermissionManager:
-    def __init__(self, human_confirm):
+    def __init__(self, human_confirm, kill_switch=None):
         self._confirm = human_confirm  # callable(action, args, trace_id) -> bool  (HITL)
+        self._kill = kill_switch  # KillSwitch opcional (Bible 5.3 §5)
 
     async def authorize(self, action: str, args: dict, trace_id: str) -> tuple[bool, str]:
+        if self._kill is not None and self._kill.is_engaged():
+            obs.log("KILL", "permissions", f"kill switch activo: {action} BLOQUEADA", trace_id, audit=True)
+            return False, "kill switch activo (5.3 §5)"
         if action in RED:
             obs.log(
                 "HITL", "permissions", f"accion de LISTA ROJA requiere confirmacion: {action}", trace_id, audit=True

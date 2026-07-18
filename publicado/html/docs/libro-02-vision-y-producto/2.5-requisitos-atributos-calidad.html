@@ -1,0 +1,336 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Requisitos y Atributos de Calidad — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.0.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-18 · <b>fecha_aprobacion</b>: 2026-07-18 · <b>autor</b>: Fable (CTO, AURA Labs) · <b>responsable</b>: Sonnet · <b>prioridad</b>: P1</div>
+<h1 id="25-requisitos-y-atributos-de-calidad">2.5 — Requisitos y Atributos de Calidad</h1>
+<blockquote>
+<p><strong>Estado:</strong> Aprobado (CEO, 2026-07-18) · <strong>Prioridad:</strong> P1 · <strong>Responsable:</strong> Sonnet</p>
+</blockquote>
+<p><em>Convención † (1.1 §4): desarrollo del CTO exigible con la aprobación del capítulo. </em><em>Nota de estado:</em><em> los umbrales de §5, propuestos por el CTO, fueron </em><em>ratificados por el CEO el 2026-07-18 como objetivos oficiales del PIOS</em><em>; dejan de ser propuesta † y son vinculantes. Su ajuste futuro requiere decisión del CEO o Alerta de Arquitectura.</em></p>
+<h2 id="resumen-ejecutivo">Resumen ejecutivo</h2>
+<p>Este capítulo cierra el Libro II convirtiendo la visión del PIOS (2.1) y su alcance (2.2) en requisitos verificables. Formaliza los <strong>requisitos funcionales</strong> por cada una de las 9 capacidades del MVP (acta D2), prioriza los <strong>atributos de calidad</strong> con seguridad y privacidad como no negociables (D1, D9) y latencia conversacional como restricción crítica del hito M1, y escribe <strong>escenarios de calidad verificables</strong> al estilo arc42/ATAM. Sobre todo, <strong>fija los umbrales que 2.1 §6 y 2.3 §6 delegaron aquí</strong> — latencia de voz, ventana y tasa de memoria, frecuencia de anticipación y consistencia inter-modelo — todos como <strong>propuesta † a ratificar por el CEO</strong>. Cada requisito se traza a su capacidad, su escenario (2.3) y su capítulo de materialización, y se evalúa con las cinco preguntas de largo plazo (D21) bajo el horizonte de 10 años (D20).</p>
+<h2 id="objetivo">Objetivo</h2>
+<p>Dar a cada capacidad del MVP un requisito medible y a cada criterio-marco (2.1 §6) un umbral concreto, de modo que el gate de hito y el de R1 (2.2 §3.2) puedan emitir un veredicto objetivo, y que ningún capítulo técnico posterior diseñe sin un blanco cuantitativo. Este capítulo <strong>no</strong> fija arquitectura (eso es del Libro III); fija el <em>qué debe cumplirse</em>, no el <em>cómo</em>.</p>
+<h2 id="1-marco-isoiec-25010-como-referencia">1. Marco: ISO/IEC 25010 como referencia †</h2>
+<p>Se adopta el modelo de calidad <strong>ISO/IEC 25010</strong> como vocabulario de referencia (no como obligación de cumplir todas sus características). Un requisito se expresa como <strong>escenario de calidad</strong>: <em>fuente → estímulo → artefacto → entorno → respuesta → medida de respuesta</em> (estilo arc42/ATAM). Toda "medida de respuesta" cuyo valor sea un umbral se marca † y se somete al CEO.</p>
+<p>Distinción operativa:</p>
+<ul>
+<li><strong>Requisito funcional (RF):</strong> qué debe hacer AURA (deriva de las 9 capacidades, acta D2).</li>
+<li><strong>Atributo de calidad (AC):</strong> cuán bien debe hacerlo (deriva de los principios y del momento mágico).</li>
+<li><strong>Restricción (R):</strong> límite impuesto por decisión del CEO o por ley técnica (local-first, presupuesto, etc.).</li>
+</ul>
+<h2 id="2-requisitos-funcionales-por-capacidad-del-mvp">2. Requisitos funcionales por capacidad del MVP</h2>
+<p>Las 9 capacidades son texto de la D2 (2.2 §1). Cada RF enuncia el comportamiento mínimo verificable; el detalle de diseño vive en el capítulo destino. RF-n se numera por capacidad.</p>
+<table>
+<thead>
+<tr>
+<th>RF</th>
+<th>Capacidad (D2)</th>
+<th>Requisito mínimo verificable</th>
+<th>Escenario ancla (2.3)</th>
+<th>Materializa</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>RF-1</td>
+<td>Memoria permanente</td>
+<td>Recupera temas tratados semanas atrás sin que el usuario los re-explique</td>
+<td>E-01</td>
+<td>4.1</td>
+</tr>
+<tr>
+<td>RF-2</td>
+<td>Conversación por voz</td>
+<td>Sostiene diálogo hablado continuo con turnos e interrupciones (barge-in)</td>
+<td>E-02</td>
+<td>6.2</td>
+</tr>
+<tr>
+<td>RF-3</td>
+<td>Avatar interactivo</td>
+<td>Presenta un avatar cuya expresión se sincroniza con la conversación</td>
+<td>E-10</td>
+<td>6.5</td>
+</tr>
+<tr>
+<td>RF-4</td>
+<td>Control del computador</td>
+<td>Ejecuta acciones de lista verde D4 sobre el computador principal (2.3 §2)</td>
+<td>E-05</td>
+<td>6.4</td>
+</tr>
+<tr>
+<td>RF-5</td>
+<td>Automatización</td>
+<td>Crea y ejecuta automatizaciones definidas por el usuario (sugeridas en M3)</td>
+<td>E-06</td>
+<td>6.4</td>
+</tr>
+<tr>
+<td>RF-6</td>
+<td>Orquestación 3 LLMs</td>
+<td>Enruta cada tarea al mejor de ChatGPT/Claude/Gemini y hace fallback</td>
+<td>E-03</td>
+<td>4.2</td>
+</tr>
+<tr>
+<td>RF-7</td>
+<td>Hogar inteligente</td>
+<td>Enciende/apaga y activa escenas vía Home Assistant</td>
+<td>E-09</td>
+<td>6.3</td>
+</tr>
+<tr>
+<td>RF-8</td>
+<td>Aprendizaje continuo</td>
+<td>Adapta preferencias y hábitos con el uso, sin reentrenar modelos</td>
+<td>E-11</td>
+<td>4.4</td>
+</tr>
+<tr>
+<td>RF-9</td>
+<td>Centro de notificaciones</td>
+<td>Consolida y prioriza notificaciones de las fuentes del MVP (2.3 §2)</td>
+<td>E-07</td>
+<td>6.4</td>
+</tr>
+<tr>
+<td>RF-HITL</td>
+<td>Transversal (D4/D9)</td>
+<td>Detiene toda acción de lista roja y exige confirmación; deja traza auditable y reversible</td>
+<td>E-08</td>
+<td>5.3</td>
+</tr>
+</tbody>
+</table>
+<h2 id="3-atributos-de-calidad-priorizados">3. Atributos de calidad priorizados</h2>
+<p>La prioridad no es una lista de deseos: es un <strong>orden de desempate</strong> cuando dos atributos entran en conflicto. Deriva de las actas, no del CTO.</p>
+<table>
+<thead>
+<tr>
+<th>Prioridad</th>
+<th>Atributo (ISO 25010)</th>
+<th>Por qué / fuente</th>
+<th>Se mide en</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><strong>Seguridad y privacidad</strong></td>
+<td>Pilar innegociable; local-first estricto</td>
+<td>D1, D9, ADR-0001 · Libro V, §6</td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>Fiabilidad y auditabilidad</strong></td>
+<td>HITL exige acciones reversibles y explicables</td>
+<td>D9 (P-ARQ-1) · §6</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>Latencia de interacción</strong></td>
+<td>"La conversación manda"; M1 es el hito crítico</td>
+<td>3.1 §2.2, 2.2 · §5.1</td>
+</tr>
+<tr>
+<td>4</td>
+<td><strong>Mantenibilidad y modularidad</strong></td>
+<td>Sistema vivo, equipo pequeño, 10 años</td>
+<td>D10, D14, D20, D21 · Libro III</td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>Escalabilidad / independencia tecnológica</strong></td>
+<td>Visión comercial-escalable; ningún proveedor único</td>
+<td>D19, D20, P-ARQ-4 · 3.x</td>
+</tr>
+<tr>
+<td>6</td>
+<td><strong>Portabilidad / operabilidad</strong></td>
+<td>El usuario es dueño; local-first</td>
+<td>D1, ADR-0001 · 7.4</td>
+</tr>
+</tbody>
+</table>
+<p>Nota de desempate (D20/D21): ante un conflicto que no resuelva este orden, aplica el gate de las cinco preguntas de largo plazo (3.1 §2.5); si alguna respuesta es negativa, se levanta una Alerta de Arquitectura.</p>
+<h2 id="4-restricciones-r">4. Restricciones (R)</h2>
+<ul>
+<li><strong>R-1 Local-first estricto (ADR-0001):</strong> datos del usuario bajo su control; nube solo para los 4 usos autorizados; cifrado; minimización antes de todo modelo externo.</li>
+<li><strong>R-2 Human-in-the-Loop (D9):</strong> ninguna acción de lista roja (D4) sin confirmación humana.</li>
+<li><strong>R-3 Presupuesto (D3):</strong> sin límite inicial; calidad y escalabilidad priman; visibilidad de costos en 1.5.</li>
+<li><strong>R-4 Arquitectura desacoplada (D18/D19):</strong> ningún requisito puede resolverse de una forma que cierre el futuro comercial/escalable o acople a un proveedor.</li>
+<li><strong>R-5 Sostenible por equipo pequeño (D21.4):</strong> los requisitos no pueden exigir una operación que un equipo mínimo no pueda mantener.</li>
+</ul>
+<h2 id="5-escenarios-de-calidad-verificables-y-umbrales-propuestos">5. Escenarios de calidad verificables y umbrales propuestos †</h2>
+<p>Cada escenario fija la <strong>medida de respuesta</strong>. <strong>Todos los valores numéricos son propuesta del CTO †</strong>; el CEO los ratifica o ajusta en el gate. La instrumentación de medida (quién mide, con qué) se ejecuta en 7.2.</p>
+<h3 id="51-latencia-de-conversacion-ac-3-criterio-marco-cm1-de-21-6-el-umbral-critico-del-mvp">5.1 Latencia de conversación (AC-3, criterio-marco CM1 de 2.1 §6) — el umbral crítico del MVP</h3>
+<p><em>Escenario:</em> el usuario termina de hablar (fuente) → AURA debe responder por voz (estímulo) en operación normal con los 3 LLMs de nube disponibles (entorno).</p>
+<p>Umbrales propuestos † (presupuesto de latencia de extremo a extremo, de fin-de-habla a inicio-de-respuesta hablada):</p>
+<ul>
+<li><strong>Inicio de respuesta hablada:</strong> P50 ≤ <strong>800 ms</strong>, P95 ≤ <strong>1500 ms</strong> †. Base: por debajo de ~1 s la conversación se percibe natural; por encima de ~1.5 s se siente lenta.</li>
+<li><strong>Barge-in:</strong> AURA deja de hablar en ≤ <strong>300 ms</strong> † tras detectar voz del usuario.</li>
+<li><strong>Presupuesto por etapa †</strong> (para que 3.3/6.2 lo respeten): captura+VAD ≤ 150 ms · STT parcial en streaming · enrutamiento+primer token del LLM ≤ 500 ms · TTS en streaming con primer audio ≤ 300 ms. Estas etapas usan <strong>canales dedicados</strong>, no el Event Bus (ALERTA-001, 3.1 §2.1).</li>
+<li><strong>Degradación:</strong> si el presupuesto no puede cumplirse (red, proveedor lento), AURA lo señala (P-ARQ-1) y ofrece continuar; nunca finge inmediatez.</li>
+</ul>
+<h3 id="52-memoria-a-semanas-ac-2rf-1-criterio-marco-cm2">5.2 Memoria a semanas (AC-2/RF-1, criterio-marco CM2)</h3>
+<p><em>Escenario:</em> semanas después de una conversación (fuente) → el usuario retoma el tema sin dar contexto (estímulo) → AURA recupera lo tratado y continúa (respuesta).</p>
+<ul>
+<li><strong>Ventana objetivo:</strong> recuperar temas de al menos <strong>4 semanas</strong> atrás sin re-explicación † (por definición exige semanas de calendario, 2.2 §3.2).</li>
+<li><strong>Tasa de recuperación:</strong> ≥ <strong>90%</strong> † de los temas marcados como relevantes en el set de evaluación.</li>
+<li><strong>Tasa de re-explicación tolerable (umbral de fracaso, 2.1 §6):</strong> &gt; <strong>10%</strong> † de turnos que exigen re-explicar contexto ya vivido cuenta como fracaso de producto.</li>
+<li><strong>Fidelidad:</strong> cero fabricación de recuerdos (la memoria distingue lo recordado de lo inferido; enlaza con 2.4 §2.2 y 4.1).</li>
+</ul>
+<h3 id="53-anticipacion-rf-8cm4-cumple-la-remision-de-21-6-y-23-e-12">5.3 Anticipación (RF-8/CM4, cumple la remisión de 2.1 §6 y 2.3 E-12)</h3>
+<p><em>Escenario:</em> durante el uso normal de un día (entorno) → AURA ofrece, sin que se lo pidan, una acción o aviso (respuesta) que cumple la definición de "anticipación válida" de 2.3 E-12 (no solicitada, pertinente, valorada, dentro de lista verde D4).</p>
+<ul>
+<li><strong>Frecuencia:</strong> ≥ <strong>1 acción proactiva valorada por día</strong> de uso normal †.</li>
+<li><strong>Tasa de falsos positivos tolerable:</strong> ≤ <strong>20%</strong> † de las iniciativas proactivas resultan irrelevantes o molestas para el usuario; por encima, la proactividad se vuelve ruido (degrada la confianza).</li>
+<li><strong>Respeto de permisos:</strong> 100% dentro de la lista verde D4; una iniciativa que toque lista roja se convierte en propuesta con confirmación (RF-HITL).</li>
+</ul>
+<h3 id="54-acciones-reales-y-hitl-rf-4579-rf-hitl-cm3">5.4 Acciones reales y HITL (RF-4/5/7/9 + RF-HITL, CM3)</h3>
+<p><em>Escenario:</em> AURA ejecuta una acción sobre el computador, el hogar o una automatización (estímulo).</p>
+<ul>
+<li><strong>Éxito de acción de lista verde:</strong> ≥ <strong>95%</strong> † de las acciones se completan correctamente; toda acción deja traza (P-ARQ-7).</li>
+<li><strong>HITL sobre lista roja:</strong> <strong>100%</strong> de las acciones de lista roja se detienen y piden confirmación. Un <strong>falso negativo aquí es crítico</strong> (una acción irreversible ejecutada sin confirmar): tolerancia <strong>cero</strong> † — es criterio de fracaso de 2.1 §6.</li>
+<li><strong>Reversibilidad:</strong> toda acción de consecuencia registra cómo revertirse (D9); el mecanismo vive en 5.3.</li>
+</ul>
+<h3 id="55-consistencia-inter-modelo-de-la-personalidad-cumple-la-remision-de-24-74">5.5 Consistencia inter-modelo de la personalidad (cumple la remisión de 2.4 §7.4)</h3>
+<p><em>Escenario:</em> el mismo system prompt maestro (2.4 §7) se ejecuta sobre ChatGPT, Claude y Gemini (artefacto) → la personalidad (D6) y los guardrails (2.4 §§2-5) deben mantenerse estables.</p>
+<ul>
+<li><strong>Umbral de consistencia:</strong> un modelo alcanza ≥ <strong>90%</strong> † de adherencia en la suite de evals de personalidad y guardrails (2.4 §7.4) para ser habilitado en producción; por debajo, no encarna a AURA sin decisión explícita del CEO.</li>
+<li><strong>Guardrails duros — tolerancia cero †:</strong> adulación (D6), afecto simulado (2.4 §4), fabricación (2.4 §2) y fuga de dato fuera de la frontera local-first (ADR-0001) cuentan como fallo aunque el resto del score sea alto.</li>
+</ul>
+<h3 id="56-disponibilidad-y-modo-degradado-ac-2r-1">5.6 Disponibilidad y modo degradado (AC-2/R-1)</h3>
+<p><em>Escenario:</em> cae la conectividad (estímulo).</p>
+<ul>
+<li><strong>Núcleo local disponible:</strong> las funciones que no dependen de la nube (memoria local, comandos locales) siguen operando en <strong>modo degradado</strong> (2.3 E-13); las funciones frontier (3 LLMs) se suspenden con aviso, sin pérdida de datos.</li>
+<li><strong>Conjunto mínimo offline:</strong> su definición formal se delega a 3.6/4.2 (mandato heredado de 2.2 §5 y P-001.4); 2.5 fija que <strong>debe existir y ser medible</strong>, no su composición.</li>
+<li><strong>Recuperación:</strong> al reconectar, ninguna interacción previa se pierde (respaldos y RPO/RTO se detallan en 7.4).</li>
+</ul>
+<h2 id="6-verificacion-como-se-mide-cada-atributo">6. Verificación: cómo se mide cada atributo</h2>
+<p>Este capítulo define los umbrales; <strong>la instrumentación, el protocolo y quién mide se ejecutan en 7.2 (Estrategia de Pruebas y Evals de IA)</strong>. Principios de medición †:</p>
+<ul>
+<li><strong>Evidencia por registro automático</strong>, no por memoria subjetiva (coherente con la ventana de aceptación de 2.2 §3.4): audit log y telemetría <strong>local</strong> (bajo ADR-0001).</li>
+<li><strong>Sets de evaluación</strong> por criterio-marco, derivados de los escenarios de 2.3.</li>
+<li><strong>El veredicto lo emite el CEO</strong> en el gate de hito y de R1 (2.2 §3.2); 2.5 aporta el umbral, 7.2 la evidencia, 2.3 el contexto.</li>
+<li>La <strong>zona intermedia</strong> (2.1 §6) la adjudica el CEO con estos umbrales a la vista.</li>
+</ul>
+<h2 id="7-trazabilidad-requisito-capacidad-escenario-capitulo">7. Trazabilidad requisito → capacidad → escenario → capítulo</h2>
+<table>
+<thead>
+<tr>
+<th>Criterio-marco (2.1 §6)</th>
+<th>RF</th>
+<th>Umbral (§5)</th>
+<th>Escenario (2.3)</th>
+<th>Materializa</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CM1 Conversación</td>
+<td>RF-2</td>
+<td>§5.1 latencia</td>
+<td>E-02</td>
+<td>6.2, 3.3</td>
+</tr>
+<tr>
+<td>CM2 Memoria</td>
+<td>RF-1</td>
+<td>§5.2 ventana/tasa</td>
+<td>E-01</td>
+<td>4.1</td>
+</tr>
+<tr>
+<td>CM3 Acciones reales</td>
+<td>RF-4/5/7/9, RF-HITL</td>
+<td>§5.4</td>
+<td>E-05/06/08/09/14</td>
+<td>6.3, 6.4, 5.3</td>
+</tr>
+<tr>
+<td>CM4 Anticipación</td>
+<td>RF-8</td>
+<td>§5.3</td>
+<td>E-12</td>
+<td>4.4</td>
+</tr>
+<tr>
+<td>(habilitador) Orquestación</td>
+<td>RF-6</td>
+<td>§5.1 (etapa LLM)</td>
+<td>E-03</td>
+<td>4.2</td>
+</tr>
+<tr>
+<td>(transversal) Personalidad</td>
+<td>—</td>
+<td>§5.5 consistencia</td>
+<td>—</td>
+<td>2.4, 7.2</td>
+</tr>
+<tr>
+<td>(transversal) Disponibilidad</td>
+<td>—</td>
+<td>§5.6</td>
+<td>E-13</td>
+<td>3.6, 7.4</td>
+</tr>
+</tbody>
+</table>
+<h2 id="decisiones-tomadas">Decisiones tomadas</h2>
+<ul>
+<li>Requisitos funcionales por las 9 capacidades de la D2 (§2) y orden de prioridad de atributos derivado de las actas (§3): referencia a decisiones ya tomadas + operacionalización del CTO †.</li>
+<li><strong>Umbrales (§5): todos propuesta del CTO †</strong> que cumplen las remisiones de 2.1 §6 (criterios-marco), 2.3 §6 (insumos) y 2.4 §7.4 (consistencia inter-modelo). El CEO fija los definitivos en el gate.</li>
+<li>ISO/IEC 25010 como vocabulario de referencia † (no como obligación de cumplimiento total).</li>
+<li>La instrumentación de medida se <strong>delega a 7.2</strong>; el conjunto mínimo offline, a 3.6/4.2.</li>
+</ul>
+<h3 id="decisiones-aplicables-adrs">Decisiones aplicables (ADRs)</h3>
+<ul>
+<li><a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001 — Postura local-first estricta</a> (<code>accepted</code>): R-1; la telemetría de medición (§6) es dato del usuario y reside local (P-ARQ-7).</li>
+<li><a href="../../adr/0004-evolucion-permanente.html">ADR-0004 — Evolución Permanente</a> (<code>accepted</code>): AC-4/AC-5 (mantenibilidad, escalabilidad, independencia) son atributos de calidad de primer orden por este ADR y las actas D20/D21.</li>
+</ul>
+<h3 id="evaluacion-por-las-cinco-preguntas-de-largo-plazo-d21">Evaluación por las cinco preguntas de largo plazo (D21)</h3>
+<p>Este capítulo fija <em>qué</em> medir, no <em>cómo</em> implementarlo, por lo que no acopla a ninguna tecnología: (1) los umbrales escalan a 10 años porque son de experiencia, no de implementación; (2) no crean dependencia de proveedor; (3) son independientes del stack (se cumplen con cualquier motor de voz/memoria); (4) medibles por un equipo pequeño con registro automático; (5) refuerzan el sistema vivo al dar blancos verificables a cada evolución. Ninguna respuesta negativa → sin Alerta.</p>
+<h2 id="riesgos">Riesgos</h2>
+<ul>
+<li><strong>Umbrales mal calibrados:</strong> demasiado laxos ocultan un mal producto; demasiado estrictos bloquean el MVP. Mitigación: son propuesta †, el CEO los fija y se revisan por hito.</li>
+<li><strong>Latencia inalcanzable con LLMs de nube:</strong> el presupuesto §5.1 puede ser optimista para la cadena STT→LLM→TTS. Mitigación: streaming por etapas, y si M1 no converge, circuito de fracaso (2.2 §3.5) — posible Alerta de Arquitectura.</li>
+<li><strong>Medir sin instrumentar:</strong> umbrales sin telemetría son letra muerta. Mitigación: la DoP delega la instrumentación a 7.2 y exige registro automático (§6).</li>
+<li><strong>Falsos negativos de HITL:</strong> el riesgo más grave (acción irreversible sin confirmar); tolerancia cero (§5.4) y materialización en 5.3.</li>
+</ul>
+<h2 id="dependencias">Dependencias</h2>
+<p>Capítulos (frontmatter): <strong>2.2</strong> (Aprobado — 9 capacidades, momento mágico, hitos), <strong>2.3</strong> (Aprobado — escenarios e insumos). Se apoya en 2.1 v2.0.0 (criterios-marco), 2.4 (consistencia inter-modelo), 3.1 (principios, 5 preguntas). <strong>Alimenta:</strong> 3.2/3.3 (latencia y presupuesto), 3.6/4.2 (conjunto offline, enrutamiento por latencia/costo), 4.1 (memoria), 4.4 (anticipación), 5.3 (HITL), 6.2-6.5 (capacidades) y <strong>7.2</strong> (instrumentación de todos estos umbrales).</p>
+<h2 id="proximos-pasos">Próximos pasos</h2>
+<ul>
+<li>Gate del CEO: <strong>ratificar o ajustar los umbrales de §5</strong> — en especial el presupuesto de latencia de voz (§5.1), la ventana de memoria (§5.2) y la frecuencia/falsos positivos de anticipación (§5.3).</li>
+<li>Con 2.5 aprobado se desbloquea <strong>3.2 (Arquitectura de Referencia C4)</strong> y, tras él, la ola ancha del Libro III (3.3-3.6).</li>
+<li>7.2 tomará estos umbrales para construir las suites de evaluación; 2.3 aporta los sets de escenarios.</li>
+</ul>
+<h2 id="referencias-cruzadas">Referencias cruzadas</h2>
+<ul>
+<li><a href="../../decisiones/2026-07-17-acta-decisiones-fundacionales.html">Acta de Decisiones (D2, D3, D9, D18, D19, D20, D21)</a> · <a href="../../decisiones/2026-07-16-brief-fundacional.html">Brief Fundacional</a></li>
+<li><a href="2.1-vision-mision-anti-vision.html">2.1 Definición/Visión (v2.0.0, PIOS y criterios-marco)</a> · <a href="2.2-alcance-mvp-roadmap-releases.html">2.2 Alcance del MVP</a> · <a href="2.3-usuario-escenarios-prioritarios.html">2.3 Usuario y Escenarios</a> · <a href="2.4-personalidad-etica-limites.html">2.4 Personalidad (consistencia inter-modelo)</a></li>
+<li><a href="../libro-03-arquitectura-del-sistema/3.1-principios-arquitectonicos.html">3.1 Principios (5 preguntas §2.5, latencia §2.2)</a> · <a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001</a> · <a href="../../adr/0004-evolucion-permanente.html">ADR-0004</a></li>
+<li>Capítulos destino: 3.2, 3.3, 3.6, 4.1, 4.2, 4.4, 5.3, 6.2-6.5, 7.2 · <a href="../../INDICE.html">Índice maestro</a></li>
+</ul>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

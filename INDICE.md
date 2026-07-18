@@ -21,7 +21,7 @@
 - **2.2 Alcance del MVP y Roadmap por Releases** `[P0 · Fable · Aprobado]` — Delimitar el MVP de 9 capacidades definido por el CEO y gobernar su riesgo de alcance.
 - **2.3 Usuario y Escenarios Prioritarios** `[P1 · Fable · Aprobado]` — Aterrizar la visión en escenarios concretos de la vida del CEO ordenados por valor.
 - **2.4 Personalidad, Ética y Límites del Compañero IA** `[P1 · Fable · Aprobado]` — Diseñar la identidad definida por el CEO y los límites éticos de una relación IA-humano de años.
-- **2.5 Requisitos y Atributos de Calidad** `[P1 · Sonnet · No iniciado]` — Formalizar requisitos verificables que restringen y guían la arquitectura.
+- **2.5 Requisitos y Atributos de Calidad** `[P1 · Sonnet · Aprobado]` — Formalizar requisitos verificables que restringen y guían la arquitectura.
 
 ## Libro III — Arquitectura del Sistema
 *El contrato técnico central: núcleo event-driven, plugins y datos.*

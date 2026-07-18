@@ -2,6 +2,14 @@
 
 Versionado documental con [Semantic Versioning](https://semver.org/lang/es/). La v1.0.0 corresponderá a la Bible cerrada según el criterio del capítulo 1.1.
 
+## [0.11.0] — 2026-07-18
+
+### Cambiado
+- **Capítulo 2.5 APROBADO por el CEO** (v1.0.0): los umbrales del PIOS (latencia de voz P50≤800ms/P95≤1500ms, memoria ≥4 semanas/≥90% recall, anticipación ≥1/día y ≤20% FP, consistencia inter-modelo ≥90%, HITL tolerancia cero) quedan **ratificados como objetivos oficiales**. Progreso P1: 6/28.
+
+### Agregado
+- **Capítulo 3.2 (Arquitectura de Referencia C4)** en gate: vistas C4 de contexto y contenedores del PIOS, Event Bus como plano de control + canales de streaming (ALERTA-001), núcleo mínimo con memoria como módulo, capas percepción/cognición/acción, topología local-first y estructura multi-usuario-ready. Desbloquea 3.3/3.4/3.5 al aprobarse.
+
 ## [0.10.0] — 2026-07-18
 
 ### Hito

@@ -2,6 +2,15 @@
 
 Versionado documental con [Semantic Versioning](https://semver.org/lang/es/). La v1.0.0 corresponderá a la Bible cerrada según el criterio del capítulo 1.1.
 
+## [0.9.0] — 2026-07-18
+
+### Agregado
+- **Fase D2, ola 1 — 5 capítulos P1 redactados y revisados**, en gate del CEO: 1.3 (Proceso de Trabajo por Fases), 1.4 (Estándares Documentales + glosario + plantillas), 1.5 (Restricciones de Negocio: Presupuesto/Legal), 2.3 (Usuario y Escenarios Prioritarios), 2.4 (Personalidad, Ética y Límites).
+- **ADR-0002 — Plataforma de generación del sitio documental** (`proposed`, origen D8+D12): 4 opciones de nivel (D3); recomendación del CTO = MkDocs Material (nivel Balanceado).
+
+### Proceso
+- La redacción se hizo con el pipeline de agentes; la fase de crítica automatizada no completó por límite de sesión. La **revisión pre-gate la realizó el CTO (Fable)**, revisor distinto del redactor (Sonnet), conforme a 1.1 §4.2. Los 5 capítulos pasan a "En revisión (gate del CEO)".
+
 ## [0.8.0] — 2026-07-17
 
 ### Agregado

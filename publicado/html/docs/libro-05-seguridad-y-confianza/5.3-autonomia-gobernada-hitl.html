@@ -1,0 +1,71 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Autonomía Gobernada: Permisos, Human-in-the-Loop y Kill Switch — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.0.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-18 · <b>fecha_aprobacion</b>: 2026-07-18 · <b>autor</b>: Fable (CTO) — aprobación CTO por delegación D22 · <b>responsable</b>: Fable · <b>prioridad</b>: P1</div>
+<h1 id="53-autonomia-gobernada-permisos-human-in-the-loop-y-kill-switch">5.3 — Autonomía Gobernada: Permisos, Human-in-the-Loop y Kill Switch</h1>
+<blockquote>
+<p><strong>Estado:</strong> Aprobado (CTO por delegación D22, 2026-07-18) · <strong>Nivel:</strong> Completo · <strong>Responsable:</strong> Fable</p>
+</blockquote>
+<p><em>Convención † (1.1 §4): desarrollo del arquitecto/EM exigible con la aprobación; no es texto de actas del CEO.</em></p>
+<h2 id="resumen-ejecutivo">Resumen ejecutivo</h2>
+<p>Materializa las listas verde/roja de la <strong>acta D4</strong> y el principio <strong>Human-in-the-Loop (D9)</strong>: define qué hace AURA sola, qué exige confirmación y cómo se detiene todo. Especifica el Gestor de Permisos, la clasificación de acciones por riesgo, los flujos de confirmación, el <strong>dry-run</strong>, el <strong>audit log inmutable</strong> y el <strong>kill switch</strong> con mecanismo fuera de banda. Es el guardián por el que pasa toda acción antes de tocar un adaptador (3.2 §5).</p>
+<h2 id="1-listas-de-autonomia-acta-d4-cita-textual">1. Listas de autonomía (acta D4, cita textual)</h2>
+<p><strong>Lista verde (auto):</strong> <em>"automatizaciones, encender/apagar dispositivos, consultas, recordatorios, monitoreo, organización."</em>
+<strong>Lista roja (confirmación SIEMPRE):</strong> <em>"pagos, compras, transferencias, eliminación de información, apertura de cerraduras, mensajes enviados a terceros, acciones legales, acciones financieras."</em></p>
+<h2 id="2-gestor-de-permisos">2. Gestor de Permisos</h2>
+<p>Todo <code>action.*</code> (3.3) pasa por el Gestor antes de llegar a un adaptador (3.2 §5). Clasifica la acción (verde/roja) y aplica la política; ningún plugin ni agente ejecuta directo (3.4 §3).</p>
+<h2 id="3-confirmacion-dry-run-y-niveles">3. Confirmación, dry-run y niveles</h2>
+<ul>
+<li><strong>Confirmación explícita</strong> para lista roja; <strong>tolerancia cero a falsos negativos</strong> (2.5 §5.4).</li>
+<li><strong>Dry-run:</strong> simulación previa de una acción de impacto antes de ejecutarla.</li>
+<li><strong>Niveles superiores</strong> habilitables por políticas conforme crece la confianza (acta D4), siempre por decisión del usuario/CEO — nunca automáticamente.</li>
+</ul>
+<h2 id="4-audit-log-inmutable">4. Audit log inmutable</h2>
+<p>Toda acción — propuesta, autorización, resultado — se registra de forma inmutable con <code>trace_id</code> (3.3, P-ARQ-1/7). Es el instrumento de auditabilidad y reversibilidad (D9) y la base probatoria (1.5 §4.4).</p>
+<h2 id="5-kill-switch">5. Kill switch</h2>
+<p>Parada de emergencia que suspende toda acción autónoma, con un <strong>mecanismo fuera de banda</strong> acordado para el caso de que AURA misma esté comprometida (1.1: reservado al CEO; operación en 7.4). Reversible y auditable.</p>
+<h2 id="decisiones-tomadas">Decisiones tomadas</h2>
+<p>Ejecución de la arquitectura de seguridad aprobada; desarrollos † aprobados por delegación D22.</p>
+<h3 id="decisiones-aplicables-adrs">Decisiones aplicables (ADRs)</h3>
+<ul>
+<li>Guardrail <a href="../libro-02-vision-y-producto/2.4-personalidad-etica-limites.html">2.4</a>, actas D4 y D9: fuente normativa directa.</li>
+<li><a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001</a> (<code>accepted</code>): el audit log es dato local del usuario.</li>
+</ul>
+<h3 id="evaluacion-por-las-cinco-preguntas-d21">Evaluación por las cinco preguntas (D21)</h3>
+<p>(1) 10 años: políticas de autonomía evolucionan sin rediseño. (2) Menos dependencia: control propio. (3) Sustituir sin rediseñar: el Gestor es un contenedor del núcleo. (4) Equipo pequeño: listas claras, automatizable. (5) Sistema vivo: niveles crecen por política. Sin respuesta negativa → sin Alerta.</p>
+<h2 id="riesgos">Riesgos</h2>
+<ul>
+<li><strong>Falso negativo en lista roja</strong> (acción irreversible sin confirmar): el riesgo más grave; mitigación: tolerancia cero (§3), pruebas (7.2).</li>
+<li><strong>Kill switch inalcanzable si AURA está comprometida:</strong> mitigación: mecanismo fuera de banda (§5).</li>
+<li><strong>Fatiga de confirmaciones:</strong> mitigación: solo lista roja pide confirmación; verde es fluida.</li>
+</ul>
+<h2 id="dependencias">Dependencias</h2>
+<p>Capítulos: <strong>5.1</strong> (amenazas), <strong>4.3</strong> (agentes), <strong>2.4</strong> (guardrails). Alimenta: 6.3/6.4 (acciones de hogar y sistema), 7.4 (operación del kill switch), 1.5 §4.4 (responsabilidad).</p>
+<h2 id="proximos-pasos">Próximos pasos</h2>
+<ul>
+<li>6.3/6.4 ejecutan acciones a través de este Gestor; 7.4 opera el kill switch y los backups.</li>
+</ul>
+<h2 id="referencias-cruzadas">Referencias cruzadas</h2>
+<ul>
+<li><a href="../../decisiones/2026-07-17-acta-decisiones-fundacionales.html">Acta D4/D9</a> · <a href="5.1-modelo-amenazas.html">5.1 Amenazas</a> · <a href="../libro-02-vision-y-producto/2.4-personalidad-etica-limites.html">2.4 Personalidad y Límites</a> · <a href="../../INDICE.html">Índice maestro</a></li>
+</ul>
+<h2 id="aprobacion-del-cto-delegacion-d22">Aprobación del CTO (delegación D22)</h2>
+<p>Revisión ejecutiva conforme al acta D22: <strong>(1) Alcance</strong> — ejecuta la arquitectura de seguridad ya prevista (índice, 3.1-3.2); sin capacidades nuevas. <strong>(2) Consistencia</strong> — respeta ADR-0001/0004, guardrails de 2.4, permisos D4/D9 y P-ARQ. <strong>(3) Cinco preguntas (D21)</strong> — afirmativas. <strong>(4) Materia reservada</strong> — ninguna. <strong>Veredicto: APROBADO por el CTO (delegación D22), 2026-07-18.</strong></p>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

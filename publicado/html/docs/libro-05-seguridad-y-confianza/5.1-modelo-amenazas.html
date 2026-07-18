@@ -1,0 +1,71 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Modelo de Amenazas — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.0.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-18 · <b>fecha_aprobacion</b>: 2026-07-18 · <b>autor</b>: Fable (CTO) — aprobación CTO por delegación D22 · <b>responsable</b>: Fable · <b>prioridad</b>: P1</div>
+<h1 id="51-modelo-de-amenazas">5.1 — Modelo de Amenazas</h1>
+<blockquote>
+<p><strong>Estado:</strong> Aprobado (CTO por delegación D22, 2026-07-18) · <strong>Nivel:</strong> Completo · <strong>Responsable:</strong> Fable</p>
+</blockquote>
+<p><em>Convención † (1.1 §4): desarrollo del arquitecto/EM exigible con la aprobación; no es texto de actas del CEO.</em></p>
+<h2 id="resumen-ejecutivo">Resumen ejecutivo</h2>
+<p>Identifica sistemáticamente qué puede salir mal con un PIOS que ve y actúa sobre toda la vida digital del usuario. Inventaría activos, actores de amenaza y superficies de ataque; aplica <strong>STRIDE</strong> por contenedor (3.2) y <strong>MITRE ATLAS</strong> para amenazas de IA; analiza a AURA <strong>como objetivo</strong> (comprometer el orquestador) y <strong>como vector</strong> (abusar de sus permisos); y prioriza en una matriz de riesgo con apetito explícito. Es la base de todo el Libro V.</p>
+<h2 id="1-activos-joyas-de-la-corona">1. Activos (joyas de la corona)</h2>
+<p>La <strong>memoria de años</strong> (4.1, sensibilidad máxima), las <strong>credenciales</strong> que AURA custodia, el <strong>audit log</strong>, el <strong>system prompt maestro</strong> (2.4) y la <strong>capacidad de acción</strong> sobre hogar/computador (D4). Comprometer cualquiera compromete al usuario.</p>
+<h2 id="2-actores-de-amenaza">2. Actores de amenaza</h2>
+<p>Atacante remoto (a través de contenido externo), plugin malicioso o comprometido (3.4), proveedor de IA (fuga o mal uso de datos), y error propio (AURA mal calibrada). El usuario <strong>no</strong> es amenaza; los terceros captados (4.5) se protegen, no se vigilan (2.4 §5/§6).</p>
+<h2 id="3-superficies-de-ataque">3. Superficies de ataque</h2>
+<p>Contenido no confiable procesado por LLMs (email, web, sensores) → <strong>prompt injection</strong> (5.2); la red doméstica y los dispositivos; los canales a la nube (los 3 LLMs); la cadena de suministro de plugins (3.4 §4); el micrófono siempre-escucha (6.2).</p>
+<h2 id="4-stride-mitre-atlas">4. STRIDE + MITRE ATLAS</h2>
+<p>STRIDE por contenedor del 3.2 (spoofing, tampering, repudiation, information disclosure, DoS, elevation). ATLAS para amenazas propias de IA: prompt injection, envenenamiento de memoria, exfiltración vía modelo, evasión de guardrails.</p>
+<h2 id="5-aura-como-objetivo-y-como-vector">5. AURA como objetivo y como vector</h2>
+<ul>
+<li><strong>Como objetivo:</strong> comprometer el orquestador o la memoria da control de todo el ecosistema (single point of compromise, riesgo central del proyecto).</li>
+<li><strong>Como vector:</strong> contenido malicioso que induce a AURA a <strong>usar sus permisos legítimos</strong> para dañar (encender/apagar, borrar, mensajes) — por eso HITL sobre lista roja (5.3) y sandboxing (5.2).</li>
+</ul>
+<h2 id="6-matriz-de-riesgo-y-apetito">6. Matriz de riesgo y apetito</h2>
+<p>Prioridad máxima: prompt injection con efecto físico y fuga de memoria. Apetito: <strong>cero</strong> para acciones irreversibles sin confirmación (D4) y para fuga de dato fuera de la frontera local-first (ADR-0001). El threat model se re-evalúa por evento (nuevo plugin, nueva integración).</p>
+<h2 id="decisiones-tomadas">Decisiones tomadas</h2>
+<p>Ejecución de la arquitectura de seguridad aprobada; desarrollos † aprobados por delegación D22.</p>
+<h3 id="decisiones-aplicables-adrs">Decisiones aplicables (ADRs)</h3>
+<ul>
+<li><a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001</a> (<code>accepted</code>): la frontera local-first reduce la superficie.</li>
+<li><a href="../../adr/0004-evolucion-permanente.html">ADR-0004</a> (<code>accepted</code>): plugins aislados limitan el radio de un compromiso.</li>
+</ul>
+<h3 id="evaluacion-por-las-cinco-preguntas-d21">Evaluación por las cinco preguntas (D21)</h3>
+<p>(1) 10 años: el modelo se re-evalúa por evento. (2) Menos dependencia: no depende de un proveedor de seguridad. (3) Sustituir sin rediseñar: controles por capa. (4) Equipo pequeño: prioriza los riesgos top. (5) Sistema vivo: se actualiza con cada capacidad. Sin respuesta negativa → sin Alerta.</p>
+<h2 id="riesgos">Riesgos</h2>
+<ul>
+<li><strong>Single point of compromise:</strong> AURA concentra poder; mitigación: todo el Libro V (zero trust, HITL, sandboxing, auditoría).</li>
+<li><strong>Prompt injection con efecto físico:</strong> el más grave y único; mitigación: 5.2 + 5.3.</li>
+<li><strong>Fuga de memoria:</strong> catastrófica; mitigación: 5.5, ADR-0001.</li>
+</ul>
+<h2 id="dependencias">Dependencias</h2>
+<p>Capítulos: <strong>3.2</strong> (contenedores), <strong>2.3</strong> (escenarios y activos del usuario). Alimenta: 5.2, 5.3, 5.4, 5.5, 5.6 y 3.4 (cadena de suministro).</p>
+<h2 id="proximos-pasos">Próximos pasos</h2>
+<ul>
+<li>5.2-5.5 diseñan los controles que materializan estas mitigaciones.</li>
+</ul>
+<h2 id="referencias-cruzadas">Referencias cruzadas</h2>
+<ul>
+<li><a href="../libro-03-arquitectura-del-sistema/3.2-arquitectura-referencia-c4.html">3.2 Arquitectura de Referencia</a> · <a href="../libro-02-vision-y-producto/2.4-personalidad-etica-limites.html">2.4 §5/§6 (no-vigilancia)</a> · <a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001</a> · <a href="../../INDICE.html">Índice maestro</a></li>
+</ul>
+<h2 id="aprobacion-del-cto-delegacion-d22">Aprobación del CTO (delegación D22)</h2>
+<p>Revisión ejecutiva conforme al acta D22: <strong>(1) Alcance</strong> — ejecuta la arquitectura de seguridad ya prevista (índice, 3.1-3.2); sin capacidades nuevas. <strong>(2) Consistencia</strong> — respeta ADR-0001/0004, guardrails de 2.4, permisos D4/D9 y P-ARQ. <strong>(3) Cinco preguntas (D21)</strong> — afirmativas. <strong>(4) Materia reservada</strong> — ninguna. <strong>Veredicto: APROBADO por el CTO (delegación D22), 2026-07-18.</strong></p>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

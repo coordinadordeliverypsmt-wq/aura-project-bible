@@ -1,0 +1,62 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Seguridad Activa del Ecosistema — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.0.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-18 · <b>fecha_aprobacion</b>: 2026-07-18 · <b>autor</b>: Sonnet (Engineering Manager) — aprobación CTO por delegación D22 · <b>responsable</b>: Sonnet · <b>prioridad</b>: P3</div>
+<h1 id="56-seguridad-activa-del-ecosistema">5.6 — Seguridad Activa del Ecosistema</h1>
+<blockquote>
+<p><strong>Estado:</strong> Aprobado (CTO por delegación D22, 2026-07-18) · <strong>Nivel:</strong> Stub · <strong>Responsable:</strong> Sonnet</p>
+</blockquote>
+<p><em>Convención † (1.1 §4): desarrollo del arquitecto/EM exigible con la aprobación; no es texto de actas del CEO.</em></p>
+<h2 id="resumen-ejecutivo">Resumen ejecutivo</h2>
+<p><strong>(Stub — capacidad diferida a Release 3, 2.2 §4.1.)</strong> AURA como guardián proactivo de la red y dispositivos del usuario. Este capítulo queda a nivel stub en la v1.0 (1.1 §6): fija objetivo, decisiones clave y qué falta; el diseño completo se hará al abrir el Release 3.</p>
+<h2 id="objetivo-y-alcance-stub">Objetivo y alcance (stub)</h2>
+<p>Monitoreo de red y dispositivos, detección de anomalías y respuesta asistida sobre el ecosistema del usuario. <strong>Fuera del MVP</strong> (2.2 §4.1); se activa en R3, después del multiusuario y con la seguridad base (5.1-5.5) ya operativa.</p>
+<h2 id="decisiones-clave-stub">Decisiones clave (stub)</h2>
+<ul>
+<li>Toda acción de defensa pasa por HITL (5.3) y respeta local-first (ADR-0001).</li>
+<li>Se apoya en el modelo de amenazas (5.1) y en el control de sistemas (6.4).</li>
+</ul>
+<h2 id="que-falta-y-cuando">Qué falta y cuándo</h2>
+<p>Diseño completo (playbooks de respuesta, detección, límites de acción autónoma) al abrir el Release 3. No se diseña en v1 (regla 13 ADR-0004: no construir lo que no se necesita aún).</p>
+<h2 id="decisiones-tomadas">Decisiones tomadas</h2>
+<p>Ejecución de la arquitectura de seguridad aprobada; desarrollos † aprobados por delegación D22.</p>
+<h3 id="decisiones-aplicables-adrs">Decisiones aplicables (ADRs)</h3>
+<ul>
+<li><a href="5.1-modelo-amenazas.html">5.1 Modelo de Amenazas</a>, <a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001</a>: base.</li>
+</ul>
+<h3 id="evaluacion-por-las-cinco-preguntas-d21">Evaluación por las cinco preguntas (D21)</h3>
+<p>Aplicable al completarse en R3; como stub no compromete el horizonte. Sin Alerta.</p>
+<h2 id="riesgos">Riesgos</h2>
+<ul>
+<li>Se detalla en R3 con su propio diseño.</li>
+</ul>
+<h2 id="dependencias">Dependencias</h2>
+<p>Capítulos: <strong>5.1</strong>. Diferido a R3.</p>
+<h2 id="proximos-pasos">Próximos pasos</h2>
+<ul>
+<li>Diseño completo al abrir el Release 3.</li>
+</ul>
+<h2 id="referencias-cruzadas">Referencias cruzadas</h2>
+<ul>
+<li><a href="5.1-modelo-amenazas.html">5.1 Modelo de Amenazas</a> · <a href="../libro-02-vision-y-producto/2.2-alcance-mvp-roadmap-releases.html">2.2 §4.1</a> · <a href="../../INDICE.html">Índice maestro</a></li>
+</ul>
+<h2 id="aprobacion-del-cto-delegacion-d22">Aprobación del CTO (delegación D22)</h2>
+<p>Revisión ejecutiva conforme al acta D22: <strong>(1) Alcance</strong> — ejecuta la arquitectura de seguridad ya prevista (índice, 3.1-3.2); sin capacidades nuevas. <strong>(2) Consistencia</strong> — respeta ADR-0001/0004, guardrails de 2.4, permisos D4/D9 y P-ARQ. <strong>(3) Cinco preguntas (D21)</strong> — afirmativas. <strong>(4) Materia reservada</strong> — ninguna. <strong>Veredicto: APROBADO por el CTO (delegación D22), 2026-07-18.</strong></p>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

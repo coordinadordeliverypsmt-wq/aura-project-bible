@@ -1,0 +1,69 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Seguridad de IA: Prompt Injection, Sandboxing y Memoria — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.0.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-18 · <b>fecha_aprobacion</b>: 2026-07-18 · <b>autor</b>: Opus (Chief Software Architect) — aprobación CTO por delegación D22 · <b>responsable</b>: Opus · <b>prioridad</b>: P1</div>
+<h1 id="52-seguridad-de-ia-prompt-injection-sandboxing-y-memoria">5.2 — Seguridad de IA: Prompt Injection, Sandboxing y Memoria</h1>
+<blockquote>
+<p><strong>Estado:</strong> Aprobado (CTO por delegación D22, 2026-07-18) · <strong>Nivel:</strong> Completo · <strong>Responsable:</strong> Opus</p>
+</blockquote>
+<p><em>Convención † (1.1 §4): desarrollo del arquitecto/EM exigible con la aprobación; no es texto de actas del CEO.</em></p>
+<h2 id="resumen-ejecutivo">Resumen ejecutivo</h2>
+<p>Protege el núcleo cognitivo contra los ataques propios de sistemas de IA — el riesgo técnico #1 del proyecto: que contenido malicioso externo escale a <strong>acciones reales</strong> sobre el hogar o los sistemas. Diseña defensas en profundidad contra <strong>prompt injection</strong> (directa, indirecta y multi-agente), la <strong>separación de instrucciones y datos no confiables</strong>, el <strong>sandboxing de salidas</strong> antes de ejecutar, la protección contra <strong>envenenamiento de memoria</strong> y el <strong>red teaming</strong> continuo.</p>
+<h2 id="1-prompt-injection">1. Prompt injection</h2>
+<ul>
+<li><strong>Directa:</strong> el usuario/atacante intenta anular el system prompt. <strong>Indirecta:</strong> contenido externo (email, web, transcripción del KCM) que AURA procesa contiene instrucciones ocultas. <strong>Multi-agente:</strong> un agente induce a otro (confused deputy).</li>
+<li>El vector indirecto es el más peligroso: AURA lee mucho contenido no confiable y puede actuar.</li>
+</ul>
+<h2 id="2-separacion-de-instrucciones-y-datos-no-confiables">2. Separación de instrucciones y datos no confiables</h2>
+<p>Principio: <strong>el contenido externo es dato, nunca instrucción.</strong> El orquestador (4.2) y los agentes (4.3) tratan todo texto recuperado (web, email, memoria de terceros, transcripciones) como datos a analizar, con marcado de confianza; las instrucciones solo provienen del system prompt maestro (2.4) y del usuario autenticado (5.4).</p>
+<h2 id="3-sandboxing-de-salidas-antes-de-ejecutar">3. Sandboxing de salidas antes de ejecutar</h2>
+<p>Ninguna salida de un LLM ejecuta directamente: toda acción propuesta pasa por (a) validación de esquema, (b) el Gestor de Permisos/HITL (5.3, listas D4) y (c) idempotencia para efectos físicos (3.3). Una salida que pide una acción de lista roja se detiene siempre (tolerancia cero, 2.5 §5.4).</p>
+<h2 id="4-envenenamiento-de-memoria">4. Envenenamiento de memoria</h2>
+<p>Un atacante podría intentar que AURA "recuerde" algo falso. Defensas: procedencia obligatoria (4.1 §4), no persistir contenido no confiable como hecho, y marcar el origen de todo recuerdo. La memoria de terceros (4.5) no se persiste como perfil (2.4 §6), reduciendo la superficie.</p>
+<h2 id="5-red-teaming-continuo">5. Red teaming continuo</h2>
+<p>Pruebas adversariales (7.2) que intentan romper guardrails, inducir acciones y exfiltrar datos; se ejecutan en cada release y ante cambios de modelo. Un guardrail roto es criterio de fracaso (2.5 §5.5).</p>
+<h2 id="decisiones-tomadas">Decisiones tomadas</h2>
+<p>Ejecución de la arquitectura de seguridad aprobada; desarrollos † aprobados por delegación D22.</p>
+<h3 id="decisiones-aplicables-adrs">Decisiones aplicables (ADRs)</h3>
+<ul>
+<li><a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001</a> (<code>accepted</code>): minimización limita lo exfiltrable.</li>
+<li><a href="../../adr/0004-evolucion-permanente.html">ADR-0004</a> (<code>accepted</code>): sandboxing de plugins (3.4).</li>
+</ul>
+<h3 id="evaluacion-por-las-cinco-preguntas-d21">Evaluación por las cinco preguntas (D21)</h3>
+<p>(1) 10 años: el red teaming evoluciona con las amenazas. (2) Menos dependencia: defensas propias, no de un proveedor. (3) Sustituir sin rediseñar: capas independientes. (4) Equipo pequeño: defensa en profundidad automatizable. (5) Sistema vivo: se refuerza continuamente. Sin respuesta negativa → sin Alerta.</p>
+<h2 id="riesgos">Riesgos</h2>
+<ul>
+<li><strong>Injection indirecta con efecto físico:</strong> el riesgo #1; mitigación: separación instrucción/dato (§2) + sandboxing de salidas (§3) + HITL (5.3).</li>
+<li><strong>Envenenamiento de memoria:</strong> mitigación: procedencia (4.1 §4).</li>
+<li><strong>Evasión de guardrails:</strong> mitigación: red teaming (§5), tolerancia cero (2.5 §5.5).</li>
+</ul>
+<h2 id="dependencias">Dependencias</h2>
+<p>Capítulos: <strong>5.1</strong> (amenazas), <strong>4.3</strong> (agentes). Alimenta: 5.3 (HITL), 7.2 (red teaming), 4.5 (transcripciones como dato no confiable).</p>
+<h2 id="proximos-pasos">Próximos pasos</h2>
+<ul>
+<li>5.3 materializa el freno HITL; 7.2 define las pruebas adversariales.</li>
+</ul>
+<h2 id="referencias-cruzadas">Referencias cruzadas</h2>
+<ul>
+<li><a href="5.1-modelo-amenazas.html">5.1 Modelo de Amenazas</a> · <a href="../libro-04-cognicion/4.3-sistema-agentes-tool-use.html">4.3 Agentes y Tool Use</a> · <a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001</a> · <a href="../../INDICE.html">Índice maestro</a></li>
+</ul>
+<h2 id="aprobacion-del-cto-delegacion-d22">Aprobación del CTO (delegación D22)</h2>
+<p>Revisión ejecutiva conforme al acta D22: <strong>(1) Alcance</strong> — ejecuta la arquitectura de seguridad ya prevista (índice, 3.1-3.2); sin capacidades nuevas. <strong>(2) Consistencia</strong> — respeta ADR-0001/0004, guardrails de 2.4, permisos D4/D9 y P-ARQ. <strong>(3) Cinco preguntas (D21)</strong> — afirmativas. <strong>(4) Materia reservada</strong> — ninguna. <strong>Veredicto: APROBADO por el CTO (delegación D22), 2026-07-18.</strong></p>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

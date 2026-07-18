@@ -2,6 +2,12 @@
 
 Versionado documental con [Semantic Versioning](https://semver.org/lang/es/). La v1.0.0 corresponderá a la Bible cerrada según el criterio del capítulo 1.1.
 
+## [0.7.1] — 2026-07-17
+
+### Agregado
+- **ALERTA-001** (mecanismo D15): incompatibilidad bus-de-eventos vs streams de voz/avatar — gate extraordinario convocado; diseño de 3.3/6.2/6.5 suspendido preventivamente.
+- P-002: paquete de 11 correcciones al 3.1 y al ADR-0004 (revisión adversarial post-aprobación), pendiente de autorización del CEO.
+
 ## [0.7.0] — 2026-07-17 — FASE D1 COMPLETA
 
 ### Hito

@@ -2,6 +2,12 @@
 
 Versionado documental con [Semantic Versioning](https://semver.org/lang/es/). La v1.0.0 corresponderá a la Bible cerrada según el criterio del capítulo 1.1.
 
+## [0.14.0] — 2026-07-18
+
+### Cambiado / Agregado
+- **ALERTA-002 RESUELTA** (CEO): Alternativa A con precisión de **alcance de sesión** — identificación y atribución de participantes dentro de una sesión autorizada, sin perfil persistente de terceros entre sesiones. Guardrail **2.4 §5 precisado** (v1.1.0); capítulo 4.5 desbloqueado.
+- **4.1 (Memoria a Largo Plazo) y 4.2 (Orquestación Multi-Modelo): APROBADOS por el CTO (delegación D22).** Ejecutan capacidades aprobadas sobre los contratos del Libro III y el stack (ADR-0007/0008). Progreso P1: 13/28.
+
 ## [0.13.0] — 2026-07-18
 
 ### Hito

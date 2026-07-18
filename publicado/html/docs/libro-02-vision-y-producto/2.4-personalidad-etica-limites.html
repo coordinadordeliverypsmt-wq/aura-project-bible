@@ -17,7 +17,7 @@ font-family:Helvetica,Arial,sans-serif}
 .meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
 font-size:.85em;font-family:Helvetica,Arial,sans-serif}
 </style></head><body>
-<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.0.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-17 · <b>fecha_aprobacion</b>: 2026-07-18 · <b>autor</b>: Fable (CTO, AURA Labs) · <b>responsable</b>: Fable · <b>prioridad</b>: P1</div>
+<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.1.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-17 · <b>fecha_aprobacion</b>: 2026-07-18 · <b>autor</b>: Fable (CTO, AURA Labs) · <b>responsable</b>: Fable · <b>prioridad</b>: P1</div>
 <h1 id="24-personalidad-etica-y-limites-del-companero-ia">2.4 — Personalidad, Ética y Límites del Compañero IA</h1>
 <blockquote>
 <p><strong>Estado:</strong> Aprobado (CEO, 2026-07-18) · <strong>Prioridad:</strong> P1 · <strong>Responsable:</strong> Fable · <strong>Redactor:</strong> Sonnet (EM)</p>
@@ -123,6 +123,7 @@ font-size:.85em;font-family:Helvetica,Arial,sans-serif}
 <li><strong>Sin retención por defecto:</strong> los datos de terceros no se almacenan salvo autorización explícita del usuario <strong>y</strong> con un fin concreto; su residencia, cifrado y borrado siguen el ADR-0001 y el Libro V (5.5, 5.4).</li>
 <li><strong>Transparencia hacia terceros presentes:</strong> política de aviso de que AURA está activa; su viabilidad técnica y sus límites frente al modelo de amenazas se definen en el Libro V (5.1).</li>
 <li><strong>Multiusuario ≠ perfilado de terceros:</strong> cuando el sistema habilite multiusuario (acta D5; Release 3 del 2.2), cada usuario es titular de su <strong>propia</strong> memoria aislada (P-ARQ-5); esto no autoriza a AURA a perfilar a quien no es usuario.</li>
+<li><strong>Alcance de sesión vs persistencia (precisión de la ALERTA-002, CEO 2026-07-18):</strong> el no-perfilado de terceros es una regla <strong>entre sesiones</strong>. Dentro de una <strong>sesión autorizada</strong> (Módulo de Captura de Conocimiento, D23, cap. 4.5), AURA <strong>sí</strong> puede identificar participantes en el contexto de esa sesión, diferenciar hablantes y asociar decisiones, tareas y compromisos al participante correspondiente, para generar resúmenes y extraer acciones. Esa información es <strong>contextual a la sesión y no se convierte en un perfil persistente del tercero</strong>: la memoria permanente conserva solo lo que aporta valor directo al usuario, sin construir historiales de terceros entre sesiones. Requisitos: consentimiento del usuario, HITL cuando corresponda y cumplimiento de la ley aplicable.</li>
 </ol>
 <p><strong>Remisión (detalle técnico):</strong> las reglas de retención, acceso, cifrado, borrado y aviso, y su viabilidad frente al modelo de amenazas, se especifican en el <strong>Libro V</strong> — 5.5 (privacidad y soberanía de datos), 5.4 (identidad y control de acceso) y 5.1 (modelo de amenazas) — bajo el <strong>ADR-0001</strong>. Este capítulo aporta la política; no fija el mecanismo.</p>
 <h2 id="6-voz-base-espanol-latino">6. Voz base: español latino †</h2>

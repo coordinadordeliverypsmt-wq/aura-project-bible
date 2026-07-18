@@ -1,0 +1,94 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Arquitectura de Memoria a Largo Plazo — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.0.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-18 · <b>fecha_aprobacion</b>: 2026-07-18 · <b>autor</b>: Opus (Chief Software Architect) — aprobación CTO por delegación D22 · <b>responsable</b>: Opus · <b>prioridad</b>: P1</div>
+<h1 id="41-arquitectura-de-memoria-a-largo-plazo">4.1 — Arquitectura de Memoria a Largo Plazo</h1>
+<blockquote>
+<p><strong>Estado:</strong> Aprobado (CTO por delegación D22, 2026-07-18) · <strong>Prioridad:</strong> P1 · <strong>Responsable:</strong> Opus</p>
+</blockquote>
+<p><em>Convención † (1.1 §4): desarrollo del arquitecto exigible con la aprobación; no es texto de actas del CEO.</em></p>
+<h2 id="resumen-ejecutivo">Resumen ejecutivo</h2>
+<p>Diseña la memoria que distingue a AURA de un chatbot y hace del PIOS un compañero de años. Define la <strong>taxonomía</strong> (episódica, semántica, procedimental), el <strong>pipeline de escritura</strong> (qué se recuerda y cuándo, por relevancia), la <strong>recuperación</strong> (RAG híbrido sobre Qdrant, ADR-0007), la <strong>procedencia y la no-fabricación</strong> de recuerdos (2.4 §2, 2.5 §5.2), la <strong>soberanía</strong> (local, cifrada, exportable — ADR-0001, 3.5) y el aislamiento por <code>user_id</code>. Es un <strong>módulo fuera del núcleo</strong> (3.2) cuyas operaciones viajan por el bus (3.3). Cumple los umbrales oficiales del 2.5 §5.2 (ventana ≥4 semanas, recall ≥90%). Consolidación y olvido avanzados quedan como secciones v2 (índice).</p>
+<h2 id="objetivo">Objetivo</h2>
+<p>Que AURA recuerde lo que importa durante años sin degradarse, sin fabricar y sin violar la privacidad, cumpliendo los objetivos oficiales de memoria (2.5 §5.2).</p>
+<h2 id="1-taxonomia-de-memoria">1. Taxonomía de memoria</h2>
+<ul>
+<li><strong>Episódica:</strong> eventos e interacciones fechadas ("el 12 de julio hablamos de X"). Base del "recordar semanas después" (2.5 CM2).</li>
+<li><strong>Semántica:</strong> hechos y preferencias estables del usuario ("prefiere reuniones cortas"). Base de la personalización (4.4).</li>
+<li><strong>Procedimental:</strong> cómo hacer tareas que el usuario repite (automatizaciones aprendidas). Enlaza con 4.4 y 6.4.</li>
+<li><strong>Memoria de trabajo</strong> (efímera, en contexto): no persiste; es el contexto de la conversación en curso.</li>
+</ul>
+<h2 id="2-pipeline-de-escritura-que-se-recuerda-y-cuando">2. Pipeline de escritura (qué se recuerda y cuándo)</h2>
+<ul>
+<li><strong>Captura por eventos:</strong> cada interacción relevante emite operaciones de memoria por el bus (3.3); la memoria las consume y decide persistencia.</li>
+<li><strong>Relevancia (salience) †:</strong> no todo se guarda. Se persiste lo que tiene valor para el usuario (decisiones, preferencias, hechos, compromisos); el ruido conversacional no. Para el KCM (4.5), rige el "alcance de sesión" de la ALERTA-002 (2.4 §6): lo de terceros no se convierte en historial persistente.</li>
+<li><strong>Procedencia obligatoria:</strong> todo recuerdo guarda su origen (cuándo, de qué interacción), su <code>user_id</code> y una marca de confianza. Esto habilita la no-fabricación (§4).</li>
+</ul>
+<h2 id="3-recuperacion-rag-hibrido">3. Recuperación (RAG híbrido)</h2>
+<ul>
+<li><strong>Motor:</strong> Qdrant para búsqueda vectorial semántica (ADR-0007) + filtros estructurados (relacional) — búsqueda híbrida.</li>
+<li><strong>Pipeline:</strong> embedding de la consulta → recuperación vectorial + filtros (fecha, tipo, <code>user_id</code>) → re-ranking → ensamblaje de contexto dentro del presupuesto de tokens.</li>
+<li><strong>Presupuesto de contexto †:</strong> el orquestador (4.2) pide a la memoria el contexto relevante; la memoria devuelve lo más pertinente sin exceder el presupuesto, priorizando por relevancia y recencia.</li>
+<li>Cumple 2.5 §5.2: la ventana (≥4 semanas) y el recall (≥90%) son objetivos de este pipeline, verificados en 7.2.</li>
+</ul>
+<h2 id="4-confianza-procedencia-y-no-fabricacion">4. Confianza, procedencia y no-fabricación</h2>
+<p>Requisito duro (2.4 §2, guardrail de honestidad; 2.5 §5.5 tolerancia cero a fabricación): AURA <strong>distingue lo recordado de lo inferido</strong>. Un recuerdo recuperado lleva su procedencia; si AURA no tiene un recuerdo, lo declara — <strong>no inventa</strong>. Esto es verificable en las evals (7.2) y es criterio de fracaso si se viola (2.1 §6).</p>
+<h2 id="5-soberania-cifrado-y-portabilidad">5. Soberanía, cifrado y portabilidad</h2>
+<ul>
+<li><strong>Local y cifrada</strong> (ADR-0001, 3.5 §5): la memoria es dato de sensibilidad <strong>máxima</strong>; nunca sale del perímetro salvo respaldo cifrado.</li>
+<li><strong>Minimización antes de la nube:</strong> lo que se envía a un LLM externo para razonar se minimiza (regla 5 ADR-0001); el LLM no recibe la memoria completa, solo el contexto mínimo.</li>
+<li><strong>Exportación total</strong> (2.1 §7.6, 3.5 §4): el usuario exporta toda su memoria en formato neutral — "el usuario es el dueño" (D1).</li>
+</ul>
+<h2 id="6-aislamiento-multiusuario">6. Aislamiento multiusuario</h2>
+<p>Cada recuerdo porta <code>user_id</code> (3.2 §7, 3.5 §7); la recuperación filtra por usuario. Multiusuario (R3) es activar identidades, no migrar (3.5).</p>
+<h2 id="7-evolucion-v2">7. Evolución (v2)</h2>
+<p>Consolidación periódica, olvido controlado por decaimiento, grafo de conocimiento personal y resolución de contradicciones se marcan como evolución posterior (índice); la arquitectura los admite sin rediseño (ADR-0004), pero no se diseñan en v1 (regla 13: no construir lo que no se necesita aún).</p>
+<h2 id="decisiones-tomadas">Decisiones tomadas</h2>
+<ul>
+<li>Taxonomía, pipelines de escritura/recuperación, procedencia/no-fabricación, soberanía y aislamiento: ejecución de capacidad aprobada (2.2 cap 1) sobre contratos del 3.5 (desarrollo †, aprobado por delegación).</li>
+<li>Consolidación/olvido/grafo: <strong>diferidos a v2</strong> (regla 13 ADR-0004).</li>
+</ul>
+<h3 id="decisiones-aplicables-adrs">Decisiones aplicables (ADRs)</h3>
+<ul>
+<li><a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001</a>, <a href="../../adr/0007-motores-datos.html">ADR-0007</a> (<code>accepted</code>): local-first, cifrado y Qdrant como motor vectorial.</li>
+<li><a href="../../adr/0004-evolucion-permanente.html">ADR-0004</a> (<code>accepted</code>): memoria como módulo por contrato; evolución sin rediseño.</li>
+</ul>
+<h3 id="evaluacion-por-las-cinco-preguntas-d21">Evaluación por las cinco preguntas (D21)</h3>
+<p>(1) Escala 10 años: memoria versionada y migrable (3.5). (2) Reduce dependencia: motor tras contrato. (3) Sustituir sin rediseñar: cambiar de vector store no toca el dominio. (4) Equipo pequeño: v1 sin consolidación compleja. (5) Sistema vivo: la memoria crece con el usuario. Sin respuesta negativa → sin Alerta.</p>
+<h2 id="riesgos">Riesgos</h2>
+<ul>
+<li><strong>Fabricación de recuerdos:</strong> el más grave para la confianza; mitigación: procedencia obligatoria (§4), tolerancia cero (2.5 §5.5), evals (7.2).</li>
+<li><strong>Degradación a escala de años:</strong> sin consolidación, la memoria puede saturarse; mitigación: relevancia en escritura (§2), consolidación en v2.</li>
+<li><strong>Fuga de memoria:</strong> máxima sensibilidad; mitigación: cifrado local, minimización (§5), ADR-0001.</li>
+</ul>
+<h2 id="dependencias">Dependencias</h2>
+<p>Capítulos: <strong>3.5</strong> (Aprobado — modelo de datos), <strong>2.4</strong> (Aprobado v1.1.0 — no-fabricación, alcance de sesión). Alimenta: 4.2 (contexto para el router), 4.4 (aprendizaje), 4.5 (KCM incorpora conocimiento), 5.5 (privacidad de memoria), 7.2 (evals de recall/fabricación).</p>
+<h2 id="proximos-pasos">Próximos pasos</h2>
+<ul>
+<li>4.4 usa esta memoria para el aprendizaje; 4.5 (KCM) incorpora conocimiento bajo el alcance de sesión (2.4 §6).</li>
+</ul>
+<h2 id="referencias-cruzadas">Referencias cruzadas</h2>
+<ul>
+<li><a href="../libro-03-arquitectura-del-sistema/3.5-modelo-datos-persistencia.html">3.5 Modelo de Datos</a> · <a href="../libro-03-arquitectura-del-sistema/3.2-arquitectura-referencia-c4.html">3.2 Arquitectura de Referencia</a> · <a href="2.5-requisitos-atributos-calidad.html">2.5 Requisitos §5.2</a></li>
+<li><a href="2.4-personalidad-etica-limites.html">2.4 Personalidad §2/§6</a> · <a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001</a> · <a href="../../adr/0007-motores-datos.html">ADR-0007</a> · <a href="../../INDICE.html">Índice maestro</a></li>
+</ul>
+<h2 id="aprobacion-del-cto-delegacion-d22">Aprobación del CTO (delegación D22)</h2>
+<p>Revisión ejecutiva conforme al acta D22: <strong>(1) Alcance</strong> — ejecuta una capacidad ya aprobada (2.2) y los contratos del 3.2/3.3/3.5; sin capacidades nuevas. <strong>(2) Consistencia</strong> — respeta ADR-0001, 0004, 0007, los umbrales oficiales del 2.5 y los principios P-ARQ. <strong>(3) Cinco preguntas (D21)</strong> — afirmativas. <strong>(4) Materia reservada</strong> — ninguna: la tecnología ya está decidida (ADR-0007/0008); no toca guardrails ni alcance. <strong>Veredicto: APROBADO por el CTO (delegación D22), 2026-07-18.</strong></p>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

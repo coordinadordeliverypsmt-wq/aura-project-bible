@@ -1,0 +1,98 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Orquestación Multi-Modelo y Model Router — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.0.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-18 · <b>fecha_aprobacion</b>: 2026-07-18 · <b>autor</b>: Opus (Chief Software Architect) — aprobación CTO por delegación D22 · <b>responsable</b>: Opus · <b>prioridad</b>: P1</div>
+<h1 id="42-orquestacion-multi-modelo-y-model-router">4.2 — Orquestación Multi-Modelo y Model Router</h1>
+<blockquote>
+<p><strong>Estado:</strong> Aprobado (CTO por delegación D22, 2026-07-18) · <strong>Prioridad:</strong> P1 · <strong>Responsable:</strong> Opus</p>
+</blockquote>
+<p><em>Convención † (1.1 §4): desarrollo del arquitecto exigible con la aprobación; no es texto de actas del CEO.</em></p>
+<h2 id="resumen-ejecutivo">Resumen ejecutivo</h2>
+<p>Diseña la capa que hace de los modelos de IA <strong>recursos intercambiables</strong> del PIOS, no productos aislados. Define la <strong>abstracción de proveedores</strong> (ChatGPT, Claude, Gemini en el MVP; Grok, Copilot, Ollama, LM Studio después), los <strong>criterios de enrutamiento</strong> (costo, latencia, calidad, privacidad), la <strong>resiliencia</strong> (fallback, circuit breakers, modo offline con modelos locales de R2), la <strong>economía cognitiva</strong> (presupuestos y caching, insumo de 1.5), el <strong>ciclo de vida de modelos</strong> con prompts versionados y la <strong>estrategia de salida</strong> ante la desaparición de un proveedor. Es un <strong>plugin por contrato</strong> (3.4) que cumple el presupuesto de latencia del MVP (2.5 §5.1) y la minimización previa (ADR-0001).</p>
+<h2 id="objetivo">Objetivo</h2>
+<p>Que ninguna tarea dependa de un proveedor concreto (P-ARQ-4), que la mejor herramienta atienda cada caso (brief) y que un cambio de proveedor no toque al resto del sistema.</p>
+<h2 id="1-abstraccion-de-proveedores">1. Abstracción de proveedores</h2>
+<ul>
+<li><strong>Contrato común de inferencia:</strong> todo proveedor se conecta como plugin (3.4) que expone <code>llm.chat</code>, <code>llm.embed</code>, etc., con un contrato único: entrada, streaming de salida, tool use unificado, normalización de errores y rate limits.</li>
+<li><strong>MVP:</strong> ChatGPT (OpenAI), Claude (Anthropic), Gemini (Google) (acta D2). <strong>R2:</strong> Ollama y LM Studio (locales), Grok, Copilot — admitidos por el mismo contrato desde el día uno.</li>
+<li><strong>Minimización (ADR-0001 regla 5):</strong> todo lo que se envía a un proveedor externo pasa por minimización; la memoria completa nunca sale (4.1 §5).</li>
+</ul>
+<h2 id="2-el-model-router-criterios-de-enrutamiento">2. El Model Router: criterios de enrutamiento</h2>
+<p>Cada tarea (clasificada por el orquestador) se enruta por:</p>
+<ul>
+<li><strong>Privacidad primero:</strong> una tarea marcada sensible se resuelve local (R2) o con el proveedor de menor exposición; la privacidad no se sacrifica por calidad (orden de 2.5 §3).</li>
+<li><strong>Latencia:</strong> el router respeta el presupuesto de 2.5 §5.1 (primer token del LLM ≤ 500 ms en el camino conversacional); tareas no conversacionales toleran más.</li>
+<li><strong>Calidad por tipo de tarea:</strong> enruta al modelo más fuerte para la clase de tarea (razonamiento profundo vs respuesta rápida).</li>
+<li><strong>Costo:</strong> a igualdad de calidad/latencia, el más económico (economía cognitiva §4), con visibilidad en 1.5.</li>
+<li><strong>Override del usuario:</strong> el usuario puede forzar un proveedor (transparencia, P-ARQ-1).</li>
+</ul>
+<h2 id="3-resiliencia-fallback-circuit-breakers-offline">3. Resiliencia: fallback, circuit breakers, offline</h2>
+<ul>
+<li><strong>Cadenas de fallback</strong> por clase de tarea: si el proveedor primario falla o se degrada, el router pasa al siguiente sin que el usuario elija (E-03 de 2.3).</li>
+<li><strong>Circuit breakers:</strong> un proveedor con errores/latencia sostenida se aísla temporalmente para no arrastrar al sistema.</li>
+<li><strong>Modo offline (2.5 §5.6):</strong> sin nube, el router usa modelos locales (R2) para las funciones que los admitan; las funciones frontier se suspenden con aviso (P-ARQ-1). El MVP (solo nube) degrada; R2 da autonomía real.</li>
+</ul>
+<h2 id="4-economia-cognitiva">4. Economía cognitiva</h2>
+<ul>
+<li><strong>Presupuestos y caching †:</strong> el router cachea resultados reutilizables y respeta límites de gasto visibles (no topes — 1.5 §3.2); un salto de costo anómalo dispara la alerta de 1.5.</li>
+<li><strong>Optimización local vs nube:</strong> conforme R2 acerca modelos locales, el router prefiere local cuando la calidad basta, reduciendo costo y exposición.</li>
+</ul>
+<h2 id="5-ciclo-de-vida-de-modelos-y-prompts">5. Ciclo de vida de modelos y prompts</h2>
+<ul>
+<li><strong>Registro de modelos</strong> con metadatos (capacidades, costo, límites); el router consulta el registro, no nombres cableados.</li>
+<li><strong>Prompts versionados por modelo</strong> (SemVer): el system prompt maestro (2.4 §7) y los prompts de tarea se versionan; un cambio de modelo se prueba con la suite de consistencia inter-modelo (2.4 §7.4, umbral ≥90%, 2.5 §5.5) antes de habilitarse.</li>
+<li><strong>Deprecaciones:</strong> los proveedores retiran modelos cada 6-18 meses; el registro y las pruebas A/B absorben la migración sin romper comportamiento.</li>
+</ul>
+<h2 id="6-estrategia-de-salida-ante-desaparicion-de-un-proveedor">6. Estrategia de salida ante desaparición de un proveedor</h2>
+<p>Si un proveedor cierra, cambia precios o revoca acceso: el contrato común (§1) permite sustituirlo por otro sin tocar el resto; la estrategia de datos neutral (3.5 §4) evita lock-in; los modelos locales (R2) son el piso de independencia. Es la materialización de P-ARQ-4 y de la regla 7 del ADR-0004.</p>
+<h2 id="decisiones-tomadas">Decisiones tomadas</h2>
+<ul>
+<li>Abstracción, criterios de enrutamiento, resiliencia, economía, ciclo de vida y estrategia de salida: ejecución de capacidad aprobada (2.2 cap 6) sobre el contrato de plugin (3.4) (desarrollo †, aprobado por delegación).</li>
+<li>Proveedores concretos ya decididos (D2: los 3 del MVP); ampliación a R2 por el mismo contrato.</li>
+</ul>
+<h3 id="decisiones-aplicables-adrs">Decisiones aplicables (ADRs)</h3>
+<ul>
+<li><a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001</a> (<code>accepted</code>): minimización previa (regla 5) y privacidad primero.</li>
+<li><a href="../../adr/0004-evolucion-permanente.html">ADR-0004</a> (<code>accepted</code>): proveedores como recursos sustituibles (regla 7); prompts versionados (regla 11).</li>
+</ul>
+<h3 id="evaluacion-por-las-cinco-preguntas-d21">Evaluación por las cinco preguntas (D21)</h3>
+<p>(1) Escala 10 años: modelos nuevos entran por contrato. (2) Reduce dependencia: es el objeto del capítulo (P-ARQ-4). (3) Sustituir sin rediseñar: cambiar de proveedor no toca nada más. (4) Equipo pequeño: un contrato, no N integraciones. (5) Sistema vivo: adopta modelos futuros sin rediseño. Sin respuesta negativa → sin Alerta.</p>
+<h2 id="riesgos">Riesgos</h2>
+<ul>
+<li><strong>Costo de inferencia descontrolado:</strong> mitigación: economía cognitiva (§4), visibilidad y alertas de 1.5.</li>
+<li><strong>Deriva de personalidad entre modelos:</strong> mitigación: suite de consistencia ≥90% (2.4 §7.4, 2.5 §5.5) antes de habilitar.</li>
+<li><strong>Dependencia de 3 nubes en R1:</strong> mitigación estructural: contrato + R2 (modelos locales).</li>
+<li><strong>Prompt injection vía contenido enrutado:</strong> se trata en 5.2 (el router no ejecuta; separa instrucciones de datos).</li>
+</ul>
+<h2 id="dependencias">Dependencias</h2>
+<p>Capítulos: <strong>3.4</strong> (Aprobado — contrato de plugin), <strong>1.5</strong> (Aprobado — visibilidad de costos). Se apoya en 4.1 (contexto de memoria), 2.5 (latencia, consistencia), ADR-0001/0004/0008. Alimenta: 4.3 (agentes usan el router), 5.2 (seguridad de IA), 6.2 (voz usa el router), 4.5 (KCM resume vía LLM).</p>
+<h2 id="proximos-pasos">Próximos pasos</h2>
+<ul>
+<li>4.3 (agentes y tool use) se construye sobre este router.</li>
+<li>7.2 define las evals del router (enrutamiento correcto, fallback, consistencia).</li>
+</ul>
+<h2 id="referencias-cruzadas">Referencias cruzadas</h2>
+<ul>
+<li><a href="../libro-03-arquitectura-del-sistema/3.4-sistema-plugins-adaptadores.html">3.4 Plugins y Adaptadores</a> · <a href="../libro-01-gobernanza-y-metodo/1.5-restricciones-negocio-presupuesto-legal.html">1.5 Restricciones de Negocio</a> · <a href="2.5-requisitos-atributos-calidad.html">2.5 Requisitos §5.1/§5.5</a></li>
+<li><a href="2.4-personalidad-etica-limites.html">2.4 §7 (system prompt, consistencia)</a> · <a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001</a> · <a href="../../adr/0004-evolucion-permanente.html">ADR-0004</a> · <a href="../../adr/0008-voz-whisper-piper.html">ADR-0008</a> · <a href="../../INDICE.html">Índice maestro</a></li>
+</ul>
+<h2 id="aprobacion-del-cto-delegacion-d22">Aprobación del CTO (delegación D22)</h2>
+<p>Revisión ejecutiva conforme al acta D22: <strong>(1) Alcance</strong> — ejecuta una capacidad ya aprobada (2.2) y los contratos del 3.2/3.3/3.5; sin capacidades nuevas. <strong>(2) Consistencia</strong> — respeta ADR-0001, 0004, 0007, los umbrales oficiales del 2.5 y los principios P-ARQ. <strong>(3) Cinco preguntas (D21)</strong> — afirmativas. <strong>(4) Materia reservada</strong> — ninguna: la tecnología ya está decidida (ADR-0007/0008); no toca guardrails ni alcance. <strong>Veredicto: APROBADO por el CTO (delegación D22), 2026-07-18.</strong></p>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

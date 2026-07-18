@@ -1,6 +1,6 @@
 ---
 documento: "ALERTA DE ARQUITECTURA 002"
-estado: "Activa — pendiente de gate extraordinario del CEO"
+estado: "RESUELTA — Alternativa A con precisión de sesión (CEO, 2026-07-18)"
 fecha: 2026-07-18
 emisor: "Fable (CTO), conforme al acta D15 y la constitución 1.1 §4"
 trabajo-suspendido: "Diseño detallado del capítulo 4.5 (Módulo de Captura de Conocimiento), específicamente sus sub-capacidades que involucran a terceros (reuniones, llamadas, videollamadas). El resto del Libro IV/V/VI no está afectado."
@@ -68,6 +68,13 @@ A y C envejecen bien: respetar a los no-usuarios es defendible a escala comercia
 
 Sin incompatibilidad: el KCM es un modulo nuevo (4.5), desacoplado (D23), implementado como plugin por contrato (3.4). La memoria (3.5/4.1) ya distingue titularidad por user_id, lo que soporta A de forma natural.
 
-## Resolucion
+## Resolucion (CEO, 2026-07-18)
 
-Pendiente del gate extraordinario del CEO. El CTO recomienda la Alternativa A + compuerta de consentimiento + revision legal. La eleccion del CEO define como se redacta el capitulo 4.5 y si se modifica o no el guardrail 2.4 sec.5.
+**Aprobada la Alternativa A con la precision de "alcance de sesion".** Decision del CEO:
+
+- AURA **no** construira perfiles permanentes ni historiales de personas distintas del usuario.
+- **Dentro de una sesion autorizada** (conversacion, reunion, llamada) SI podra: identificar participantes en el contexto de esa sesion, diferenciar quien habla, asociar decisiones/tareas/compromisos al participante correspondiente, generar resumenes ejecutivos y extraer acciones y responsables.
+- Esa informacion es **contextual a la sesion** y **no se convierte en un perfil persistente del tercero**. La memoria permanente conserva unicamente lo que aporta valor directo al usuario y al conocimiento generado, **evitando historiales personales de terceros entre sesiones**.
+- Requisitos obligatorios: **consentimiento del usuario**, **HITL cuando corresponda**, y **cumplimiento de la legislacion aplicable** sobre grabacion y tratamiento de datos.
+
+Efecto: se **precisa el guardrail 2.4 sec.5** (el "no perfilado de terceros" es entre sesiones; dentro de una sesion autorizada se permite la atribucion contextual) y se desbloquea el capitulo 4.5 bajo estos lineamientos.

@@ -1,0 +1,66 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Avatar: Live2D / 2D animado — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="../index.html">← Índice de la Bible</a></p><div class="meta"><b>estado</b>: accepted · <b>fecha</b>: 2026-07-18 · <b>fecha-resolucion</b>: 2026-07-18</div>
+<h1 id="adr-0009-avatar-live2d-2d-animado">ADR-0009 — Avatar: Live2D / 2D animado</h1>
+<h2 id="contexto">Contexto</h2>
+<p>El avatar interactivo (6.5, capacidad del MVP D2) requiere una tecnología de render. Selección de tecnología con alternativas → 4 niveles (D3), decisión del CEO. Las cuatro alternativas y su recomendación viven en el capítulo 3.6 §3.</p>
+<h2 id="decision">Decisión</h2>
+<p><strong>Aprobada por el CEO (2026-07-18): Nivel Balanceado.</strong> Se adopta <strong>Live2D / avatar 2D animado</strong>. Regla del CEO: <em>"La arquitectura deberá permitir evolucionar hacia un avatar 3D en el futuro sin requerir rediseños del sistema"</em> — el avatar es un plugin por contrato (3.4), sustituible por un motor 3D sin tocar el núcleo (Evolución Permanente).</p>
+<h2 id="consecuencias">Consecuencias</h2>
+<p>Positivas: cumple local-first (ADR-0001), sustituibilidad (P-ARQ-4) y sostenibilidad por equipo pequeño (regla 13 ADR-0004). Negativas: la optimización a niveles superiores exige un ADR (o Alerta si cambia un principio). Riesgos aceptados: si el rendimiento no basta, se escala por el instrumento correspondiente.</p>
+<h2 id="impacto-acta-d11-obligatorio">Impacto (acta D11 — obligatorio)</h2>
+<table>
+<thead>
+<tr>
+<th>Dimensión</th>
+<th>Impacto</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Seguridad</td>
+<td>Neutro</td>
+</tr>
+<tr>
+<td>Privacidad</td>
+<td>Positivo: render local</td>
+</tr>
+<tr>
+<td>Modularidad</td>
+<td>Positivo: adaptador de avatar por contrato (3.4); 3D futuro sin rediseño</td>
+</tr>
+<tr>
+<td>Costo</td>
+<td>Bajo: Live2D ligero vs 3D</td>
+</tr>
+<tr>
+<td>Experiencia de usuario</td>
+<td>Positivo: presencia visual con bajo costo computacional</td>
+</tr>
+<tr>
+<td>Mantenimiento futuro</td>
+<td>Positivo: evoluciona a 3D por sustitución de plugin</td>
+</tr>
+</tbody>
+</table>
+<h2 id="trazabilidad">Trazabilidad</h2>
+<p>Capítulos: 6.5 (avatar), 3.4 (contrato de plugin), 3.6. Código futuro: adaptador de avatar.</p>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

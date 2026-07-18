@@ -1,0 +1,66 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Voz (STT/TTS): Whisper + Piper locales — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="../index.html">← Índice de la Bible</a></p><div class="meta"><b>estado</b>: accepted · <b>fecha</b>: 2026-07-18 · <b>fecha-resolucion</b>: 2026-07-18</div>
+<h1 id="adr-0008-voz-stttts-whisper-piper-locales">ADR-0008 — Voz (STT/TTS): Whisper + Piper locales</h1>
+<h2 id="contexto">Contexto</h2>
+<p>La interacción por voz (6.2) y el presupuesto de latencia (2.5 §5.1) requieren motores de STT y TTS. Selección de tecnología con alternativas → 4 niveles (D3), decisión del CEO. Las cuatro alternativas y su recomendación viven en el capítulo 3.6 §3.</p>
+<h2 id="decision">Decisión</h2>
+<p><strong>Aprobada por el CEO (2026-07-18): Nivel Balanceado.</strong> Se adopta <strong>Whisper (STT) + Piper (TTS) ejecutándose localmente</strong>, usando servicios externos <strong>únicamente como contingencia cuando sea estrictamente necesario</strong>. Regla del CEO: <em>"La prioridad continúa siendo Local-First."</em> Toda salida a nube pasa por minimización (regla 5 ADR-0001).</p>
+<h2 id="consecuencias">Consecuencias</h2>
+<p>Positivas: cumple local-first (ADR-0001), sustituibilidad (P-ARQ-4) y sostenibilidad por equipo pequeño (regla 13 ADR-0004). Negativas: la optimización a niveles superiores exige un ADR (o Alerta si cambia un principio). Riesgos aceptados: si el rendimiento no basta, se escala por el instrumento correspondiente.</p>
+<h2 id="impacto-acta-d11-obligatorio">Impacto (acta D11 — obligatorio)</h2>
+<table>
+<thead>
+<tr>
+<th>Dimensión</th>
+<th>Impacto</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Seguridad</td>
+<td>Positivo: audio procesado local, sin enviar voz a la nube por defecto</td>
+</tr>
+<tr>
+<td>Privacidad</td>
+<td>Positivo máximo: refuerza ADR-0001; la voz no sale del perímetro</td>
+</tr>
+<tr>
+<td>Modularidad</td>
+<td>Positivo: motores tras el contrato del adaptador de voz (3.4)</td>
+</tr>
+<tr>
+<td>Costo</td>
+<td>Bajo/medio: local, puede requerir GPU (3.6/7.4)</td>
+</tr>
+<tr>
+<td>Experiencia de usuario</td>
+<td>Positivo: latencia local menor; sujeto a 2.5 §5.1</td>
+</tr>
+<tr>
+<td>Mantenimiento futuro</td>
+<td>Positivo: motores sustituibles por contrato</td>
+</tr>
+</tbody>
+</table>
+<h2 id="trazabilidad">Trazabilidad</h2>
+<p>Capítulos: 6.2 (pipeline de voz), 2.5 (latencia), 3.6. Código futuro: adaptador de voz.</p>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

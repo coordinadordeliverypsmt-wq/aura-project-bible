@@ -2,6 +2,20 @@
 
 Versionado documental con [Semantic Versioning](https://semver.org/lang/es/). La v1.0.0 corresponderá a la Bible cerrada según el criterio del capítulo 1.1.
 
+## [0.13.0] — 2026-07-18
+
+### Hito
+- **Libro III COMPLETO** (3.1-3.6 aprobados). Stack oficial nivel Balanceado. Progreso P1: 11/28 (+3.6).
+
+### Agregado / Cambiado
+- **ADR-0005..0009 `accepted`** (stack, decisión del CEO): Python (con Alerta requerida para otros lenguajes), NATS local, SQLite/PostgreSQL + Qdrant, Whisper+Piper locales (nube solo contingencia), Live2D.
+- **3.6 APROBADO por el CEO** (v1.0.0), nivel Balanceado como estándar oficial.
+- **D22 refinada + D23:** el CEO fija que solo se elevan a su aprobación decisiones tecnológicas reservadas, cambios de alcance, guardrails éticos, Alertas y riesgos de largo plazo.
+- **D23 — Módulo de Captura de Conocimiento** como 10ª capacidad oficial (capítulo 4.5) y **cierre del alcance funcional** de la versión inicial. 2.2 enmendado a v1.1.0.
+
+### Alerta de Arquitectura
+- **ALERTA-002 (D15/D16):** el CTO elevó que la captura de reuniones/llamadas con terceros choca con el guardrail de no-vigilancia (2.4 §5) y con la ley de consentimiento; recomienda la Alternativa A (conocimiento centrado en el usuario, terceros no perfilados, + atestación de consentimiento HITL + revisión legal). Diseño del 4.5 suspendido hasta el gate extraordinario del CEO.
+
 ## [0.12.0] — 2026-07-18
 
 ### Gobernanza

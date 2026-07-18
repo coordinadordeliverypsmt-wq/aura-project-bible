@@ -1,6 +1,6 @@
 ---
 documento: "Acta de Decisiones Fundacionales"
-version: 1.6.0
+version: 1.7.0
 autor: "Mauricio (CEO) — registrada por Fable (CTO)"
 fecha: 2026-07-17
 estado: "Vinculante"
@@ -26,6 +26,9 @@ historial:
   - version: 1.6.0
     fecha: 2026-07-18
     cambio: "D22 (fase de ejecución: mandato de ejecutar sin cambios de alcance + delegación de aprobación de capítulos de ejecución al CTO, con decisiones de tecnología/guardrails/rango 1 reservadas al CEO) agregada por el CEO en el gate del 3.2"
+  - version: 1.7.0
+    fecha: 2026-07-18
+    cambio: "D23 (Módulo de Captura de Conocimiento como capacidad oficial + cierre del alcance funcional de la versión inicial). El CEO refina además la lista de materias reservadas a su aprobación (tecnología, alcance, guardrails éticos, Alertas, riesgos de largo plazo)"
 ---
 
 # Acta de Decisiones Fundacionales — 2026-07-17
@@ -150,6 +153,11 @@ Toda decisión deberá responder, antes de aprobarse: (1) ¿Escala durante los p
 
 A partir de la aprobación del 3.2, el objetivo principal es **ejecutar la arquitectura aprobada**. No se introducirán nuevas funcionalidades, cambios de alcance ni modificaciones conceptuales, **salvo mediante una Alerta de Arquitectura debidamente justificada y aprobada**. Para no ser el cuello de botella de la ejecución, el CEO **delega en el CTO la autoridad de aprobación de los capítulos de ejecución**, que el CTO ejerce con criterio ejecutivo: (1) que no cambie el alcance; (2) que respete todas las decisiones previas (actas, ADRs, principios); (3) las cinco preguntas de largo plazo (D21). El CTO aprueba o rechaza y avanza. **Se reservan al CEO** (no delegadas): las selecciones de tecnología con alternativas (D3, 4 niveles), toda modificación de un guardrail ético o de una decisión de rango 1, y toda Alerta de Arquitectura. Un capítulo que requiera cualquiera de esas se eleva al CEO; el resto lo aprueba el CTO.
 *Impacta: 1.1 §4/§6 (enmienda: delegación de aprobación en fase de ejecución), flujo de todos los capítulos restantes.*
+
+## D23 — Módulo de Captura de Conocimiento y cierre del alcance funcional (2026-07-18, gate stack)
+
+Se incorpora como **capacidad oficial** de AURA un **Módulo de Captura de Conocimiento**: un módulo nativo, **desacoplado del núcleo**, capaz de capturar, procesar y organizar información de conversaciones **siempre con autorización expresa del usuario** y respetando privacidad, seguridad y Human-in-the-Loop. Debe permitir: transcribir reuniones presenciales autorizadas; transcribir llamadas y videollamadas autorizadas; procesar grabaciones y notas de audio; generar transcripciones precisas y resúmenes ejecutivos; identificar participantes, temas, decisiones y compromisos; extraer tareas, fechas y responsables; incorporar lo relevante a la memoria de AURA según las reglas; y permitir búsquedas posteriores. Se implementa como componente desacoplado (arquitectura modular aprobada), local-first y bajo las políticas de seguridad del proyecto. **Con esta decisión, el CEO declara CERRADO el alcance funcional de la versión inicial de AURA**: no se incorporarán nuevas funcionalidades ni cambios de visión salvo Alerta de Arquitectura o decisión estratégica excepcional aprobada por el CEO.
+*Impacta: 2.2 (nueva capacidad, cierre de alcance), nuevo capítulo 4.5, y 2.4 §5 (guardrail de no-vigilancia — ver ALERTA-002).*
 
 ## Autorización
 

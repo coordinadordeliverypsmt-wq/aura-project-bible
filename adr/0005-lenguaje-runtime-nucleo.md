@@ -1,9 +1,9 @@
 ---
 numero: ADR-0005
 titulo: "Lenguaje y runtime del núcleo de AURA"
-estado: proposed
+estado: accepted
 fecha: 2026-07-18
-fecha-resolucion: "—"
+fecha-resolucion: 2026-07-18
 decisor: "Mauricio (CEO)"
 proponente: "Fable (CTO)"
 impacta: ["3.6", "7.1", "7.3"]
@@ -36,7 +36,7 @@ Cada dominio en su mejor lengua, como servicios. Pros: máxima flexibilidad y es
 
 ## Decisión
 
-**Pendiente del gate del CEO.** Recomendación del CTO †: **Nivel Balanceado (B)** — Python en el núcleo con optimización puntual medida. Justificación: el ecosistema de IA vive en Python (orquestación multi-modelo, memoria vectorial, voz local Whisper/Piper), lo que reduce dependencia y acelera; el camino a Rust/servicios queda documentado para cuando una medición lo justifique (D19, sin rediseño). El CEO decide sin límite presupuestal (D3).
+**Aprobada por el CEO (2026-07-18): Nivel Balanceado (B)** — Python como lenguaje principal del proyecto, con optimización puntual medida. Regla del CEO: *"Solo se permitirá incorporar otros lenguajes cuando exista una necesidad técnica demostrable y documentada mediante una Alerta de Arquitectura."* Es decir, pasar a Rust/servicios (niveles C/D) exige Alerta de Arquitectura, no un simple ADR.
 
 ## Consecuencias
 

@@ -31,7 +31,7 @@
 - **3.3 Núcleo Event-Driven y Contratos Internos** `[P1 · Opus · Aprobado]` — Especificar el sistema nervioso de AURA y sus garantías cuando los eventos tienen efectos físicos.
 - **3.4 Sistema de Plugins y Adaptadores** `[P1 · Opus · Aprobado]` — El contrato que materializa "agregar tecnologías sin rediseñar el sistema".
 - **3.5 Modelo de Datos y Persistencia** `[P1 · Sonnet · Aprobado]` — Definir entidades, almacenes y la evolución de esquemas que protege el activo irremplazable (la memoria).
-- **3.6 Selección de Stack Tecnológico** `[P1 · Fable · En revisión (gate CEO)]` — Documentar criterios y decisiones de lenguajes, frameworks e infraestructura vía ADRs.
+- **3.6 Selección de Stack Tecnológico** `[P1 · Fable · Aprobado]` — Documentar criterios y decisiones de lenguajes, frameworks e infraestructura vía ADRs.
 
 ## Libro IV — Cognición: Memoria, Orquestación y Agencia
 *El corazón diferencial de AURA.*
@@ -40,6 +40,7 @@
 - **4.2 Orquestación Multi-Modelo y Model Router** `[P1 · Opus · No iniciado]` — La capa que enruta cada tarea al mejor modelo sin acoplarse a ningún proveedor.
 - **4.3 Sistema de Agentes y Tool Use** `[P1 · Opus · No iniciado]` — Cómo AURA planifica, usa herramientas y ejecuta tareas de forma trazable.
 - **4.4 Aprendizaje Continuo y Personalización** `[P1 · Fable · No iniciado]` — Cómo AURA mejora con el uso sin reentrenar modelos ni derivar en comportamiento (capacidad del MVP por decisión del CEO).
+- **4.5 Módulo de Captura de Conocimiento** ⊘ `[P1 · Sonnet · No iniciado — bloqueado por ALERTA-002]` — capturar/transcribir/resumir conversaciones autorizadas e incorporarlas a memoria (acta D23).
 
 ## Libro V — Seguridad y Confianza
 *Que un sistema con acceso total a tu vida digital sea tu mayor protección, no tu mayor riesgo.*

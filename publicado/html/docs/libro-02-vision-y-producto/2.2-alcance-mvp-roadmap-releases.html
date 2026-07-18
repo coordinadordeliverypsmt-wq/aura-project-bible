@@ -17,7 +17,7 @@ font-family:Helvetica,Arial,sans-serif}
 .meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
 font-size:.85em;font-family:Helvetica,Arial,sans-serif}
 </style></head><body>
-<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.0.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-17 · <b>fecha_aprobacion</b>: 2026-07-17 · <b>autor</b>: Fable (CTO, AURA Labs) · <b>responsable</b>: Fable · <b>prioridad</b>: P0</div>
+<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.1.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-17 · <b>fecha_aprobacion</b>: 2026-07-17 · <b>autor</b>: Fable (CTO, AURA Labs) · <b>responsable</b>: Fable · <b>prioridad</b>: P0</div>
 <h1 id="22-alcance-del-mvp-y-roadmap-por-releases">2.2 — Alcance del MVP y Roadmap por Releases</h1>
 <blockquote>
 <p><strong>Estado:</strong> Aprobado (CEO, 2026-07-17) · <strong>Prioridad:</strong> P0 · <strong>Responsable:</strong> Fable</p>
@@ -186,6 +186,14 @@ font-size:.85em;font-family:Helvetica,Arial,sans-serif}
 <li><strong>Tiempo:</strong> derivado de la D7 (no hay código hasta cerrar la Bible), el CTO propone† medir hitos por criterios de salida, no por fechas de calendario.</li>
 <li><strong>Proveedores:</strong> el MVP depende de 3 APIs de nube (mitigación estructural en 4.2; independencia total llega con R2).</li>
 </ul>
+<h2 id="7-modulo-de-captura-de-conocimiento-acta-d23-cierre-del-alcance-funcional">7. Módulo de Captura de Conocimiento (acta D23 — cierre del alcance funcional)</h2>
+<p><strong>Fuente de rango 1 (acta D23, 2026-07-18):</strong> el CEO incorpora el <strong>Módulo de Captura de Conocimiento (KCM)</strong> como capacidad oficial y <strong>declara cerrado el alcance funcional</strong> de la versión inicial. El KCM captura, procesa y organiza información de conversaciones —transcripción de reuniones/llamadas/videollamadas autorizadas, notas de audio, resúmenes ejecutivos, identificación de participantes/temas/decisiones/compromisos, extracción de tareas/fechas/responsables, incorporación a memoria y búsqueda posterior— siempre con <strong>autorización expresa del usuario</strong>, <strong>desacoplado del núcleo</strong>, local-first y bajo HITL.</p>
+<ul>
+<li><strong>Es la 10ª capacidad</strong> del alcance de AURA v1; su capítulo de diseño es el <strong>4.5</strong> (nuevo).</li>
+<li><strong>Ubicación en el roadmap (recomendación del CTO † sujeta a ratificación):</strong> el KCM <strong>no entra en el MVP (R1)</strong>. Se apoya en cimientos de M1 (voz/STT del ADR-0008, memoria 4.1, orquestación 4.2) y se sitúa en un <strong>hito propio posterior al MVP</strong> (propuesta: R2), por su complejidad y por la tensión de terceros. Su diseño detallado queda <strong>bloqueado hasta resolver la <a href="../../decisiones/alertas/2026-07-18-alerta-002-captura-terceros.html">ALERTA-002</a></strong>.</li>
+<li><strong>Reconciliación pendiente con guardrails:</strong> capturar reuniones/llamadas involucra a <strong>terceros</strong>, lo que entra en tensión con el guardrail de no-vigilancia (2.4 §5) y con la ley de consentimiento de grabación (marco de 1.5). El CTO elevó la ALERTA-002 (D15/D16) antes de diseñar el módulo.</li>
+</ul>
+<p>Cierre de alcance: a partir de la D23, <strong>no se incorporan nuevas funcionalidades ni cambios de visión</strong> salvo Alerta de Arquitectura o decisión estratégica excepcional aprobada por el CEO.</p>
 <h2 id="decisiones-tomadas">Decisiones tomadas</h2>
 <ul>
 <li>Los nombres de las 9 capacidades y el momento mágico: acta D2, rango 1 — no negociables aquí.</li>

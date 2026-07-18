@@ -1,0 +1,168 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Selección de Stack Tecnológico — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.0.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-18 · <b>fecha_aprobacion</b>: 2026-07-18 · <b>autor</b>: Fable (CTO, AURA Labs) · <b>responsable</b>: Fable · <b>prioridad</b>: P1</div>
+<h1 id="36-seleccion-de-stack-tecnologico">3.6 — Selección de Stack Tecnológico</h1>
+<blockquote>
+<p><strong>Estado:</strong> Aprobado (CEO, 2026-07-18) — nivel Balanceado oficial · <strong>Prioridad:</strong> P1 · <strong>Responsable:</strong> Fable</p>
+</blockquote>
+<p><em>Convención † (1.1 §4): desarrollo del CTO exigible con la aprobación; no es texto de actas del CEO.</em></p>
+<h2 id="resumen-ejecutivo">Resumen ejecutivo</h2>
+<p>Este capítulo NO lo aprueba el CTO por delegación: la <strong>selección de tecnología con alternativas es materia reservada al CEO</strong> (D3, D22). Fija los criterios y pesos de evaluación (alineados con D20/D21), el marco build/buy/integrate, y presenta las <strong>cinco decisiones de stack</strong> del MVP —lenguaje/runtime, broker del Event Bus, motores de datos, motores de voz (STT/TTS) y tecnología de avatar— cada una en los <strong>cuatro niveles del acta D3</strong> (Económica · Balanceada · Profesional · Enterprise) con recomendación argumentada del CTO. El CEO elige el nivel de cada una; cada elección se formaliza como ADR (ADR-0005+). El ADR-0005 (lenguaje/runtime) se adjunta como ancla.</p>
+<h2 id="objetivo">Objetivo</h2>
+<p>Dar al CEO las decisiones de stack en el formato que exige la D3, para que la implementación arranque sobre tecnologías elegidas —no improvisadas— y conformes a los contratos ya aprobados (3.3, 3.4, 3.5).</p>
+<h2 id="1-criterios-y-pesos-de-evaluacion">1. Criterios y pesos de evaluación †</h2>
+<p>Derivados de las cinco preguntas de largo plazo (D21) y el horizonte de 10 años (D20):</p>
+<table>
+<thead>
+<tr>
+<th>Criterio</th>
+<th>Peso †</th>
+<th>Origen</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Independencia / sustituibilidad (sin lock-in)</td>
+<td>25%</td>
+<td>P-ARQ-4, D19</td>
+</tr>
+<tr>
+<td>Sostenibilidad por equipo pequeño</td>
+<td>25%</td>
+<td>D21.4, ADR-0004 r13</td>
+</tr>
+<tr>
+<td>Local-first y privacidad</td>
+<td>20%</td>
+<td>ADR-0001</td>
+</tr>
+<tr>
+<td>Escalabilidad a 10 años</td>
+<td>15%</td>
+<td>D20</td>
+</tr>
+<tr>
+<td>Rendimiento (latencia del MVP)</td>
+<td>15%</td>
+<td>2.5 §5.1</td>
+</tr>
+</tbody>
+</table>
+<p>Todo producto se evalúa contra estos pesos; ninguna elección puede cerrar el futuro comercial/escalable (D19).</p>
+<h2 id="2-build-vs-buy-vs-integrate">2. Build vs buy vs integrate †</h2>
+<p>Regla: <strong>integrar</strong> software libre maduro y sustituible antes que <strong>construir</strong>; <strong>construir</strong> solo el núcleo diferencial (orquestación, memoria, permisos); <strong>comprar/servicio</strong> solo lo que no compromete el local-first (los 3 LLMs, ya decididos). Coherente con "la mejor herramienta para cada problema" (brief) y con no reinventar (r13 ADR-0004).</p>
+<h2 id="3-las-cinco-decisiones-de-stack-4-niveles-el-ceo-elige">3. Las cinco decisiones de stack (4 niveles — el CEO elige)</h2>
+<p>Cada fila resume las opciones; el detalle y la recomendación de cada una irá en su ADR. <strong>Todas las recomendaciones son del CTO †; el CEO decide.</strong></p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Decisión</th>
+<th>Económica</th>
+<th>Balanceada (recomendada †)</th>
+<th>Profesional</th>
+<th>Enterprise</th>
+<th>ADR</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Lenguaje/runtime del núcleo</td>
+<td>Python puro</td>
+<td><strong>✔ Python + optimización puntual medida (ELEGIDA)</strong></td>
+<td>Python + Rust</td>
+<td>Políglota</td>
+<td>ADR-0005</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Broker del Event Bus</td>
+<td>In-process</td>
+<td><strong>✔ NATS local (ELEGIDA)</strong></td>
+<td>NATS JetStream</td>
+<td>Kafka</td>
+<td>ADR-0006</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Motores de datos</td>
+<td>SQLite + vectorial embebido</td>
+<td><strong>✔ SQLite/PostgreSQL + Qdrant (ELEGIDA)</strong></td>
+<td>+ TS dedicado</td>
+<td>Cluster</td>
+<td>ADR-0007</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Voz (STT/TTS)</td>
+<td>API de nube</td>
+<td><strong>✔ Whisper+Piper local, nube solo contingencia (ELEGIDA)</strong></td>
+<td>Local GPU</td>
+<td>Premium</td>
+<td>ADR-0008</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Avatar</td>
+<td>2D simple</td>
+<td><strong>✔ Live2D / 2D animado (ELEGIDA)</strong></td>
+<td>3D tiempo real</td>
+<td>3D fotorrealista</td>
+<td>ADR-0009</td>
+</tr>
+</tbody>
+</table>
+<p>Nota de coherencia †: las recomendaciones Balanceadas maximizan local-first (voz local refuerza ADR-0001 y la latencia de 2.5 §5.1), sustituibilidad y sostenibilidad por equipo pequeño (r13), dejando camino documentado a niveles superiores sin rediseño (D19). Pero <strong>la decisión es del CEO</strong>, sin límite presupuestal (D3): puede elegir Profesional/Enterprise donde priorice calidad/escalabilidad.</p>
+<h2 id="4-coordinacion-con-los-contratos-aprobados">4. Coordinación con los contratos aprobados</h2>
+<p>Cualquier producto elegido debe cumplir: los contratos de evento e idempotencia (3.3), el contrato de plugin y aislamiento (3.4) y las clases de motor y migración (3.5). Un producto que no los cumpla queda descartado por diseño, no por preferencia.</p>
+<h2 id="decisiones-tomadas">Decisiones tomadas</h2>
+<ul>
+<li>Criterios/pesos (§1), marco build/buy/integrate (§2) y presentación de las 5 decisiones en 4 niveles (§3): desarrollo del CTO †.</li>
+<li><strong>Las cinco elecciones de stack se elevan al CEO</strong> (D3, D22); cada una se formaliza como ADR (0005-0009) al decidirse.</li>
+</ul>
+<h3 id="decisiones-aplicables-adrs">Decisiones aplicables (ADRs)</h3>
+<ul>
+<li><a href="../../adr/0005-lenguaje-runtime-nucleo.html">ADR-0005 — Lenguaje/runtime del núcleo</a> (<code>proposed</code>, adjunto): ancla del formato de decisión de stack.</li>
+<li><a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001</a>, <a href="../../adr/0004-evolucion-permanente.html">ADR-0004</a> (<code>accepted</code>): restringen toda elección.</li>
+</ul>
+<h3 id="evaluacion-por-las-cinco-preguntas-d21">Evaluación por las cinco preguntas (D21)</h3>
+<p>Los criterios §1 SON las cinco preguntas convertidas en pesos; toda opción se puntúa contra ellas. Las recomendaciones Balanceadas responden afirmativamente a las cinco; los niveles superiores también, con mayor costo de mantenimiento (a valorar por el CEO).</p>
+<h2 id="riesgos">Riesgos</h2>
+<ul>
+<li><strong>Elegir por moda y no por sustituibilidad:</strong> mitigación: pesos §1 con 50% en independencia+sostenibilidad.</li>
+<li><strong>Voz en nube por comodidad</strong> tensiona ADR-0001 y latencia: mitigación: recomendación local con fallback minimizado.</li>
+<li><strong>Sobre-dimensionar el stack</strong> (Kafka/cluster) para un usuario: mitigación: r13 ADR-0004; se documenta cuándo escalar.</li>
+</ul>
+<h2 id="dependencias">Dependencias</h2>
+<p>Capítulos: <strong>3.1</strong>, <strong>2.5</strong>, <strong>1.5</strong> (Aprobados); coordina con 3.3, 3.4, 3.5 (Aprobados). Alimenta: 7.1 (estándares de código sobre el stack elegido), 7.3 (walking skeleton), y la fase de implementación.</p>
+<h2 id="proximos-pasos">Próximos pasos</h2>
+<ul>
+<li><strong>Gate del CEO: elegir el nivel de cada una de las 5 decisiones de stack</strong> (§3). Cada elección se formaliza como ADR-0005..0009 en la misma sesión.</li>
+<li>Con el stack elegido: 7.1 (estándares de código) y 7.3 (walking skeleton) pueden completarse.</li>
+</ul>
+<h2 id="referencias-cruzadas">Referencias cruzadas</h2>
+<ul>
+<li><a href="../../decisiones/2026-07-17-acta-decisiones-fundacionales.html">Acta (D3 4 niveles, D18, D19, D20, D21, D22)</a> · <a href="../libro-01-gobernanza-y-metodo/1.5-restricciones-negocio-presupuesto-legal.html">1.5 Restricciones de Negocio</a></li>
+<li><a href="3.1-principios-arquitectonicos.html">3.1 Principios</a> · <a href="3.3-nucleo-event-driven-contratos.html">3.3</a> · <a href="3.4-sistema-plugins-adaptadores.html">3.4</a> · <a href="3.5-modelo-datos-persistencia.html">3.5</a> · <a href="../libro-02-vision-y-producto/2.5-requisitos-atributos-calidad.html">2.5 Requisitos</a></li>
+<li><a href="../../adr/0005-lenguaje-runtime-nucleo.html">ADR-0005 (proposed)</a> · <a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001</a> · <a href="../../adr/0004-evolucion-permanente.html">ADR-0004</a> · <a href="../../INDICE.html">Índice maestro</a></li>
+</ul>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

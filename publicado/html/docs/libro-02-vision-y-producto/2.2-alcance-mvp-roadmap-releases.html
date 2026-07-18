@@ -1,0 +1,220 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Alcance del MVP y Roadmap por Releases — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.0.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-17 · <b>fecha_aprobacion</b>: 2026-07-17 · <b>autor</b>: Fable (CTO, AURA Labs) · <b>responsable</b>: Fable · <b>prioridad</b>: P0</div>
+<h1 id="22-alcance-del-mvp-y-roadmap-por-releases">2.2 — Alcance del MVP y Roadmap por Releases</h1>
+<blockquote>
+<p><strong>Estado:</strong> Aprobado (CEO, 2026-07-17) · <strong>Prioridad:</strong> P0 · <strong>Responsable:</strong> Fable</p>
+</blockquote>
+<p><em>Convención † (1.1 §4): desarrollo del CTO que se vuelve exigible con la aprobación de este capítulo — no es texto de actas del CEO.</em></p>
+<h2 id="resumen-ejecutivo">Resumen ejecutivo</h2>
+<p>El MVP de AURA son las <strong>9 capacidades mandatadas por el acta D2</strong>, aceptadas cuando el momento mágico se sostiene en uso real. Para gobernar su riesgo de alcance se construye en <strong>3 hitos internos secuenciales</strong> — M1 núcleo conversacional, M2 manos digitales, M3 presencia (con aprendizaje y anticipación) — cada uno cerrado únicamente por el CEO en un gate de hito, con circuito de fracaso definido. Este capítulo fija además las exclusiones binarias por sistema, los releases R2-R4 como criterios-marco y los supuestos del entorno que el inventario del 2.3 debe validar.</p>
+<h2 id="objetivo">Objetivo</h2>
+<p>Delimitar el corte mínimo creíble de AURA — qué entra, qué queda explícitamente fuera y en qué orden se construye — para que ningún otro capítulo diseñe un sistema infinito.</p>
+<h2 id="1-las-9-capacidades-del-mvp">1. Las 9 capacidades del MVP</h2>
+<p>Los <strong>nombres</strong> de las 9 capacidades son texto del acta D2 (rango 1, no negociable). La columna "Alcance en el MVP" es <strong>interpretación del CTO†</strong> sujeta a ratificación en este gate; el detalle vive en el capítulo destino.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Capacidad (acta D2)</th>
+<th>Alcance en el MVP †</th>
+<th>Capítulo</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Memoria permanente</td>
+<td>Recuerda los temas tratados semanas después (umbrales de recuperación → 2.5)</td>
+<td>4.1</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Conversación natural por voz</td>
+<td>Diálogo hablado continuo (métricas de latencia y fluidez → 2.5)</td>
+<td>6.2</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Avatar interactivo</td>
+<td>Presencia visual sincronizada a la conversación</td>
+<td>6.5</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Control básico del computador</td>
+<td>El <strong>computador principal</strong> (identificado en el inventario del 2.3, SO incluido); "básico" = acciones de la lista verde D4; catálogo exacto → 6.4</td>
+<td>6.4</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Automatización de tareas</td>
+<td>En M2: automatizaciones <strong>definidas por el usuario</strong>; la componente "sugeridas" se activa en M3 junto con 4.4, siempre dentro de la lista verde D4 y limitada a los sistemas del MVP</td>
+<td>6.4</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Integración ChatGPT, Claude y Gemini</td>
+<td>Orquestación multi-modelo con enrutamiento y fallback entre los 3</td>
+<td>4.2</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Control básico del hogar inteligente</td>
+<td>Encender/apagar y escenas vía Home Assistant</td>
+<td>6.3</td>
+</tr>
+<tr>
+<td>8</td>
+<td>Aprendizaje continuo</td>
+<td>Adapta preferencias y hábitos con el uso, sin reentrenar modelos</td>
+<td>4.4</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Centro único de notificaciones</td>
+<td>Fuentes acotadas a los sistemas del MVP: computador principal + Home Assistant + la propia AURA; catálogo → 6.4</td>
+<td>6.4</td>
+</tr>
+</tbody>
+</table>
+<h2 id="2-el-momento-magico-criterio-de-aceptacion-del-mvp">2. El momento mágico (criterio de aceptación del MVP)</h2>
+<p><strong>Fuente de rango 1 (acta D2, texto del CEO):</strong> <em>"mantener conversaciones naturales, recordar semanas después cualquier tema tratado, ejecutar acciones reales y anticiparse a mis necesidades"</em>.</p>
+<p>Su operacionalización vigente son los 4 <strong>criterios-marco</strong> del 2.1 §5 (según su versión vigente, hoy v1.1.0): los umbrales cuantitativos, el protocolo de evaluación y quién mide se fijan en <strong>2.5</strong>. El MVP no se declara terminado por completar features, sino por sostener los 4 criterios en uso real (regla de la ventana, §3.4).</p>
+<h2 id="3-hitos-internos-m1-m2-m3">3. Hitos internos M1 → M2 → M3</h2>
+<p>La <strong>estructura y composición</strong> de los 3 hitos es la nota del CTO aceptada en el acta D2. Los <strong>criterios de salida, la secuencialidad estricta y el circuito de fracaso</strong> (§3.1-§3.5) son propuesta nueva del CTO† sujeta a este gate.</p>
+<h3 id="31-composicion">3.1 Composición</h3>
+<ul>
+<li><strong>M1 — Núcleo conversacional:</strong> capacidades 1, 2 y 6 (memoria + voz + 3 LLMs). <em>El hito de mayor riesgo técnico: si M1 no convence, nada posterior importa.</em></li>
+<li><strong>M2 — Manos digitales:</strong> capacidades 4, 5 y 9 (computador + automatización definida por el usuario + notificaciones). Con audit log operativo† y listas verde/roja D4 aplicadas.</li>
+<li><strong>M3 — Presencia:</strong> capacidades 3, 7 y 8 (hogar + avatar + <strong>aprendizaje/anticipación</strong>, como lo define el acta).</li>
+</ul>
+<h3 id="32-criterios-de-salida-condicionados-a-las-metricas-de-25">3.2 Criterios de salida (condicionados a las métricas de 2.5)</h3>
+<p>Cada criterio remite sus umbrales a 2.5 — este capítulo solo fija el principio:</p>
+<ul>
+<li><strong>M1:</strong> criterios-marco 1 y 2 (conversación y memoria) superados con sostenimiento propio. La prueba de memoria exige por definición <strong>semanas de calendario</strong>: no se cierra M1 con demos puntuales.</li>
+<li><strong>M2:</strong> criterio-marco 3 (acciones reales D4) superado; toda acción registrada en el audit log.</li>
+<li><strong>M3:</strong> criterio-marco 4 (anticipación) superado y <strong>re-verificación de los 4 criterios en conjunto</strong>.</li>
+</ul>
+<p><strong>Autoridad†:</strong> el cierre de cada hito lo declara <strong>solo el CEO</strong> en un <em>gate de hito</em>, con la evidencia que definan 2.5 y 7.2. Ningún agente puede autodeclarar un hito cerrado. Los hitos son secuenciales: no se inicia uno sin el gate del anterior.</p>
+<h3 id="33-requisitos-transversales">3.3 Requisitos transversales†</h3>
+<ul>
+<li>M1 y M2 instrumentan desde el día uno la <strong>captura de señales</strong> (preferencias, hábitos, feedback) que 4.4 necesita — sin esa materia prima, la anticipación de M3 se retrasa semanas por diseño.</li>
+<li>Dependencias bloqueantes de M2: capítulos 5.3 (permisos/autonomía) y 3.3 (eventos) aprobados.</li>
+</ul>
+<h3 id="34-regla-de-la-ventana-de-aceptacion">3.4 Regla de la ventana de aceptación†</h3>
+<p>El MVP (R1) se acepta cuando los 4 criterios-marco se sostienen durante una ventana de uso real — propuesta: 2 semanas; el valor definitivo lo fija 2.5. Gobernanza mínima:</p>
+<ul>
+<li>El conteo se basa en <strong>registro automático</strong> (audit log y telemetría local; detalle en 2.5 y 7.2), no en memoria subjetiva.</li>
+<li>Eventos externos (viaje, enfermedad, caída de hardware, mantenimiento) <strong>pausan</strong> la ventana; el incumplimiento de un criterio la <strong>reinicia para ese criterio</strong> (parámetros exactos → 2.5).</li>
+<li>El veredicto final es del CEO en el gate de R1.</li>
+</ul>
+<h3 id="35-circuito-de-fracaso-de-hito">3.5 Circuito de fracaso de hito†</h3>
+<p>Si un hito no converge (condición objetiva a definir con las métricas de 2.5), se dispara un <strong>gate extraordinario</strong> del CEO con opciones presentadas en los 4 niveles del acta D3 (replantear alcance del hito, cambiar enfoque técnico vía ADR, o recortar). Constancia: recortar cualquiera de las 9 capacidades exige <strong>nueva acta del CEO</strong> — la D2 es rango 1 y este capítulo no puede reducirla.</p>
+<h2 id="4-exclusiones-explicitas-del-mvp">4. Exclusiones explícitas del MVP</h2>
+<p>Propuesta del CTO† sujeta a ratificación. La exclusión de un sistema cubre <strong>tanto su control como la agregación de sus notificaciones</strong> hasta su release de destino. Las exclusiones son binarias por sistema, no por grado:</p>
+<ol>
+<li><strong>Seguridad activa del ecosistema</strong> (monitoreo/defensa proactiva) → Release 3 (capítulo 5.6).</li>
+<li><strong>Multiusuario operativo</strong> → Release 3; la arquitectura nace multi-usuario-ready (acta D5), pero solo opera Mauricio.</li>
+<li><strong>Grok, Copilot, Ollama y LM Studio</strong> → Release 2; la capa de abstracción (4.2) los admite por contrato desde el día uno.</li>
+<li><strong>NAS, Docker, redes y Android: sin control alguno en el MVP</strong> → Release 2. Único objetivo de control del MVP: el computador principal (§1, capacidad 4).</li>
+<li><strong>Cámaras y visión del entorno</strong> → Release 4.</li>
+<li><strong>Presencia multi-dispositivo avanzada</strong> → Release 4. La exploración de Realidad Aumentada queda <strong>fuera del roadmap principal</strong> por decisión del CEO (gate 2.2): vive solo en el Backlog R5 / Investigación (§5), sin consumir recursos del MVP.</li>
+<li><strong>Fine-tuning de modelos</strong> → fuera del <strong>roadmap actual (R1-R4)</strong>; su eventual incorporación requeriría un ADR. El aprendizaje continuo del MVP es vía memoria y personalización (4.4).</li>
+</ol>
+<h2 id="5-releases-post-mvp-criterios-marco-detalle-diferido">5. Releases post-MVP (criterios-marco†, detalle diferido)</h2>
+<table>
+<thead>
+<tr>
+<th>Release</th>
+<th>Tema</th>
+<th>Contenido principal</th>
+<th>Criterio de corte (marco; detalle en →)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R1 = MVP</td>
+<td>El compañero</td>
+<td>M1 + M2 + M3</td>
+<td>Ventana de aceptación §3.4</td>
+</tr>
+<tr>
+<td>R2</td>
+<td>El políglota autónomo</td>
+<td>Modelos locales (Ollama, LM Studio), Grok y Copilot; automatización avanzada; NAS/Docker/Android</td>
+<td>Conjunto mínimo offline operativo (definición → 3.6/4.2, mandato P-001.4) y 2+ modelos locales <strong>en uso real del usuario</strong></td>
+</tr>
+<tr>
+<td>R3</td>
+<td>El guardián</td>
+<td>Seguridad activa; multiusuario operativo</td>
+<td>Detección/alerta verificable (→ 5.6); 2+ usuarios con memoria y permisos aislados</td>
+</tr>
+<tr>
+<td>R4</td>
+<td>La presencia total</td>
+<td>Cámaras y visión; presencia multi-dispositivo</td>
+<td>Continuidad de contexto entre 3+ dispositivos; percepción visual operativa (→ capítulos de percepción)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Backlog R5 / Investigación</strong> (iniciativas futuras sin recursos asignados, por decisión del CEO): exploración de Realidad Aumentada.</p>
+<p>El horizonte posterior (sistema operativo cognitivo) pertenece al capítulo 7.5.</p>
+<h2 id="6-supuestos-y-restricciones">6. Supuestos y restricciones</h2>
+<ul>
+<li><strong>Presupuesto:</strong> sin límite inicial; alternativas en 4 niveles, decide el CEO (acta D3). Visibilidad de costos recurrentes de APIs y revisión de términos de servicio → 1.5.</li>
+<li><strong>Hardware:</strong> dimensionamiento del servidor local en 3.2/7.4 (conforme al ADR-0001) y decisión de stack en 3.6.</li>
+<li><strong>Entorno del CEO (a validar por el inventario del ecosistema, anexo del 2.3†):</strong> instancia de Home Assistant operativa con dispositivos integrados; hardware de audio apto para voz conversacional; conectividad estable para los 3 proveedores. Su invalidación dispara el circuito de fracaso (§3.5) antes de cerrar el diseño de M3.</li>
+<li><strong>Tiempo:</strong> derivado de la D7 (no hay código hasta cerrar la Bible), el CTO propone† medir hitos por criterios de salida, no por fechas de calendario.</li>
+<li><strong>Proveedores:</strong> el MVP depende de 3 APIs de nube (mitigación estructural en 4.2; independencia total llega con R2).</li>
+</ul>
+<h2 id="decisiones-tomadas">Decisiones tomadas</h2>
+<ul>
+<li>Los nombres de las 9 capacidades y el momento mágico: acta D2, rango 1 — no negociables aquí.</li>
+<li>Estructura y composición de M1-M3: nota del CTO aceptada en acta D2.</li>
+<li>Propuestas del CTO† ratificadas por el CEO en el gate del 2026-07-17: columna de alcance §1, criterios de salida y autoridad de gate de hito §3.2, requisitos transversales §3.3, ventana de aceptación §3.4 (2 semanas como regla general), circuito de fracaso §3.5, exclusiones §4 y criterios-marco de releases §5. AR: reubicada al Backlog R5/Investigación por el CEO.</li>
+</ul>
+<h3 id="decisiones-aplicables-adrs">Decisiones aplicables (ADRs)</h3>
+<ul>
+<li><a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001 — Postura local-first estricta</a> (<code>accepted</code>): condiciona los supuestos de hardware (§6) y la frontera de datos de todas las capacidades.</li>
+</ul>
+<h2 id="riesgos">Riesgos</h2>
+<ul>
+<li><strong>Alcance:</strong> el MVP más ambicioso evaluado por el panel (avatar y aprendizaje incluidos). Mitigación: hitos secuenciales con gate del CEO y circuito de fracaso §3.5.</li>
+<li><strong>Latencia de voz:</strong> si la conversación no se siente natural, el producto falla en su promesa central (por eso M1 va primero).</li>
+<li><strong>Dependencia de 3 proveedores de nube en R1</strong> (mitigación: 4.2 + R2 acerca modelos locales).</li>
+<li><strong>Supuestos de entorno sin validar</strong> hasta el inventario del 2.3 (§6).</li>
+</ul>
+<h2 id="dependencias">Dependencias</h2>
+<p>Capítulos: 2.1 (Aprobado, v1.1.0). Alimenta: 2.3, 2.5, 3.1 y todos los capítulos de capacidad. Bloqueantes de M2: 5.3 y 3.3.</p>
+<h2 id="proximos-pasos">Próximos pasos</h2>
+<ul>
+<li>Gate del CEO de este capítulo.</li>
+<li>Tras la aprobación: capítulo 3.1 (Principios Arquitectónicos) — el último P0 — con el ADR-0004 (modularidad, acta D10).</li>
+</ul>
+<h2 id="referencias-cruzadas">Referencias cruzadas</h2>
+<ul>
+<li><a href="../../decisiones/2026-07-17-acta-decisiones-fundacionales.html">Acta de Decisiones (D2, D3, D4, D5, D7)</a> · <a href="../../decisiones/2026-07-16-brief-fundacional.html">Brief Fundacional</a></li>
+<li><a href="2.1-vision-mision-anti-vision.html">2.1 Visión (v1.1.0)</a> · <a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001</a> · <a href="../../INDICE.html">Índice maestro</a></li>
+<li>Capítulos de capacidad: 4.1, 4.2, 4.4, 6.2, 6.3, 6.4, 6.5 · Métricas: 2.5 · Evidencia: 7.2</li>
+</ul>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

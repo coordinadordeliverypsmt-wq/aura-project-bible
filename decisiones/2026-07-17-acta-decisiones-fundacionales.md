@@ -1,6 +1,6 @@
 ---
 documento: "Acta de Decisiones Fundacionales"
-version: 1.2.0
+version: 1.3.0
 autor: "Mauricio (CEO) — registrada por Fable (CTO)"
 fecha: 2026-07-17
 estado: "Vinculante"
@@ -14,6 +14,9 @@ historial:
   - version: 1.2.0
     fecha: 2026-07-17
     cambio: "D11 (matriz de impacto en ADRs), D12 (modo de trabajo documental) y D13 (estructura estándar de capítulo) agregadas por el CEO al aprobar el capítulo 1.2"
+  - version: 1.3.0
+    fecha: 2026-07-17
+    cambio: "D14 (Evolución Permanente → ADR-0004) y D15 (deber de disenso y Alerta de Arquitectura del CTO) agregadas por el CEO al aprobar el capítulo 2.2"
 ---
 
 # Acta de Decisiones Fundacionales — 2026-07-17
@@ -93,6 +96,16 @@ No se imprimirán documentos extensos en la terminal. Todo documento se guarda c
 
 Toda la documentación deberá ser legible tanto por humanos como por IA. Cada capítulo incluirá automáticamente: **Resumen ejecutivo · Objetivo · Decisiones tomadas · Riesgos · Dependencias · Próximos pasos · Referencias cruzadas**. Todo se mantiene sincronizado automáticamente.
 *Impacta: 1.4 (plantillas), los 36 capítulos de la Bible.*
+
+## D14 — Principio de Evolución Permanente (2026-07-17, cuarto gate)
+
+Todo componente desarrollado para AURA deberá cumplir el principio de **Evolución Permanente**: ningún módulo podrá diseñarse con límites artificiales; todo deberá poder ser reemplazado o ampliado sin afectar el resto del ecosistema; la arquitectura deberá soportar crecimiento durante muchos años; ninguna integración será exclusiva de un proveedor; todo componente deberá exponer interfaces estables (API o contratos) para permitir reemplazos futuros; siempre que sea posible se privilegiará la modularidad sobre la simplicidad inmediata. **Se registra como ADR independiente** (ADR-0004).
+*Impacta: 3.1, 3.3, 3.4, 6.1 y todo capítulo de arquitectura; ADR-0004.*
+
+## D15 — Deber de disenso y Alerta de Arquitectura del CTO (2026-07-17, cuarto gate)
+
+Además de redactar la Bible, el CTO actúa como tal: si detecta que una decisión — incluida una del CEO — puede comprometer el proyecto dentro de 5 o 10 años, debe **detener el proceso y levantar una ALERTA DE ARQUITECTURA**. No debe continuar simplemente porque el CEO no lo haya mencionado. Debe cuestionar las decisiones del CEO cuando exista una alternativa claramente superior. El CEO prefiere una discusión técnica hoy que una mala arquitectura mañana.
+*Impacta: 1.1 (enmienda al rol del CTO), flujo de todos los gates.*
 
 ## Autorización
 

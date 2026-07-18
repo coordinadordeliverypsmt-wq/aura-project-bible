@@ -5,6 +5,9 @@ Instrumento definido en el [capítulo 1.2](../docs/libro-01-gobernanza-y-metodo/
 | Nº | Título | Estado | Origen | Impacta |
 |---|---|---|---|---|
 | [ADR-0001](0001-postura-local-first-estricta.md) | Postura local-first estricta | **accepted** (2026-07-17) | Acta D1 | 3.1, 3.2, 3.5, 4.1, 4.2, 5.5, 7.4 |
+| [ADR-0004](0004-evolucion-permanente.md) | Principio de Evolución Permanente y arquitectura modular | proposed | Actas D10, D14 | 3.1, 3.3, 3.4, 3.6, 6.1 |
+
+*Nota de numeración: ADR-0002 (plataforma documental, D8) y ADR-0003 (autonomía, D4) conservan sus números reservados por el plan del 1.2 §9 y se redactarán con los capítulos 1.4 y 5.3. El ADR-0004 se adelanta por mandato del acta D14; la numeración sigue siendo única e irrepetible.*
 
 ## Registro de verificaciones de consistencia ADR↔capítulos
 

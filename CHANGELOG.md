@@ -2,6 +2,17 @@
 
 Versionado documental con [Semantic Versioning](https://semver.org/lang/es/). La v1.0.0 corresponderá a la Bible cerrada según el criterio del capítulo 1.1.
 
+## [0.6.0] — 2026-07-17
+
+### Agregado
+- Acta v1.3.0: **D14** (Evolución Permanente) y **D15** (deber de disenso y Alerta de Arquitectura del CTO).
+- **ADR-0004 — Principio de Evolución Permanente y arquitectura modular** (`proposed`, origen D10+D14), con 3 reglas operativas del CTO incluida la salvaguarda anti-sobre-ingeniería.
+- Mecanismo de Alerta de Arquitectura en la constitución (`decisiones/alertas/`).
+
+### Cambiado
+- **Capítulo 2.2 APROBADO por el CEO** (v1.0.0, 6 propuestas † ratificadas); AR reubicada al Backlog R5/Investigación.
+- Constitución 1.1 v1.2.0: enmienda D15 (deber de disenso del CTO) — redacción sujeta a ratificación.
+
 ## [0.5.2] — 2026-07-17
 
 ### Cambiado

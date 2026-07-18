@@ -13,6 +13,10 @@ Instrumento definido en el [capítulo 1.2](../docs/libro-01-gobernanza-y-metodo/
 | [ADR-0007](0007-motores-datos.md) | Motores de datos: SQLite/PostgreSQL + Qdrant | **accepted** (2026-07-18) | Acta D3, cap. 3.6 | 3.5, 3.6, 4.1 |
 | [ADR-0008](0008-voz-whisper-piper.md) | Voz: Whisper + Piper locales | **accepted** (2026-07-18) | Acta D3, cap. 3.6 | 6.2, 3.6, 2.5 |
 | [ADR-0009](0009-avatar-live2d.md) | Avatar: Live2D / 2D animado | **accepted** (2026-07-18) | Acta D3, cap. 3.6 | 6.5, 3.6, 3.4 |
+| [ADR-0010](0010-runtime-llm-local.md) | Runtime de inferencia de LLM local (Ollama) | **accepted** (2026-07-18) | Acta D24 | 4.2, 3.6 |
+| [ADR-0011](0011-base-datos-vectorial.md) | Base de datos vectorial (Qdrant; pgvector alterno) | **accepted** (2026-07-18) | Acta D24 | 4.1, 3.5, 3.6 |
+| [ADR-0012](0012-stt-local.md) | STT local (faster-whisper) | **accepted** (2026-07-18) | Acta D24 | 6.2, 2.5 |
+| [ADR-0013](0013-tts-local.md) | TTS local (Piper) | **accepted** (2026-07-18) | Acta D24 | 6.2, 2.4 |
 
 *Nota de numeración: ADR-0002 (plataforma documental, D8) y ADR-0003 (autonomía, D4) conservan sus números reservados por el plan del 1.2 §9 y se redactarán con los capítulos 1.4 y 5.3. El ADR-0004 se adelanta por mandato del acta D14; la numeración sigue siendo única e irrepetible.*
 

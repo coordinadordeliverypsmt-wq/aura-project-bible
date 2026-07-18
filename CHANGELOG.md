@@ -2,6 +2,17 @@
 
 Versionado documental con [Semantic Versioning](https://semver.org/lang/es/). La v1.0.0 corresponderá a la Bible cerrada según el criterio del capítulo 1.1.
 
+## [1.1.0] — 2026-07-18 — Stack de producción local-first + transición del stack simulado
+
+### Gobernanza
+- **D24:** stack de validación y producción **local-first, open source, sin claves de terceros**; los modelos de nube (D2) quedan como recursos opcionales tras el router. **HC-1 = "Pendiente de validación en entorno objetivo"** (no fallido). Gestión proactiva de entorno. Análisis comparativo por ADR antes de adoptar componentes.
+
+### Agregado
+- **ADR-0010** (runtime LLM local = **Ollama**), **ADR-0011** (vectorial = Qdrant; pgvector alterno), **ADR-0012** (STT = faster-whisper), **ADR-0013** (TTS = Piper) — todos con análisis comparativo open source (6 criterios) y `accepted`.
+- **`entorno/stack-produccion.md`**: stack oficial + requisitos mínimos por componente (CPU/RAM/almacenamiento/SO/deps) + descargas avisadas.
+- **`entorno/scripts/`**: instaladores **Linux/macOS/Windows** (mismo código de AURA, solo cambia la preparación) + **verify-stack** (sh/ps1) que confirma servicios operativos antes del Walking Skeleton.
+- **`entorno/HC-1-validacion.md`**: procedimiento reproducible para validar HC-1 en hardware objetivo, 100% local.
+
 ## [1.0.0] — 2026-07-18 — AURA PROJECT BIBLE v1.0 OFICIALMENTE CERRADA
 
 ### Hito mayor

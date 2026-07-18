@@ -1,0 +1,105 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Motor de síntesis de voz (TTS) local — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="../index.html">← Índice de la Bible</a></p><div class="meta"><b>estado</b>: accepted · <b>fecha</b>: 2026-07-18 · <b>fecha-resolucion</b>: 2026-07-18</div>
+<h1 id="adr-0013-motor-de-sintesis-de-voz-tts-local">ADR-0013 — Motor de síntesis de voz (TTS) local</h1>
+<h2 id="contexto">Contexto</h2>
+<p>La voz (6.2) requiere TTS local (ADR-0008 eligió Piper). El acta D24 exige análisis comparativo open source. Conforme al acta D24, se elige entre alternativas <strong>open source y autoalojables</strong>, sin claves de terceros, con análisis comparativo por los seis criterios exigidos por el CEO.</p>
+<h2 id="alternativas-consideradas-open-source">Alternativas consideradas (open source)</h2>
+<table>
+<thead>
+<tr>
+<th>Opción</th>
+<th>Pros</th>
+<th>Contras</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Piper</strong></td>
+<td>Rápido y ligero (ONNX); buena calidad; <strong>voces en español</strong>; CPU-friendly; MIT</td>
+<td>Menos expresivo que modelos grandes</td>
+</tr>
+<tr>
+<td>Coqui XTTS</td>
+<td>Alta calidad; clonación de voz</td>
+<td>Pesado; prefiere GPU; consideraciones de licencia</td>
+</tr>
+<tr>
+<td>Mimic3</td>
+<td>Ligero</td>
+<td>Proyecto menos activo</td>
+</tr>
+<tr>
+<td>eSpeak-NG</td>
+<td>Ultraligero</td>
+<td>Voz robótica</td>
+</tr>
+</tbody>
+</table>
+<h2 id="decision">Decisión</h2>
+<p><strong>Piper</strong> como TTS local oficial: rápido, ligero, CPU-friendly, con voces en <strong>español latino</strong> (identidad de AURA, 2.4 §6). <strong>Coqui XTTS</strong> se registra como opción futura de mayor calidad/expresividad cuando haya GPU y se justifique. Confirma y precisa ADR-0008.</p>
+<h2 id="justificacion-criterios-del-acta-d24">Justificación (criterios del acta D24)</h2>
+<ul>
+<li><strong>Rendimiento:</strong> síntesis rápida en CPU; adecuado al presupuesto de latencia (TTS ≤300ms, 2.5 §5.1).</li>
+<li><strong>Mantenimiento:</strong> modelos ONNX simples de gestionar.</li>
+<li><strong>Comunidad:</strong> activa; usado en Home Assistant (sinergia con 6.3).</li>
+<li><strong>Portabilidad:</strong> Linux/macOS/Windows.</li>
+<li><strong>Integración:</strong> tras el contrato de voz (6.2); voces en español disponibles.</li>
+<li><strong>Largo plazo:</strong> open source; evolucionable a XTTS por contrato sin rediseño.</li>
+</ul>
+<h2 id="impacto-acta-d11">Impacto (acta D11)</h2>
+<table>
+<thead>
+<tr>
+<th>Dimensión</th>
+<th>Impacto</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Seguridad</td>
+<td>Positivo: síntesis local</td>
+</tr>
+<tr>
+<td>Privacidad</td>
+<td>Positivo: voz local</td>
+</tr>
+<tr>
+<td>Modularidad</td>
+<td>Positivo: tras el contrato de voz; XTTS futuro por sustitución</td>
+</tr>
+<tr>
+<td>Costo</td>
+<td>Bajo: gratis</td>
+</tr>
+<tr>
+<td>Experiencia de usuario</td>
+<td>Voz natural en español (2.4 §6)</td>
+</tr>
+<tr>
+<td>Mantenimiento futuro</td>
+<td>Positivo: ligero y sustituible</td>
+</tr>
+</tbody>
+</table>
+<h2 id="trazabilidad">Trazabilidad</h2>
+<p>Capítulos: 6.2 (voz), 2.4 §6 (voz base español). Confirma ADR-0008. Producción: Piper con voz es_ES/es_MX.</p>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

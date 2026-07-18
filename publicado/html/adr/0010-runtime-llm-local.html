@@ -1,0 +1,110 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Runtime de inferencia de LLM local — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="../index.html">← Índice de la Bible</a></p><div class="meta"><b>estado</b>: accepted · <b>fecha</b>: 2026-07-18 · <b>fecha-resolucion</b>: 2026-07-18</div>
+<h1 id="adr-0010-runtime-de-inferencia-de-llm-local">ADR-0010 — Runtime de inferencia de LLM local</h1>
+<h2 id="contexto">Contexto</h2>
+<p>La orquestación (4.2) necesita un motor de inferencia local para modelos abiertos, que sea el camino por defecto y de validación (D24), sin depender de APIs de nube. Los modelos de nube (D2) quedan como recursos opcionales tras el mismo contrato. Conforme al acta D24, se elige entre alternativas <strong>open source y autoalojables</strong>, sin claves de terceros, con análisis comparativo por los seis criterios exigidos por el CEO.</p>
+<h2 id="alternativas-consideradas-open-source">Alternativas consideradas (open source)</h2>
+<table>
+<thead>
+<tr>
+<th>Opción</th>
+<th>Pros</th>
+<th>Contras</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Ollama</strong></td>
+<td>DX excelente; API compatible con OpenAI (encaja en el contrato del router 4.2); registro de modelos; multiplataforma (Linux/macOS/Windows); CPU+GPU; comunidad muy activa; envuelve llama.cpp; Apache-2.0</td>
+<td>Ligera sobrecarga vs llama.cpp puro; opinado</td>
+</tr>
+<tr>
+<td>llama.cpp</td>
+<td>Máximo rendimiento y control; mínimas dependencias; cuantización GGUF; edge/CPU</td>
+<td>Bajo nivel; más trabajo de integración y de servidor HTTP</td>
+</tr>
+<tr>
+<td>vLLM</td>
+<td>Alto throughput; excelente en GPU</td>
+<td>Orientado a GPU y servidor; pesado; sobredimensionado para 1 usuario local/CPU</td>
+</tr>
+<tr>
+<td>LocalAI</td>
+<td>API OpenAI; multi-backend</td>
+<td>Más pesado y menos pulido; más superficie de mantenimiento</td>
+</tr>
+<tr>
+<td>GPT4All / LM Studio</td>
+<td>Fáciles de escritorio</td>
+<td>Orientados a GUI; menos scriptables/headless para servidor</td>
+</tr>
+</tbody>
+</table>
+<h2 id="decision">Decisión</h2>
+<p><strong>Ollama</strong> como runtime de LLM local oficial. Expone una API compatible con OpenAI que encaja directamente en el contrato de proveedor del router (4.2), por lo que los modelos locales y los de nube (D2) comparten el mismo adaptador. <strong>llama.cpp</strong> queda como ruta de optimización de bajo nivel (Ollama lo envuelve) si una medición lo justifica.</p>
+<h2 id="justificacion-criterios-del-acta-d24">Justificación (criterios del acta D24)</h2>
+<ul>
+<li><strong>Rendimiento:</strong> bueno en CPU con modelos cuantizados; escala a GPU sin cambiar la integración.</li>
+<li><strong>Mantenimiento:</strong> actualizaciones y gestión de modelos triviales (<code>ollama pull</code>); un solo servicio.</li>
+<li><strong>Comunidad:</strong> de las más activas del ecosistema local; amplio catálogo de modelos.</li>
+<li><strong>Portabilidad:</strong> binario nativo Linux/macOS/Windows; el mismo código de AURA no cambia.</li>
+<li><strong>Integración:</strong> API OpenAI-compatible = cero fricción con el router 4.2 y sustituible (P-ARQ-4).</li>
+<li><strong>Largo plazo:</strong> open source, sin lock-in; permite cambiar de modelo o a llama.cpp por contrato.</li>
+</ul>
+<h2 id="impacto-acta-d11">Impacto (acta D11)</h2>
+<table>
+<thead>
+<tr>
+<th>Dimensión</th>
+<th>Impacto</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Seguridad</td>
+<td>Positivo: inferencia local, sin enviar datos a la nube (ADR-0001)</td>
+</tr>
+<tr>
+<td>Privacidad</td>
+<td>Positivo máximo: refuerza local-first</td>
+</tr>
+<tr>
+<td>Modularidad</td>
+<td>Positivo: tras el contrato del router; sustituible</td>
+</tr>
+<tr>
+<td>Costo</td>
+<td>Bajo: gratuito; costo = hardware propio</td>
+</tr>
+<tr>
+<td>Experiencia de usuario</td>
+<td>Depende del hardware; en GPU cumple R2 ≤800ms</td>
+</tr>
+<tr>
+<td>Mantenimiento futuro</td>
+<td>Positivo: un servicio, actualizaciones simples</td>
+</tr>
+</tbody>
+</table>
+<h2 id="trazabilidad">Trazabilidad</h2>
+<p>Capítulos: 4.2 (el router lo usa como proveedor local), 3.6 (stack). Reemplaza la dependencia de claves de nube para el baseline (D24). Producción: servicio Ollama local.</p>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

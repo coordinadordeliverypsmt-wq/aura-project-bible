@@ -1,0 +1,105 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Motor de reconocimiento de voz (STT) local — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="../index.html">← Índice de la Bible</a></p><div class="meta"><b>estado</b>: accepted · <b>fecha</b>: 2026-07-18 · <b>fecha-resolucion</b>: 2026-07-18</div>
+<h1 id="adr-0012-motor-de-reconocimiento-de-voz-stt-local">ADR-0012 — Motor de reconocimiento de voz (STT) local</h1>
+<h2 id="contexto">Contexto</h2>
+<p>La voz (6.2) requiere STT local (ADR-0008 eligió Whisper). El acta D24 exige análisis comparativo open source. Conforme al acta D24, se elige entre alternativas <strong>open source y autoalojables</strong>, sin claves de terceros, con análisis comparativo por los seis criterios exigidos por el CEO.</p>
+<h2 id="alternativas-consideradas-open-source">Alternativas consideradas (open source)</h2>
+<table>
+<thead>
+<tr>
+<th>Opción</th>
+<th>Pros</th>
+<th>Contras</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>faster-whisper</strong> (CTranslate2)</td>
+<td>~4x más rápido que whisper original; misma precisión; CPU+GPU; streaming; Python; MIT</td>
+<td>Requiere CTranslate2</td>
+</tr>
+<tr>
+<td>whisper.cpp</td>
+<td>C++, mínimas deps; excelente en CPU/edge; GGUF cuantizado</td>
+<td>Integración algo más manual</td>
+</tr>
+<tr>
+<td>openai-whisper (original)</td>
+<td>Referencia de precisión</td>
+<td>Lento; pesado</td>
+</tr>
+<tr>
+<td>Vosk</td>
+<td>Muy ligero; streaming</td>
+<td>Precisión menor</td>
+</tr>
+</tbody>
+</table>
+<h2 id="decision">Decisión</h2>
+<p><strong>faster-whisper</strong> como STT local oficial (precisión de Whisper con 4x de velocidad, CPU+GPU, streaming para el presupuesto de latencia 2.5 §5.1). <strong>whisper.cpp</strong> se registra como alternativa oficial para hardware de recursos muy limitados (edge/CPU puro). Confirma y precisa ADR-0008.</p>
+<h2 id="justificacion-criterios-del-acta-d24">Justificación (criterios del acta D24)</h2>
+<ul>
+<li><strong>Rendimiento:</strong> faster-whisper es el mejor equilibrio precisión/velocidad en CPU y GPU.</li>
+<li><strong>Mantenimiento:</strong> paquete Python estable; modelos descargables.</li>
+<li><strong>Comunidad:</strong> amplia; derivado directo de Whisper.</li>
+<li><strong>Portabilidad:</strong> Linux/macOS/Windows.</li>
+<li><strong>Integración:</strong> Python (ADR-0005); tras el contrato del adaptador de voz (6.2).</li>
+<li><strong>Largo plazo:</strong> modelos Whisper abiertos; sin lock-in.</li>
+</ul>
+<h2 id="impacto-acta-d11">Impacto (acta D11)</h2>
+<table>
+<thead>
+<tr>
+<th>Dimensión</th>
+<th>Impacto</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Seguridad</td>
+<td>Positivo: audio procesado local</td>
+</tr>
+<tr>
+<td>Privacidad</td>
+<td>Positivo máximo: la voz no sale del perímetro</td>
+</tr>
+<tr>
+<td>Modularidad</td>
+<td>Positivo: tras el contrato de voz</td>
+</tr>
+<tr>
+<td>Costo</td>
+<td>Bajo: gratis</td>
+</tr>
+<tr>
+<td>Experiencia de usuario</td>
+<td>Streaming ayuda a la latencia (2.5 §5.1)</td>
+</tr>
+<tr>
+<td>Mantenimiento futuro</td>
+<td>Positivo: sustituible por whisper.cpp</td>
+</tr>
+</tbody>
+</table>
+<h2 id="trazabilidad">Trazabilidad</h2>
+<p>Capítulos: 6.2 (voz), 2.5 (latencia). Confirma ADR-0008. Producción: faster-whisper (modelo small/base según hardware).</p>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

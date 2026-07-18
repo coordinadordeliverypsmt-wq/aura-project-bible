@@ -1,0 +1,7 @@
+# Dependencias Python del stack real de AURA (local-first, D24)
+nats-py>=2.6
+faster-whisper>=1.0
+piper-tts>=1.2
+qdrant-client>=1.9
+# LLM: Ollama es un servicio externo (no pip); se instala con install-*.
+# BD: sqlite3 es stdlib; psycopg[binary] solo si se usa PostgreSQL.

@@ -1,6 +1,6 @@
 ---
 documento: "Acta de Decisiones Fundacionales"
-version: 1.7.0
+version: 1.8.0
 autor: "Mauricio (CEO) — registrada por Fable (CTO)"
 fecha: 2026-07-17
 estado: "Vinculante"
@@ -29,6 +29,9 @@ historial:
   - version: 1.7.0
     fecha: 2026-07-18
     cambio: "D23 (Módulo de Captura de Conocimiento como capacidad oficial + cierre del alcance funcional de la versión inicial). El CEO refina además la lista de materias reservadas a su aprobación (tecnología, alcance, guardrails éticos, Alertas, riesgos de largo plazo)"
+  - version: 1.8.0
+    fecha: 2026-07-18
+    cambio: "D24 (stack local-first sin dependencia de proveedores para validación/baseline; HC-1 pendiente de validación en entorno objetivo; análisis comparativo open source por ADR antes de adoptar componentes; gestión proactiva de entorno)"
 ---
 
 # Acta de Decisiones Fundacionales — 2026-07-17
@@ -158,6 +161,11 @@ A partir de la aprobación del 3.2, el objetivo principal es **ejecutar la arqui
 
 Se incorpora como **capacidad oficial** de AURA un **Módulo de Captura de Conocimiento**: un módulo nativo, **desacoplado del núcleo**, capaz de capturar, procesar y organizar información de conversaciones **siempre con autorización expresa del usuario** y respetando privacidad, seguridad y Human-in-the-Loop. Debe permitir: transcribir reuniones presenciales autorizadas; transcribir llamadas y videollamadas autorizadas; procesar grabaciones y notas de audio; generar transcripciones precisas y resúmenes ejecutivos; identificar participantes, temas, decisiones y compromisos; extraer tareas, fechas y responsables; incorporar lo relevante a la memoria de AURA según las reglas; y permitir búsquedas posteriores. Se implementa como componente desacoplado (arquitectura modular aprobada), local-first y bajo las políticas de seguridad del proyecto. **Con esta decisión, el CEO declara CERRADO el alcance funcional de la versión inicial de AURA**: no se incorporarán nuevas funcionalidades ni cambios de visión salvo Alerta de Arquitectura o decisión estratégica excepcional aprobada por el CEO.
 *Impacta: 2.2 (nueva capacidad, cierre de alcance), nuevo capítulo 4.5, y 2.4 §5 (guardrail de no-vigilancia — ver ALERTA-002).*
+
+## D24 — Stack de validación y producción local-first, sin dependencia de proveedores; entorno proactivo (2026-07-18)
+
+Para validar HC-1 y como baseline reproducible del proyecto **no se utilizarán APIs comerciales ni claves de terceros**. La arquitectura debe ser **independiente de proveedores, reproducible y basada preferentemente en tecnologías locales y de código abierto** (o la mejor alternativa técnicamente justificada). Los modelos de nube (D2: ChatGPT/Claude/Gemini) siguen siendo **recursos opcionales** detrás del router (4.2), pero el sistema **no depende** de ellos: el camino por defecto y de validación es local. **HC-1 se registra como "Pendiente de validación en entorno objetivo"**, no como fallido. **Antes de adoptar definitivamente** cualquier componente (Ollama, Faster-Whisper, Piper, Qdrant, etc.) se realiza un **análisis comparativo open source registrado en ADR** (criterios: rendimiento, mantenimiento, comunidad, portabilidad, facilidad de integración, proyección a largo plazo). **Gestión proactiva de entorno:** si se identifica una dependencia/herramienta/servicio necesario, el CTO lo informa con anticipación (por qué, en qué fase, cómo instalarlo, si es automatizable) y prepara scripts reproducibles, para evitar bloqueos por dependencias no previstas. No se solicitan claves de API ni soluciones propietarias salvo justificación arquitectónica documentada y aprobada.
+*Impacta: ADR-0006..0013, entorno/ (scripts y stack de producción), validación de HC-1.*
 
 ## Autorización
 

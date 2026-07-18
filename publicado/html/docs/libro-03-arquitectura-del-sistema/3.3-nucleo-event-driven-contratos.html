@@ -1,0 +1,94 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Núcleo Event-Driven y Contratos Internos — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.0.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-18 · <b>fecha_aprobacion</b>: 2026-07-18 · <b>autor</b>: Opus (Chief Software Architect) — aprobación CTO por delegación D22 · <b>responsable</b>: Opus · <b>prioridad</b>: P1</div>
+<h1 id="33-nucleo-event-driven-y-contratos-internos">3.3 — Núcleo Event-Driven y Contratos Internos</h1>
+<blockquote>
+<p><strong>Estado:</strong> Aprobado (CTO por delegación D22, 2026-07-18) · <strong>Prioridad:</strong> P1 · <strong>Responsable:</strong> Opus</p>
+</blockquote>
+<p><em>Convención † (1.1 §4): desarrollo del CTO/arquitecto exigible con la aprobación; no es texto de actas del CEO.</em></p>
+<h2 id="resumen-ejecutivo">Resumen ejecutivo</h2>
+<p>Especifica el sistema nervioso de AURA: los <strong>contratos</strong> del Event Bus como plano de control (3.2 §4.1). Define la taxonomía y el esquema versionado de eventos, las garantías de entrega (<strong>at-least-once + deduplicación por idempotencia</strong>), el tratamiento especial de <strong>eventos con efectos físicos</strong>, el <strong>invariante de correlación Trace ID</strong> que une bus y streams (resolución ALERTA-001), el manejo de errores con <strong>dead-letter queue</strong>, y los contratos de API internos entre módulos. No elige el broker concreto: esa es una selección de tecnología que se decide en 3.6 (4 niveles, D3). Ejecuta la arquitectura del 3.2 sin cambiar el alcance.</p>
+<h2 id="objetivo">Objetivo</h2>
+<p>Fijar los contratos que hacen del bus un plano de control fiable, auditable y trazable, de modo que cualquier módulo o plugin se acople a él por interfaz estable (ADR-0004) y que los eventos con efecto físico nunca se dupliquen ni se pierdan.</p>
+<h2 id="1-alcance-y-frontera-con-36">1. Alcance y frontera con 3.6</h2>
+<p>Este capítulo define <strong>contratos y patrones</strong> (independientes de producto). La <strong>selección del broker</strong> (in-process, NATS, MQTT interno, Redis Streams, etc.) es una decisión de tecnología reservada al CEO y se presenta en 3.6 con 4 niveles (D3, P-ARQ-6). Los contratos aquí valen para cualquier broker que los cumpla (P-ARQ-4).</p>
+<h2 id="2-taxonomia-y-esquema-de-eventos">2. Taxonomía y esquema de eventos</h2>
+<ul>
+<li><strong>Familias de eventos:</strong> <code>perception.*</code> (fin de turno, transcripción, estado de dispositivo), <code>cognition.*</code> (intención, decisión de enrutamiento, operación de memoria), <code>permission.*</code> (solicitud, autorización, denegación), <code>action.*</code> (comando, resultado), <code>audit.*</code> (traza inmutable), <code>system.*</code> (salud, degradación).</li>
+<li><strong>Sobre de evento (contrato común):</strong> <code>event_id</code> (único), <code>type</code>, <code>schema_version</code> (SemVer), <code>trace_id</code> (correlación §4), <code>user_id</code> (multiusuario, 3.2 §7), <code>timestamp</code>, <code>source</code>, <code>payload</code>, <code>causation_id</code> (evento que lo causó).</li>
+<li><strong>Schema registry:</strong> cada <code>type</code> tiene un esquema versionado (JSON Schema). El registro es la fuente de verdad de los contratos de evento; su evolución sigue la <strong>regla 11 del ADR-0004</strong> (SemVer; ruptura → ADR + máximo 2 versiones mayores vivas; convivencia con término).</li>
+</ul>
+<h2 id="3-garantias-de-entrega-e-idempotencia">3. Garantías de entrega e idempotencia</h2>
+<ul>
+<li><strong>At-least-once</strong> como default: un consumidor puede recibir un evento más de una vez.</li>
+<li><strong>Idempotencia obligatoria en efectos físicos</strong> (checklist 3.1 §2.3 Q9): todo consumidor de <code>action.*</code> con efecto físico o irreversible deduplica por <code>event_id</code>; ejecutar el mismo comando dos veces produce un solo efecto. Es el mecanismo contra la duplicación de acciones domóticas/sistema (riesgo grave, 3.1).</li>
+<li><strong>Orden por <code>trace_id</code>:</strong> dentro de una misma interacción, los eventos se procesan en orden causal (<code>causation_id</code>); entre interacciones no se garantiza orden global (innecesario y costoso).</li>
+<li><strong>Exactly-once no se promete</strong> a nivel de transporte (falacia distribuida); se logra <em>efectivamente</em> con at-least-once + idempotencia, más barato y sostenible (regla 13 ADR-0004).</li>
+</ul>
+<h2 id="4-invariante-de-correlacion-bus-streams-alerta-001">4. Invariante de correlación bus ↔ streams (ALERTA-001)</h2>
+<p>Materializa el invariante que el 3.2 §4.4 declaró: todo stream de baja latencia (voz, avatar) <strong>se abre y se cierra con eventos de control en el bus que comparten su <code>trace_id</code></strong>. Contrato:</p>
+<ul>
+<li>Al iniciar un turno de voz, el Adaptador de Voz emite <code>perception.turn_start</code> con un <code>trace_id</code> nuevo; el audio fluye por el canal dedicado etiquetado con ese mismo <code>trace_id</code>.</li>
+<li>Toda decisión y acción derivada hereda el <code>trace_id</code> (via <code>causation_id</code>).</li>
+<li>Al cerrar, <code>perception.turn_end</code> con el mismo <code>trace_id</code>.</li>
+<li><strong>Sin <code>trace_id</code> no se admite tráfico de stream:</strong> un stream huérfano se rechaza y se registra en <code>audit.*</code> (garantiza P-ARQ-1/7).</li>
+</ul>
+<h2 id="5-errores-reintentos-y-dead-letter">5. Errores, reintentos y dead-letter</h2>
+<ul>
+<li><strong>Reintentos con backoff</strong> exponencial acotado por consumidor; el número máximo es configuración, no código (regla 12 ADR-0004).</li>
+<li><strong>Dead-letter queue (DLQ):</strong> un evento que agota reintentos va a la DLQ con su causa; nunca se descarta en silencio (P-ARQ-1). La DLQ es local y auditable.</li>
+<li><strong>Efectos físicos fallidos:</strong> un <code>action.*</code> con efecto físico que falla emite <code>action.result</code> con estado de error y <strong>no</strong> se reintenta automáticamente si el efecto es irreversible; escala a HITL (5.3).</li>
+</ul>
+<h2 id="6-contratos-de-api-internos">6. Contratos de API internos</h2>
+<p>Entre módulos que no se comunican por eventos (llamada síncrona: p. ej. el orquestador consulta memoria) rige un contrato de API interno: interfaz versionada (SemVer), modelo de errores unificado, y validación de esquema en el borde. Igual que los eventos, su ruptura exige ADR (regla 11). El orquestador nunca conoce la <em>implementación</em> de un módulo, solo su contrato (P-ARQ-3).</p>
+<h2 id="decisiones-tomadas">Decisiones tomadas</h2>
+<ul>
+<li>Contratos de evento, sobre común, schema registry, garantías at-least-once + idempotencia, invariante Trace ID, DLQ y contratos de API internos: ejecución de la arquitectura del 3.2 (desarrollo del arquitecto †, aprobado por delegación).</li>
+<li>Selección del broker concreto: <strong>diferida a 3.6</strong> (tecnología, D3).</li>
+</ul>
+<h3 id="decisiones-aplicables-adrs">Decisiones aplicables (ADRs)</h3>
+<ul>
+<li><a href="../../adr/0004-evolucion-permanente.html">ADR-0004 — Evolución Permanente</a> (<code>accepted</code>): reglas 11 (versionado/deprecación de contratos) y 12 (config, no código) gobiernan este capítulo.</li>
+<li><a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001 — Local-first</a> (<code>accepted</code>): el bus y la DLQ son locales; los eventos <code>audit.*</code> son dato del usuario.</li>
+</ul>
+<h3 id="evaluacion-por-las-cinco-preguntas-d21">Evaluación por las cinco preguntas (D21)</h3>
+<p>(1) Escala 10 años: esquema versionado admite tipos nuevos sin romper. (2) Reduce dependencia: contratos independientes del broker. (3) Sustituir sin rediseñar: cambiar de broker no toca a los consumidores. (4) Equipo pequeño: at-least-once+idempotencia evita la complejidad de exactly-once. (5) Sistema vivo: nuevos módulos se enchufan por evento. Sin respuesta negativa → sin Alerta.</p>
+<h2 id="riesgos">Riesgos</h2>
+<ul>
+<li><strong>Idempotencia mal implementada</strong> en un adaptador físico → acción duplicada; mitigación: es requisito de contrato verificable (checklist 3.1 §2.3 Q9) y se prueba en 7.2.</li>
+<li><strong>Trace_id perdido</strong> → traza rota; mitigación: invariante §4, stream huérfano rechazado.</li>
+<li><strong>DLQ que crece sin vigilancia</strong> → fallos silenciosos acumulados; mitigación: la DLQ es observable (P-ARQ-7) y su revisión entra en la operación mínima (7.4).</li>
+</ul>
+<h2 id="dependencias">Dependencias</h2>
+<p>Capítulos: <strong>3.2</strong> (Aprobado). Alimenta: 3.4 (los plugins consumen/emiten por estos contratos), 3.6 (elige el broker), 4.1-4.4 (módulos que se comunican por el bus), 5.3 (HITL sobre <code>action.*</code>), 7.2 (pruebas de idempotencia y correlación).</p>
+<h2 id="proximos-pasos">Próximos pasos</h2>
+<ul>
+<li>3.6 presenta al CEO la selección del broker (4 niveles).</li>
+<li>3.4 define el contrato de plugin sobre esta base de eventos.</li>
+</ul>
+<h2 id="referencias-cruzadas">Referencias cruzadas</h2>
+<ul>
+<li><a href="3.2-arquitectura-referencia-c4.html">3.2 Arquitectura de Referencia</a> · <a href="3.1-principios-arquitectonicos.html">3.1 Principios</a> · <a href="../../decisiones/alertas/2026-07-17-alerta-001-bus-vs-streaming.html">ALERTA-001</a></li>
+<li><a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001</a> · <a href="../../adr/0004-evolucion-permanente.html">ADR-0004</a> · <a href="../../INDICE.html">Índice maestro</a></li>
+</ul>
+<h2 id="aprobacion-del-cto-delegacion-d22">Aprobación del CTO (delegación D22)</h2>
+<p>Revisión ejecutiva del CTO conforme al acta D22: <strong>(1) Alcance</strong> — el capítulo ejecuta contratos ya delegados por el 3.2 (Aprobado); no añade capacidades ni cambia el alcance del MVP (2.2). <strong>(2) Consistencia</strong> — respeta ADR-0001, ADR-0004 (reglas 11/13), los principios P-ARQ (3.1) y la resolución de la ALERTA-001. <strong>(3) Cinco preguntas (D21)</strong> — todas afirmativas (ver sección). <strong>(4) Materia reservada al CEO</strong> — ninguna: las selecciones de producto concreto se difieren al 3.6 (4 niveles, D3). <strong>Veredicto: APROBADO por el CTO (delegación D22), 2026-07-18.</strong></p>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

@@ -27,11 +27,11 @@
 *El contrato técnico central: núcleo event-driven, plugins y datos.*
 
 - **3.1 Principios Arquitectónicos y Decisiones Estructurales** `[P0 · Fable · Aprobado]` — Fijar los principios que toda decisión técnica futura debe respetar.
-- **3.2 Arquitectura de Referencia (Vistas C4)** `[P1 · Fable · No iniciado]` — Establecer la vista maestra que todo capítulo técnico detalla y respeta.
-- **3.3 Núcleo Event-Driven y Contratos Internos** `[P1 · Opus · No iniciado]` — Especificar el sistema nervioso de AURA y sus garantías cuando los eventos tienen efectos físicos.
-- **3.4 Sistema de Plugins y Adaptadores** `[P1 · Opus · No iniciado]` — El contrato que materializa "agregar tecnologías sin rediseñar el sistema".
-- **3.5 Modelo de Datos y Persistencia** `[P1 · Sonnet · No iniciado]` — Definir entidades, almacenes y la evolución de esquemas que protege el activo irremplazable (la memoria).
-- **3.6 Selección de Stack Tecnológico** `[P1 · Fable · No iniciado]` — Documentar criterios y decisiones de lenguajes, frameworks e infraestructura vía ADRs.
+- **3.2 Arquitectura de Referencia (Vistas C4)** `[P1 · Fable · Aprobado]` — Establecer la vista maestra que todo capítulo técnico detalla y respeta.
+- **3.3 Núcleo Event-Driven y Contratos Internos** `[P1 · Opus · Aprobado]` — Especificar el sistema nervioso de AURA y sus garantías cuando los eventos tienen efectos físicos.
+- **3.4 Sistema de Plugins y Adaptadores** `[P1 · Opus · Aprobado]` — El contrato que materializa "agregar tecnologías sin rediseñar el sistema".
+- **3.5 Modelo de Datos y Persistencia** `[P1 · Sonnet · Aprobado]` — Definir entidades, almacenes y la evolución de esquemas que protege el activo irremplazable (la memoria).
+- **3.6 Selección de Stack Tecnológico** `[P1 · Fable · En revisión (gate CEO)]` — Documentar criterios y decisiones de lenguajes, frameworks e infraestructura vía ADRs.
 
 ## Libro IV — Cognición: Memoria, Orquestación y Agencia
 *El corazón diferencial de AURA.*

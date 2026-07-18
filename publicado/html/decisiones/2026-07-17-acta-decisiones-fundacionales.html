@@ -17,7 +17,7 @@ font-family:Helvetica,Arial,sans-serif}
 .meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
 font-size:.85em;font-family:Helvetica,Arial,sans-serif}
 </style></head><body>
-<p><a href="../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.5.0 · <b>estado</b>: Vinculante · <b>fecha</b>: 2026-07-17 · <b>autor</b>: Mauricio (CEO) — registrada por Fable (CTO)</div>
+<p><a href="../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.6.0 · <b>estado</b>: Vinculante · <b>fecha</b>: 2026-07-17 · <b>autor</b>: Mauricio (CEO) — registrada por Fable (CTO)</div>
 <h1 id="acta-de-decisiones-fundacionales-2026-07-17">Acta de Decisiones Fundacionales — 2026-07-17</h1>
 <p>El CEO ratificó el método de trabajo y el índice de la Bible (v0.1 → v0.2), y resolvió las 8 decisiones abiertas. Estas decisiones son <strong>vinculantes</strong>: prevalecen sobre cualquier capítulo y se formalizarán como ADRs una vez aprobado el capítulo 1.2.</p>
 <h2 id="d1-postura-de-datos-local-first-estricto">D1 — Postura de datos: local-first estricto</h2>
@@ -88,6 +88,9 @@ memoria permanente · conversación natural por voz · avatar interactivo · con
 <h2 id="d21-las-cinco-preguntas-de-largo-plazo-2026-07-18">D21 — Las cinco preguntas de largo plazo (2026-07-18)</h2>
 <p>Toda decisión deberá responder, antes de aprobarse: (1) ¿Escala durante los próximos 10 años? · (2) ¿Reduce la dependencia de un proveedor? · (3) ¿Permite sustituir tecnologías sin rediseñar el sistema? · (4) ¿Puede mantenerse por un equipo pequeño? · (5) ¿Contribuye a que AURA sea un sistema vivo y evolutivo? Si <strong>alguna respuesta es negativa</strong>, el CTO deberá generar una <strong>ALERTA DE ARQUITECTURA</strong> antes de continuar.
 <em>Impacta: 3.1 §2.3 (checklist de evaluación), 1.2 (criterio de todo ADR), mecanismo de alertas D15/D16.</em></p>
+<h2 id="d22-fase-de-ejecucion-mandato-de-ejecutar-y-delegacion-de-aprobacion-al-cto-2026-07-18-gate-32">D22 — Fase de ejecución: mandato de ejecutar y delegación de aprobación al CTO (2026-07-18, gate 3.2)</h2>
+<p>A partir de la aprobación del 3.2, el objetivo principal es <strong>ejecutar la arquitectura aprobada</strong>. No se introducirán nuevas funcionalidades, cambios de alcance ni modificaciones conceptuales, <strong>salvo mediante una Alerta de Arquitectura debidamente justificada y aprobada</strong>. Para no ser el cuello de botella de la ejecución, el CEO <strong>delega en el CTO la autoridad de aprobación de los capítulos de ejecución</strong>, que el CTO ejerce con criterio ejecutivo: (1) que no cambie el alcance; (2) que respete todas las decisiones previas (actas, ADRs, principios); (3) las cinco preguntas de largo plazo (D21). El CTO aprueba o rechaza y avanza. <strong>Se reservan al CEO</strong> (no delegadas): las selecciones de tecnología con alternativas (D3, 4 niveles), toda modificación de un guardrail ético o de una decisión de rango 1, y toda Alerta de Arquitectura. Un capítulo que requiera cualquiera de esas se eleva al CEO; el resto lo aprueba el CTO.
+<em>Impacta: 1.1 §4/§6 (enmienda: delegación de aprobación en fase de ejecución), flujo de todos los capítulos restantes.</em></p>
 <h2 id="autorizacion">Autorización</h2>
 <p>El CEO autoriza el inicio de la <strong>Fase D1</strong>: redacción de los 5 capítulos P0 (1.1 → 1.2 → 2.1 → 2.2 → 3.1), cada uno con gate de aprobación del CEO.</p>
 <div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>

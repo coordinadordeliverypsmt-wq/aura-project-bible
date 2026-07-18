@@ -1,0 +1,89 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sistema de Plugins y Adaptadores — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.0.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-18 · <b>fecha_aprobacion</b>: 2026-07-18 · <b>autor</b>: Opus (Chief Software Architect) — aprobación CTO por delegación D22 · <b>responsable</b>: Opus · <b>prioridad</b>: P1</div>
+<h1 id="34-sistema-de-plugins-y-adaptadores">3.4 — Sistema de Plugins y Adaptadores</h1>
+<blockquote>
+<p><strong>Estado:</strong> Aprobado (CTO por delegación D22, 2026-07-18) · <strong>Prioridad:</strong> P1 · <strong>Responsable:</strong> Opus</p>
+</blockquote>
+<p><em>Convención † (1.1 §4): desarrollo del arquitecto exigible con la aprobación; no es texto de actas del CEO.</em></p>
+<h2 id="resumen-ejecutivo">Resumen ejecutivo</h2>
+<p>Define el contrato que materializa la Evolución Permanente (D14, ADR-0004): <strong>cualquier tecnología se conecta a AURA como plugin sin tocar el núcleo</strong> (3.2). Especifica el manifiesto de capacidades, el ciclo de vida (registro → sandbox → activación → actualización → retiro), el aislamiento y los permisos, la <strong>seguridad de la cadena de suministro</strong> (firmas, verificación), el versionado con la política de deprecación del ADR-0004, el descubrimiento de capacidades y la guía para incorporar tecnología nueva. Es el mecanismo que hace de AURA un sistema vivo. No lista plugins concretos (eso es el Libro VI); define el contrato.</p>
+<h2 id="objetivo">Objetivo</h2>
+<p>Que agregar un proveedor de IA, un dispositivo, un sistema o una modalidad sea <strong>conectar un plugin conforme a contrato</strong>, nunca modificar el núcleo — garantizando que ningún plugin comprometa la seguridad, la privacidad ni la estabilidad del sistema.</p>
+<h2 id="1-contrato-de-plugin-y-manifiesto-de-capacidades">1. Contrato de plugin y manifiesto de capacidades</h2>
+<p>Todo plugin declara un <strong>manifiesto</strong>: <code>plugin_id</code>, <code>version</code> (SemVer), <code>capabilities</code> (qué expone: p. ej. <code>home.switch</code>, <code>llm.chat</code>, <code>system.exec</code>), <code>events</code> (qué tipos consume/emite, contratos de 3.3), <code>permissions_required</code> (qué acciones D4 puede solicitar), <code>data_scope</code> (qué datos toca; sujeto a ADR-0001), <code>dependencies</code> y <code>signature</code> (§4). El núcleo solo conoce el manifiesto y los contratos; nunca la implementación (P-ARQ-3).</p>
+<h2 id="2-ciclo-de-vida">2. Ciclo de vida</h2>
+<p><code>registrado → verificado → activo → (actualización) → retirado</code>. Transiciones:</p>
+<ul>
+<li><strong>Registro:</strong> se valida el manifiesto contra el schema registry (3.3) y se verifica la firma (§4).</li>
+<li><strong>Verificado → activo:</strong> el plugin se activa dentro de su sandbox (§3) con los permisos mínimos que declaró (least privilege).</li>
+<li><strong>Actualización:</strong> nueva versión conforme a la política de deprecación (regla 11 ADR-0004: máximo 2 versiones mayores vivas; ventana con término).</li>
+<li><strong>Retiro:</strong> un plugin retirado libera sus recursos y sus capacidades desaparecen del descubrimiento (§5); nada en el núcleo se rompe (P-ARQ-3).</li>
+</ul>
+<h2 id="3-aislamiento-sandboxing-y-permisos">3. Aislamiento, sandboxing y permisos</h2>
+<ul>
+<li><strong>Sandbox:</strong> cada plugin corre aislado; no accede a memoria, credenciales ni a otros plugins salvo por contrato explícito. El grado de aislamiento (proceso, contenedor) es decisión de 3.6, pero el <strong>contrato de aislamiento</strong> se fija aquí.</li>
+<li><strong>Permisos por capacidad (least privilege):</strong> un plugin solo puede solicitar acciones dentro de los <code>permissions_required</code> que declaró; el Gestor de Permisos/HITL (5.3) evalúa cada acción contra las listas D4 <strong>independientemente</strong> de lo que el plugin pida. Un plugin <strong>nunca</strong> ejecuta directo: emite una solicitud de acción por el bus y espera autorización (3.2 §5, 3.3 §4).</li>
+<li><strong>Frontera de datos:</strong> el <code>data_scope</code> de un plugin se somete al ADR-0001; un plugin que envía datos a la nube pasa por minimización (regla 5).</li>
+</ul>
+<h2 id="4-seguridad-de-la-cadena-de-suministro">4. Seguridad de la cadena de suministro</h2>
+<ul>
+<li><strong>Firma obligatoria:</strong> todo plugin se instala solo si su firma verifica contra una clave de confianza local; un plugin sin firma válida no pasa de <code>registrado</code>.</li>
+<li><strong>SBOM:</strong> el manifiesto declara sus dependencias (software bill of materials) para trazar vulnerabilidades.</li>
+<li><strong>Sin auto-actualización silenciosa:</strong> una actualización es una transición de ciclo de vida verificada (§2), no un proceso opaco. Esto cierra el vector de cadena de suministro que el modelo de amenazas (5.1) tratará en detalle.</li>
+</ul>
+<h2 id="5-descubrimiento-de-capacidades">5. Descubrimiento de capacidades</h2>
+<p>El <strong>Registro de Plugins</strong> (contenedor del 3.2) mantiene el catálogo vivo de capacidades activas. El orquestador (4.2) y los agentes (4.3) descubren qué pueden hacer consultando el registro por capacidad, no por plugin concreto — así una tarea "encender luz" se resuelve con cualquier plugin que exponga <code>home.switch</code>, sustituible (P-ARQ-4).</p>
+<h2 id="6-guia-incorporar-tecnologia-sin-tocar-el-nucleo">6. Guía: incorporar tecnología sin tocar el núcleo</h2>
+<p>Checklist para un plugin nuevo: (1) declarar manifiesto; (2) mapear sus operaciones a los contratos de evento (3.3); (3) declarar <code>permissions_required</code> y <code>data_scope</code>; (4) firmar; (5) registrar. Ninguno de esos pasos modifica el núcleo — es la prueba operativa de la Evolución Permanente. El catálogo concreto de adaptadores del MVP (HA, sistema, avatar, notificaciones) se especifica en el Libro VI sobre este contrato.</p>
+<h2 id="decisiones-tomadas">Decisiones tomadas</h2>
+<ul>
+<li>Contrato de plugin, manifiesto, ciclo de vida, aislamiento/permisos, cadena de suministro, descubrimiento y guía: ejecución de la arquitectura del 3.2 (desarrollo del arquitecto †, aprobado por delegación).</li>
+<li>El grado concreto de aislamiento (proceso/contenedor) y el mecanismo de firma se <strong>coordinan con 3.6</strong> (tecnología).</li>
+</ul>
+<h3 id="decisiones-aplicables-adrs">Decisiones aplicables (ADRs)</h3>
+<ul>
+<li><a href="../../adr/0004-evolucion-permanente.html">ADR-0004 — Evolución Permanente</a> (<code>accepted</code>): este capítulo es la materialización central del ADR (reglas 8-11, versionado y contratos estables).</li>
+<li><a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001 — Local-first</a> (<code>accepted</code>): gobierna el <code>data_scope</code> de todo plugin.</li>
+</ul>
+<h3 id="evaluacion-por-las-cinco-preguntas-d21">Evaluación por las cinco preguntas (D21)</h3>
+<p>(1) Escala 10 años: tecnologías futuras entran como plugins. (2) Reduce dependencia: capacidades sustituibles por descubrimiento. (3) Sustituir sin rediseñar: es el objeto del capítulo. (4) Equipo pequeño: contrato único, no N integraciones a medida. (5) Sistema vivo: la definición misma de la Evolución Permanente. Sin respuesta negativa → sin Alerta.</p>
+<h2 id="riesgos">Riesgos</h2>
+<ul>
+<li><strong>Plugin malicioso o comprometido:</strong> mitigación: firma (§4), sandbox (§3), least privilege y HITL sobre toda acción (5.3); el modelo de amenazas lo profundiza en 5.2.</li>
+<li><strong>Fuga de datos por un plugin:</strong> mitigación: <code>data_scope</code> + ADR-0001 + minimización; auditable (P-ARQ-7).</li>
+<li><strong>Proliferación de plugins inmantenible:</strong> mitigación: cada plugin defiende su existencia (regla 13 ADR-0004); retiro limpio (§2).</li>
+</ul>
+<h2 id="dependencias">Dependencias</h2>
+<p>Capítulos: <strong>3.2</strong> (Aprobado — el registro de plugins es un contenedor suyo), <strong>3.3</strong> (Aprobado — los plugins usan sus contratos de evento). Alimenta: 3.6 (aislamiento y firma), 4.2/4.3 (descubrimiento), 5.1/5.2 (amenazas y sandboxing), 5.3 (permisos), 6.1-6.5 (adaptadores concretos).</p>
+<h2 id="proximos-pasos">Próximos pasos</h2>
+<ul>
+<li>3.6 coordina el mecanismo de aislamiento y firma (tecnología).</li>
+<li>6.1 define el contrato de adaptador de dominio sobre este contrato de plugin.</li>
+</ul>
+<h2 id="referencias-cruzadas">Referencias cruzadas</h2>
+<ul>
+<li><a href="3.2-arquitectura-referencia-c4.html">3.2 Arquitectura de Referencia</a> · <a href="3.3-nucleo-event-driven-contratos.html">3.3 Núcleo Event-Driven</a> · <a href="3.1-principios-arquitectonicos.html">3.1 Principios</a></li>
+<li><a href="../../adr/0004-evolucion-permanente.html">ADR-0004 — Evolución Permanente</a> · <a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001</a> · <a href="../../INDICE.html">Índice maestro</a></li>
+</ul>
+<h2 id="aprobacion-del-cto-delegacion-d22">Aprobación del CTO (delegación D22)</h2>
+<p>Revisión ejecutiva del CTO conforme al acta D22: <strong>(1) Alcance</strong> — el capítulo ejecuta contratos ya delegados por el 3.2 (Aprobado); no añade capacidades ni cambia el alcance del MVP (2.2). <strong>(2) Consistencia</strong> — respeta ADR-0001, ADR-0004 (reglas 11/13), los principios P-ARQ (3.1) y la resolución de la ALERTA-001. <strong>(3) Cinco preguntas (D21)</strong> — todas afirmativas (ver sección). <strong>(4) Materia reservada al CEO</strong> — ninguna: las selecciones de producto concreto se difieren al 3.6 (4 niveles, D3). <strong>Veredicto: APROBADO por el CTO (delegación D22), 2026-07-18.</strong></p>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

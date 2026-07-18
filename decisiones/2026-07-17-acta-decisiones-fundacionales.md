@@ -1,6 +1,6 @@
 ---
 documento: "Acta de Decisiones Fundacionales"
-version: 1.5.0
+version: 1.6.0
 autor: "Mauricio (CEO) — registrada por Fable (CTO)"
 fecha: 2026-07-17
 estado: "Vinculante"
@@ -23,6 +23,9 @@ historial:
   - version: 1.5.0
     fecha: 2026-07-18
     cambio: "D18 (AURA = PIOS), D19 (naturaleza personal con arquitectura comercial-escalable), D20 (horizonte 10 años) y D21 (las cinco preguntas de largo plazo) agregadas por el CEO en el gate de la Ola 1 de la Fase D2"
+  - version: 1.6.0
+    fecha: 2026-07-18
+    cambio: "D22 (fase de ejecución: mandato de ejecutar sin cambios de alcance + delegación de aprobación de capítulos de ejecución al CTO, con decisiones de tecnología/guardrails/rango 1 reservadas al CEO) agregada por el CEO en el gate del 3.2"
 ---
 
 # Acta de Decisiones Fundacionales — 2026-07-17
@@ -142,6 +145,11 @@ Toda decisión de arquitectura se evaluará pensando en un horizonte mínimo de 
 
 Toda decisión deberá responder, antes de aprobarse: (1) ¿Escala durante los próximos 10 años? · (2) ¿Reduce la dependencia de un proveedor? · (3) ¿Permite sustituir tecnologías sin rediseñar el sistema? · (4) ¿Puede mantenerse por un equipo pequeño? · (5) ¿Contribuye a que AURA sea un sistema vivo y evolutivo? Si **alguna respuesta es negativa**, el CTO deberá generar una **ALERTA DE ARQUITECTURA** antes de continuar.
 *Impacta: 3.1 §2.3 (checklist de evaluación), 1.2 (criterio de todo ADR), mecanismo de alertas D15/D16.*
+
+## D22 — Fase de ejecución: mandato de ejecutar y delegación de aprobación al CTO (2026-07-18, gate 3.2)
+
+A partir de la aprobación del 3.2, el objetivo principal es **ejecutar la arquitectura aprobada**. No se introducirán nuevas funcionalidades, cambios de alcance ni modificaciones conceptuales, **salvo mediante una Alerta de Arquitectura debidamente justificada y aprobada**. Para no ser el cuello de botella de la ejecución, el CEO **delega en el CTO la autoridad de aprobación de los capítulos de ejecución**, que el CTO ejerce con criterio ejecutivo: (1) que no cambie el alcance; (2) que respete todas las decisiones previas (actas, ADRs, principios); (3) las cinco preguntas de largo plazo (D21). El CTO aprueba o rechaza y avanza. **Se reservan al CEO** (no delegadas): las selecciones de tecnología con alternativas (D3, 4 niveles), toda modificación de un guardrail ético o de una decisión de rango 1, y toda Alerta de Arquitectura. Un capítulo que requiera cualquiera de esas se eleva al CEO; el resto lo aprueba el CTO.
+*Impacta: 1.1 §4/§6 (enmienda: delegación de aprobación en fase de ejecución), flujo de todos los capítulos restantes.*
 
 ## Autorización
 

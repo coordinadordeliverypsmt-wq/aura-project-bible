@@ -2,6 +2,16 @@
 
 Versionado documental con [Semantic Versioning](https://semver.org/lang/es/). La v1.0.0 corresponderá a la Bible cerrada según el criterio del capítulo 1.1.
 
+## [0.12.0] — 2026-07-18
+
+### Gobernanza
+- **D22 — Fase de ejecución:** ejecutar la arquitectura aprobada sin cambios de alcance (salvo Alerta de Arquitectura justificada); el CEO **delega en el CTO la aprobación de capítulos de ejecución** (criterio: sin cambio de alcance, respeto de decisiones previas, cinco preguntas D21). Reservadas al CEO: tecnología con alternativas (D3), guardrails éticos, decisiones de rango 1 y Alertas. Enmienda 1.1 v1.4.0.
+
+### Cambiado / Agregado
+- **3.2 APROBADO por el CEO** (v1.0.0), incorporado como parte oficial de la Bible.
+- **3.3 Núcleo Event-Driven, 3.4 Plugins y Adaptadores, 3.5 Modelo de Datos: APROBADOS por el CTO (delegación D22)** — ejecutan los contratos del 3.2 sin cambio de alcance. Progreso P1: 10/28.
+- **3.6 Selección de Stack Tecnológico** ELEVADO AL CEO (materia reservada D3): 5 decisiones de stack en 4 niveles + **ADR-0005 (lenguaje/runtime, proposed)** como ancla.
+
 ## [0.11.0] — 2026-07-18
 
 ### Cambiado

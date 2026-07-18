@@ -1,0 +1,150 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Modelo de Datos y Persistencia — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.0.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-18 · <b>fecha_aprobacion</b>: 2026-07-18 · <b>autor</b>: Sonnet (Engineering Manager) — aprobación CTO por delegación D22 · <b>responsable</b>: Sonnet · <b>prioridad</b>: P1</div>
+<h1 id="35-modelo-de-datos-y-persistencia">3.5 — Modelo de Datos y Persistencia</h1>
+<blockquote>
+<p><strong>Estado:</strong> Aprobado (CTO por delegación D22, 2026-07-18) · <strong>Prioridad:</strong> P1 · <strong>Responsable:</strong> Sonnet</p>
+</blockquote>
+<p><em>Convención † (1.1 §4): desarrollo del CTO/EM exigible con la aprobación; no es texto de actas del CEO.</em></p>
+<h2 id="resumen-ejecutivo">Resumen ejecutivo</h2>
+<p>Define qué datos existen, cómo se clasifican, dónde viven y cómo evolucionan sin perder el activo irremplazable: la memoria de años del usuario. Especifica las entidades de dominio, el mapeo de cada tipo de dato a una <strong>clase de motor</strong> (relacional, documental, vectorial, series de tiempo, blob) —el producto concreto se decide en 3.6—, la clasificación por sensibilidad, el <strong>versionado y la migración de esquemas incluida la memoria</strong> (romper la memoria en un upgrade sería catastrófico), la retención/purga y el cifrado en reposo (ADR-0001), los respaldos (regla 3-2-1) y el aislamiento por usuario (multi-usuario-ready). Ejecuta el 3.2 sin cambiar el alcance.</p>
+<h2 id="objetivo">Objetivo</h2>
+<p>Dar a cada dato del PIOS un hogar, una política de retención, una frontera de privacidad y un camino de migración, de modo que el sistema pueda evolucionar durante 10 años (D20) sin corromper ni perder la memoria del usuario.</p>
+<h2 id="1-entidades-de-dominio">1. Entidades de dominio</h2>
+<table>
+<thead>
+<tr>
+<th>Entidad</th>
+<th>Descripción</th>
+<th>Clase de motor †</th>
+<th>Sensibilidad</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Usuario</td>
+<td>Identidad, preferencias, perfil (2.3)</td>
+<td>Relacional</td>
+<td>Alta</td>
+</tr>
+<tr>
+<td>Recuerdo (memoria)</td>
+<td>Ítems episódicos/semánticos/procedimentales (4.1)</td>
+<td>Vectorial + relacional/grafo</td>
+<td><strong>Máxima</strong></td>
+</tr>
+<tr>
+<td>Evento</td>
+<td>Registro del bus (3.3)</td>
+<td>Series de tiempo / log estructurado</td>
+<td>Alta (dato de usuario)</td>
+</tr>
+<tr>
+<td>Registro de auditoría</td>
+<td>Traza inmutable de acciones (D9)</td>
+<td>Append-only / log</td>
+<td>Alta</td>
+</tr>
+<tr>
+<td>Automatización</td>
+<td>Reglas trigger→acción (6.4)</td>
+<td>Documental</td>
+<td>Media</td>
+</tr>
+<tr>
+<td>Concesión de permiso</td>
+<td>Estado de autonomía por acción (5.3)</td>
+<td>Relacional</td>
+<td>Alta</td>
+</tr>
+<tr>
+<td>Manifiesto de plugin</td>
+<td>Capacidades registradas (3.4)</td>
+<td>Documental</td>
+<td>Media</td>
+</tr>
+<tr>
+<td>Notificación</td>
+<td>Ítems del centro de notificaciones (6.4)</td>
+<td>Documental / cola</td>
+<td>Media</td>
+</tr>
+</tbody>
+</table>
+<h2 id="2-motores-por-tipo-de-dato-clase-no-producto">2. Motores por tipo de dato (clase, no producto)</h2>
+<p>La <strong>clase</strong> de motor se fija aquí; el <strong>producto concreto</strong> (PostgreSQL, SQLite, Qdrant, etc.) es selección de tecnología reservada al CEO y se decide en 3.6 (4 niveles, D3). Clases: relacional (entidades estructuradas), documental (config flexible), <strong>vectorial</strong> (recuperación semántica de memoria, RAG — 4.1), series de tiempo (eventos/telemetría), blob cifrado (audio, avatar). Un mismo motor físico puede cubrir varias clases si 3.6 lo justifica (regla 13 ADR-0004: no multiplicar motores sin necesidad).</p>
+<h2 id="3-clasificacion-por-sensibilidad-y-frontera-local-first">3. Clasificación por sensibilidad y frontera local-first</h2>
+<p>Todo dato se clasifica (Máxima/Alta/Media) y hereda la frontera del <strong>ADR-0001</strong>: <strong>todo reside local</strong>; a la nube solo salen consultas minimizadas a los 3 LLMs (regla 5) y respaldos <strong>cifrados</strong>. Los datos de sensibilidad Máxima (memoria) nunca salen del perímetro salvo como respaldo cifrado. La clasificación gobierna la minimización (5.5) y la redacción de logs (P-ARQ-7).</p>
+<h2 id="4-versionado-y-migracion-de-esquemas-incluida-la-memoria">4. Versionado y migración de esquemas (incluida la memoria)</h2>
+<p>Riesgo existencial: un upgrade que rompa la memoria destruye años de datos. Contrato:</p>
+<ul>
+<li><strong>Esquemas versionados (SemVer)</strong> por entidad; toda migración es <strong>reversible y probada</strong> antes de aplicarse (regla 11 ADR-0004).</li>
+<li><strong>Compatibilidad hacia atrás</strong> de la memoria como prioridad (D10): una versión nueva lee la memoria vieja; si un cambio es incompatible, migración explícita con respaldo previo y verificación de integridad.</li>
+<li><strong>Migración de memoria = operación crítica:</strong> respaldo cifrado obligatorio antes; validación de conteo/integridad después; rollback disponible.</li>
+<li><strong>Portabilidad y exportación total</strong> (2.1 §7.6†; concreción aquí): el usuario puede exportar toda su memoria en un formato neutral (no propietario), coherente con "el usuario es el dueño" (D1) y con la sustituibilidad (P-ARQ-4).</li>
+</ul>
+<h2 id="5-retencion-purga-y-cifrado">5. Retención, purga y cifrado</h2>
+<ul>
+<li><strong>Cifrado en reposo</strong> de todo dato de usuario (ADR-0001); las claves se gestionan en 5.4.</li>
+<li><strong>Retención por clase:</strong> eventos y telemetría con ventana acotada (operación mínima, 7.4); memoria persistente por diseño (es el activo). Purga selectiva a solicitud del usuario (derecho al olvido, 5.5).</li>
+<li><strong>Borrado verificable:</strong> una solicitud de borrado del usuario elimina el dato y su rastro en índices/backups según la política de 5.5 (este capítulo fija que <strong>debe ser verificable</strong>; el mecanismo, en 5.5).</li>
+</ul>
+<h2 id="6-respaldos-y-recuperacion">6. Respaldos y recuperación</h2>
+<ul>
+<li><strong>Regla 3-2-1:</strong> 3 copias, 2 medios, 1 fuera de sitio — <strong>cifrada</strong> si va a la nube (uso autorizado (c) de la D1).</li>
+<li><strong>La memoria es el objetivo prioritario</strong> de respaldo; RPO/RTO por componente se detallan en 7.4.</li>
+<li><strong>Restauración probada:</strong> un respaldo no verificado no cuenta (7.4).</li>
+</ul>
+<h2 id="7-aislamiento-multiusuario-p-arq-5">7. Aislamiento multiusuario (P-ARQ-5)</h2>
+<p>Todo registro porta <code>user_id</code> (3.2 §7); el particionado por usuario es transversal desde el día uno aunque solo opere Mauricio (D5). Habilitar R3 es activar identidades, no migrar el modelo. El detalle de identidad y control de acceso a los datos, en 5.4.</p>
+<h2 id="decisiones-tomadas">Decisiones tomadas</h2>
+<ul>
+<li>Entidades, clases de motor, clasificación por sensibilidad, versionado/migración (incl. memoria), retención/cifrado, backups 3-2-1 y aislamiento multiusuario: ejecución del 3.2 (desarrollo †, aprobado por delegación).</li>
+<li>Productos concretos de almacenamiento: <strong>diferidos a 3.6</strong> (tecnología, D3).</li>
+</ul>
+<h3 id="decisiones-aplicables-adrs">Decisiones aplicables (ADRs)</h3>
+<ul>
+<li><a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001 — Local-first</a> (<code>accepted</code>): gobierna residencia, cifrado, minimización y respaldos.</li>
+<li><a href="../../adr/0004-evolucion-permanente.html">ADR-0004 — Evolución Permanente</a> (<code>accepted</code>): versionado/migración de esquemas (regla 11) y no multiplicar motores (regla 13).</li>
+</ul>
+<h3 id="evaluacion-por-las-cinco-preguntas-d21">Evaluación por las cinco preguntas (D21)</h3>
+<p>(1) Escala 10 años: esquemas versionados y migrables. (2) Reduce dependencia: clases de motor, no productos; exportación neutral. (3) Sustituir sin rediseñar: cambiar de motor no cambia el modelo de dominio. (4) Equipo pequeño: no multiplicar motores sin necesidad. (5) Sistema vivo: la memoria evoluciona sin romperse. Sin respuesta negativa → sin Alerta.</p>
+<h2 id="riesgos">Riesgos</h2>
+<ul>
+<li><strong>Corrupción/pérdida de memoria en migración:</strong> el riesgo más grave; mitigación: respaldo+validación+rollback (§4), restauración probada (§6).</li>
+<li><strong>Fuga por backup en nube:</strong> mitigación: cifrado obligatorio (§6, D1).</li>
+<li><strong>Multiplicación de motores</strong> inmantenible: mitigación: regla 13 ADR-0004; 3.6 justifica cada motor.</li>
+</ul>
+<h2 id="dependencias">Dependencias</h2>
+<p>Capítulos: <strong>3.2</strong> (Aprobado). Alimenta: 3.6 (productos de almacenamiento), 4.1 (memoria), 5.4 (claves e identidad), 5.5 (privacidad, borrado verificable), 7.4 (backups y RPO/RTO), 6.4 (automatizaciones, notificaciones).</p>
+<h2 id="proximos-pasos">Próximos pasos</h2>
+<ul>
+<li>3.6 presenta al CEO los productos de almacenamiento (4 niveles).</li>
+<li>4.1 detalla la arquitectura de memoria sobre este modelo.</li>
+</ul>
+<h2 id="referencias-cruzadas">Referencias cruzadas</h2>
+<ul>
+<li><a href="3.2-arquitectura-referencia-c4.html">3.2 Arquitectura de Referencia</a> · <a href="3.1-principios-arquitectonicos.html">3.1 Principios</a></li>
+<li><a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001</a> · <a href="../../adr/0004-evolucion-permanente.html">ADR-0004</a> · <a href="../../INDICE.html">Índice maestro</a></li>
+</ul>
+<h2 id="aprobacion-del-cto-delegacion-d22">Aprobación del CTO (delegación D22)</h2>
+<p>Revisión ejecutiva conforme al acta D22: <strong>(1) Alcance</strong> — ejecuta contratos delegados por el 3.2 (Aprobado); sin capacidades ni alcance nuevos. <strong>(2) Consistencia</strong> — respeta ADR-0001, ADR-0004 y P-ARQ. <strong>(3) Cinco preguntas (D21)</strong> — afirmativas. <strong>(4) Materia reservada</strong> — productos de almacenamiento diferidos a 3.6 (4 niveles, D3). <strong>Veredicto: APROBADO por el CTO (delegación D22), 2026-07-18.</strong></p>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

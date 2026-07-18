@@ -1,0 +1,212 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Arquitectura de Referencia (Vistas C4) — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.0.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-18 · <b>fecha_aprobacion</b>: 2026-07-18 · <b>autor</b>: Fable (CTO, AURA Labs) · <b>responsable</b>: Fable · <b>prioridad</b>: P1</div>
+<h1 id="32-arquitectura-de-referencia-vistas-c4">3.2 — Arquitectura de Referencia (Vistas C4)</h1>
+<blockquote>
+<p><strong>Estado:</strong> Aprobado (CEO, 2026-07-18) · <strong>Prioridad:</strong> P1 · <strong>Responsable:</strong> Fable</p>
+</blockquote>
+<p><em>Convención † (1.1 §4): desarrollo del CTO que se vuelve exigible con la aprobación de este capítulo — no es texto de actas del CEO.</em></p>
+<h2 id="resumen-ejecutivo">Resumen ejecutivo</h2>
+<p>Este capítulo fija la <strong>vista maestra</strong> de AURA como PIOS (D18): la arquitectura de referencia que todos los capítulos técnicos posteriores detallan y respetan. Presenta las vistas <strong>C4 de Contexto</strong> (nivel 1) y <strong>de Contenedores</strong> (nivel 2), materializa la decisión estructural del 3.1 —<strong>Event Bus como plano de control</strong> para acciones discretas y <strong>canales dedicados</strong> para streams en tiempo real, correlacionados por Trace ID (resolución de la ALERTA-001)—, define el <strong>núcleo mínimo</strong> (orquestación, permisos, bus) con la <strong>memoria como módulo</strong> fuera de él, organiza el sistema en tres capas <strong>percepción → cognición → acción</strong>, y fija la <strong>topología local-first</strong> (ADR-0001) y la estructura <strong>multi-usuario-ready</strong> (P-ARQ-5). Traza el flujo extremo a extremo de una interacción de voz respetando el presupuesto de latencia oficial (2.5 §5.1). Todo contrato formal (eventos, plugins, datos) se delega a 3.3, 3.4 y 3.5.</p>
+<h2 id="objetivo">Objetivo</h2>
+<p>Establecer la arquitectura de referencia de AURA de modo que: (a) todo capítulo del Libro III-VII encaje en ella sin re-litigarla; (b) cada componente sea un módulo reemplazable por contrato (Evolución Permanente, D14); y (c) la estructura cumpla por diseño los principios del 3.1 y los umbrales del 2.5. Este capítulo define <strong>la forma del sistema</strong>, no sus contratos internos (3.3/3.4/3.5) ni su stack (3.6).</p>
+<h2 id="1-alcance-c4-y-encuadre-pios">1. Alcance C4 y encuadre PIOS</h2>
+<p>Se usan los niveles 1-3 de <strong>C4</strong> (1.4 §7); este capítulo cubre <strong>Contexto</strong> (§3) y <strong>Contenedores</strong> (§4). El nivel 3 (Componentes) lo desarrollan los capítulos de cada contenedor. Encuadre rango 1 (D18): AURA es el <strong>núcleo inteligente</strong> que gobierna, bajo una sola arquitectura, los recursos cognitivos y digitales del usuario; los modelos de IA, dispositivos y servicios externos son <strong>recursos/periféricos</strong> conectados por contrato, no partes acopladas al núcleo.</p>
+<h2 id="2-principios-estructurales-aplicados-referencia-a-31">2. Principios estructurales aplicados (referencia a 3.1)</h2>
+<p>Esta arquitectura es la aplicación directa de los P-ARQ ya aprobados (3.1); no introduce principios nuevos:</p>
+<ul>
+<li><strong>Event Bus plano de control + canales de streaming</strong> (3.1 §2.1, ALERTA-001).</li>
+<li><strong>Núcleo mínimo</strong>: solo lo que no puede fallar aislado sin detener el sistema (3.1 §2.1†).</li>
+<li><strong>Todo lo demás es plugin por contrato</strong> (P-ARQ-3, ADR-0004).</li>
+<li><strong>Local-first</strong> (P-ARQ-2, ADR-0001) y <strong>multi-usuario-ready</strong> (P-ARQ-5).</li>
+<li><strong>Observabilidad y trazabilidad</strong> de percepción a acción (P-ARQ-7), con logs como dato del usuario (ADR-0001).</li>
+</ul>
+<h2 id="3-vista-de-contexto-c4-nivel-1">3. Vista de Contexto (C4 nivel 1)</h2>
+<p>AURA (el PIOS) en su entorno: un usuario, y los sistemas externos que gobierna como recursos.</p>
+<pre><code class="language-mermaid">flowchart TB
+    U([Mauricio - usuario único del MVP])
+    subgraph AURA[&quot;AURA — Sistema Operativo de Inteligencia Personal (PIOS)&quot;]
+      core[Núcleo + módulos]
+    end
+    LLM[Proveedores de IA en nube\nChatGPT / Claude / Gemini]
+    HA[Home Assistant\ny dispositivos del hogar]
+    PC[Computador principal\ndel usuario]
+    NOT[Fuentes de notificación\ndel MVP]
+    U &lt;--&gt;|voz, avatar, texto| AURA
+    AURA --&gt;|inferencia, minimizada ADR-0001| LLM
+    AURA &lt;--&gt;|comandos y estados| HA
+    AURA &lt;--&gt;|acciones lista verde D4| PC
+    NOT --&gt;|eventos entrantes| AURA
+</code></pre>
+<p>Fronteras (ADR-0001): los datos del usuario, la memoria y las credenciales viven <strong>dentro</strong> de AURA (local); hacia la nube solo salen consultas a los 3 LLMs, minimizadas y cifradas (regla 5 del ADR-0001). Alexa/Google/HomeKit, NAS/Docker/Android y cámaras <strong>no</strong> están en el contexto del MVP (2.2 §4).</p>
+<h2 id="4-vista-de-contenedores-c4-nivel-2">4. Vista de Contenedores (C4 nivel 2)</h2>
+<pre><code class="language-mermaid">flowchart TB
+    subgraph PERC[&quot;Capa de Percepción&quot;]
+      VOZ[Adaptador de Voz\nwake word / STT / TTS]
+      SENS[Adaptadores de entrada\nnotificaciones, estados HA/PC]
+    end
+    subgraph COG[&quot;Capa de Cognición — el núcleo y sus módulos&quot;]
+      subgraph NUC[&quot;NÚCLEO MÍNIMO&quot;]
+        BUS[[Event Bus\nplano de control]]
+        ORQ[Orquestador / Model Router]
+        PERM[Gestor de Permisos y HITL]
+      end
+      MEM[(Módulo de Memoria\ncontrato versionado)]
+      AG[Módulo de Agentes\ny Tool Use]
+      APR[Módulo de Aprendizaje\ncontinuo]
+    end
+    subgraph ACC[&quot;Capa de Acción&quot;]
+      PLUG[Registro de Plugins / Adaptadores]
+      DOM[Adaptador Domótica\nHome Assistant]
+      SIS[Adaptador Sistema\ncomputador principal]
+      NOTC[Centro de Notificaciones]
+      AVA[Adaptador Avatar]
+    end
+    LLMc[Proveedores IA nube]
+
+    VOZ -. streams baja latencia\n(canal dedicado, Trace ID) .-&gt; ORQ
+    VOZ --&gt;|eventos de control| BUS
+    SENS --&gt;|eventos| BUS
+    BUS &lt;--&gt; ORQ
+    BUS &lt;--&gt; PERM
+    ORQ &lt;--&gt; MEM
+    ORQ &lt;--&gt; AG
+    ORQ &lt;--&gt; LLMc
+    AG --&gt; PERM
+    PERM --&gt;|acciones autorizadas| BUS
+    BUS --&gt; PLUG
+    PLUG --&gt; DOM
+    PLUG --&gt; SIS
+    PLUG --&gt; NOTC
+    APR -.aprende de.-&gt; MEM
+    AVA -. stream sincronizado .-&gt; VOZ
+</code></pre>
+<h3 id="41-el-nucleo-minimo">4.1 El núcleo mínimo</h3>
+<p>Contiene <strong>solo</strong> lo que no puede fallar de forma aislada sin detener todo el sistema (3.1 §2.1†):</p>
+<ul>
+<li><strong>Event Bus (plano de control):</strong> transporta como eventos versionados toda <strong>acción discreta</strong> — eventos, comandos, auditoría, <strong>operaciones de memoria</strong>, decisiones, permisos y automatizaciones (ratificación del CEO en la ALERTA-001). Garantías de entrega, idempotencia y esquema → <strong>3.3</strong>.</li>
+<li><strong>Orquestador / Model Router:</strong> decide qué recurso cognitivo atiende cada tarea (los 3 LLMs, la memoria, un agente) y ensambla el contexto. El diseño del router → <strong>4.2</strong>.</li>
+<li><strong>Gestor de Permisos y HITL:</strong> evalúa toda acción contra las listas verde/roja (D4) antes de que toque un adaptador; ninguna acción llega a la capa de Acción sin pasar por aquí (P-ARQ-1). Diseño → <strong>5.3</strong>.</li>
+</ul>
+<h3 id="42-modulos-de-cognicion-fuera-del-nucleo">4.2 Módulos de cognición (fuera del núcleo)</h3>
+<p>Reemplazables por contrato versionado (ADR-0004); su interfaz vive en el núcleo, su implementación fuera:</p>
+<ul>
+<li><strong>Memoria</strong> (episódica/semántica/procedimental): el subsistema más grande; <strong>explícitamente fuera del núcleo</strong> (P-002.2, coherente con D10 "toda inteligencia será desacoplada"). Sus operaciones viajan por el bus. Diseño → <strong>4.1</strong>.</li>
+<li><strong>Agentes y Tool Use:</strong> planificación y ejecución de herramientas bajo HITL. Diseño → <strong>4.3</strong>.</li>
+<li><strong>Aprendizaje continuo:</strong> adapta preferencias sin reentrenar; lee/escribe memoria. Diseño → <strong>4.4</strong>.</li>
+</ul>
+<h3 id="43-capa-de-percepcion-y-accion">4.3 Capa de Percepción y Acción</h3>
+<ul>
+<li><strong>Percepción:</strong> el <strong>Adaptador de Voz</strong> (wake word, STT, TTS) emite audio por <strong>canal dedicado de baja latencia</strong> hacia el orquestador y <strong>eventos de control</strong> (inicio/fin de turno, transcripción final) por el bus, correlacionados por <strong>Trace ID</strong>. Otros adaptadores de entrada (estados de HA, del computador, notificaciones) emiten solo eventos.</li>
+<li><strong>Acción:</strong> todo actuador es un <strong>plugin sobre el contrato de 3.4/6.1</strong> registrado en el <strong>Registro de Plugins</strong>; el MVP incluye Domótica (HA), Sistema (computador principal), Centro de Notificaciones y Avatar. Nada se conecta directo al núcleo.</li>
+</ul>
+<h3 id="44-streams-vs-eventos-resolucion-alerta-001">4.4 Streams vs eventos (resolución ALERTA-001)</h3>
+<table>
+<thead>
+<tr>
+<th>Tipo</th>
+<th>Ejemplos</th>
+<th>Transporte</th>
+<th>Traza</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Acción discreta</td>
+<td>comando, decisión, permiso, operación de memoria, notificación</td>
+<td><strong>Event Bus</strong> (versionado)</td>
+<td>evento con Trace ID</td>
+</tr>
+<tr>
+<td>Stream tiempo real</td>
+<td>audio de voz, señal de avatar, (futuro: video, sensores)</td>
+<td><strong>canal dedicado de baja latencia</strong></td>
+<td>anclado a eventos de control por Trace ID</td>
+</tr>
+</tbody>
+</table>
+<p>Invariante† (lo garantiza 3.3): todo stream se abre y se cierra con eventos de control en el bus que comparten su Trace ID; sin esa correlación, la trazabilidad de una interacción (P-ARQ-1/7) se rompe.</p>
+<h2 id="5-flujo-extremo-a-extremo-una-interaccion-de-voz">5. Flujo extremo a extremo: una interacción de voz</h2>
+<p>Traza de "el usuario pide encender una luz", que ejercita el presupuesto de latencia oficial (2.5 §5.1):</p>
+<pre><code class="language-mermaid">sequenceDiagram
+    participant U as Usuario
+    participant V as Adaptador Voz
+    participant B as Event Bus
+    participant O as Orquestador
+    participant P as Permisos/HITL
+    participant D as Adaptador HA
+    U-&gt;&gt;V: habla (audio)
+    V--&gt;&gt;O: audio por canal dedicado (Trace ID T1)
+    V-&gt;&gt;B: evento fin-de-turno + transcripción (T1)
+    O-&gt;&gt;O: enruta (memoria + LLM) y decide intención
+    O-&gt;&gt;P: acción propuesta &quot;encender luz&quot; (T1)
+    P-&gt;&gt;P: clasifica D4 -&gt; lista verde (auto)
+    P-&gt;&gt;B: acción autorizada (T1)
+    B-&gt;&gt;D: comando encender (T1)
+    D--&gt;&gt;B: estado: luz encendida (T1)
+    O--&gt;&gt;V: respuesta hablada (canal dedicado, T1)
+    V--&gt;&gt;U: &quot;Lista, encendí la luz.&quot;
+</code></pre>
+<p>Si la acción fuera de <strong>lista roja</strong> (p. ej. "abre la cerradura"), el Gestor de Permisos la detendría y pediría confirmación (RF-HITL, tolerancia cero a falsos negativos, 2.5 §5.4) antes de emitir la acción autorizada. El audio va por canal dedicado para cumplir P50 ≤ 800 ms; los eventos de control por el bus dan la traza auditable.</p>
+<h2 id="6-topologia-de-despliegue-local-first">6. Topología de despliegue (local-first)</h2>
+<p>Vista física de referencia (el dimensionamiento de hardware y el stack concreto → 3.6; la infra de despliegue → 7.x):</p>
+<ul>
+<li><strong>En el hogar del usuario (local):</strong> núcleo, memoria, permisos, bus, adaptadores, avatar y —cuando lleguen (R2)— los modelos locales. Aquí vive <strong>todo dato del usuario</strong> (ADR-0001).</li>
+<li><strong>En la nube (solo lo autorizado, D1):</strong> inferencia de los 3 LLMs (entrada minimizada, regla 5 ADR-0001), y respaldos cifrados. Nada de memoria ni credenciales en claro sale del perímetro.</li>
+<li><strong>Modo degradado (2.5 §5.6):</strong> si cae la nube, el núcleo, la memoria local y los comandos locales siguen; las funciones frontier se suspenden con aviso.</li>
+</ul>
+<h2 id="7-estructura-multi-usuario-ready-p-arq-5">7. Estructura multi-usuario-ready (P-ARQ-5)</h2>
+<p>Aunque el MVP opera solo con Mauricio (D5), la arquitectura nace preparada (D5, D19): la <strong>identidad de usuario es un eje transversal</strong> que atraviesa memoria, permisos, automatizaciones y preferencias. Cada evento del bus y cada registro de memoria portan un <code>user_id</code>; el núcleo aísla los espacios por usuario. Habilitar multiusuario (R3) es activar más identidades, <strong>no</strong> rediseñar (el contrato ya lo contempla). El detalle de identidad y aislamiento → 5.4.</p>
+<h2 id="decisiones-tomadas">Decisiones tomadas</h2>
+<ul>
+<li>Vistas C4 de contexto (§3) y contenedores (§4) como arquitectura de referencia del PIOS; las capas percepción/cognición/acción, la ubicación de cada contenedor y el flujo §5 son desarrollo del CTO † sujeto a este gate.</li>
+<li>Aplicación de decisiones ya aprobadas (no nuevas): Event Bus plano de control + streams (ALERTA-001), núcleo mínimo con memoria fuera (3.1/P-002), local-first (ADR-0001), multi-usuario-ready (D5).</li>
+<li>Todo contrato formal se <strong>delega</strong>: eventos e idempotencia → 3.3; contrato de plugin → 3.4; modelo de datos → 3.5; stack y hardware → 3.6.</li>
+</ul>
+<h3 id="decisiones-aplicables-adrs">Decisiones aplicables (ADRs)</h3>
+<ul>
+<li><a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001 — Local-first estricto</a> (<code>accepted</code>): gobierna §6 (topología) y las fronteras del §3.</li>
+<li><a href="../../adr/0004-evolucion-permanente.html">ADR-0004 — Evolución Permanente</a> (<code>accepted</code>): cada contenedor del §4 es un módulo reemplazable por contrato; el núcleo mínimo evita el monolito (D10).</li>
+</ul>
+<h3 id="evaluacion-por-las-cinco-preguntas-de-largo-plazo-d21">Evaluación por las cinco preguntas de largo plazo (D21)</h3>
+<p>(1) <strong>Escala a 10 años:</strong> el bus + plugins admite recursos nuevos sin tocar el núcleo. (2) <strong>Reduce dependencia de proveedor:</strong> los 3 LLMs son recursos tras el orquestador, sustituibles (P-ARQ-4). (3) <strong>Sustituir sin rediseñar:</strong> memoria, avatar, adaptadores y modelos son módulos por contrato. (4) <strong>Mantenible por equipo pequeño:</strong> núcleo mínimo + pocos contratos estables; no microservicios (regla 13 ADR-0004). (5) <strong>Sistema vivo:</strong> la estructura es la encarnación de la Evolución Permanente. Ninguna respuesta negativa → sin Alerta.</p>
+<h2 id="riesgos">Riesgos</h2>
+<ul>
+<li><strong>Correlación bus↔stream:</strong> un Trace ID perdido rompe la traza de una interacción de voz; 3.3 debe garantizar la correlación como invariante (§4.4).</li>
+<li><strong>Latencia del camino de voz:</strong> el paso por orquestador+LLM presiona el presupuesto de 2.5 §5.1; si M1 no converge, circuito de fracaso (2.2 §3.5) — posible Alerta.</li>
+<li><strong>Núcleo que engorda:</strong> la tentación de meter memoria/agentes al núcleo contradice D10; el criterio de pertenencia §4.1 y el checklist de 3.1 §2.3 lo previenen.</li>
+<li><strong>Multiusuario tardío:</strong> si el <code>user_id</code> no se cablea desde el día uno, R3 exigiría rediseño (mitigación: §7 lo hace transversal ya).</li>
+</ul>
+<h2 id="dependencias">Dependencias</h2>
+<p>Capítulos (frontmatter): <strong>3.1</strong> (Aprobado — principios y estilo estructural), <strong>2.5</strong> (Aprobado — atributos y umbrales que la arquitectura debe cumplir). Se apoya en 2.1 v2.0.0 (PIOS), 2.2 (capacidades), ADR-0001 y ADR-0004. <strong>Alimenta y delega a:</strong> 3.3 (bus, eventos, correlación, idempotencia), 3.4 (contrato de plugins), 3.5 (modelo de datos y persistencia), 3.6 (stack e infra), 4.1/4.2/4.3/4.4 (módulos de cognición), 5.3 (permisos/HITL), 5.4 (identidad multiusuario), 6.1-6.5 (adaptadores), 7.x (despliegue).</p>
+<h2 id="proximos-pasos">Próximos pasos</h2>
+<ul>
+<li>Gate del CEO de este capítulo.</li>
+<li>Con 3.2 aprobado se desbloquea la ola ancha del Libro III: <strong>3.3</strong> (Núcleo Event-Driven y contratos, Opus), <strong>3.4</strong> (Plugins y Adaptadores, Opus), <strong>3.5</strong> (Modelo de Datos, Sonnet); <strong>3.6</strong> (Stack, Fable) ya está desbloqueado en paralelo (solo dependía de 3.1/2.5/1.5).</li>
+</ul>
+<h2 id="referencias-cruzadas">Referencias cruzadas</h2>
+<ul>
+<li><a href="../../decisiones/2026-07-17-acta-decisiones-fundacionales.html">Acta de Decisiones (D1, D5, D9, D18, D19, D21)</a> · <a href="../../decisiones/alertas/2026-07-17-alerta-001-bus-vs-streaming.html">ALERTA-001 (bus vs streams)</a></li>
+<li><a href="3.1-principios-arquitectonicos.html">3.1 Principios (estilo estructural §2.1, 5 preguntas §2.5)</a> · <a href="../libro-02-vision-y-producto/2.5-requisitos-atributos-calidad.html">2.5 Requisitos (umbrales)</a></li>
+<li><a href="../libro-02-vision-y-producto/2.1-vision-mision-anti-vision.html">2.1 Definición PIOS (v2.0.0)</a> · <a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001</a> · <a href="../../adr/0004-evolucion-permanente.html">ADR-0004</a></li>
+<li>Capítulos destino: 3.3, 3.4, 3.5, 3.6, 4.1-4.4, 5.3, 5.4, 6.1-6.5, 7.x · <a href="../../INDICE.html">Índice maestro</a></li>
+</ul>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

@@ -38,9 +38,9 @@
 
 - **4.1 Arquitectura de Memoria a Largo Plazo** `[P1 · Opus · Aprobado]` — Diseñar cómo AURA recuerda durante años sin degradarse ni violar la privacidad.
 - **4.2 Orquestación Multi-Modelo y Model Router** `[P1 · Opus · Aprobado]` — La capa que enruta cada tarea al mejor modelo sin acoplarse a ningún proveedor.
-- **4.3 Sistema de Agentes y Tool Use** `[P1 · Opus · No iniciado]` — Cómo AURA planifica, usa herramientas y ejecuta tareas de forma trazable.
-- **4.4 Aprendizaje Continuo y Personalización** `[P1 · Fable · No iniciado]` — Cómo AURA mejora con el uso sin reentrenar modelos ni derivar en comportamiento (capacidad del MVP por decisión del CEO).
-- **4.5 Módulo de Captura de Conocimiento** ⊘ `[P1 · Sonnet · No iniciado — bloqueado por ALERTA-002]` — capturar/transcribir/resumir conversaciones autorizadas e incorporarlas a memoria (acta D23).
+- **4.3 Sistema de Agentes y Tool Use** `[P1 · Opus · Aprobado]` — Cómo AURA planifica, usa herramientas y ejecuta tareas de forma trazable.
+- **4.4 Aprendizaje Continuo y Personalización** `[P1 · Fable · Aprobado]` — Cómo AURA mejora con el uso sin reentrenar modelos ni derivar en comportamiento (capacidad del MVP por decisión del CEO).
+- **4.5 Módulo de Captura de Conocimiento** `[P1 · Sonnet · Aprobado]` — capturar/transcribir/resumir conversaciones autorizadas e incorporarlas a memoria (acta D23).
 
 ## Libro V — Seguridad y Confianza
 *Que un sistema con acceso total a tu vida digital sea tu mayor protección, no tu mayor riesgo.*

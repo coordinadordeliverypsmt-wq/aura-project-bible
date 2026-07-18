@@ -1,0 +1,74 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Aprendizaje Continuo y Personalización — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.0.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-18 · <b>fecha_aprobacion</b>: 2026-07-18 · <b>autor</b>: Fable (CTO) — aprobación CTO por delegación D22 · <b>responsable</b>: Fable · <b>prioridad</b>: P1</div>
+<h1 id="44-aprendizaje-continuo-y-personalizacion">4.4 — Aprendizaje Continuo y Personalización</h1>
+<blockquote>
+<p><strong>Estado:</strong> Aprobado (CTO por delegación D22, 2026-07-18) · <strong>Prioridad:</strong> P1 · <strong>Responsable:</strong> Fable</p>
+</blockquote>
+<p><em>Convención † (1.1 §4): desarrollo del arquitecto/EM exigible con la aprobación; no es texto de actas del CEO.</em></p>
+<h2 id="resumen-ejecutivo">Resumen ejecutivo</h2>
+<p>Define cómo AURA mejora con el uso y se adapta al usuario <strong>sin reentrenar modelos</strong> — vía memoria (4.1) y personalización de prompts, no fine-tuning (2.2 §4.7). Especifica las señales de aprendizaje (explícitas e implícitas), el modelo del usuario (preferencias, hábitos, contexto), los feedback loops que alimentan la <strong>anticipación</strong> (2.5 §5.3, E-12), la prevención de deriva y sesgo, y los límites explícitos del aprendizaje. Es lo que convierte el uso en un compañero que "aprende cómo soy".</p>
+<h2 id="1-senales-de-aprendizaje">1. Señales de aprendizaje</h2>
+<ul>
+<li><strong>Explícitas:</strong> correcciones, preferencias declaradas, feedback directo ("no me gusta que…").</li>
+<li><strong>Implícitas:</strong> patrones de uso, temas recurrentes, aceptación o rechazo de sugerencias — observados en <strong>datos del propio usuario</strong> (ADR-0001), nunca de terceros (2.4 §5/§6).</li>
+</ul>
+<h2 id="2-modelo-del-usuario">2. Modelo del usuario</h2>
+<p>Preferencias, hábitos y contexto se consolidan como memoria <strong>semántica y procedimental</strong> (4.1 §1) con procedencia. El modelo del usuario es dato del usuario: local, cifrado, exportable (4.1 §5).</p>
+<h2 id="3-personalizacion-sin-reentrenamiento">3. Personalización sin reentrenamiento</h2>
+<ul>
+<li>La adaptación ocurre por <strong>memoria + prompts personalizados</strong> (2.4 §7, versionados), no por fine-tuning — coherente con 2.2 §4.7 (fine-tuning fuera del roadmap actual; su incorporación exigiría un ADR).</li>
+<li>La anticipación (E-12, 2.5 §5.3) se alimenta de este modelo: ≥1 acción proactiva valorada/día, ≤20% falsos positivos, dentro de la lista verde D4.</li>
+</ul>
+<h2 id="4-prevencion-de-deriva-y-limites">4. Prevención de deriva y límites</h2>
+<ul>
+<li><strong>Anti-deriva:</strong> el aprendizaje no puede alterar los guardrails éticos (2.4) ni la personalidad (D6); esos son fijos. La suite de consistencia (2.4 §7.4) detecta deriva.</li>
+<li><strong>Anti-sesgo:</strong> el sistema no amplifica sesgos del usuario hasta el punto de dañar la honestidad (D6, "jamás aduladora"): sigue diciendo la verdad aunque aprenda las preferencias.</li>
+<li><strong>Límite explícito:</strong> el aprendizaje mejora la utilidad, no relaja la seguridad ni la privacidad.</li>
+</ul>
+<h2 id="decisiones-tomadas">Decisiones tomadas</h2>
+<p>Ejecución de capacidad aprobada (2.2) sobre los contratos del Libro III; desarrollos † aprobados por delegación D22.</p>
+<h3 id="decisiones-aplicables-adrs">Decisiones aplicables (ADRs)</h3>
+<ul>
+<li><a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001</a> (<code>accepted</code>): el modelo del usuario es dato local del usuario.</li>
+<li><a href="../../adr/0004-evolucion-permanente.html">ADR-0004</a> (<code>accepted</code>): aprendizaje sin reentrenar; el fine-tuning futuro exigiría ADR.</li>
+</ul>
+<h3 id="evaluacion-por-las-cinco-preguntas-d21">Evaluación por las cinco preguntas (D21)</h3>
+<p>(1) 10 años: el modelo del usuario crece con la memoria. (2) Menos dependencia: sin depender de reentrenar modelos de terceros. (3) Sustituir sin rediseñar: la personalización vive en memoria+prompts, portable. (4) Equipo pequeño: sin pipeline de entrenamiento. (5) Sistema vivo: aprende continuamente. Sin respuesta negativa → sin Alerta.</p>
+<h2 id="riesgos">Riesgos</h2>
+<ul>
+<li><strong>Deriva de comportamiento:</strong> mitigación: guardrails fijos + consistencia (2.4 §7.4).</li>
+<li><strong>Adulación por aprender preferencias:</strong> mitigación: la honestidad (D6) prevalece sobre la complacencia (2.4 §2).</li>
+<li><strong>Sobre-anticipación molesta:</strong> mitigación: umbral de falsos positivos ≤20% (2.5 §5.3).</li>
+</ul>
+<h2 id="dependencias">Dependencias</h2>
+<p>Capítulos: <strong>4.1</strong> (Aprobado — memoria). Alimenta: 6.4 (automatizaciones sugeridas en M3), 2.5 (métricas de anticipación), 7.2 (evals de aprendizaje).</p>
+<h2 id="proximos-pasos">Próximos pasos</h2>
+<ul>
+<li>6.4 usa el aprendizaje para las automatizaciones sugeridas de M3; 7.2 mide la mejora con el uso.</li>
+</ul>
+<h2 id="referencias-cruzadas">Referencias cruzadas</h2>
+<ul>
+<li><a href="4.1-arquitectura-memoria-largo-plazo.html">4.1 Memoria</a> · <a href="2.4-personalidad-etica-limites.html">2.4 Personalidad §7</a> · <a href="2.5-requisitos-atributos-calidad.html">2.5 Requisitos §5.3</a> · <a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001</a> · <a href="../../INDICE.html">Índice maestro</a></li>
+</ul>
+<h2 id="aprobacion-del-cto-delegacion-d22">Aprobación del CTO (delegación D22)</h2>
+<p>Revisión ejecutiva conforme al acta D22: <strong>(1) Alcance</strong> — ejecuta una capacidad ya aprobada (2.2) sobre contratos del Libro III; sin capacidades nuevas. <strong>(2) Consistencia</strong> — respeta ADR-0001/0004, el stack (ADR-0005..0009), los umbrales del 2.5 y los P-ARQ. <strong>(3) Cinco preguntas (D21)</strong> — afirmativas. <strong>(4) Materia reservada</strong> — ninguna. <strong>Veredicto: APROBADO por el CTO (delegación D22), 2026-07-18.</strong></p>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

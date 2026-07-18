@@ -2,6 +2,12 @@
 
 Versionado documental con [Semantic Versioning](https://semver.org/lang/es/). La v1.0.0 corresponderá a la Bible cerrada según el criterio del capítulo 1.1.
 
+## [0.15.0] — 2026-07-18 — LIBRO IV COMPLETO
+
+### Hito
+- **Libro IV (Cognición) COMPLETO:** 4.1 Memoria, 4.2 Orquestación, 4.3 Agentes y Tool Use, 4.4 Aprendizaje, 4.5 Módulo de Captura de Conocimiento — todos aprobados por el CTO (delegación D22). Progreso P1: 16/28. **21 capítulos aprobados** (5 P0 + 16 P1).
+- CEO Executive Summary del Libro IV generado (acta D17).
+
 ## [0.14.0] — 2026-07-18
 
 ### Cambiado / Agregado

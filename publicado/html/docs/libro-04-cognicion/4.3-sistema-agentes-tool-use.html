@@ -1,0 +1,79 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sistema de Agentes y Tool Use — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.0.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-18 · <b>fecha_aprobacion</b>: 2026-07-18 · <b>autor</b>: Opus (Chief Software Architect) — aprobación CTO por delegación D22 · <b>responsable</b>: Opus · <b>prioridad</b>: P1</div>
+<h1 id="43-sistema-de-agentes-y-tool-use">4.3 — Sistema de Agentes y Tool Use</h1>
+<blockquote>
+<p><strong>Estado:</strong> Aprobado (CTO por delegación D22, 2026-07-18) · <strong>Prioridad:</strong> P1 · <strong>Responsable:</strong> Opus</p>
+</blockquote>
+<p><em>Convención † (1.1 §4): desarrollo del arquitecto/EM exigible con la aprobación; no es texto de actas del CEO.</em></p>
+<h2 id="resumen-ejecutivo">Resumen ejecutivo</h2>
+<p>Diseña cómo AURA planifica, usa herramientas y ejecuta tareas de forma trazable y segura. Define el modelo <strong>planner–executor–crítico</strong>, el registro y los contratos de herramientas (protocolo <strong>MCP</strong>), la descomposición de tareas y las tareas de largo aliento, la trazabilidad completa de razonamiento y acciones (P-ARQ-1/7) y los puntos de confirmación <strong>Human-in-the-Loop</strong> (5.3). Es la capacidad de agencia del PIOS: convierte decisiones en acciones reales bajo control humano.</p>
+<h2 id="1-modelo-de-agente">1. Modelo de agente</h2>
+<ul>
+<li><strong>Planner:</strong> descompone una intención en un plan de pasos (usa el router 4.2 para razonar).</li>
+<li><strong>Executor:</strong> ejecuta cada paso invocando herramientas por contrato; <strong>nunca</strong> ejecuta directo una acción — emite una solicitud por el bus que pasa por Permisos/HITL (3.2 §5, 5.3).</li>
+<li><strong>Crítico:</strong> verifica el resultado de cada paso y decide continuar, reintentar o escalar (detección de errores cognitivos).</li>
+</ul>
+<h2 id="2-tool-use-registro-y-contratos-mcp">2. Tool use: registro y contratos (MCP)</h2>
+<ul>
+<li>Las herramientas se exponen como capacidades de plugin (3.4) y se describen con el protocolo <strong>MCP</strong> (Model Context Protocol) — estándar abierto, sin lock-in (P-ARQ-4, brief).</li>
+<li>El agente descubre herramientas por capacidad en el Registro de Plugins (3.4 §5), no por nombre cableado.</li>
+<li>Toda invocación de herramienta lleva <code>trace_id</code> (3.3 §4) y queda auditada.</li>
+</ul>
+<h2 id="3-tareas-de-largo-aliento">3. Tareas de largo aliento</h2>
+<ul>
+<li>Un plan puede abarcar múltiples turnos o correr en segundo plano; su estado persiste (3.5) y es reanudable.</li>
+<li>El usuario ve el progreso y puede intervenir (transparencia, P-ARQ-1).</li>
+</ul>
+<h2 id="4-human-in-the-loop-y-manejo-de-errores">4. Human-in-the-Loop y manejo de errores</h2>
+<ul>
+<li>Todo paso que produzca una acción de <strong>lista roja (D4)</strong> se detiene en el Gestor de Permisos y pide confirmación (5.3); tolerancia cero a falsos negativos (2.5 §5.4).</li>
+<li>Un paso fallido con efecto físico irreversible <strong>no se reintenta</strong> automáticamente; escala a HITL (3.3 §5).</li>
+<li>Todo el razonamiento y las acciones son trazables de la intención al resultado (P-ARQ-7).</li>
+</ul>
+<h2 id="decisiones-tomadas">Decisiones tomadas</h2>
+<p>Ejecución de capacidad aprobada (2.2) sobre los contratos del Libro III; desarrollos † aprobados por delegación D22.</p>
+<h3 id="decisiones-aplicables-adrs">Decisiones aplicables (ADRs)</h3>
+<ul>
+<li><a href="../../adr/0004-evolucion-permanente.html">ADR-0004</a> (<code>accepted</code>): herramientas como plugins por contrato; MCP como estándar abierto.</li>
+<li><a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001</a> (<code>accepted</code>): las herramientas respetan la frontera de datos.</li>
+</ul>
+<h3 id="evaluacion-por-las-cinco-preguntas-d21">Evaluación por las cinco preguntas (D21)</h3>
+<p>(1) 10 años: herramientas nuevas por MCP sin tocar el agente. (2) Menos dependencia: MCP estándar abierto. (3) Sustituir sin rediseñar: herramientas por contrato. (4) Equipo pequeño: un protocolo. (5) Sistema vivo: capacidades crecen por descubrimiento. Sin respuesta negativa → sin Alerta.</p>
+<h2 id="riesgos">Riesgos</h2>
+<ul>
+<li><strong>Agente que actúa sin control:</strong> mitigación: toda acción pasa por Permisos/HITL (5.3); el agente nunca ejecuta directo.</li>
+<li><strong>Prompt injection que manipula el plan:</strong> se trata en 5.2 (separación instrucciones/datos, sandboxing de salidas).</li>
+<li><strong>Tareas de largo aliento huérfanas:</strong> mitigación: estado persistente y reanudable, visible al usuario.</li>
+</ul>
+<h2 id="dependencias">Dependencias</h2>
+<p>Capítulos: <strong>4.2</strong> (Aprobado — router), <strong>3.3</strong> (Aprobado — eventos). Alimenta: 5.2 (seguridad de IA), 5.3 (permisos/HITL), 6.4 (automatización), 4.5 (el KCM usa agentes para extraer).</p>
+<h2 id="proximos-pasos">Próximos pasos</h2>
+<ul>
+<li>5.2 diseña las defensas de prompt injection sobre este agente; 5.3 materializa el HITL.</li>
+</ul>
+<h2 id="referencias-cruzadas">Referencias cruzadas</h2>
+<ul>
+<li><a href="4.2-orquestacion-multi-modelo-router.html">4.2 Orquestación</a> · <a href="../libro-03-arquitectura-del-sistema/3.3-nucleo-event-driven-contratos.html">3.3 Núcleo Event-Driven</a> · <a href="../../adr/0004-evolucion-permanente.html">ADR-0004</a> · <a href="../../INDICE.html">Índice maestro</a></li>
+</ul>
+<h2 id="aprobacion-del-cto-delegacion-d22">Aprobación del CTO (delegación D22)</h2>
+<p>Revisión ejecutiva conforme al acta D22: <strong>(1) Alcance</strong> — ejecuta una capacidad ya aprobada (2.2) sobre contratos del Libro III; sin capacidades nuevas. <strong>(2) Consistencia</strong> — respeta ADR-0001/0004, el stack (ADR-0005..0009), los umbrales del 2.5 y los P-ARQ. <strong>(3) Cinco preguntas (D21)</strong> — afirmativas. <strong>(4) Materia reservada</strong> — ninguna. <strong>Veredicto: APROBADO por el CTO (delegación D22), 2026-07-18.</strong></p>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

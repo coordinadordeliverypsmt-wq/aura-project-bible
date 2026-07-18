@@ -1,0 +1,76 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Módulo de Captura de Conocimiento — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.0.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-18 · <b>fecha_aprobacion</b>: 2026-07-18 · <b>autor</b>: Sonnet (Engineering Manager) — aprobación CTO por delegación D22 · <b>responsable</b>: Sonnet · <b>prioridad</b>: P1</div>
+<h1 id="45-modulo-de-captura-de-conocimiento">4.5 — Módulo de Captura de Conocimiento</h1>
+<blockquote>
+<p><strong>Estado:</strong> Aprobado (CTO por delegación D22, 2026-07-18) · <strong>Prioridad:</strong> P1 · <strong>Responsable:</strong> Sonnet</p>
+</blockquote>
+<p><em>Convención † (1.1 §4): desarrollo del arquitecto/EM exigible con la aprobación; no es texto de actas del CEO.</em></p>
+<h2 id="resumen-ejecutivo">Resumen ejecutivo</h2>
+<p>Diseña la 10ª capacidad oficial (acta D23): un módulo <strong>desacoplado del núcleo</strong> (plugin, 3.4) que captura, procesa y organiza conocimiento de conversaciones autorizadas. Implementa <strong>estrictamente los lineamientos de la resolución de la ALERTA-002 (CEO)</strong>: identificación y atribución con <strong>alcance de sesión</strong>, <strong>sin perfiles persistentes de terceros entre sesiones</strong>, con <strong>consentimiento del usuario</strong>, <strong>HITL</strong> y <strong>cumplimiento legal</strong>. Reutiliza voz local (ADR-0008), orquestación (4.2) y memoria (4.1). Local-first, por contrato.</p>
+<h2 id="1-alcance-acta-d23-y-lineamientos-alerta-002">1. Alcance (acta D23) y lineamientos (ALERTA-002)</h2>
+<p>Capacidades (D23): transcribir reuniones/llamadas/videollamadas autorizadas, procesar notas de audio, generar transcripciones y resúmenes ejecutivos, identificar participantes/temas/decisiones/compromisos, extraer tareas/fechas/responsables, incorporar lo relevante a memoria y permitir búsqueda posterior. <strong>Todo bajo los lineamientos del CEO (ALERTA-002 resuelta, 2.4 §6):</strong></p>
+<ul>
+<li><strong>Alcance de sesión:</strong> dentro de una sesión autorizada, AURA diferencia hablantes y atribuye decisiones/tareas al participante correspondiente.</li>
+<li><strong>Sin persistencia de terceros:</strong> esa atribución es contextual a la sesión; la <strong>memoria permanente solo conserva lo que aporta valor directo al usuario</strong> (sus compromisos, el conocimiento generado), <strong>no historiales de terceros entre sesiones</strong>.</li>
+<li><strong>Consentimiento + HITL + ley:</strong> compuerta de atestación de consentimiento antes de grabar; cumplimiento de la legislación aplicable (revisión legal en 1.5 antes de habilitar llamadas/reuniones).</li>
+</ul>
+<h2 id="2-pipeline">2. Pipeline</h2>
+<p><code>captura de audio (autorizada) → STT local (Whisper, ADR-0008) → diarización (diferenciar hablantes, alcance de sesión) → transcripción → resumen ejecutivo (LLM vía router 4.2, con minimización ADR-0001) → extracción (temas, decisiones, compromisos, tareas/fechas/responsables) → persistencia selectiva a memoria (4.1, solo valor para el usuario) → índice de búsqueda</code></p>
+<p>Todo paso emite eventos con <code>trace_id</code> (3.3); el resumen y la extracción son <strong>asíncronos</strong> (fuera del camino de baja latencia, no afectan 2.5 §5.1).</p>
+<h2 id="3-modulo-desacoplado-d23">3. Módulo desacoplado (D23)</h2>
+<p>El KCM es un <strong>plugin por contrato</strong> (3.4), fuera del núcleo (3.2). No modifica el núcleo; se activa/retira sin afectar el resto (Evolución Permanente). Su <code>data_scope</code> (3.4) y su residencia siguen el ADR-0001.</p>
+<h2 id="4-consentimiento-hitl-y-ley">4. Consentimiento, HITL y ley</h2>
+<ul>
+<li><strong>Atestación de consentimiento (HITL, D9):</strong> antes de iniciar una grabación de reunión/llamada, el usuario confirma que tiene derecho a grabar; queda auditado.</li>
+<li><strong>Revisión legal (1.5):</strong> la sub-capacidad de llamadas/reuniones no se habilita sin la revisión de la legislación aplicable (marco de 1.5); las notas de audio propias del usuario no requieren esa espera.</li>
+<li><strong>Ubicación en roadmap:</strong> post-MVP (2.2 §7, recomendación R2), sobre los cimientos de M1.</li>
+</ul>
+<h2 id="decisiones-tomadas">Decisiones tomadas</h2>
+<p>Ejecución de capacidad aprobada (2.2) sobre los contratos del Libro III; desarrollos † aprobados por delegación D22.</p>
+<h3 id="decisiones-aplicables-adrs">Decisiones aplicables (ADRs)</h3>
+<ul>
+<li><a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001</a>, <a href="../../adr/0008-voz-whisper-piper.html">ADR-0008</a> (<code>accepted</code>): STT local, minimización, datos locales.</li>
+<li><a href="../../adr/0004-evolucion-permanente.html">ADR-0004</a> (<code>accepted</code>): módulo desacoplado por contrato.</li>
+<li>Guardrail <a href="2.4-personalidad-etica-limites.html">2.4 §6</a> (v1.1.0) y <a href="../../decisiones/alertas/2026-07-18-alerta-002-captura-terceros.html">ALERTA-002 resuelta</a>: alcance de sesión.</li>
+</ul>
+<h3 id="evaluacion-por-las-cinco-preguntas-d21">Evaluación por las cinco preguntas (D21)</h3>
+<p>(1) 10 años: módulo desacoplado, evoluciona sin rediseño. (2) Menos dependencia: STT/LLM sustituibles por contrato. (3) Sustituir sin rediseñar: plugin. (4) Equipo pequeño: reutiliza voz/router/memoria existentes. (5) Sistema vivo: capacidad nueva sin tocar el núcleo. Sin respuesta negativa → sin Alerta.</p>
+<h2 id="riesgos">Riesgos</h2>
+<ul>
+<li><strong>Perfilado de terceros (guardrail 2.4 §5):</strong> mitigación: alcance de sesión, sin persistencia entre sesiones (§1); es el eje del diseño.</li>
+<li><strong>Ilegalidad de grabación:</strong> mitigación: atestación de consentimiento (HITL) + revisión legal 1.5 antes de habilitar llamadas/reuniones.</li>
+<li><strong>Fuga de conocimiento sensible:</strong> mitigación: local-first, cifrado, minimización (ADR-0001).</li>
+</ul>
+<h2 id="dependencias">Dependencias</h2>
+<p>Capítulos: <strong>4.1</strong> (memoria), <strong>4.2</strong> (router/resumen), <strong>2.4</strong> (guardrail §6). Se apoya en 3.4 (plugin), 5.3 (HITL), 6.2 (voz), ADR-0008. Alimenta: la búsqueda de conocimiento del usuario. Depende de la revisión legal de 1.5 para llamadas/reuniones.</p>
+<h2 id="proximos-pasos">Próximos pasos</h2>
+<ul>
+<li>Redactar el system prompt del resumidor bajo el guardrail 2.4; coordinar con 1.5 la revisión legal; 7.2 define evals de precisión de transcripción/extracción.</li>
+</ul>
+<h2 id="referencias-cruzadas">Referencias cruzadas</h2>
+<ul>
+<li><a href="../../decisiones/2026-07-17-acta-decisiones-fundacionales.html">Acta D23</a> · <a href="../../decisiones/alertas/2026-07-18-alerta-002-captura-terceros.html">ALERTA-002 (resuelta)</a> · <a href="2.4-personalidad-etica-limites.html">2.4 §6</a></li>
+<li><a href="4.1-arquitectura-memoria-largo-plazo.html">4.1 Memoria</a> · <a href="4.2-orquestacion-multi-modelo-router.html">4.2 Router</a> · <a href="../../adr/0008-voz-whisper-piper.html">ADR-0008</a> · <a href="../../INDICE.html">Índice maestro</a></li>
+</ul>
+<h2 id="aprobacion-del-cto-delegacion-d22">Aprobación del CTO (delegación D22)</h2>
+<p>Revisión ejecutiva conforme al acta D22: <strong>(1) Alcance</strong> — ejecuta una capacidad ya aprobada (2.2) sobre contratos del Libro III; sin capacidades nuevas. <strong>(2) Consistencia</strong> — respeta ADR-0001/0004, el stack (ADR-0005..0009), los umbrales del 2.5 y los P-ARQ. <strong>(3) Cinco preguntas (D21)</strong> — afirmativas. <strong>(4) Materia reservada</strong> — ninguna nueva. El capítulo implementa estrictamente la resolución de la ALERTA-002 (decidida por el CEO) y no introduce decisiones de guardrail nuevas; deja la habilitación de llamadas/reuniones sujeta a la revisión legal de 1.5. <strong>Veredicto: APROBADO por el CTO (delegación D22), 2026-07-18.</strong></p>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

@@ -42,3 +42,7 @@ Positivas: cumple local-first (ADR-0001), sustituibilidad (P-ARQ-4) y sostenibil
 ## Trazabilidad
 
 Capítulos: 3.5 (registra los motores), 4.1 (memoria vectorial), 3.6. Código futuro: capa de persistencia.
+
+## Nota de trazabilidad (Architecture Review M1, 2026-07-18)
+
+El componente vectorial de este ADR se **refina y confirma** en el ADR-0011 (análisis comparativo open source, D24): Qdrant primario, pgvector como alternativa ligera. Ambos consistentes.

@@ -42,3 +42,7 @@ Positivas: cumple local-first (ADR-0001), sustituibilidad (P-ARQ-4) y sostenibil
 ## Trazabilidad
 
 Capítulos: 6.2 (pipeline de voz), 2.5 (latencia), 3.6. Código futuro: adaptador de voz.
+
+## Nota de trazabilidad (Architecture Review M1, 2026-07-18)
+
+Este ADR de nivel Balanceado se **refina y confirma** con el ADR-0012 (STT = faster-whisper) y el ADR-0013 (TTS = Piper), que aportan el análisis comparativo open source (D24). Sin contradicción.

@@ -1,9 +1,9 @@
 ---
 numero: ADR-0004
 titulo: "Principio de Evolución Permanente y arquitectura modular"
-estado: proposed
+estado: accepted
 fecha: 2026-07-17
-fecha-resolucion: "—"
+fecha-resolucion: 2026-07-17
 decisor: "Mauricio (CEO)"
 proponente: "Fable (CTO), por mandato del CEO (acta D14)"
 impacta: ["3.1", "3.3", "3.4", "3.6", "6.1"]
@@ -42,7 +42,7 @@ Pros: reemplazo y ampliación sin afectar el ecosistema; longevidad. Contras: co
 6. La modularidad es obligatoria; no existirán componentes monolíticos; toda inteligencia será desacoplada.
 7. Siempre que sea posible se privilegiará la modularidad sobre la simplicidad inmediata.
 
-**Reglas operativas propuestas por el CTO** (no forman parte de las actas; el CEO las acepta o rechaza junto con este ADR):
+**Reglas operativas propuestas por el CTO** (no formaban parte de las actas; **aceptadas expresamente por el CEO en el gate del 2026-07-17**):
 
 8. "Interfaz estable" significa: contrato versionado con SemVer; toda ruptura de compatibilidad exige ADR (1.2 §3.2) y un periodo de convivencia con la versión anterior.
 9. "Límite artificial" significa: toda restricción no impuesta por una decisión del CEO, una ley física/técnica o un ADR — los supuestos de capacidad (nº de usuarios, dispositivos, proveedores) se declaran en el contrato, nunca se cablean en el código.

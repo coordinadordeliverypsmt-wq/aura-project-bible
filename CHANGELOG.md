@@ -2,6 +2,16 @@
 
 Versionado documental con [Semantic Versioning](https://semver.org/lang/es/). La v1.0.0 corresponderá a la Bible cerrada según el criterio del capítulo 1.1.
 
+## [0.7.0] — 2026-07-17 — FASE D1 COMPLETA
+
+### Hito
+- **Los 5 capítulos P0 están Aprobados** (1.1, 1.2, 2.1, 2.2, 3.1): la fundación de la Bible queda cerrada. Inicia la Fase D2 (28 capítulos P1 según el grafo de dependencias).
+
+### Cambiado
+- **Capítulo 3.1 APROBADO por el CEO** (v1.0.0) — quinto gate.
+- **ADR-0004 `accepted`** con las 3 reglas operativas del CTO aceptadas expresamente.
+- Enmienda constitucional 1.1 v1.2.0 (deber de disenso, D15) **ratificada por el CEO**.
+
 ## [0.6.0] — 2026-07-17
 
 ### Agregado

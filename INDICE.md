@@ -26,7 +26,7 @@
 ## Libro III — Arquitectura del Sistema
 *El contrato técnico central: núcleo event-driven, plugins y datos.*
 
-- **3.1 Principios Arquitectónicos y Decisiones Estructurales** `[P0 · Fable · No iniciado]` — Fijar los principios que toda decisión técnica futura debe respetar.
+- **3.1 Principios Arquitectónicos y Decisiones Estructurales** `[P0 · Fable · Aprobado]` — Fijar los principios que toda decisión técnica futura debe respetar.
 - **3.2 Arquitectura de Referencia (Vistas C4)** `[P1 · Fable · No iniciado]` — Establecer la vista maestra que todo capítulo técnico detalla y respeta.
 - **3.3 Núcleo Event-Driven y Contratos Internos** `[P1 · Opus · No iniciado]` — Especificar el sistema nervioso de AURA y sus garantías cuando los eventos tienen efectos físicos.
 - **3.4 Sistema de Plugins y Adaptadores** `[P1 · Opus · No iniciado]` — El contrato que materializa "agregar tecnologías sin rediseñar el sistema".

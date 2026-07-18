@@ -1,0 +1,2 @@
+# Walking Skeleton: solo stdlib de Python 3.11+ (asyncio, dataclasses). Sin dependencias externas.
+# Produccion (Bible): nats-py (ADR-0006), qdrant-client (ADR-0007), openai-whisper/piper (ADR-0008).

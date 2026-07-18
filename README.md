@@ -25,4 +25,4 @@ Regla de oro del proyecto: **nada se implementa sin estar diseñado y documentad
 
 ## Estado
 
-**Fase D1** — redacción de capítulos P0. Versión de la Bible: **0.2.0** (esqueleto + acta fundacional). La v1.0.0 se declara al cumplirse el criterio de cierre definido en el capítulo 1.1.
+**BIBLE v1.0.0 — OFICIALMENTE CERRADA (2026-07-18).** Los 36 capítulos aprobados, 10 ADRs aceptados, 2 Alertas resueltas, 23 decisiones del CEO y la Auditoría Técnica Integral aprobada. El criterio de cierre (1.1 §7) se cumple. **Autorizada la fase de construcción**, comenzando por el Walking Skeleton (7.3).

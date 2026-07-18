@@ -3,7 +3,7 @@ documento: "Auditoría Técnica Integral — AURA Project Bible v1.0"
 version: 1.0.0
 autor: "Fable (CTO) actuando como auditor externo independiente"
 fecha: 2026-07-18
-estado: "En revisión (gate del CEO)"
+estado: "Aprobada por el CEO (2026-07-18)"
 historial:
   - version: 1.0.0
     fecha: 2026-07-18
@@ -86,3 +86,7 @@ Como auditor externo, **certifico que la arquitectura de la Bible v1.0 es sólid
 - Los hallazgos menores (HM-1..4) se corrigen en mantenimiento, sin bloquear.
 
 La construcción del sistema queda supeditada a la **aprobación de esta auditoría por el CEO**, conforme a su mandato.
+
+## Resolución del CEO (2026-07-18)
+
+**Auditoría APROBADA.** Correcciones autorizadas y aplicadas: HC-1 (latencia reconciliada: R1 ≤1200 ms, R2 ≤800 ms), HI-1 (ADR-0003 creado), HM-1 (índice corregido). **La AURA Project Bible v1.0 queda oficialmente cerrada.** Autorizada la transición a la fase de construcción, comenzando por el **Walking Skeleton**.

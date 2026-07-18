@@ -17,7 +17,7 @@ font-family:Helvetica,Arial,sans-serif}
 .meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
 font-size:.85em;font-family:Helvetica,Arial,sans-serif}
 </style></head><body>
-<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.0.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-18 · <b>fecha_aprobacion</b>: 2026-07-18 · <b>autor</b>: Fable (CTO, AURA Labs) · <b>responsable</b>: Sonnet · <b>prioridad</b>: P1</div>
+<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.1.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-18 · <b>fecha_aprobacion</b>: 2026-07-18 · <b>autor</b>: Fable (CTO, AURA Labs) · <b>responsable</b>: Sonnet · <b>prioridad</b>: P1</div>
 <h1 id="25-requisitos-y-atributos-de-calidad">2.5 — Requisitos y Atributos de Calidad</h1>
 <blockquote>
 <p><strong>Estado:</strong> Aprobado (CEO, 2026-07-18) · <strong>Prioridad:</strong> P1 · <strong>Responsable:</strong> Sonnet</p>
@@ -185,9 +185,9 @@ font-size:.85em;font-family:Helvetica,Arial,sans-serif}
 <p><em>Escenario:</em> el usuario termina de hablar (fuente) → AURA debe responder por voz (estímulo) en operación normal con los 3 LLMs de nube disponibles (entorno).</p>
 <p>Umbrales propuestos † (presupuesto de latencia de extremo a extremo, de fin-de-habla a inicio-de-respuesta hablada):</p>
 <ul>
-<li><strong>Inicio de respuesta hablada:</strong> P50 ≤ <strong>800 ms</strong>, P95 ≤ <strong>1500 ms</strong> †. Base: por debajo de ~1 s la conversación se percibe natural; por encima de ~1.5 s se siente lenta.</li>
+<li><strong>Inicio de respuesta hablada (reconciliado por HC-1, CEO 2026-07-18):</strong> <strong>R1 (servicios en nube): P50 ≤ 1200 ms</strong>; <strong>R2 (modelos locales optimizados): P50 ≤ 800 ms</strong>; P95 ≤ 1500 ms (R1). Objetivo permanente: la menor latencia posible sin comprometer estabilidad, calidad ni mantenibilidad.</li>
 <li><strong>Barge-in:</strong> AURA deja de hablar en ≤ <strong>300 ms</strong> † tras detectar voz del usuario.</li>
-<li><strong>Presupuesto por etapa †</strong> (para que 3.3/6.2 lo respeten): captura+VAD ≤ 150 ms · STT parcial en streaming · enrutamiento+primer token del LLM ≤ 500 ms · TTS en streaming con primer audio ≤ 300 ms. Estas etapas usan <strong>canales dedicados</strong>, no el Event Bus (ALERTA-001, 3.1 §2.1).</li>
+<li><strong>Presupuesto por etapa †</strong> (coherente con P50 ≤ 1200 ms en R1): captura+VAD ≤ 150 ms · STT parcial en streaming ≤ 250 ms · enrutamiento+primer token del LLM ≤ 500 ms (nube) · TTS en streaming con primer audio ≤ 300 ms → suma ≈ 1200 ms. En R2 (local) el objetivo baja a ≤ 800 ms. Estas etapas usan <strong>canales dedicados</strong>, no el Event Bus (ALERTA-001, 3.1 §2.1).</li>
 <li><strong>Degradación:</strong> si el presupuesto no puede cumplirse (red, proveedor lento), AURA lo señala (P-ARQ-1) y ofrece continuar; nunca finge inmediatez.</li>
 </ul>
 <h3 id="52-memoria-a-semanas-ac-2rf-1-criterio-marco-cm2">5.2 Memoria a semanas (AC-2/RF-1, criterio-marco CM2)</h3>

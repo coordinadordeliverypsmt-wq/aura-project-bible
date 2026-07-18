@@ -2,6 +2,18 @@
 
 Versionado documental con [Semantic Versioning](https://semver.org/lang/es/). La v1.0.0 corresponderá a la Bible cerrada según el criterio del capítulo 1.1.
 
+## [1.0.0] — 2026-07-18 — AURA PROJECT BIBLE v1.0 OFICIALMENTE CERRADA
+
+### Hito mayor
+- **La AURA Project Bible v1.0 queda oficialmente cerrada por el CEO.** Se cumple el criterio de cierre (1.1 §7): 36/36 capítulos aprobados, 10 ADRs aceptados, riesgos identificados, roadmap aprobado, Auditoría Técnica Integral **aprobada**.
+- **Autorizada la transición de documentación a construcción**, comenzando por el **Walking Skeleton**.
+
+### Correcciones de la auditoría (aprobadas por el CEO)
+- **HC-1:** presupuesto de latencia reconciliado — R1 (nube) P50 ≤ 1200 ms; R2 (local) P50 ≤ 800 ms (2.5 v1.1.0, 6.2).
+- **HI-1:** creado **ADR-0003** (Listas de Autonomía y HITL, accepted), consolidando la D4 como decisión arquitectónica permanente.
+- **HM-1:** descripción de 2.1 en el índice actualizada a PIOS.
+- Auditoría Técnica Integral marcada Aprobada.
+
 ## [0.17.0] — 2026-07-18 — CONTENIDO DE LA BIBLE v1.0 COMPLETO
 
 ### Hito mayor

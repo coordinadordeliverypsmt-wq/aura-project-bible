@@ -17,7 +17,7 @@
 ## Libro II — Visión y Producto
 *Qué es AURA, para quién existe y qué límites éticos la gobiernan.*
 
-- **2.1 Definición, Visión, Misión y Anti-Visión** `[P0 · Fable · Aprobado]` — Declarar la identidad de AURA como compañero cognitivo y lo que nunca será.
+- **2.1 Definición, Visión, Misión y Anti-Visión** `[P0 · Fable · Aprobado]` — Definir AURA como Sistema Operativo de Inteligencia Personal (PIOS, D18) y lo que nunca será.
 - **2.2 Alcance del MVP y Roadmap por Releases** `[P0 · Fable · Aprobado]` — Delimitar el MVP de 9 capacidades definido por el CEO y gobernar su riesgo de alcance.
 - **2.3 Usuario y Escenarios Prioritarios** `[P1 · Fable · Aprobado]` — Aterrizar la visión en escenarios concretos de la vida del CEO ordenados por valor.
 - **2.4 Personalidad, Ética y Límites del Compañero IA** `[P1 · Fable · Aprobado]` — Diseñar la identidad definida por el CEO y los límites éticos de una relación IA-humano de años.

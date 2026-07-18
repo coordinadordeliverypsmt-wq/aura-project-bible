@@ -14,7 +14,7 @@ Todos los componentes son **gratuitos, open source y autoalojables**, sin claves
 
 | Capa | Componente | ADR | Licencia | Puerto/Modo |
 |---|---|---|---|---|
-| Lenguaje/runtime | **Python 3.11+** | ADR-0005 | PSF | — |
+| Lenguaje/runtime | **Python 3.11+** (mínimo real por onnxruntime) | ADR-0005 | PSF | — |
 | Event Bus | **NATS** (`nats-server`) + `nats-py` | ADR-0006 | Apache-2.0 | 4222 |
 | LLM local | **Ollama** + modelo cuantizado (p. ej. `qwen2.5:3b` / `llama3.2:3b`) | ADR-0010 | MIT / open weights | 11434 |
 | Memoria vectorial | **Qdrant** (embebido) — o **pgvector** en huella mínima | ADR-0011 | Apache-2.0 / PostgreSQL | embebido / 6333 |

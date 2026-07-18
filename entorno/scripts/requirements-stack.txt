@@ -1,7 +1,7 @@
-# Dependencias Python del stack real de AURA (local-first, D24)
-nats-py>=2.6
-faster-whisper>=1.0
-piper-tts>=1.2
-qdrant-client>=1.9
-# LLM: Ollama es un servicio externo (no pip); se instala con install-*.
-# BD: sqlite3 es stdlib; psycopg[binary] solo si se usa PostgreSQL.
+# Dependencias Python del stack real de AURA (local-first, D24). Verificadas contra PyPI (2026-07-18).
+# Requiere Python >= 3.11 (onnxruntime 1.27 exige 3.11).
+nats-py>=2.15
+faster-whisper>=1.2      # trae ctranslate2 (wheels Linux/macOS/Windows); descarga el modelo al 1er uso
+piper-tts>=1.5           # trae onnxruntime; la VOZ se descarga aparte (ver Entorno de Desarrollo)
+qdrant-client>=1.18
+# LLM: Ollama es servicio externo (no pip). BD: sqlite3 (stdlib) / psycopg[binary] si PostgreSQL.

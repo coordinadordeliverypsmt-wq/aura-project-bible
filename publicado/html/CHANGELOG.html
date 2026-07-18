@@ -20,12 +20,27 @@ font-size:.85em;font-family:Helvetica,Arial,sans-serif}
 <p><a href="index.html">← Índice de la Bible</a></p>
 <h1 id="changelog-aura-project-bible">Changelog — AURA Project Bible</h1>
 <p>Versionado documental con <a href="https://semver.org/lang/es/">Semantic Versioning</a>. La v1.0.0 corresponderá a la Bible cerrada según el criterio del capítulo 1.1.</p>
+<h2 id="120-2026-07-18-auditoria-del-entorno-entorno-de-desarrollo-v10">[1.2.0] — 2026-07-18 — Auditoría del entorno + Entorno de Desarrollo v1.0</h2>
+<h3 id="agregado">Agregado</h3>
+<ul>
+<li><strong><code>entorno/AUDITORIA-ENTORNO.md</code></strong>: auditoría de los instaladores contra fuentes oficiales (PyPI/GitHub/sitios oficiales). Verificados los 6 paquetes (nombres correctos, sin sorpresas); nats-server ejecutado; corregido el mínimo real de Python a <strong>3.11</strong> (onnxruntime). Matriz automatizable-vs-manual por plataforma y riesgos con resolución (curl|sh, winget, voz Piper).</li>
+<li><strong><code>entorno/ENTORNO-DE-DESARROLLO-v1.0.md</code></strong>: guía única para desarrolladores nuevos — por dependencia: instalar/actualizar/desinstalar/verificar; incompatibilidades entre plataformas y su resolución <strong>sin tocar el código de AURA</strong>; política de "cero sorpresas".</li>
+<li><code>.gitattributes</code> (normalización de fin de línea LF/CRLF, incompatibilidad documentada).</li>
+</ul>
+<h3 id="cambiado">Cambiado</h3>
+<ul>
+<li>requirements-stack.txt con versiones verificadas en PyPI (nats-py≥2.15, faster-whisper≥1.2, piper-tts≥1.5, qdrant-client≥1.18); Python ≥3.11.</li>
+</ul>
+<h3 id="estado">Estado</h3>
+<ul>
+<li>HC-1: <strong>Pendiente de validación en entorno objetivo</strong> (D24). run_demo_real.py autorizado tras aprobación de esta auditoría del entorno.</li>
+</ul>
 <h2 id="110-2026-07-18-stack-de-produccion-local-first-transicion-del-stack-simulado">[1.1.0] — 2026-07-18 — Stack de producción local-first + transición del stack simulado</h2>
 <h3 id="gobernanza">Gobernanza</h3>
 <ul>
 <li><strong>D24:</strong> stack de validación y producción <strong>local-first, open source, sin claves de terceros</strong>; los modelos de nube (D2) quedan como recursos opcionales tras el router. <strong>HC-1 = "Pendiente de validación en entorno objetivo"</strong> (no fallido). Gestión proactiva de entorno. Análisis comparativo por ADR antes de adoptar componentes.</li>
 </ul>
-<h3 id="agregado">Agregado</h3>
+<h3 id="agregado_1">Agregado</h3>
 <ul>
 <li><strong>ADR-0010</strong> (runtime LLM local = <strong>Ollama</strong>), <strong>ADR-0011</strong> (vectorial = Qdrant; pgvector alterno), <strong>ADR-0012</strong> (STT = faster-whisper), <strong>ADR-0013</strong> (TTS = Piper) — todos con análisis comparativo open source (6 criterios) y <code>accepted</code>.</li>
 <li><strong><code>entorno/stack-produccion.md</code></strong>: stack oficial + requisitos mínimos por componente (CPU/RAM/almacenamiento/SO/deps) + descargas avisadas.</li>
@@ -100,11 +115,11 @@ font-size:.85em;font-family:Helvetica,Arial,sans-serif}
 <li><strong>3.6 Selección de Stack Tecnológico</strong> ELEVADO AL CEO (materia reservada D3): 5 decisiones de stack en 4 niveles + <strong>ADR-0005 (lenguaje/runtime, proposed)</strong> como ancla.</li>
 </ul>
 <h2 id="0110-2026-07-18">[0.11.0] — 2026-07-18</h2>
-<h3 id="cambiado">Cambiado</h3>
+<h3 id="cambiado_1">Cambiado</h3>
 <ul>
 <li><strong>Capítulo 2.5 APROBADO por el CEO</strong> (v1.0.0): los umbrales del PIOS (latencia de voz P50≤800ms/P95≤1500ms, memoria ≥4 semanas/≥90% recall, anticipación ≥1/día y ≤20% FP, consistencia inter-modelo ≥90%, HITL tolerancia cero) quedan <strong>ratificados como objetivos oficiales</strong>. Progreso P1: 6/28.</li>
 </ul>
-<h3 id="agregado_1">Agregado</h3>
+<h3 id="agregado_2">Agregado</h3>
 <ul>
 <li><strong>Capítulo 3.2 (Arquitectura de Referencia C4)</strong> en gate: vistas C4 de contexto y contenedores del PIOS, Event Bus como plano de control + canales de streaming (ALERTA-001), núcleo mínimo con memoria como módulo, capas percepción/cognición/acción, topología local-first y estructura multi-usuario-ready. Desbloquea 3.3/3.4/3.5 al aprobarse.</li>
 </ul>
@@ -128,7 +143,7 @@ font-size:.85em;font-family:Helvetica,Arial,sans-serif}
 <li><strong>ADR-0002 <code>accepted</code>:</strong> MkDocs Material como estándar documental (criterios del CEO).</li>
 </ul>
 <h2 id="090-2026-07-18">[0.9.0] — 2026-07-18</h2>
-<h3 id="agregado_2">Agregado</h3>
+<h3 id="agregado_3">Agregado</h3>
 <ul>
 <li><strong>Fase D2, ola 1 — 5 capítulos P1 redactados y revisados</strong>, en gate del CEO: 1.3 (Proceso de Trabajo por Fases), 1.4 (Estándares Documentales + glosario + plantillas), 1.5 (Restricciones de Negocio: Presupuesto/Legal), 2.3 (Usuario y Escenarios Prioritarios), 2.4 (Personalidad, Ética y Límites).</li>
 <li><strong>ADR-0002 — Plataforma de generación del sitio documental</strong> (<code>proposed</code>, origen D8+D12): 4 opciones de nivel (D3); recomendación del CTO = MkDocs Material (nivel Balanceado).</li>
@@ -138,20 +153,20 @@ font-size:.85em;font-family:Helvetica,Arial,sans-serif}
 <li>La redacción se hizo con el pipeline de agentes; la fase de crítica automatizada no completó por límite de sesión. La <strong>revisión pre-gate la realizó el CTO (Fable)</strong>, revisor distinto del redactor (Sonnet), conforme a 1.1 §4.2. Los 5 capítulos pasan a "En revisión (gate del CEO)".</li>
 </ul>
 <h2 id="080-2026-07-17">[0.8.0] — 2026-07-17</h2>
-<h3 id="agregado_3">Agregado</h3>
+<h3 id="agregado_4">Agregado</h3>
 <ul>
 <li>Acta v1.4.0: <strong>D16</strong> (estructura obligatoria de 10 secciones para toda Alerta de Arquitectura) y <strong>D17</strong> (CEO Executive Summary por fase).</li>
 <li><strong>CEO Executive Summary de la Fase D1</strong> (<code>resumenes-ejecutivos/</code>).</li>
 <li>Plantilla obligatoria de Alerta de Arquitectura (<code>decisiones/alertas/plantilla-alerta.md</code>).</li>
 </ul>
-<h3 id="cambiado_1">Cambiado</h3>
+<h3 id="cambiado_2">Cambiado</h3>
 <ul>
 <li><strong>ALERTA-001 RESUELTA — Opción A</strong> aprobada por el CEO: Event Bus como plano de control; streams de voz/video/pantalla/sensores por canales dedicados de baja latencia; correlación por Correlation ID / Trace ID.</li>
 <li><strong>Paquete P-002 aplicado (11 correcciones, autorizado por el CEO):</strong> capítulo 3.1 v1.1.0 (bus como plano de control, memoria fuera del núcleo, jerarquía de principios acotada, P-ARQ-7 sujeta a ADR-0001, P-ARQ-8 fiel a D7, checklist +3 preguntas) y <strong>ADR-0004 enmendado</strong> (3 cláusulas D10 restituidas, regla 13 versión fuerte, regla 11 con política de deprecación).</li>
 <li>Constitución 1.1 v1.3.0: enmienda D16 (estructura de alertas).</li>
 </ul>
 <h2 id="071-2026-07-17">[0.7.1] — 2026-07-17</h2>
-<h3 id="agregado_4">Agregado</h3>
+<h3 id="agregado_5">Agregado</h3>
 <ul>
 <li><strong>ALERTA-001</strong> (mecanismo D15): incompatibilidad bus-de-eventos vs streams de voz/avatar — gate extraordinario convocado; diseño de 3.3/6.2/6.5 suspendido preventivamente.</li>
 <li>P-002: paquete de 11 correcciones al 3.1 y al ADR-0004 (revisión adversarial post-aprobación), pendiente de autorización del CEO.</li>
@@ -161,82 +176,82 @@ font-size:.85em;font-family:Helvetica,Arial,sans-serif}
 <ul>
 <li><strong>Los 5 capítulos P0 están Aprobados</strong> (1.1, 1.2, 2.1, 2.2, 3.1): la fundación de la Bible queda cerrada. Inicia la Fase D2 (28 capítulos P1 según el grafo de dependencias).</li>
 </ul>
-<h3 id="cambiado_2">Cambiado</h3>
+<h3 id="cambiado_3">Cambiado</h3>
 <ul>
 <li><strong>Capítulo 3.1 APROBADO por el CEO</strong> (v1.0.0) — quinto gate.</li>
 <li><strong>ADR-0004 <code>accepted</code></strong> con las 3 reglas operativas del CTO aceptadas expresamente.</li>
 <li>Enmienda constitucional 1.1 v1.2.0 (deber de disenso, D15) <strong>ratificada por el CEO</strong>.</li>
 </ul>
 <h2 id="060-2026-07-17">[0.6.0] — 2026-07-17</h2>
-<h3 id="agregado_5">Agregado</h3>
+<h3 id="agregado_6">Agregado</h3>
 <ul>
 <li>Acta v1.3.0: <strong>D14</strong> (Evolución Permanente) y <strong>D15</strong> (deber de disenso y Alerta de Arquitectura del CTO).</li>
 <li><strong>ADR-0004 — Principio de Evolución Permanente y arquitectura modular</strong> (<code>proposed</code>, origen D10+D14), con 3 reglas operativas del CTO incluida la salvaguarda anti-sobre-ingeniería.</li>
 <li>Mecanismo de Alerta de Arquitectura en la constitución (<code>decisiones/alertas/</code>).</li>
 </ul>
-<h3 id="cambiado_3">Cambiado</h3>
+<h3 id="cambiado_4">Cambiado</h3>
 <ul>
 <li><strong>Capítulo 2.2 APROBADO por el CEO</strong> (v1.0.0, 6 propuestas † ratificadas); AR reubicada al Backlog R5/Investigación.</li>
 <li>Constitución 1.1 v1.2.0: enmienda D15 (deber de disenso del CTO) — redacción sujeta a ratificación.</li>
 </ul>
 <h2 id="052-2026-07-17">[0.5.2] — 2026-07-17</h2>
-<h3 id="cambiado_4">Cambiado</h3>
+<h3 id="cambiado_5">Cambiado</h3>
 <ul>
 <li>Capítulo 2.2 v0.3.0: incorpora las 19 correcciones de su revisión adversarial — convención † en la tabla de capacidades, gate de hito con autoridad exclusiva del CEO, circuito de fracaso anclado a D3/actas, regla de la ventana con registro automático y pausas/reinicios, exclusiones binarias por sistema (control + notificaciones), capacidad 5 sin sugerencias hasta M3, criterios R2-R4 como marco, supuestos de entorno validables por el inventario del 2.3, y fine-tuning fuera del roadmap actual (no para siempre). Pasa a "En revisión (gate del CEO)".</li>
 </ul>
 <h2 id="051-2026-07-17">[0.5.1] — 2026-07-17</h2>
-<h3 id="cambiado_5">Cambiado</h3>
+<h3 id="cambiado_6">Cambiado</h3>
 <ul>
 <li>Capítulo 2.1 v1.1.0: aplicadas las 8 correcciones de P-001, <strong>ratificadas por el CEO</strong> — momento mágico citado textualmente de la D2, convención † para desarrollos del CTO, criterios-marco con umbrales delegados a 2.5, zona intermedia adjudicada por el CEO, límites verificables de vigilancia/afecto remitidos a 2.4 y Libro V, "ningún proveedor único", visión de largo plazo condicionada a apertura de terceros.</li>
 <li>P-001 cerrado en decisiones/pendientes.md.</li>
 </ul>
 <h2 id="050-2026-07-17">[0.5.0] — 2026-07-17</h2>
-<h3 id="cambiado_6">Cambiado</h3>
+<h3 id="cambiado_7">Cambiado</h3>
 <ul>
 <li><strong>Capítulo 2.1 APROBADO por el CEO</strong> (v1.0.0) — tercer capítulo P0 aprobado.</li>
 <li>Capítulo 2.2 (Alcance del MVP y Roadmap) en borrador: 9 capacidades D2, hitos M1-M3, exclusiones y releases R2-R4; a revisión adversarial.</li>
 <li>Publicación HTML/PDF regenerada (incluye 2.1).</li>
 </ul>
 <h2 id="040-2026-07-17">[0.4.0] — 2026-07-17</h2>
-<h3 id="agregado_6">Agregado</h3>
+<h3 id="agregado_7">Agregado</h3>
 <ul>
 <li>Acta v1.2.0: <strong>D11</strong> (matriz de impacto obligatoria en ADRs), <strong>D12</strong> (modo de trabajo documental: archivos + PDF/HTML al aprobar, terminal solo resúmenes) y <strong>D13</strong> (estructura estándar de capítulo legible por humanos e IA).</li>
 <li><code>herramientas/publicar.py</code>: generación automática de HTML navegable y PDF de los documentos aprobados (<code>publicado/</code>).</li>
 </ul>
-<h3 id="cambiado_7">Cambiado</h3>
+<h3 id="cambiado_8">Cambiado</h3>
 <ul>
 <li><strong>Capítulo 1.2 APROBADO por el CEO</strong> (v1.1.0, incluye matriz D11).</li>
 <li><strong>ADR-0001 <code>accepted</code></strong> con las 2 reglas adicionales del CTO aceptadas expresamente; incorpora matriz de impacto D11.</li>
 <li>Estructura estándar D13 aplicada a los 36 capítulos (resumen ejecutivo, decisiones, riesgos, próximos pasos, referencias cruzadas); los 7 capítulos impactados por el ADR-0001 lo listan en "Decisiones aplicables".</li>
 </ul>
 <h2 id="031-2026-07-17">[0.3.1] — 2026-07-17</h2>
-<h3 id="cambiado_8">Cambiado</h3>
+<h3 id="cambiado_9">Cambiado</h3>
 <ul>
 <li>Capítulo 1.2 v0.3.0, plantilla de ADR y ADR-0001: incorporan las 20 correcciones de la segunda revisión adversarial — inmutabilidad decisional precisada, estados <code>withdrawn</code>/re-propuesta, campos <code>fecha-resolucion</code>/<code>motivo-rechazo</code>/<code>reabre</code>, regla de oro anclada a commits, regla transitoria para capítulos inexistentes, excepción de enmienda constitucional, verificación por evento, D3/D9 incorporadas al plan de formalización, y ADR-0001 separa el texto literal de la D1 de las reglas adicionales del CTO. El 1.2 pasa a "En revisión (gate del CEO)".</li>
 </ul>
 <h2 id="030-2026-07-17">[0.3.0] — 2026-07-17</h2>
-<h3 id="agregado_7">Agregado</h3>
+<h3 id="agregado_8">Agregado</h3>
 <ul>
 <li>Acta fundacional v1.1.0: <strong>D10 — Filosofía de Desarrollo</strong> (sistema vivo: modularidad obligatoria, sin monolitos, inteligencia desacoplada, compatibilidad hacia atrás).</li>
 <li>Capítulo 1.2 (Sistema de ADRs) en borrador: criterios de obligatoriedad, ciclo de vida, regla de oro operativa y plan de formalización de decisiones.</li>
 <li>Plantilla oficial de ADR y <strong>ADR-0001 — Arquitectura local-first estricta</strong> (<code>proposed</code>, origen acta D1).</li>
 </ul>
-<h3 id="cambiado_9">Cambiado</h3>
+<h3 id="cambiado_10">Cambiado</h3>
 <ul>
 <li><strong>Capítulo 1.1 APROBADO por el CEO</strong> (v1.0.0) — primer documento normativo aprobado de la Bible.</li>
 <li>3.1: contenido previsto incorpora la filosofía de sistema vivo (D10).</li>
 </ul>
 <h2 id="021-2026-07-17">[0.2.1] — 2026-07-17</h2>
-<h3 id="agregado_8">Agregado</h3>
+<h3 id="agregado_9">Agregado</h3>
 <ul>
 <li>Registro del Brief Fundacional del CEO (2026-07-16) como documento vinculante de rango 1.</li>
 </ul>
-<h3 id="cambiado_10">Cambiado</h3>
+<h3 id="cambiado_11">Cambiado</h3>
 <ul>
 <li>Capítulo 1.1 v0.3.0: incorpora las 20 correcciones de la revisión adversarial interna (2 críticos, veredicto "aprobar con correcciones"): relación actas↔constitución, clases de artefactos normativos/operativos, reglas para conflictos entre borradores, regla de gates pendientes, veto técnico precisado, regla verificable de uso de Opus, RACI corregida, autoridad por transición de estados y criterio de cierre separado en mínimo del acta D7 + desarrollos del CTO. Pasa a estado "En revisión (gate del CEO)".</li>
 </ul>
 <h2 id="020-2026-07-17">[0.2.0] — 2026-07-17</h2>
-<h3 id="agregado_9">Agregado</h3>
+<h3 id="agregado_10">Agregado</h3>
 <ul>
 <li>Esqueleto completo de la Bible: 7 libros, 36 capítulos con frontmatter (versión, autor, fecha, estado, prioridad, responsable, dependencias, historial).</li>
 <li>Índice maestro v0.2 (post-decisiones del CEO): 5 P0 · 28 P1 · 1 P2 · 2 P3 · 3 stubs.</li>
@@ -253,7 +268,7 @@ font-size:.85em;font-family:Helvetica,Arial,sans-serif}
 <li>1.5 y 3.6 incorporan el formato de alternativas en 4 niveles (Económica/Balanceada/Profesional/Enterprise).</li>
 </ul>
 <h2 id="010-2026-07-16">[0.1.0] — 2026-07-16</h2>
-<h3 id="agregado_10">Agregado</h3>
+<h3 id="agregado_11">Agregado</h3>
 <ul>
 <li>Propuesta de índice sintetizada por panel multi-agente (5 arquitectos + 2 críticos adversariales), presentada al CEO.</li>
 </ul>

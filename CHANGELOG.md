@@ -2,6 +2,19 @@
 
 Versionado documental con [Semantic Versioning](https://semver.org/lang/es/). La v1.0.0 corresponderá a la Bible cerrada según el criterio del capítulo 1.1.
 
+## [1.2.0] — 2026-07-18 — Auditoría del entorno + Entorno de Desarrollo v1.0
+
+### Agregado
+- **`entorno/AUDITORIA-ENTORNO.md`**: auditoría de los instaladores contra fuentes oficiales (PyPI/GitHub/sitios oficiales). Verificados los 6 paquetes (nombres correctos, sin sorpresas); nats-server ejecutado; corregido el mínimo real de Python a **3.11** (onnxruntime). Matriz automatizable-vs-manual por plataforma y riesgos con resolución (curl|sh, winget, voz Piper).
+- **`entorno/ENTORNO-DE-DESARROLLO-v1.0.md`**: guía única para desarrolladores nuevos — por dependencia: instalar/actualizar/desinstalar/verificar; incompatibilidades entre plataformas y su resolución **sin tocar el código de AURA**; política de "cero sorpresas".
+- `.gitattributes` (normalización de fin de línea LF/CRLF, incompatibilidad documentada).
+
+### Cambiado
+- requirements-stack.txt con versiones verificadas en PyPI (nats-py≥2.15, faster-whisper≥1.2, piper-tts≥1.5, qdrant-client≥1.18); Python ≥3.11.
+
+### Estado
+- HC-1: **Pendiente de validación en entorno objetivo** (D24). run_demo_real.py autorizado tras aprobación de esta auditoría del entorno.
+
 ## [1.1.0] — 2026-07-18 — Stack de producción local-first + transición del stack simulado
 
 ### Gobernanza

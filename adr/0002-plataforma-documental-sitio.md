@@ -1,9 +1,9 @@
 ---
 numero: ADR-0002
 titulo: "Plataforma de generación del sitio documental de la Bible"
-estado: proposed
+estado: accepted
 fecha: 2026-07-17
-fecha-resolucion: "—"
+fecha-resolucion: 2026-07-18
 decisor: "Mauricio (CEO)"
 proponente: "Fable (CTO)"
 impacta: ["1.4"]
@@ -68,7 +68,7 @@ Sobre el D3: aunque el acta no fija techo presupuestal y prioriza calidad/escala
 
 ## Decisión
 
-**Pendiente del gate del CEO.** El CEO elige el nivel entre las cuatro alternativas (D3). El proponente recomienda el **Nivel Balanceado (MkDocs Material)** por las razones anteriores, conservando `herramientas/publicar.py` como herramienta transitoria del D12 hasta que la plataforma elegida cubra también la generación de PDF. Este ADR no tiene valor normativo mientras siga en `proposed` (1.1 §3): hasta su aceptación, el publicador actual sigue siendo la herramienta operativa del mandato D12.
+**Aceptada por el CEO (2026-07-18): Nivel Balanceado — MkDocs Material** como estándar documental del proyecto. Criterios del CEO: local-first; integración nativa con Python; excelente navegación y búsqueda; soporte para Mermaid; bajo costo de mantenimiento; posibilidad de migración futura sin afectar la documentación. Se conserva `herramientas/publicar.py` como herramienta transitoria del D12 (generación de PDF) hasta que MkDocs cubra ese punto. El contenido permanece en Markdown plano, sin lock-in del generador (coherente con D19: migración futura sin rediseño).
 
 ## Consecuencias
 

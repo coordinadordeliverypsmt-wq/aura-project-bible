@@ -17,7 +17,7 @@ font-family:Helvetica,Arial,sans-serif}
 .meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
 font-size:.85em;font-family:Helvetica,Arial,sans-serif}
 </style></head><body>
-<p><a href="../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.4.0 · <b>estado</b>: Vinculante · <b>fecha</b>: 2026-07-17 · <b>autor</b>: Mauricio (CEO) — registrada por Fable (CTO)</div>
+<p><a href="../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.5.0 · <b>estado</b>: Vinculante · <b>fecha</b>: 2026-07-17 · <b>autor</b>: Mauricio (CEO) — registrada por Fable (CTO)</div>
 <h1 id="acta-de-decisiones-fundacionales-2026-07-17">Acta de Decisiones Fundacionales — 2026-07-17</h1>
 <p>El CEO ratificó el método de trabajo y el índice de la Bible (v0.1 → v0.2), y resolvió las 8 decisiones abiertas. Estas decisiones son <strong>vinculantes</strong>: prevalecen sobre cualquier capítulo y se formalizarán como ADRs una vez aprobado el capítulo 1.2.</p>
 <h2 id="d1-postura-de-datos-local-first-estricto">D1 — Postura de datos: local-first estricto</h2>
@@ -76,6 +76,18 @@ memoria permanente · conversación natural por voz · avatar interactivo · con
 <h2 id="d17-ceo-executive-summary-por-fase-2026-07-17-gate-d2">D17 — CEO Executive Summary por fase (2026-07-17, gate D2)</h2>
 <p>Al finalizar cada fase importante, el CTO generará un documento <strong>CEO Executive Summary</strong> que sintetice, en lenguaje ejecutivo, lo decidido, lo construido, los riesgos vivos y lo pendiente de la fase.
 <em>Impacta: 1.3 (cierre de fase), <code>resumenes-ejecutivos/</code>.</em></p>
+<h2 id="d18-aura-es-un-sistema-operativo-de-inteligencia-personal-pios-2026-07-18-gate-ola-1-d2">D18 — AURA es un Sistema Operativo de Inteligencia Personal (PIOS) (2026-07-18, gate Ola 1 D2)</h2>
+<p>AURA <strong>no</strong> será definida como un asistente virtual. AURA será definida como un <strong>Sistema Operativo de Inteligencia Personal (Personal Intelligence Operating System — PIOS)</strong>. Toda decisión de arquitectura, documentación y desarrollo deberá alinearse con esta definición. El objetivo de AURA es convertirse en el <strong>núcleo inteligente del ecosistema digital del usuario</strong>, integrando modelos de IA, automatizaciones, dispositivos, memoria, conocimiento y servicios externos bajo una única arquitectura <strong>modular, segura y evolutiva</strong>.
+<em>Impacta: 2.1 (definición primaria — enmienda a v2.0.0), README, y el encuadre de todo capítulo. El "compañero cognitivo" pasa a ser la cara experiencial del PIOS.</em></p>
+<h2 id="d19-naturaleza-del-proyecto-personal-hoy-arquitectura-comercial-escalable-2026-07-18">D19 — Naturaleza del proyecto: personal hoy, arquitectura comercial-escalable (2026-07-18)</h2>
+<p>AURA nace como proyecto <strong>personal de largo plazo</strong>, pero su arquitectura se diseña con <strong>visión comercial y escalable</strong>. Ninguna decisión técnica podrá limitar una futura evolución hacia producto comercial, empresarial u open source parcial. Toda la arquitectura debe permanecer <strong>desacoplada</strong> para permitir cualquiera de esos escenarios sin rediseños mayores. (Resuelve la pregunta abierta de 1.5 §5; el "default prudente" de licencias se vuelve permanente.)
+<em>Impacta: 1.5 §5 (resuelta), 3.6 (stack sin lock-in), toda selección de licencias/dependencias.</em></p>
+<h2 id="d20-horizonte-minimo-de-10-anos-en-toda-decision-de-arquitectura-2026-07-18">D20 — Horizonte mínimo de 10 años en toda decisión de arquitectura (2026-07-18)</h2>
+<p>Toda decisión de arquitectura se evaluará pensando en un horizonte mínimo de <strong>10 años</strong>. No se aceptarán optimizaciones que comprometan la escalabilidad, la mantenibilidad o la independencia tecnológica del proyecto.
+<em>Impacta: 3.1 §2 (criterio de evaluación), todo ADR.</em></p>
+<h2 id="d21-las-cinco-preguntas-de-largo-plazo-2026-07-18">D21 — Las cinco preguntas de largo plazo (2026-07-18)</h2>
+<p>Toda decisión deberá responder, antes de aprobarse: (1) ¿Escala durante los próximos 10 años? · (2) ¿Reduce la dependencia de un proveedor? · (3) ¿Permite sustituir tecnologías sin rediseñar el sistema? · (4) ¿Puede mantenerse por un equipo pequeño? · (5) ¿Contribuye a que AURA sea un sistema vivo y evolutivo? Si <strong>alguna respuesta es negativa</strong>, el CTO deberá generar una <strong>ALERTA DE ARQUITECTURA</strong> antes de continuar.
+<em>Impacta: 3.1 §2.3 (checklist de evaluación), 1.2 (criterio de todo ADR), mecanismo de alertas D15/D16.</em></p>
 <h2 id="autorizacion">Autorización</h2>
 <p>El CEO autoriza el inicio de la <strong>Fase D1</strong>: redacción de los 5 capítulos P0 (1.1 → 1.2 → 2.1 → 2.2 → 3.1), cada uno con gate de aprobación del CEO.</p>
 <div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>

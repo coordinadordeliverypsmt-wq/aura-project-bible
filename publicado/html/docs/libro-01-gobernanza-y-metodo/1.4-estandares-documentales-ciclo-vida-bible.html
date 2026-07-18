@@ -1,0 +1,358 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Estándares Documentales, Plantillas y Ciclo de Vida de la Bible — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.0.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-17 · <b>fecha_aprobacion</b>: 2026-07-18 · <b>autor</b>: Fable (CTO, AURA Labs) · <b>responsable</b>: Sonnet (mantiene Haiku) · <b>prioridad</b>: P1</div>
+<h1 id="14-estandares-documentales-plantillas-y-ciclo-de-vida-de-la-bible">1.4 — Estándares Documentales, Plantillas y Ciclo de Vida de la Bible</h1>
+<blockquote>
+<p><strong>Estado:</strong> Aprobado (CEO, 2026-07-18) · <strong>Prioridad:</strong> P1 · <strong>Responsable:</strong> Sonnet (mantiene Haiku) · <strong>Nivel:</strong> Completo</p>
+</blockquote>
+<p><em>Convención † (1.1 §4): todo lo marcado con † es desarrollo del CTO/Engineering Manager sujeto al gate del CEO — no es texto de las actas del CEO ni de un capítulo ya aprobado. Toda atribución al CEO se cita textualmente entre comillas con su decisión de origen (acta Dn). Si no puede señalarse la frase del acta que lo sostiene, va con †.</em></p>
+<h2 id="resumen-ejecutivo">Resumen ejecutivo</h2>
+<p>Este capítulo fija el estándar de calidad verificable de todo documento de la AURA Project Bible y el ciclo de vida por el que cada uno atraviesa durante años. Desarrolla —sin contradecir— lo ya normado: el frontmatter obligatorio y el versionado SemVer del acta D8, los estados y transiciones de la constitución (1.1 §6), la estructura estándar de capítulo del acta D13, el modo de trabajo documental del acta D12 y la convención de atribución honesta † (1.1 §4). Aporta la guía de estilo (español latino con términos técnicos en su forma original), las plantillas por artefacto (capítulo, acta, alerta, anexo, ADR), las convenciones de diagramas C4/Mermaid, la Definition of Done documental y un glosario inicial con el lenguaje ubicuo ya en uso. Propone además el ADR-0002 (plataforma de generación del sitio) con las cuatro opciones de nivel del acta D3, pendiente del gate del CEO.</p>
+<h2 id="objetivo">Objetivo</h2>
+<p>Fijar la calidad mínima verificable de todo documento de la Bible y cómo se versiona durante años, de modo que cualquier agente —humano o IA— produzca documentos consistentes, legibles y trazables, y que cada gate del CEO pueda decidir objetivamente si un documento está listo.</p>
+<h2 id="1-guia-de-estilo-documental">1. Guía de estilo documental</h2>
+<p>El alcance de esta guía —<em>"español latino + términos técnicos en su forma original"</em>— es la definición ratificada del índice v0.2; las reglas concretas son desarrollo del EM †.</p>
+<ul>
+<li><strong>Idioma:</strong> español latino, registro profesional y directo. Se evitan el voseo y los localismos; se prefiere la segunda persona neutra o la forma impersonal.</li>
+<li><strong>Términos técnicos en su forma original†:</strong> event bus, plugin, stub, gate, prompt, embedding, local-first, walking skeleton, etc., se escriben en su forma original (normalmente inglés), sin traducirse ni cursivarse de forma sistemática; su primera aparición relevante se define en el glosario (§9). No se inventan traducciones que fragmenten el lenguaje ubicuo.</li>
+<li><strong>Voz y honestidad†:</strong> coherente con la identidad de AURA (D6, <em>"jamás aduladora"</em>), la redacción es sobria, sin superlativos de marketing. Cada afirmación fuerte se acompaña de su fuente o su evidencia.</li>
+<li><strong>Atribución (convención †):</strong> nunca se atribuye al CEO lo que sus actas no dicen textualmente. Toda cita del CEO va entre comillas con la decisión de origen (p. ej., acta D8). Todo desarrollo propio del CTO/EM se marca con †.</li>
+<li><strong>Referencias y citas:</strong> las referencias entre documentos usan enlaces relativos Markdown (§5); las citas de acta van entrecomilladas y trazadas a su decisión.</li>
+<li><strong>Números, fechas y unidades:</strong> fechas en formato ISO <code>AAAA-MM-DD</code>; los umbrales cuantitativos se delegan a su capítulo dueño (p. ej., métricas a 2.5) y nunca se inventan en prosa.</li>
+<li><strong>Listas y tablas:</strong> frases nominales, paralelas, sin puntuación final salvo que sean oraciones completas.</li>
+</ul>
+<h2 id="2-frontmatter-obligatorio-y-versionado-semver-acta-d8">2. Frontmatter obligatorio y versionado SemVer (acta D8)</h2>
+<p>El acta D8 (rango 1) fija el mínimo: <em>"Versionado con Semantic Versioning. Cada documento lleva: versión, autor, fecha, estado e historial de cambios."</em> Esos cinco campos son obligatorios en todo documento. La constitución y el sistema de ADRs especializan el frontmatter por tipo de artefacto; el conjunto completo se codifica aquí como desarrollo del EM †.</p>
+<p><strong>Campos por artefacto†</strong> (los cinco campos núcleo del D8 en negrita):</p>
+<table>
+<thead>
+<tr>
+<th>Artefacto</th>
+<th>Frontmatter</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Capítulo</strong></td>
+<td><strong>version, autor, fecha, estado, historial</strong> + <code>capitulo</code>, <code>titulo</code>, <code>prioridad</code>, <code>responsable</code>, <code>nivel</code>, <code>dependencias</code>, <code>fecha_aprobacion</code></td>
+</tr>
+<tr>
+<td><strong>Acta / Brief del CEO</strong> (rango 1)</td>
+<td><code>documento</code>, <strong>version, autor, fecha, estado</strong> (Vinculante), <strong>historial</strong></td>
+</tr>
+<tr>
+<td><strong>Anexo</strong></td>
+<td><code>documento</code>, <code>tipo</code>, <strong>version, autor, fecha, estado</strong>, <code>mantenido-por</code>, <strong>historial</strong></td>
+</tr>
+<tr>
+<td><strong>ADR</strong></td>
+<td>Frontmatter especializado del <strong>1.2 §5</strong> (<code>numero</code>, <code>titulo</code>, <code>estado</code>, <code>fecha</code>, <code>fecha-resolucion</code>, <code>decisor</code>, <code>proponente</code>, <code>impacta</code>, <code>origen</code>, <code>reabre</code>, <code>supersede</code>, <code>superseded-por</code>, <code>motivo-rechazo</code>)</td>
+</tr>
+<tr>
+<td><strong>Alerta de Arquitectura</strong></td>
+<td>Frontmatter de la plantilla oficial / acta D16 (<code>documento</code>, <code>estado</code>, <code>fecha</code>, <code>emisor</code>, <code>trabajo-suspendido</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>Los ADR y las alertas no repiten <code>version</code>/<code>autor</code> porque su identidad y autoría quedan capturadas por <code>numero</code>/<code>decisor</code>/<code>proponente</code> y <code>emisor</code>; su versionado de fondo es la inmutabilidad decisional (1.2 §2) y el registro en git.</p>
+<p><strong>Versionado SemVer aplicado a documentos†:</strong></p>
+<ul>
+<li><strong>MAYOR (X.0.0):</strong> cambio normativo que altera o contradice contenido previamente aprobado (requiere gate del CEO; en 1.1, enmienda constitucional).</li>
+<li><strong>MENOR (0.X.0):</strong> contenido nuevo sustantivo que no contradice lo aprobado (nuevo borrador, incorporación de correcciones ratificadas, aplicación de un mandato de acta).</li>
+<li><strong>PARCHE (0.0.X):</strong> correcciones editoriales sin efecto normativo (typos, enlaces rotos) — mantenimiento operativo (1.1 §3.1), sin gate.</li>
+<li>La primera aprobación del CEO lleva el documento a <strong>1.0.0</strong>; antes de esa aprobación vive en <code>0.y.z</code>.</li>
+<li><strong>Toda subida de versión añade una entrada al <code>historial</code></strong> (D8), con fecha y descripción. El historial es <em>append-only</em>: nunca se reescribe.</li>
+</ul>
+<p><strong>Inmutabilidad tras aprobación:</strong> en los ADR, el contenido decisional (Contexto, Alternativas, Decisión, Consecuencias) es inmutable tras <code>accepted</code> (1.2 §2); un cambio de fondo exige un ADR nuevo que lo supersede. En los capítulos, un cambio normativo posterior a la aprobación exige nueva versión mayor por el proceso que corresponda (gate o enmienda).</p>
+<h2 id="3-ciclo-de-vida-documental-niveles-estados-y-transiciones-desarrolla-11-6">3. Ciclo de vida documental: niveles, estados y transiciones (desarrolla 1.1 §6)</h2>
+<p>La constitución (1.1 §6) ya fija —de forma normativa— los niveles y los estados con su autoridad de transición. Este capítulo los desarrolla operativamente <strong>sin alterarlos</strong>.</p>
+<p><strong>Niveles (1.1 §6):</strong> <em>Completo</em> (plantilla íntegra) o <em>Stub aprobado</em> (máximo 2 páginas: objetivo, decisiones clave, qué falta y cuándo se completará). En la v1.0, los capítulos P2/P3 no exceden el nivel stub.</p>
+<p><strong>Estados y autoridad por transición (1.1 §6, normativo):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Transición</th>
+<th>Autoridad</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>No iniciado</code> → <code>Borrador</code></td>
+<td>El redactor asignado</td>
+</tr>
+<tr>
+<td><code>Borrador</code> → <code>En revisión</code></td>
+<td>El Responsable del capítulo</td>
+</tr>
+<tr>
+<td><code>En revisión</code> → <code>Aprobado</code></td>
+<td><strong>Solo el CEO</strong> (gate)</td>
+</tr>
+<tr>
+<td>cualquiera → <code>Obsoleto</code></td>
+<td>Solo mediante el ADR o la enmienda que supersede al documento</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="language-mermaid">stateDiagram-v2
+    [*] --&gt; NoIniciado
+    NoIniciado --&gt; Borrador: redactor
+    Borrador --&gt; EnRevision: Responsable (cumple DoD)
+    EnRevision --&gt; Borrador: correcciones
+    EnRevision --&gt; Aprobado: solo CEO (gate)
+    Aprobado --&gt; Obsoleto: ADR o enmienda que supersede
+</code></pre>
+<p>Guía operativa por transición†:</p>
+<ul>
+<li><strong>No iniciado → Borrador:</strong> el redactor asignado (Sonnet por defecto; Opus o Fable según el índice) crea el borrador a partir de la plantilla (§6), con version <code>0.y.z</code> y estado <code>Borrador</code>.</li>
+<li><strong>Borrador → En revisión:</strong> el Responsable lo declara listo tras cumplir la Definition of Done (§8) y una revisión por un agente distinto del redactor (1.1 §4.2).</li>
+<li><strong>En revisión → Aprobado:</strong> solo el CEO, en el gate. La aprobación lleva el documento a version <code>1.0.0</code> (o a la mayor siguiente si ya estaba aprobado), fija <code>fecha_aprobacion</code>, dispara la publicación (§5) y la actualización del índice.</li>
+<li><strong>cualquiera → Obsoleto:</strong> nunca por decisión de un agente; solo el ADR o la enmienda que supersede al documento lo mueve a <code>Obsoleto</code>, con la referencia al instrumento que lo reemplaza.</li>
+<li><strong>Correcciones en borrador:</strong> los ciclos <code>En revisión → Borrador</code> por correcciones no requieren gate y se registran en el historial como versión menor.</li>
+</ul>
+<p>El silencio no aprueba (1.1 §3.2.6): solo la aprobación explícita del CEO cambia el estado a <code>Aprobado</code>.</p>
+<h2 id="4-estructura-estandar-de-capitulo-acta-d13-y-convencion">4. Estructura estándar de capítulo (acta D13) y convención †</h2>
+<p>El acta D13 (rango 1) manda: <em>"Toda la documentación deberá ser legible tanto por humanos como por IA. Cada capítulo incluirá automáticamente: Resumen ejecutivo · Objetivo · Decisiones tomadas · Riesgos · Dependencias · Próximos pasos · Referencias cruzadas."</em> Este capítulo desarrolla el orden canónico y las secciones intermedias †.</p>
+<p><strong>Orden canónico de un capítulo Completo:</strong></p>
+<ol>
+<li>Frontmatter (§2).</li>
+<li>Título <code># n.n — Título</code>.</li>
+<li>Línea de estado (blockquote): estado, prioridad, responsable, nivel.</li>
+<li><strong>Declaración de la convención †</strong>, cuando el capítulo contenga desarrollos del CTO/EM (todos los capítulos técnicos la llevan).</li>
+<li><strong>Resumen ejecutivo</strong> (D13).</li>
+<li><strong>Objetivo</strong> (D13).</li>
+<li><strong>Secciones de contenido numeradas</strong> † — el cuerpo técnico; su número y títulos los decide el Responsable.</li>
+<li><strong>Decisiones tomadas</strong> (D13), con la subsección <strong>"Decisiones aplicables (ADRs)"</strong> † que honra la trazabilidad del 1.2 §8 (lista los ADR <code>accepted</code> que gobiernan el capítulo, o "Ninguna aún").</li>
+<li><strong>Riesgos</strong> (D13).</li>
+<li><strong>Dependencias</strong> (D13).</li>
+<li><strong>Próximos pasos</strong> (D13).</li>
+<li><strong>Referencias cruzadas</strong> (D13).</li>
+</ol>
+<p><strong>Convención † (1.1 §4):</strong> distingue el texto de rango 1 (actas del CEO, citado textualmente) del desarrollo del CTO/EM que se vuelve exigible solo al aprobarse el capítulo. Es la regla más vigilada del proyecto: atribuir al CEO algo que sus actas no dicen es el error más grave. Regla práctica: si no puedes señalar la frase del acta que lo sostiene, va con †.</p>
+<p><strong>Stub aprobado:</strong> conserva Frontmatter, Título, Resumen ejecutivo, Objetivo, Decisiones tomadas (con "qué falta y cuándo") y Referencias cruzadas; puede condensar el resto. Máximo 2 páginas (1.1 §6).</p>
+<h2 id="5-modo-de-trabajo-documental-y-publicacion-acta-d12">5. Modo de trabajo documental y publicación (acta D12)</h2>
+<p>El acta D12 (rango 1) fija el modo documental: <em>"No se imprimirán documentos extensos en la terminal... La terminal muestra únicamente: resumen ejecutivo, cambios realizados, archivos modificados y preguntas que requieren aprobación."</em> Y: <em>"Cuando un documento quede aprobado se generan automáticamente su versión Markdown, PDF y HTML navegable, y se actualiza el índice de la Bible."</em> Y: <em>"Toda la documentación debe poder abrirse desde VS Code."</em></p>
+<p>Reglas operativas†:</p>
+<ul>
+<li><strong>Archivo primero:</strong> todo documento vive como archivo Markdown en el repositorio; la terminal nunca es el soporte del contenido, solo del resumen y de las preguntas de gate.</li>
+<li><strong>No imprimir el capítulo:</strong> durante un gate no se vuelca el capítulo completo en la terminal; se presentan su resumen ejecutivo, los cambios, los archivos afectados y las decisiones que requieren aprobación.</li>
+<li><strong>Publicación por evento (al aprobar):</strong> la aprobación del CEO dispara la generación de HTML navegable y PDF y la actualización del índice. La herramienta que hoy materializa este mandato es <a href="../../herramientas/publicar.py"><code>herramientas/publicar.py</code></a>: publica únicamente los documentos <code>Aprobado</code>/<code>Vinculante</code>/<code>accepted</code>.</li>
+<li><strong>Enlaces relativos:</strong> todos los enlaces entre documentos son relativos y en Markdown, para que resuelvan tanto en el repositorio (VS Code) como en el sitio generado (el publicador reescribe <code>.md</code>→<code>.html</code>).</li>
+<li><strong>VS Code:</strong> la documentación se mantiene abrible desde VS Code (D8, D12); no se usan formatos propietarios.</li>
+</ul>
+<p>La elección del generador de sitio definitivo (<em>"MkDocs Material o Docusaurus"</em>, D8) está pendiente y se resuelve en el <strong>ADR-0002</strong> que este capítulo propone (ver "Decisiones aplicables").</p>
+<h2 id="6-plantillas-por-artefacto">6. Plantillas por artefacto</h2>
+<p>Plantillas mínimas por tipo †. Las de ADR y Alerta ya existen y son las únicas válidas: aquí se referencian, no se duplican.</p>
+<h3 id="61-capitulo">6.1 Capítulo</h3>
+<pre><code class="language-yaml">---
+capitulo: &quot;n.n&quot;
+titulo: &quot;&lt;título del capítulo&gt;&quot;
+version: 0.1.0
+autor: &quot;&lt;responsable&gt; (rol, AURA Labs)&quot;
+fecha: AAAA-MM-DD
+estado: &quot;No iniciado&quot;        # No iniciado | Borrador | En revisión | Aprobado | Obsoleto
+prioridad: P0                # P0 | P1 | P2 | P3
+responsable: &quot;&lt;agente&gt;&quot;
+nivel: completo              # completo | stub
+dependencias: [&quot;n.n&quot;]
+historial:
+  - version: 0.1.0
+    fecha: AAAA-MM-DD
+    cambio: &quot;&lt;descripción&gt;&quot;
+---
+</code></pre>
+<p>Cuerpo: la estructura canónica de §4 (línea de estado, convención †, Resumen ejecutivo, Objetivo, secciones numeradas, Decisiones tomadas + Decisiones aplicables (ADRs), Riesgos, Dependencias, Próximos pasos, Referencias cruzadas).</p>
+<h3 id="62-acta-brief-del-ceo-rango-1">6.2 Acta / Brief del CEO (rango 1)</h3>
+<p>Documento del CEO, registrado por el CTO; estado <code>Vinculante</code>.</p>
+<pre><code class="language-yaml">---
+documento: &quot;&lt;nombre del acta o brief&gt;&quot;
+version: 1.0.0
+autor: &quot;Mauricio (CEO) — registrada por &lt;CTO&gt;&quot;
+fecha: AAAA-MM-DD
+estado: &quot;Vinculante&quot;
+historial:
+  - version: 1.0.0
+    fecha: AAAA-MM-DD
+    cambio: &quot;&lt;registro fiel de lo decidido por el CEO&gt;&quot;
+---
+</code></pre>
+<h3 id="63-alerta-de-arquitectura">6.3 Alerta de Arquitectura</h3>
+<p>No se define aquí: su plantilla oficial es <a href="../../decisiones/alertas/plantilla-alerta.html"><code>decisiones/alertas/plantilla-alerta.md</code></a>, con la <strong>estructura obligatoria de 10 secciones</strong> del acta D16.</p>
+<h3 id="64-anexo">6.4 Anexo</h3>
+<p>Artefacto de apoyo (inventarios, catálogos, tablas de datos) referenciado por un capítulo; normalmente artefacto operativo (1.1 §3.1).</p>
+<pre><code class="language-yaml">---
+documento: &quot;&lt;nombre del anexo&gt;&quot;
+tipo: &quot;Anexo — &lt;capítulo que lo referencia&gt;&quot;
+version: 0.1.0
+autor: &quot;&lt;agente&gt;&quot;
+fecha: AAAA-MM-DD
+estado: &quot;Borrador&quot;
+mantenido-por: &quot;&lt;agente&gt; (artefacto operativo, 1.1 §3.1)&quot;
+historial:
+  - version: 0.1.0
+    fecha: AAAA-MM-DD
+    cambio: &quot;&lt;descripción&gt;&quot;
+---
+</code></pre>
+<h3 id="65-adr">6.5 ADR</h3>
+<p>No se define aquí: su plantilla oficial es <a href="../../adr/plantilla-adr.html"><code>adr/plantilla-adr.md</code></a> (1.2 §5), con la matriz de impacto del acta D11.</p>
+<h2 id="7-convenciones-de-diagramas-c4-y-mermaid">7. Convenciones de diagramas (C4 y Mermaid)</h2>
+<ul>
+<li><strong>Modelo C4†:</strong> la Bible usa los tres primeros niveles de C4 — <strong>Contexto de sistema</strong> (nivel 1), <strong>Contenedores</strong> (nivel 2) y <strong>Componentes</strong> (nivel 3). El nivel 4 (Código) se omite mientras no exista código; cuando exista, vivirá junto al código, no en la Bible. Las vistas C4 maestras son responsabilidad del capítulo 3.2; los demás capítulos las detallan sin contradecirlas.</li>
+<li><strong>Formato:</strong> los diagramas se escriben en <strong>Mermaid</strong>, en bloques <code>```mermaid</code> dentro del propio Markdown, para que sean legibles como texto (por humanos e IA, D13) y versionables por diff. No se incrustan imágenes binarias de diagramas salvo que Mermaid no baste.</li>
+<li><strong>Correlación con el texto:</strong> todo diagrama va acompañado de una frase que lo explica; el diagrama nunca es la única fuente de una decisión.</li>
+<li><strong>Limitación actual (honesta)†:</strong> el publicador <code>herramientas/publicar.py</code> <strong>no renderiza Mermaid</strong> (lo muestra como bloque de código); un generador como MkDocs Material o Docusaurus sí lo renderiza. Es uno de los argumentos del ADR-0002.</li>
+</ul>
+<p>Ejemplo de vista de contexto (nivel 1), en Mermaid:</p>
+<pre><code class="language-mermaid">flowchart LR
+    Usuario([Mauricio]) --&gt; AURA[AURA: compañero cognitivo]
+    AURA --&gt; LLMs[Proveedores de IA: ChatGPT / Claude / Gemini]
+    AURA --&gt; Hogar[Home Assistant]
+    AURA --&gt; PC[Computador principal]
+</code></pre>
+<h2 id="8-definition-of-done-documental">8. Definition of Done documental†</h2>
+<p>Un documento pasa de <code>Borrador</code> a <code>En revisión</code> solo si cumple TODO lo siguiente (lo verifica el Responsable; el revisor pre-gate lo re-verifica, 1.1 §4.2):</p>
+<ol>
+<li>Frontmatter completo con los cinco campos del D8 + los campos del artefacto (§2); <code>version</code> e <code>historial</code> actualizados.</li>
+<li>Estructura D13 completa (§4): las siete secciones obligatorias presentes y no vacías.</li>
+<li>Convención † aplicada: toda atribución al CEO citada textualmente con su acta; todo desarrollo propio marcado con †.</li>
+<li>"Decisiones aplicables (ADRs)" lista los ADR <code>accepted</code> que gobiernan el capítulo, o declara "Ninguna aún" (trazabilidad 1.2 §8).</li>
+<li>Enlaces relativos válidos (resuelven en el repositorio); citas trazadas a su fuente.</li>
+<li>Diagramas en Mermaid con su frase explicativa (§7), si aplica.</li>
+<li>Estilo conforme a §1 (español latino; términos técnicos en su forma original).</li>
+<li>Consistencia con las actas y los capítulos aprobados verificada; los conflictos no resueltos en la sesión quedan en <a href="../../decisiones/pendientes.html"><code>decisiones/pendientes.md</code></a> (1.1 §3.2.3).</li>
+<li>Revisión por un agente distinto del redactor (1.1 §4.2) completada.</li>
+<li>El documento se publica sin error con <code>herramientas/publicar.py</code> (o queda listo para publicarse al aprobarse, D12).</li>
+</ol>
+<p>Para un stub, la DoD se limita a los puntos 1-5 y 9 sobre el contenido reducido del 1.1 §6.</p>
+<h2 id="9-glosario-inicial-y-lenguaje-ubicuo">9. Glosario inicial y lenguaje ubicuo</h2>
+<p>El glosario es la <strong>fuente única del significado</strong> de cada término: un término, un significado en toda la Bible (lenguaje ubicuo). Se mantiene como artefacto operativo a cargo de Haiku (1.1 §3.1) y crece con el proyecto.</p>
+<table>
+<thead>
+<tr>
+<th>Término</th>
+<th>Definición</th>
+<th>Fuente</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>ADR</strong></td>
+<td><em>Architecture Decision Record</em>: documento corto que captura una decisión arquitectónica (contexto, alternativas, decisión, consecuencias, impacto, trazabilidad); instrumento único de cambio arquitectónico.</td>
+<td>1.2</td>
+</tr>
+<tr>
+<td><strong>gate</strong></td>
+<td>Punto de aprobación en el que el CEO decide si un documento pasa de <code>En revisión</code> a <code>Aprobado</code>; ningún agente aprueba en su nombre. Variantes: <strong>gate de hito</strong> (cierre de M1-M3, 2.2 §3.2) y <strong>gate extraordinario</strong> (convocado por una alerta o un circuito de fracaso).</td>
+<td>1.1 §6</td>
+</tr>
+<tr>
+<td><strong>stub</strong></td>
+<td>Nivel de capítulo de máximo 2 páginas (objetivo, decisiones clave, qué falta y cuándo); los capítulos P2/P3 no exceden este nivel en la v1.0.</td>
+<td>1.1 §6</td>
+</tr>
+<tr>
+<td><strong>†</strong></td>
+<td>Convención de atribución honesta: marca un desarrollo del CTO/EM sujeto al gate, que no proviene textualmente de un acta del CEO.</td>
+<td>1.1 §4</td>
+</tr>
+<tr>
+<td><strong>P-ARQ</strong></td>
+<td>Principio arquitectónico numerado (P-ARQ-1 … P-ARQ-8) que toda decisión técnica debe respetar.</td>
+<td>3.1 §1</td>
+</tr>
+<tr>
+<td><strong>criterio-marco</strong></td>
+<td>Criterio de éxito o fracaso que fija el principio pero delega su umbral cuantitativo al capítulo dueño (típicamente 2.5).</td>
+<td>2.1 §5</td>
+</tr>
+<tr>
+<td><strong>pendiente P-nnn</strong></td>
+<td>Entrada del registro <a href="../../decisiones/pendientes.html"><code>decisiones/pendientes.md</code></a>: conflicto o corrección que requiere decisión del CEO en el próximo gate.</td>
+<td>1.1 §3.2.3</td>
+</tr>
+<tr>
+<td><strong>alerta</strong> (Alerta de Arquitectura)</td>
+<td>Documento que el CTO levanta ante un riesgo a 5-10 años; suspende el trabajo afectado y convoca un gate extraordinario; sigue la estructura obligatoria de 10 secciones del acta D16.</td>
+<td>actas D15/D16; 1.1 §4</td>
+</tr>
+<tr>
+<td><strong>artefacto operativo</strong></td>
+<td>Documento que refleja decisiones ya tomadas sin crear reglas (índice, CHANGELOG, glosario, catálogos); lo mantienen Haiku/Sonnet, sin gate.</td>
+<td>1.1 §3.1</td>
+</tr>
+<tr>
+<td><strong>HITL</strong> (Human-in-the-Loop)</td>
+<td>Principio: toda acción crítica es auditable, explicable y reversible; nunca se sacrifica seguridad por comodidad.</td>
+<td>acta D9; 3.1 (P-ARQ-1)</td>
+</tr>
+<tr>
+<td><strong>local-first estricto</strong></td>
+<td>Postura de datos: la información del usuario vive bajo su control; la nube solo para los usos autorizados; todo cifrado.</td>
+<td>acta D1; ADR-0001</td>
+</tr>
+<tr>
+<td><strong>momento mágico</strong></td>
+<td>Criterio de aceptación del MVP en palabras del CEO (D2).</td>
+<td>acta D2; 2.2 §2</td>
+</tr>
+<tr>
+<td><strong>walking skeleton</strong></td>
+<td>Corte mínimo de código que valida la arquitectura al cerrar la Bible.</td>
+<td>1.1 §7; cap. 7.3</td>
+</tr>
+</tbody>
+</table>
+<h2 id="decisiones-tomadas">Decisiones tomadas</h2>
+<ul>
+<li>Guía de estilo, especificación de frontmatter, desarrollo operativo del ciclo de vida, plantillas por artefacto, convenciones C4/Mermaid, Definition of Done y glosario inicial: <strong>desarrollos del CTO/EM †</strong> sobre lo normado en las actas D8, D12 y D13 y en los capítulos aprobados 1.1 §6 y 1.2 §5. Sujetos al gate del CEO.</li>
+<li>Se ratifica, <strong>sin alterarlo</strong>, el ciclo de niveles, estados y transiciones de la constitución (1.1 §6) y el mínimo de frontmatter del acta D8.</li>
+<li>Se <strong>propone</strong> el ADR-0002 (plataforma de generación del sitio documental) con las cuatro opciones de nivel del acta D3, pendiente del gate del CEO.</li>
+</ul>
+<h3 id="decisiones-aplicables-adrs">Decisiones aplicables (ADRs)</h3>
+<ul>
+<li>Ninguna en estado <code>accepted</code> gobierna aún este capítulo.</li>
+<li>Este capítulo <strong>propone</strong> el <a href="../../adr/0002-plataforma-documental-sitio.html">ADR-0002 — Plataforma de generación del sitio documental</a> (<code>proposed</code>). Mientras siga en <code>proposed</code> no tiene valor normativo (1.1 §3: el rango 3 exige <code>accepted</code>); entre tanto, el publicador <a href="../../herramientas/publicar.py"><code>herramientas/publicar.py</code></a> opera como herramienta transitoria del mandato D12.</li>
+</ul>
+<h2 id="riesgos">Riesgos</h2>
+<ul>
+<li><strong>Deriva documentación-realidad</strong> si la Definition of Done no se aplica en cada gate (mitigación: DoD verificable §8 + verificación por evento 1.2 §8).</li>
+<li><strong>Legibilidad limitada del sitio actual†:</strong> el publicador no ofrece búsqueda ni renderiza Mermaid, lo que degrada la legibilidad humana/IA que exige el D13 (mitigación: ADR-0002).</li>
+<li><strong>Plantillas rígidas</strong> que induzcan relleno vacío o burocracia (mitigación: niveles Completo/Stub del 1.1 §6; la DoD exige secciones "no vacías", no extensas).</li>
+<li><strong>Glosario desactualizado</strong> si no se mantiene (mitigación: es artefacto operativo a cargo de Haiku, 1.1 §3.1).</li>
+<li><strong>Enlaces rotos</strong> al crecer la Bible (mitigación: enlaces relativos + verificación en la DoD; automatizable en el nivel Enterprise del ADR-0002).</li>
+</ul>
+<h2 id="dependencias">Dependencias</h2>
+<p>Capítulos: 1.1 (Aprobado, v1.3.0) — niveles, estados y transiciones; 1.2 (Aprobado, v1.1.0) — plantilla y trazabilidad de ADR. Herramienta: <code>herramientas/publicar.py</code> (mandato D12). Alimenta, como estándar transversal, a todos los capítulos y ADR futuros y a Haiku (mantenimiento de glosario, plantillas e índice).</p>
+<h2 id="proximos-pasos">Próximos pasos</h2>
+<ul>
+<li>Revisión adversarial interna (agente distinto del redactor) y gate del CEO de este capítulo.</li>
+<li>Gate del CEO sobre el <strong>ADR-0002</strong> con las cuatro opciones de nivel (D3): resolver la plataforma de sitio (<em>"MkDocs Material o Docusaurus"</em>, D8).</li>
+<li>Tras la aprobación: Haiku adopta plantillas y glosario como artefactos operativos y los mantiene sincronizados con el índice (D12).</li>
+</ul>
+<h2 id="referencias-cruzadas">Referencias cruzadas</h2>
+<ul>
+<li><a href="../../decisiones/2026-07-17-acta-decisiones-fundacionales.html">Acta de Decisiones (D3, D8, D12, D13)</a> · <a href="../../decisiones/2026-07-16-brief-fundacional.html">Brief Fundacional</a></li>
+<li><a href="1.1-constitucion-roles-autoridad.html">Constitución 1.1 (v1.3.0)</a> · <a href="1.2-sistema-adrs-gestion-cambio.html">1.2 Sistema de ADRs (v1.1.0)</a></li>
+<li><a href="../../adr/plantilla-adr.html">Plantilla oficial de ADR</a> · <a href="../../decisiones/alertas/plantilla-alerta.html">Plantilla de Alerta de Arquitectura</a> · <a href="../../adr/0002-plataforma-documental-sitio.html">ADR-0002 (proposed)</a></li>
+<li><a href="../../herramientas/publicar.py">Publicador <code>herramientas/publicar.py</code></a> · <a href="../../decisiones/pendientes.html">Registro de pendientes</a> · <a href="../../INDICE.html">Índice maestro</a></li>
+</ul>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

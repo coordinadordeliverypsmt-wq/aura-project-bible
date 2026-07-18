@@ -1,0 +1,626 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Usuario y Escenarios Prioritarios — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.0.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-17 · <b>fecha_aprobacion</b>: 2026-07-18 · <b>autor</b>: Fable (CTO, AURA Labs) · <b>responsable</b>: Fable · <b>prioridad</b>: P1</div>
+<h1 id="23-usuario-y-escenarios-prioritarios">2.3 — Usuario y Escenarios Prioritarios</h1>
+<blockquote>
+<p><strong>Estado:</strong> Aprobado (CEO, 2026-07-18) · <strong>Prioridad:</strong> P1 · <strong>Responsable:</strong> Fable · <strong>Redactor:</strong> Sonnet (EM)</p>
+</blockquote>
+<p><em>Convención † (1.1 §4): desarrollo del CTO/EM que se vuelve exigible solo con la aprobación de este capítulo por el CEO — no es texto de las actas del CEO. En este capítulo, todo el perfil, el inventario, los escenarios, los anti-casos, la matriz y los insumos a 2.5 son propuesta †; el CEO los ratifica, corrige o completa en el gate. Los datos personales del usuario fundador NO se infieren: se presentan como plantillas a completar por el CEO.</em></p>
+<h2 id="resumen-ejecutivo">Resumen ejecutivo</h2>
+<p>Este capítulo aterriza la visión (2.1) y el alcance (2.2) en la vida del único usuario del MVP. Como las actas no contienen datos personales del usuario fundador, el <strong>perfil</strong> y el <strong>inventario del ecosistema</strong> se entregan como <strong>plantillas estructuradas</strong> con las preguntas correctas, a completar por el CEO; el redactor no inventa hechos sobre Mauricio. El inventario es el <strong>anexo mandatado por 2.2 §6</strong> y su función es validar los cuatro supuestos de entorno del MVP —computador principal, Home Assistant operativo, hardware de audio y conectividad— antes de cerrar el diseño de M3. Sobre esa base se proponen † <strong>14 escenarios prioritarios</strong> ordenados por valor que cubren las 9 capacidades del MVP (2.2 §1) y los cuatro componentes del momento mágico (acta D2), un conjunto de <strong>anti-casos de uso</strong>, la <strong>matriz escenario→capacidad</strong> y los <strong>insumos que cada escenario entrega a las métricas de 2.5</strong> —honrando el reparto de 2.1 §5: 2.3 aporta escenarios, 2.5 fija umbrales.</p>
+<h2 id="objetivo">Objetivo</h2>
+<p>Convertir la visión abstracta en situaciones concretas y evaluables de la vida del usuario fundador, de modo que cada capacidad del MVP tenga al menos un escenario que la justifique y que 2.5 pueda derivar sus umbrales de un contexto real —sin que este capítulo fije un solo umbral ni atribuya al CEO datos o escenarios que sus actas no contienen.</p>
+<h2 id="1-el-usuario-fundador-plantilla-a-completar-por-el-ceo">1. El usuario fundador (plantilla — a completar por el CEO)</h2>
+<p>Fuente de rango 1 (acta D5, texto del CEO): <em>"La versión inicial es para un único usuario (Mauricio). La arquitectura se diseña desde el inicio preparada para múltiples usuarios..."</em>. El MVP sirve a un solo usuario; el modelado multi-usuario es de arquitectura (P-ARQ-5 de 3.1) y no de este capítulo.</p>
+<p>Las actas <strong>no</strong> contienen el perfil personal de Mauricio. Por disciplina de fidelidad, el redactor <strong>no infiere</strong> ocupación, horarios, hábitos ni preferencias. La tabla siguiente es la <strong>plantilla †</strong> de preguntas que el CEO responde en el gate; hasta entonces cada campo permanece explícitamente vacío.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Campo del perfil</th>
+<th>Pregunta a responder por el CEO</th>
+<th>Para qué lo usa el MVP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Rol / ocupación principal</td>
+<td>¿A qué dedica el usuario su día a día?</td>
+<td>Prioriza escenarios de trabajo (E-04, E-05)</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Rutinas y horarios</td>
+<td>¿Qué momentos fijos tiene el día (arranque, cierre, franjas de foco)?</td>
+<td>Diseña automatizaciones (E-06) y anticipación (E-12)</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Dispositivos de uso diario</td>
+<td>¿Qué equipos usa a diario y cuál es el <strong>computador principal</strong>?</td>
+<td>Define el objetivo de control (E-05) y ancla el inventario §2</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Fuentes de notificación</td>
+<td>¿De dónde le llegan hoy las notificaciones?</td>
+<td>Acota el centro de notificaciones (E-07) a las fuentes del MVP</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Tareas repetitivas a delegar</td>
+<td>¿Qué tareas repite que querría automatizar?</td>
+<td>Backlog de automatizaciones definidas por el usuario (E-06)</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Temas recurrentes</td>
+<td>¿Sobre qué conversa o piensa con frecuencia?</td>
+<td>Escenarios de memoria (E-01) y copiloto (E-04)</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Tolerancia a la proactividad</td>
+<td>¿Cuánta iniciativa quiere que tome AURA, y en qué ámbitos?</td>
+<td>Calibra la anticipación (E-12) dentro de la lista verde D4</td>
+</tr>
+<tr>
+<td>8</td>
+<td>Idioma(s) de interacción</td>
+<td>¿En qué idioma(s) conversa?</td>
+<td>Voz (6.2) y personalidad (2.4)</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Sensibilidades de privacidad</td>
+<td>¿Qué información considera especialmente sensible o vetada?</td>
+<td>Refuerza la frontera local-first (ADR-0001) y las remisiones a 2.4</td>
+</tr>
+<tr>
+<td>10</td>
+<td>Convivientes / visitas</td>
+<td>¿Comparte el espacio con otras personas?</td>
+<td>Regla de no-perfilado de terceros (AC-02), sin habilitar multiusuario (D5)</td>
+</tr>
+</tbody>
+</table>
+<p><em>Ningún campo se rellena por inferencia: permanecen vacíos hasta que el CEO los complete en el gate.</em></p>
+<h2 id="2-inventario-del-ecosistema-digital-anexo-mandato-de-22-6">2. Inventario del ecosistema digital (anexo — mandato de 2.2 §6)</h2>
+<p>2.2 §6 (Aprobado) fija: <em>"Entorno del CEO (a validar por el inventario del ecosistema, anexo del 2.3†): instancia de Home Assistant operativa con dispositivos integrados; hardware de audio apto para voz conversacional; conectividad estable para los 3 proveedores. Su invalidación dispara el circuito de fracaso (§3.5) antes de cerrar el diseño de M3."</em> Este anexo materializa ese mandato. Igual que el perfil, es <strong>plantilla †</strong> a completar por el CEO: el redactor no da por ciertos los supuestos, los somete a verificación.</p>
+<h3 id="21-los-cuatro-supuestos-a-validar">2.1 Los cuatro supuestos a validar</h3>
+<table>
+<thead>
+<tr>
+<th>Supuesto (2.2 §6)</th>
+<th>Qué registrar (a completar por el CEO)</th>
+<th>Capacidad / hito que depende</th>
+<th>Si no se cumple</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A. <strong>Computador principal</strong> (SO incluido)</td>
+<td>Equipo, SO y versión, permisos de control disponibles</td>
+<td>Cap 4 (control del computador) · M2 (E-05, E-07)</td>
+<td>Sin objetivo de control único → M2 en riesgo</td>
+</tr>
+<tr>
+<td>B. <strong>Home Assistant operativo + dispositivos</strong></td>
+<td>¿HA instalado y operativo? Dispositivos integrados y protocolos (MQTT/Zigbee/Matter)</td>
+<td>Cap 7 (hogar) · M3 (E-09)</td>
+<td>Sin HA → cap 7 no demostrable en M3</td>
+</tr>
+<tr>
+<td>C. <strong>Hardware de audio</strong> para voz conversacional</td>
+<td>Micrófono(s) y altavoz(es), calidad, ubicación, latencia percibida</td>
+<td>Cap 2 (voz) · M1 (E-02)</td>
+<td>Audio insuficiente → M1, el hito crítico, en riesgo</td>
+</tr>
+<tr>
+<td>D. <strong>Conectividad estable</strong> para los 3 proveedores</td>
+<td>Ancho de banda, estabilidad, cortes típicos</td>
+<td>Cap 6 (3 LLMs) · M1 (E-03); modo degradado (E-13)</td>
+<td>Conectividad pobre → fallback y R2 (offline) suben de prioridad</td>
+</tr>
+</tbody>
+</table>
+<h3 id="22-regla-de-validacion">2.2 Regla de validación</h3>
+<ul>
+<li>Cada supuesto se marca <strong>validado</strong>, <strong>parcial</strong> o <strong>no cumplido</strong>, con la evidencia registrada.</li>
+<li>Un supuesto <strong>no cumplido</strong> que bloquea una capacidad del MVP <strong>dispara el circuito de fracaso de hito (2.2 §3.5)</strong> —gate extraordinario del CEO con opciones en los 4 niveles del acta D3— <strong>antes</strong> de cerrar el diseño del hito afectado.</li>
+<li>Local-first (ADR-0001): el inventario registra <strong>dónde vive cada dato</strong> y qué sale a la nube, limitado a los cuatro usos autorizados de la D1.</li>
+</ul>
+<h2 id="3-escenarios-prioritarios-propuesta-14-ordenados-por-valor">3. Escenarios prioritarios (propuesta † — 14, ordenados por valor)</h2>
+<p>Todos los escenarios son propuesta † a ratificar o personalizar por el CEO con los datos del §1. El <strong>orden refleja valor y secuencia de hitos</strong> (2.2 §3: M1 el de mayor valor y riesgo; luego M2; luego M3), no un cronograma. Cada uno se enuncia como <em>situación tipo</em>, sin inventar hechos de la vida de Mauricio. Ninguno habilita acciones fuera de la <strong>lista verde de la D4</strong> sin confirmación (§4).</p>
+<p><strong>E-01 — "No me lo vuelvas a explicar" (memoria a semanas)</strong> · M1 · Caps 1, 2
+Semanas después de una conversación, el usuario retoma el tema por voz sin repetir el contexto; AURA recupera lo tratado y continúa. Es la prueba anti-chatbot y el corazón del momento mágico; por definición exige <strong>semanas de calendario</strong> (2.2 §3.2), no demos puntuales. <em>Máximo valor.</em></p>
+<p><strong>E-02 — Conversación hablada natural y continua</strong> · M1 · Caps 2, 1
+Diálogo por voz fluido, con interrupciones (barge-in) y turnos naturales mientras el usuario hace otra cosa. Si la voz no se siente natural, el producto falla en su promesa central (2.2, riesgo de latencia).</p>
+<p><strong>E-03 — Orquestar ChatGPT, Claude y Gemini en una misma tarea</strong> · M1 · Caps 6, 2, 1
+Ante una consulta compleja, AURA enruta al modelo adecuado y hace fallback si uno no responde, sin que el usuario elija proveedor. Materializa "la mejor herramienta para cada problema" sin lock-in (P-ARQ-4/6 de 3.1).</p>
+<p><strong>E-04 — Copiloto de pensamiento profundo</strong> · M1→M3 · Caps 6, 2, 1, 8
+Sesión de trabajo hablado en la que AURA razona, descompone un problema y <strong>retiene el hilo entre sesiones</strong>; con el uso aprende el estilo del usuario (cap 8). Alto uso cotidiano.</p>
+<p><strong>E-05 — Manos en el computador principal</strong> · M2 · Caps 4, 2
+Buscar y abrir archivos y apps, organizar, consultar el estado del sistema —sobre el computador principal identificado en el inventario (§2), SO incluido. "Básico" = lista verde D4 (consultas, organización); catálogo exacto → 6.4.</p>
+<p><strong>E-06 — Automatización definida por el usuario</strong> · M2 · Caps 5, 4
+El usuario define una rutina ("cuando pase X, haz Y") con acciones de lista verde D4. La componente <em>sugerida</em> llega en M3 con 4.4 (2.2 §1, cap 5).</p>
+<p><strong>E-07 — Un solo lugar para todas las notificaciones</strong> · M2 · Caps 9, 4
+AURA consolida las notificaciones de las fuentes del MVP —computador principal + Home Assistant + la propia AURA (2.2 §1, cap 9)—, las prioriza, reduce el ruido y permite actuar desde un único centro.</p>
+<p><strong>E-08 — Freno humano ante una acción sensible (HITL)</strong> · M2 · Caps 4, 5 (transversal)
+Cuando una acción cae en la <strong>lista roja de la D4</strong> —<em>"pagos, compras, transferencias, eliminación de información, apertura de cerraduras, mensajes enviados a terceros, acciones legales, acciones financieras"</em>— AURA se detiene y pide confirmación explícita; toda acción queda auditada y es reversible (acta D9). Es un escenario de confianza, no de conveniencia.</p>
+<p><strong>E-09 — Control básico del hogar por voz</strong> · M3 · Caps 7, 2
+Encender/apagar y activar escenas vía Home Assistant (2.2 §1, cap 7), por voz. Acciones de lista verde D4 (encender/apagar dispositivos).</p>
+<p><strong>E-10 — Presencia con avatar</strong> · M3 · Caps 3, 2
+Durante la interacción, un avatar da presencia visual sincronizada a la conversación (2.2 §1, cap 3). Refuerza la identidad estable (D6) sin sustituir relaciones humanas (anti-visión 2.1 §3.6).</p>
+<p><strong>E-11 — Aprende cómo soy</strong> · M3 · Caps 8, 1
+Con el uso, AURA adapta preferencias y hábitos <strong>sin reentrenar modelos</strong> (2.2 §1, cap 8; 4.4). La materia prima se captura desde M1/M2 (2.2 §3.3).</p>
+<p><strong>E-12 — Se adelanta a lo que necesito (anticipación)</strong> · M3 · Caps 8, 1, 5, 9
+Cuarto componente del momento mágico. AURA ofrece, sin que se lo pidan, una acción o aviso útil y oportuno (dentro de la lista verde D4). <strong>Definición operativa de "anticipación" (propuesta †, cumpliendo la remisión de 2.1 §5):</strong> una acción proactiva es válida cuando (a) no fue solicitada, (b) es pertinente al contexto y al momento, (c) el usuario la valora como útil y (d) respeta los permisos de la D4. Su <strong>umbral</strong> —frecuencia diaria y tasa tolerable de falsos positivos— lo fija 2.5; 2.3 aporta el criterio y los escenarios.</p>
+<p><strong>E-13 — AURA sin internet (modo degradado)</strong> · transversal · Caps 1, 2 (locales)
+Sin conectividad, AURA conserva las funciones que no dependen de la nube (memoria local, comandos locales) en <strong>modo degradado</strong>; las funciones frontier (los 3 LLMs de nube) quedan suspendidas hasta reconectar. La operación offline plena llega con los modelos locales del Release 2 (2.1 §1; ADR-0001; 2.2 §5). Verifica que AURA no es "un servicio en la nube de terceros" (anti-visión 2.1 §3.4).</p>
+<p><strong>E-14 — Recordatorios y monitoreo de bajo riesgo</strong> · M2/M3 · Caps 5, 9, 1
+AURA recuerda compromisos, monitorea condiciones y avisa —todas acciones de lista verde D4 (recordatorios, monitoreo, consultas). Base cotidiana de utilidad de bajo riesgo.</p>
+<h2 id="4-anti-casos-de-uso-lo-que-aura-no-hara-en-el-mvp">4. Anti-casos de uso (lo que AURA no hará en el MVP)</h2>
+<p>Derivan de la anti-visión (2.1 §3), las exclusiones del MVP (2.2 §4) y la lista roja de la D4. No son limitaciones a medir en 2.5, sino <strong>fronteras de producto</strong>.</p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Anti-caso</th>
+<th>Por qué queda fuera</th>
+<th>Fuente</th>
+<th>Se resuelve en</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AC-01</td>
+<td>Ejecutar una acción de lista roja sin confirmación humana</td>
+<td>Prohibido; toda acción crítica auditable y reversible</td>
+<td>D4 + D9</td>
+<td>5.3</td>
+</tr>
+<tr>
+<td>AC-02</td>
+<td>Construir perfiles o historiales de terceros (convivientes, visitas)</td>
+<td>AURA no vigila a personas distintas de su usuario</td>
+<td>Anti-visión 2.1 §3.5</td>
+<td>2.4 y Libro V</td>
+</tr>
+<tr>
+<td>AC-03</td>
+<td>Simular afecto o fomentar dependencia para retener al usuario</td>
+<td>No sustituye relaciones humanas; transparente sobre su naturaleza</td>
+<td>Anti-visión 2.1 §3.6</td>
+<td>2.4 (frontera operativa)</td>
+</tr>
+<tr>
+<td>AC-04</td>
+<td>Adular o complacer contra su criterio</td>
+<td>Jamás aduladora; dice la verdad aunque contradiga al usuario</td>
+<td>D6 · anti-visión 2.1 §3.2</td>
+<td>2.4</td>
+</tr>
+<tr>
+<td>AC-05</td>
+<td>Sacar datos privados del control del usuario fuera de los 4 usos autorizados</td>
+<td>Viola la frontera local-first</td>
+<td>D1 · ADR-0001</td>
+<td>5.5</td>
+</tr>
+<tr>
+<td>AC-06</td>
+<td>Controlar NAS, Docker, redes o Android; agregar sus notificaciones</td>
+<td>Fuera del MVP; único objetivo de control es el computador principal</td>
+<td>2.2 §4.4 (Release 2)</td>
+<td>R2</td>
+</tr>
+<tr>
+<td>AC-07</td>
+<td>Cámaras y visión del entorno</td>
+<td>Excluido del MVP</td>
+<td>2.2 §4.5 (Release 4)</td>
+<td>R4</td>
+</tr>
+<tr>
+<td>AC-08</td>
+<td>Seguridad activa / defensa proactiva del ecosistema</td>
+<td>Excluido del MVP</td>
+<td>2.2 §4.1 (Release 3)</td>
+<td>R3</td>
+</tr>
+<tr>
+<td>AC-09</td>
+<td>Operar para un segundo usuario</td>
+<td>El MVP sirve solo a Mauricio; multiusuario operativo es post-MVP</td>
+<td>D5 · 2.2 §4.2</td>
+<td>R3</td>
+</tr>
+<tr>
+<td>AC-10</td>
+<td>Automatizaciones "sugeridas" por AURA en M2</td>
+<td>En M2 solo las definidas por el usuario; las sugeridas llegan en M3 con 4.4</td>
+<td>2.2 §1 cap 5 · §3.1</td>
+<td>M3 / 4.4</td>
+</tr>
+</tbody>
+</table>
+<h2 id="5-matriz-escenario-capacidad-las-9-de-22-1">5. Matriz escenario → capacidad (las 9 de 2.2 §1)</h2>
+<p><strong>X</strong> = capacidad primaria del escenario · <strong>·</strong> = secundaria. Columnas: las 9 capacidades del acta D2 en el orden de 2.2 §1.</p>
+<table>
+<thead>
+<tr>
+<th>Escenario</th>
+<th>Hito</th>
+<th>1 Mem</th>
+<th>2 Voz</th>
+<th>3 Avatar</th>
+<th>4 Comp</th>
+<th>5 Autom</th>
+<th>6 3 LLMs</th>
+<th>7 Hogar</th>
+<th>8 Aprend</th>
+<th>9 Notif</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>E-01</td>
+<td>M1</td>
+<td>X</td>
+<td>X</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>E-02</td>
+<td>M1</td>
+<td>·</td>
+<td>X</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>E-03</td>
+<td>M1</td>
+<td>·</td>
+<td>·</td>
+<td></td>
+<td></td>
+<td></td>
+<td>X</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>E-04</td>
+<td>M1→M3</td>
+<td>·</td>
+<td>X</td>
+<td></td>
+<td></td>
+<td></td>
+<td>X</td>
+<td></td>
+<td>·</td>
+<td></td>
+</tr>
+<tr>
+<td>E-05</td>
+<td>M2</td>
+<td></td>
+<td>·</td>
+<td></td>
+<td>X</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>E-06</td>
+<td>M2</td>
+<td></td>
+<td></td>
+<td></td>
+<td>·</td>
+<td>X</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>E-07</td>
+<td>M2</td>
+<td></td>
+<td></td>
+<td></td>
+<td>·</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td>X</td>
+</tr>
+<tr>
+<td>E-08</td>
+<td>M2</td>
+<td></td>
+<td></td>
+<td></td>
+<td>X</td>
+<td>·</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>E-09</td>
+<td>M3</td>
+<td></td>
+<td>·</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td>X</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>E-10</td>
+<td>M3</td>
+<td></td>
+<td>·</td>
+<td>X</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>E-11</td>
+<td>M3</td>
+<td>·</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td>X</td>
+<td></td>
+</tr>
+<tr>
+<td>E-12</td>
+<td>M3</td>
+<td>·</td>
+<td></td>
+<td></td>
+<td></td>
+<td>·</td>
+<td></td>
+<td></td>
+<td>X</td>
+<td>·</td>
+</tr>
+<tr>
+<td>E-13</td>
+<td>transv</td>
+<td>X</td>
+<td>·</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>E-14</td>
+<td>M2/M3</td>
+<td>·</td>
+<td></td>
+<td></td>
+<td></td>
+<td>X</td>
+<td></td>
+<td></td>
+<td></td>
+<td>·</td>
+</tr>
+</tbody>
+</table>
+<p><em>Cobertura: las 9 capacidades tienen al menos un escenario primario. E-08 es transversal (HITL sobre acciones reales); E-13 muestra el subconjunto operativo sin nube.</em></p>
+<h2 id="6-insumos-de-cada-escenario-a-las-metricas-25">6. Insumos de cada escenario a las métricas (2.5)</h2>
+<p>Reparto de 2.1 §5 (capítulo aprobado): <em>"Sus umbrales cuantitativos, el protocolo de evaluación y quién mide se fijan en 2.5; 2.3 aporta los escenarios de contexto"</em>. Esta tabla lista, por escenario, <strong>qué debe poder medirse</strong> —sin proponer valor alguno.</p>
+<table>
+<thead>
+<tr>
+<th>Escenario</th>
+<th>Criterio-marco (2.1 §5)</th>
+<th>Insumo a 2.5 (magnitud a medir, sin umbral)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>E-01</td>
+<td>CM2 · Memoria a semanas</td>
+<td>Ventana real (semanas); tasa de recuperación de temas; tasa de re-explicación (fracaso si supera lo tolerable)</td>
+</tr>
+<tr>
+<td>E-02</td>
+<td>CM1 · Conversación</td>
+<td>Latencia de voz extremo a extremo; fluidez de turnos; barge-in</td>
+</tr>
+<tr>
+<td>E-03</td>
+<td>Habilita CM1/CM2</td>
+<td>Correctitud de enrutamiento; latencia y tasa de fallback entre los 3 proveedores</td>
+</tr>
+<tr>
+<td>E-04</td>
+<td>CM1 + aprendizaje</td>
+<td>Continuidad del hilo entre sesiones; señales de estilo capturadas</td>
+</tr>
+<tr>
+<td>E-05</td>
+<td>CM3 · Acciones reales</td>
+<td>Tasa de éxito de acciones sobre el computador; tasa de error/rollback</td>
+</tr>
+<tr>
+<td>E-06</td>
+<td>CM3</td>
+<td>Automatizaciones ejecutadas correctamente; falsos disparos</td>
+</tr>
+<tr>
+<td>E-07</td>
+<td>CM3</td>
+<td>Cobertura de fuentes; precisión de priorización; reducción de ruido</td>
+</tr>
+<tr>
+<td>E-08</td>
+<td>CM3 + HITL (D9)</td>
+<td>% de acciones de lista roja detenidas y confirmadas; auditabilidad/reversibilidad; falsos negativos = crítico</td>
+</tr>
+<tr>
+<td>E-09</td>
+<td>CM3</td>
+<td>Tasa de éxito de comandos de hogar vía Home Assistant</td>
+</tr>
+<tr>
+<td>E-10</td>
+<td>Soporte de presencia</td>
+<td>Sincronía avatar-conversación; percepción de presencia</td>
+</tr>
+<tr>
+<td>E-11</td>
+<td>Aprendizaje</td>
+<td>Aciertos de preferencia que mejoran con el uso; regresiones</td>
+</tr>
+<tr>
+<td>E-12</td>
+<td>CM4 · Anticipación</td>
+<td>Acciones proactivas valoradas por día; tasa de falsos positivos; pertinencia</td>
+</tr>
+<tr>
+<td>E-13</td>
+<td>Modo degradado</td>
+<td>Conjunto de capacidades operativas sin conectividad (define el "conjunto mínimo offline" que 2.2 §5 remite a 3.6/4.2 para R2)</td>
+</tr>
+<tr>
+<td>E-14</td>
+<td>CM3</td>
+<td>Cumplimiento de recordatorios; oportunidad de los avisos</td>
+</tr>
+</tbody>
+</table>
+<p><em>Los cuatro </em><em>fracasos explícitos</em><em> de 2.1 §5 se observan en: re-explicación (E-01), dato fuera de control / offline (E-05, E-13, AC-05), dependencia o afecto simulado (E-10, E-12 → frontera en 2.4) y acción de lista roja sin confirmación (E-08).</em></p>
+<h2 id="7-criterios-de-exito-del-mvp-en-contexto-marco-umbrales-25">7. Criterios de éxito del MVP en contexto (marco; umbrales → 2.5)</h2>
+<p>El MVP no se declara terminado por completar features, sino por <strong>sostener el momento mágico en uso real</strong> (2.2 §2, ventana de aceptación §3.4). Momento mágico (acta D2, texto del CEO): <em>"mantener conversaciones naturales, recordar semanas después cualquier tema tratado, ejecutar acciones reales y anticiparse a mis necesidades"</em>. Sus cuatro componentes se observan en escenarios ancla:</p>
+<table>
+<thead>
+<tr>
+<th>Componente del momento mágico (D2)</th>
+<th>Criterio-marco (2.1 §5)</th>
+<th>Escenario(s) ancla</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Conversaciones naturales</td>
+<td>CM1</td>
+<td>E-02 (soporte: E-04)</td>
+</tr>
+<tr>
+<td>Recordar semanas después</td>
+<td>CM2</td>
+<td>E-01</td>
+</tr>
+<tr>
+<td>Ejecutar acciones reales</td>
+<td>CM3</td>
+<td>E-05, E-06, E-08, E-09, E-14</td>
+</tr>
+<tr>
+<td>Anticiparse a las necesidades</td>
+<td>CM4</td>
+<td>E-12</td>
+</tr>
+</tbody>
+</table>
+<p>El <strong>veredicto de éxito</strong> lo emite el CEO en el gate de hito y de R1 con los umbrales de 2.5 (2.2 §3.2). La <strong>zona intermedia</strong> —un resultado que no alcanza el éxito ni activa el fracaso— la adjudica el CEO (2.1 §5). Este capítulo fija las <strong>situaciones observables</strong>, no las cifras.</p>
+<h2 id="decisiones-tomadas">Decisiones tomadas</h2>
+<ul>
+<li>Perfil (§1) e inventario (§2) se entregan como <strong>plantillas †</strong> a completar por el CEO; el redactor no infiere datos personales de Mauricio (acta D5 fija el usuario único).</li>
+<li>El inventario es el <strong>anexo mandatado por 2.2 §6</strong> que valida los cuatro supuestos de entorno; su invalidación <strong>dispara el circuito de fracaso de hito (2.2 §3.5)</strong>.</li>
+<li>14 escenarios prioritarios propuestos † ordenados por valor (§3), que cubren las 9 capacidades (2.2 §1) y los cuatro componentes del momento mágico (acta D2).</li>
+<li>Definición operativa de "anticipación" † (§3, E-12) que cumple la remisión de 2.1 §5; su umbral se delega a 2.5.</li>
+<li>Anti-casos de uso (§4), matriz escenario→capacidad (§5) e insumos a 2.5 (§6): todos propuesta †.</li>
+<li><strong>Ningún umbral se fija aquí</strong> (reparto de 2.1 §5). Todo el capítulo queda sujeto al gate del CEO.</li>
+</ul>
+<h3 id="decisiones-aplicables-adrs">Decisiones aplicables (ADRs)</h3>
+<ul>
+<li><a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001 — Postura local-first estricta</a> (<code>accepted</code>): gobierna el registro de residencia de datos del inventario (§2), el modo degradado sin conectividad (E-13) y la frontera de privacidad de todos los escenarios (AC-05).</li>
+<li><a href="../../adr/0004-evolucion-permanente.html">ADR-0004 — Evolución Permanente</a> (<code>accepted</code>): el catálogo de escenarios es <strong>abierto y ampliable</strong> (D10, sistema vivo) — nuevos escenarios se incorporan sin invalidar los existentes ni el diseño que dependa de ellos.</li>
+</ul>
+<h2 id="riesgos">Riesgos</h2>
+<ul>
+<li><strong>Plantillas sin completar:</strong> si el CEO no llena perfil e inventario, los escenarios quedan genéricos y M3 no puede cerrarse. Mitigación: son entradas explícitas del gate.</li>
+<li><strong>Supuestos de entorno no cumplidos</strong> (Home Assistant, audio, conectividad): disparan el circuito de fracaso de 2.2 §3.5 (§2).</li>
+<li><strong>Sobre-promesa de anticipación:</strong> falsos positivos molestos degradan la confianza; el umbral y la tasa tolerable los fija 2.5 (E-12).</li>
+<li><strong>Escenarios tratados como requisitos con umbral:</strong> riesgo de invadir el alcance de 2.5. Mitigación: el §6 lista magnitudes, no valores.</li>
+<li><strong>Deriva hacia datos inventados:</strong> la tentación de "rellenar" el perfil se mitiga con la disciplina † y las plantillas explícitamente vacías.</li>
+</ul>
+<h2 id="dependencias">Dependencias</h2>
+<p>Capítulos (frontmatter): <strong>2.1</strong> (Aprobado, v1.1.0) — visión, anti-visión y criterios-marco. Además, este capítulo se apoya normativamente en <strong>2.2</strong> (Aprobado) — de donde toma las 9 capacidades (§1), el momento mágico (§2), los hitos M1-M3, las exclusiones (§4) y el mandato del inventario (§6). <strong>Alimenta:</strong> 2.4 (fronteras de afecto y captación incidental que aquí se remiten), 2.5 (recibe los insumos del §6), 4.4 (aprendizaje/anticipación), 5.3 (autonomía/HITL) y los capítulos de capacidad 6.2-6.5, 4.1 y 4.2.</p>
+<h2 id="proximos-pasos">Próximos pasos</h2>
+<ul>
+<li>Gate del CEO: completar perfil (§1) e inventario (§2) y ratificar o corregir los 14 escenarios †, los anti-casos, la matriz y los insumos.</li>
+<li>Con el inventario validado: verificar los cuatro supuestos de 2.2 §6 <strong>antes</strong> de cerrar el diseño de M3.</li>
+<li>Tras la aprobación: 2.5 consume los insumos del §6 para fijar umbrales; 2.4 resuelve las remisiones de afecto y captación incidental de los anti-casos.</li>
+</ul>
+<h2 id="referencias-cruzadas">Referencias cruzadas</h2>
+<ul>
+<li><a href="../../decisiones/2026-07-17-acta-decisiones-fundacionales.html">Acta de Decisiones (D2, D4, D5, D6, D9)</a> · <a href="../../decisiones/2026-07-16-brief-fundacional.html">Brief Fundacional</a></li>
+<li><a href="2.1-vision-mision-anti-vision.html">2.1 Visión (v1.1.0)</a> · <a href="2.2-alcance-mvp-roadmap-releases.html">2.2 Alcance del MVP</a></li>
+<li><a href="../libro-01-gobernanza-y-metodo/1.1-constitucion-roles-autoridad.html">Constitución 1.1 (v1.3.0)</a> · <a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001</a> · <a href="../../adr/0004-evolucion-permanente.html">ADR-0004</a> · <a href="../../INDICE.html">Índice maestro</a></li>
+<li>Capítulos destino: 2.4 (ética y fronteras), 2.5 (métricas), 4.4 (aprendizaje), 5.3 (autonomía/HITL), 6.2-6.5 · Memoria/Orquestación: 4.1, 4.2</li>
+</ul>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

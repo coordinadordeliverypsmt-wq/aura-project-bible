@@ -2,7 +2,7 @@
 
 **Fuente oficial de verdad del proyecto AURA** — AURA Labs.
 
-AURA es un compañero de Inteligencia Artificial personal: memoria de años, conversación por voz, avatar interactivo, orquestación multi-modelo, automatización y control del ecosistema digital y del hogar. No es un chatbot. Su horizonte: convertirse en un sistema operativo cognitivo.
+AURA es un **Sistema Operativo de Inteligencia Personal (Personal Intelligence Operating System — PIOS)** (acta D18): el núcleo inteligente del ecosistema digital del usuario, que integra modelos de IA, automatizaciones, dispositivos, memoria, conocimiento y servicios externos bajo una única arquitectura modular, segura y evolutiva. No es un asistente virtual ni un chatbot. Su cara experiencial es la de un compañero cognitivo: memoria de años, conversación por voz, avatar interactivo y orquestación multi-modelo.
 
 Regla de oro del proyecto: **nada se implementa sin estar diseñado y documentado aquí primero.** La Bible cambia antes que el código.
 

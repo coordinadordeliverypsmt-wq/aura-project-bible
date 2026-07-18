@@ -1,0 +1,98 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Plataforma de generación del sitio documental de la Bible — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="../index.html">← Índice de la Bible</a></p><div class="meta"><b>estado</b>: accepted · <b>fecha</b>: 2026-07-17 · <b>fecha-resolucion</b>: 2026-07-18</div>
+<h1 id="adr-0002-plataforma-de-generacion-del-sitio-documental-de-la-bible">ADR-0002 — Plataforma de generación del sitio documental de la Bible</h1>
+<h2 id="contexto">Contexto</h2>
+<p>El acta D8 (rango 1) aprobó <strong>Git + Markdown</strong> como plataforma documental y ordenó que la documentación <em>"deberá poder convertirse automáticamente en sitio web con MkDocs Material o Docusaurus (elección pendiente — se resolverá vía ADR con las 4 opciones de nivel)"</em>. El acta D12 añadió que, al aprobarse un documento, <em>"se generan automáticamente su versión Markdown, PDF y HTML navegable, y se actualiza el índice de la Bible"</em>, e impactó explícitamente <code>herramientas/publicar.py</code>.</p>
+<p>Hoy existe un publicador propio ya operativo (<code>herramientas/publicar.py</code>) que satisface el mínimo del D12 (Markdown + PDF + HTML), pero <strong>no es</strong> ninguno de los dos generadores que el CEO nombró en el D8 y carece de búsqueda, de navegación jerárquica y de render de diagramas. Este ADR resuelve, en los cuatro niveles del acta D3, con qué plataforma se genera el sitio definitivo de la Bible. La decisión de fondo (qué nivel) <strong>corresponde al CEO</strong> (D3: <em>"el CEO decidirá cuál implementar"</em>); este ADR presenta las alternativas reales y la recomendación argumentada del proponente.</p>
+<p><em>Formato de alternativas:</em> <strong>aplican</strong> los 4 niveles del acta D3 (Económica · Balanceada · Profesional · Enterprise), porque la decisión llega al CEO con opciones de implementación reales.</p>
+<h2 id="alternativas-consideradas">Alternativas consideradas</h2>
+<h3 id="a-economica-mantener-el-publicador-actual-herramientaspublicarpy">A. Económica — mantener el publicador actual <code>herramientas/publicar.py</code></h3>
+<p>Descripción (tras leer el script): utilidad Python 3 (mandato D12) que ya opera. Recorre <code>decisiones/*.md</code>, <code>adr/*.md</code>, <code>docs/*/*.md</code>, <code>INDICE.md</code>, <code>README.md</code> y <code>CHANGELOG.md</code>; publica solo los documentos <code>Aprobado</code>/<code>Vinculante</code>/<code>accepted</code> (excluye la plantilla de ADR). Convierte Markdown a HTML con <code>python3-markdown</code> (extensiones <code>tables</code>, <code>fenced_code</code>, <code>toc</code>), reescribe los enlaces <code>.md</code>→<code>.html</code>, incrusta una hoja CSS serif, genera un <code>index.html</code> navegable agrupado por carpeta y produce el PDF de cada documento vía Chrome headless (<code>--print-to-pdf</code>). Invocación manual: <code>python3 herramientas/publicar.py [--sin-pdf]</code>.</p>
+<p>Pros: costo cero; <strong>ya operativo</strong>; sin dependencias nuevas más allá de <code>python3-markdown</code> y Chrome; 100% local y estático (refuerza el ADR-0001); control total del pipeline; cubre el mínimo del D12 (MD + PDF + HTML + índice).
+Contras: <strong>no es</strong> lo que el D8 nombró para el sitio (<em>"MkDocs Material o Docusaurus"</em>); sin búsqueda; navegación plana (índice por carpeta, sin sidebar jerárquico); <strong>no renderiza Mermaid</strong> (los diagramas quedan como bloques de código); sin versionado de sitio; estilo básico; mantenimiento manual del script.</p>
+<h3 id="b-balanceada-mkdocs-material">B. Balanceada — MkDocs Material</h3>
+<p>Generador de sitios estáticos en Python. Navegación jerárquica automática, búsqueda cliente integrada, render de Mermaid (vía <code>pymdownx.superfences</code>/plugin), tema accesible con modo claro/oscuro, permalinks. Configuración declarativa (<code>mkdocs.yml</code>); build/serve local y estático. Versionado de sitio disponible con <code>mike</code> si se requiere.</p>
+<p>Pros: es <strong>uno de los dos generadores que el CEO nombró</strong> (D8); permanece en el stack Python ya presente (<code>python3-markdown</code>), con curva de adopción mínima; búsqueda + navegación + Mermaid <strong>de fábrica</strong>; 100% local y estático (compatible con ADR-0001, sin servicios externos); bajo mantenimiento, <strong>sostenible por el equipo real</strong> (ADR-0004 regla 13).
+Contras: introduce la dependencia MkDocs + plugins; el PDF deja de ser nativo (se conserva <code>publicar.py --sin-pdf</code> para PDF, o se añade un plugin); una migración inicial de layout.</p>
+<h3 id="c-profesional-docusaurus">C. Profesional — Docusaurus</h3>
+<p>Generador React/Node. MDX (componentes dentro de la documentación), <strong>versionado nativo de documentación</strong>, i18n, tema personalizable, búsqueda local o Algolia.</p>
+<p>Pros: es <strong>el otro generador que el CEO nombró</strong> (D8); versionado nativo de docs alineado con el SemVer por documento del D8; ecosistema de plugins; escalable a un sitio público con marca.
+Contras: introduce una toolchain <strong>Node/npm ajena al stack Python</strong> actual (más superficie de mantenimiento para un equipo de 1 humano — tensión con ADR-0004 regla 13); MDX puede acoplar el contenido a componentes; mayor complejidad de build.</p>
+<h3 id="d-enterprise-docusaurus-versionado-busqueda-ci">D. Enterprise — Docusaurus + versionado + búsqueda + CI</h3>
+<p>Docusaurus con: versionado de docs activado (una versión publicada por versión mayor de la Bible), búsqueda (Algolia hospedada o índice local offline) y un pipeline CI que construye y despliega en cada merge, con verificación automática de enlaces rotos y de la Definition of Done (1.4 §8).</p>
+<p>Pros: publicación reproducible y <strong>automatizada</strong>; docs versionadas navegables; búsqueda de calidad; control de calidad continuo. Es la lectura literal más fiel del D3 (<em>"prioriza calidad y escalabilidad"</em>).
+Contras: <strong>máxima</strong> complejidad operativa y de mantenimiento; la búsqueda Algolia hospedada implica un servicio externo (tensión con ADR-0001, salvo usar búsqueda local); CI/CD exige infraestructura y disciplina; <strong>sobredimensionado</strong> para la fase documental actual (un solo autor humano) — choca con la salvaguarda anti-sobre-ingeniería (ADR-0004 regla 13) sin un caso de evolución hoy documentado.</p>
+<h3 id="recomendacion-del-proponente-fable-cto">Recomendación del proponente (Fable, CTO)†</h3>
+<p><strong>Nivel Balanceado — MkDocs Material</strong> como elección inmediata, conservando <code>herramientas/publicar.py</code> como utilidad complementaria para el PDF del D12 mientras se migra. Argumento:</p>
+<ol>
+<li><strong>Honra el D8 al pie de la letra:</strong> es uno de los dos generadores que el CEO nombró.</li>
+<li><strong>Permanece en el stack Python</strong> ya presente, con curva de adopción mínima y mantenimiento sostenible por el equipo real (ADR-0004 regla 13).</li>
+<li><strong>Resuelve las tres carencias del publicador actual</strong> (alternativa A): búsqueda, navegación jerárquica y render de Mermaid — mejorando la legibilidad humana e IA que exige el D13.</li>
+<li><strong>Es 100% local y estático:</strong> refuerza el ADR-0001 (sin servicios externos ni telemetría de terceros).</li>
+<li><strong>Deja un camino de evolución documentado</strong> hacia Profesional/Enterprise (Docusaurus + versionado + búsqueda + CI) para cuando se materialice un disparador concreto —publicación pública de la Bible, varias versiones mayores vivas en paralelo, o colaboradores externos—, respetando la Evolución Permanente (ADR-0004) sin pagar hoy su costo.</li>
+</ol>
+<p>Sobre el D3: aunque el acta no fija techo presupuestal y prioriza calidad/escalabilidad, la salvaguarda anti-sobre-ingeniería que el CEO aprobó en el gate D2 (ADR-0004 regla 13) fija la <strong>sostenibilidad</strong> como criterio de desempate; por eso el proponente recomienda B y no D. La decisión final es del CEO: <em>"el CEO decidirá cuál implementar"</em> (D3).</p>
+<h2 id="decision">Decisión</h2>
+<p><strong>Aceptada por el CEO (2026-07-18): Nivel Balanceado — MkDocs Material</strong> como estándar documental del proyecto. Criterios del CEO: local-first; integración nativa con Python; excelente navegación y búsqueda; soporte para Mermaid; bajo costo de mantenimiento; posibilidad de migración futura sin afectar la documentación. Se conserva <code>herramientas/publicar.py</code> como herramienta transitoria del D12 (generación de PDF) hasta que MkDocs cubra ese punto. El contenido permanece en Markdown plano, sin lock-in del generador (coherente con D19: migración futura sin rediseño).</p>
+<h2 id="consecuencias">Consecuencias</h2>
+<p><strong>Positivas (nivel recomendado B):</strong> sitio con búsqueda, navegación y diagramas renderizados; se cumple el D8 con mínima deuda técnica; el contenido sigue siendo Markdown plano versionable (sin lock-in del generador).
+<strong>Negativas:</strong> una dependencia de build nueva (MkDocs + plugins) y una migración inicial; el PDF requiere ruta propia hasta consolidarse.
+<strong>Riesgos aceptados:</strong> si en el futuro se necesita versionado de docs o publicación pública automatizada, habrá que evolucionar a C/D mediante un ADR nuevo (previsto como camino documentado, no como límite artificial). Si el CEO elige D, se asume el mayor costo de mantenimiento y, de usar Algolia hospedada, se debe preferir búsqueda local para no tensar el ADR-0001.</p>
+<h2 id="impacto-acta-d11-obligatorio">Impacto (acta D11 — obligatorio)</h2>
+<p>Evaluación del <strong>nivel recomendado (B, MkDocs Material)</strong>; entre paréntesis, la variación relevante del nivel Enterprise (D).</p>
+<table>
+<thead>
+<tr>
+<th>Dimensión</th>
+<th>Impacto</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Seguridad</td>
+<td>Positivo: sitio estático local, sin backend ni superficie de ataque nueva (D: el CI y Algolia hospedada añaden superficie e integraciones externas a asegurar).</td>
+</tr>
+<tr>
+<td>Privacidad</td>
+<td>Positivo: 100% local, sin telemetría de terceros; refuerza ADR-0001 (D: Algolia hospedada enviaría el índice a un tercero — usar búsqueda local para mantener la postura).</td>
+</tr>
+<tr>
+<td>Modularidad</td>
+<td>Neutro/positivo: el contenido sigue en Markdown plano, desacoplado del generador; cambiar de generador no reescribe los documentos.</td>
+</tr>
+<tr>
+<td>Costo</td>
+<td>Muy bajo: herramienta libre, sin infraestructura; esfuerzo de migración acotado (D: costo alto de montaje y operación de CI + búsqueda).</td>
+</tr>
+<tr>
+<td>Experiencia de usuario</td>
+<td>Positivo alto: búsqueda, navegación jerárquica y Mermaid renderizado mejoran la legibilidad humana/IA (D13); (D añade docs versionadas y despliegue automático).</td>
+</tr>
+<tr>
+<td>Mantenimiento futuro</td>
+<td>Positivo controlado: bajo mantenimiento, sostenible por el equipo real (ADR-0004 regla 13); (D aumenta el mantenimiento con la toolchain Node + CI).</td>
+</tr>
+</tbody>
+</table>
+<h2 id="trazabilidad">Trazabilidad</h2>
+<p>Capítulos a actualizar: <strong>1.4</strong> (este capítulo referencia el ADR como propuesta y nace citándolo; al aceptarse, 1.4 registrará la plataforma elegida en su "Decisiones aplicables"). Herramienta afectada: <code>herramientas/publicar.py</code> (es la totalidad de la alternativa A; en B/C/D pasa a utilidad complementaria de PDF o se retira según lo decida el CEO). Módulos de código afectados (futuro): "—" mientras no exista código de producto.</p>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

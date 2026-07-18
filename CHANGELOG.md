@@ -2,6 +2,23 @@
 
 Versionado documental con [Semantic Versioning](https://semver.org/lang/es/). La v1.0.0 corresponderá a la Bible cerrada según el criterio del capítulo 1.1.
 
+## [0.10.0] — 2026-07-18
+
+### Hito
+- **Ola 1 de la Fase D2 APROBADA por el CEO:** capítulos 1.3, 1.4, 1.5, 2.3 y 2.4 (v1.0.0). Progreso P1: 5/28.
+
+### Agregado (actas)
+- **D18 — AURA es un Sistema Operativo de Inteligencia Personal (PIOS)**: no un asistente virtual. Redefinición primaria del producto.
+- **D19 — Naturaleza:** personal de largo plazo con arquitectura comercial-escalable y desacoplada (resuelve 1.5 §5).
+- **D20 — Horizonte mínimo de 10 años** en toda decisión de arquitectura.
+- **D21 — Cinco preguntas de largo plazo**; si alguna es negativa, el CTO genera una Alerta de Arquitectura.
+
+### Cambiado (enmiendas)
+- **2.1 → v2.0.0 (enmienda MAYOR por D18):** definición primaria = PIOS; "compañero cognitivo" pasa a cara experiencial; anti-visión añade "no es un asistente virtual"; horizontes reencuadrados como madurez del PIOS. Título → "Definición, Visión, Misión y Anti-Visión".
+- **3.1 → v1.2.0:** nueva §2.5 con el horizonte de 10 años (D20) y las cinco preguntas de largo plazo (D21).
+- **1.5:** §5 resuelta con D19 (default prudente permanente).
+- **ADR-0002 `accepted`:** MkDocs Material como estándar documental (criterios del CEO).
+
 ## [0.9.0] — 2026-07-18
 
 ### Agregado

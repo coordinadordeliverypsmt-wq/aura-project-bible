@@ -1,6 +1,6 @@
 ---
 documento: "Acta de Decisiones Fundacionales"
-version: 1.4.0
+version: 1.5.0
 autor: "Mauricio (CEO) — registrada por Fable (CTO)"
 fecha: 2026-07-17
 estado: "Vinculante"
@@ -20,6 +20,9 @@ historial:
   - version: 1.4.0
     fecha: 2026-07-17
     cambio: "D16 (estructura obligatoria de 10 secciones de la Alerta de Arquitectura) y D17 (CEO Executive Summary por fase) agregadas por el CEO en el gate de la Fase D2"
+  - version: 1.5.0
+    fecha: 2026-07-18
+    cambio: "D18 (AURA = PIOS), D19 (naturaleza personal con arquitectura comercial-escalable), D20 (horizonte 10 años) y D21 (las cinco preguntas de largo plazo) agregadas por el CEO en el gate de la Ola 1 de la Fase D2"
 ---
 
 # Acta de Decisiones Fundacionales — 2026-07-17
@@ -119,6 +122,26 @@ Toda ALERTA DE ARQUITECTURA deberá incluir obligatoriamente, en este orden: **(
 
 Al finalizar cada fase importante, el CTO generará un documento **CEO Executive Summary** que sintetice, en lenguaje ejecutivo, lo decidido, lo construido, los riesgos vivos y lo pendiente de la fase.
 *Impacta: 1.3 (cierre de fase), `resumenes-ejecutivos/`.*
+
+## D18 — AURA es un Sistema Operativo de Inteligencia Personal (PIOS) (2026-07-18, gate Ola 1 D2)
+
+AURA **no** será definida como un asistente virtual. AURA será definida como un **Sistema Operativo de Inteligencia Personal (Personal Intelligence Operating System — PIOS)**. Toda decisión de arquitectura, documentación y desarrollo deberá alinearse con esta definición. El objetivo de AURA es convertirse en el **núcleo inteligente del ecosistema digital del usuario**, integrando modelos de IA, automatizaciones, dispositivos, memoria, conocimiento y servicios externos bajo una única arquitectura **modular, segura y evolutiva**.
+*Impacta: 2.1 (definición primaria — enmienda a v2.0.0), README, y el encuadre de todo capítulo. El "compañero cognitivo" pasa a ser la cara experiencial del PIOS.*
+
+## D19 — Naturaleza del proyecto: personal hoy, arquitectura comercial-escalable (2026-07-18)
+
+AURA nace como proyecto **personal de largo plazo**, pero su arquitectura se diseña con **visión comercial y escalable**. Ninguna decisión técnica podrá limitar una futura evolución hacia producto comercial, empresarial u open source parcial. Toda la arquitectura debe permanecer **desacoplada** para permitir cualquiera de esos escenarios sin rediseños mayores. (Resuelve la pregunta abierta de 1.5 §5; el "default prudente" de licencias se vuelve permanente.)
+*Impacta: 1.5 §5 (resuelta), 3.6 (stack sin lock-in), toda selección de licencias/dependencias.*
+
+## D20 — Horizonte mínimo de 10 años en toda decisión de arquitectura (2026-07-18)
+
+Toda decisión de arquitectura se evaluará pensando en un horizonte mínimo de **10 años**. No se aceptarán optimizaciones que comprometan la escalabilidad, la mantenibilidad o la independencia tecnológica del proyecto.
+*Impacta: 3.1 §2 (criterio de evaluación), todo ADR.*
+
+## D21 — Las cinco preguntas de largo plazo (2026-07-18)
+
+Toda decisión deberá responder, antes de aprobarse: (1) ¿Escala durante los próximos 10 años? · (2) ¿Reduce la dependencia de un proveedor? · (3) ¿Permite sustituir tecnologías sin rediseñar el sistema? · (4) ¿Puede mantenerse por un equipo pequeño? · (5) ¿Contribuye a que AURA sea un sistema vivo y evolutivo? Si **alguna respuesta es negativa**, el CTO deberá generar una **ALERTA DE ARQUITECTURA** antes de continuar.
+*Impacta: 3.1 §2.3 (checklist de evaluación), 1.2 (criterio de todo ADR), mecanismo de alertas D15/D16.*
 
 ## Autorización
 

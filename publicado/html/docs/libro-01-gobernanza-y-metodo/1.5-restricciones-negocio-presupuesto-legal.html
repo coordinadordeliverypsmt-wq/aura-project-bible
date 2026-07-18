@@ -1,0 +1,168 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Restricciones de Negocio: Presupuesto, Legal y Licencias — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.0.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-17 · <b>fecha_aprobacion</b>: 2026-07-18 · <b>autor</b>: Fable (CTO, AURA Labs) · <b>responsable</b>: Fable (inventario: Haiku) · <b>prioridad</b>: P1</div>
+<h1 id="15-restricciones-de-negocio-presupuesto-legal-y-licencias">1.5 — Restricciones de Negocio: Presupuesto, Legal y Licencias</h1>
+<blockquote>
+<p><strong>Estado:</strong> Aprobado (CEO, 2026-07-18) · <strong>Prioridad:</strong> P1 · <strong>Responsable:</strong> Fable (inventario: Haiku) · <strong>Nivel:</strong> Completo</p>
+</blockquote>
+<p><em>Convención † (1.1 §4): desarrollo del CTO que se vuelve exigible con la aprobación de este capítulo — no es texto de actas del CEO.</em></p>
+<blockquote>
+<p><strong>Aviso — este capítulo no es asesoría legal.</strong> Es un marco de trabajo interno para hacer visibles restricciones económicas y legales que condicionan decisiones P0/P1. No constituye asesoría jurídica, fiscal ni contractual. Toda cuestión con efecto legal vinculante requiere asesoría profesional; este documento solo organiza qué revisar, quién lo mantiene y cuándo escalar.</p>
+</blockquote>
+<h2 id="resumen-ejecutivo">Resumen ejecutivo</h2>
+<p>Este capítulo fija tres restricciones de negocio. <strong>Presupuesto:</strong> rige la decisión textual del CEO (acta D3) — sin límite inicial, calidad y escalabilidad primero, alternativas siempre en 4 niveles y decisión del CEO — y materializa el mandato de <strong>visibilidad de costos recurrentes</strong> que 2.2 §6 remite aquí, con una estructura de reporte de costos de los 3 proveedores del MVP (OpenAI, Anthropic, Google) y umbrales de alerta propuestos †, entendidos como señales de visibilidad y <strong>no</strong> como topes de gasto. <strong>Legal:</strong> un marco de trabajo (no asesoría legal) con un inventario vivo de licencias OSS y de modelos mantenido por Haiku, un proceso de revisión de los términos de servicio de los proveedores (uso de datos, retención, restricciones de automatización), el encuadre de la propiedad intelectual del contenido generado y de la responsabilidad por acciones autónomas (anclada en las listas D4 y la auditoría D9). Además presenta formalmente al CEO una <strong>pregunta abierta bloqueante</strong>: ¿AURA es proyecto personal, open source o producto comercial futuro? — pues condiciona las licencias admisibles y el stack (3.6).</p>
+<h2 id="objetivo">Objetivo</h2>
+<p>Hacer visibles las restricciones económicas y legales que condicionan decisiones P0/P1, sin re-litigar lo ya decidido por el CEO (D3, D4, D9, D1) y marcando con rigor qué es desarrollo del CTO sujeto a este gate †. El capítulo no pretende resolver cuestiones jurídicas: pretende que ninguna decisión posterior de arquitectura, stack o integración ocurra sin que su costo recurrente y sus condiciones de licencia estén a la vista y bajo un proceso de revisión definido.</p>
+<h2 id="1-marco-de-este-capitulo-y-sus-limites">1. Marco de este capítulo y sus límites</h2>
+<ol>
+<li><strong>Presupuesto</strong> es una restricción <strong>decidida</strong> por el CEO (acta D3, rango 1): este capítulo la cita y la operativiza en visibilidad de costos, sin alterarla.</li>
+<li><strong>Legal y licencias</strong> es un <strong>marco de trabajo</strong>, no una decisión jurídica. AURA Labs no emite dictámenes legales. El capítulo define procesos (qué revisar, quién mantiene el inventario, cuándo escalar) para que el CEO decida con información; no sustituye asesoría profesional.</li>
+<li>Todo lo que en este capítulo no cite textualmente un acta o brief del CEO es <strong>desarrollo del CTO</strong> (marcado †) sujeto a la aprobación del gate. La atribución honesta es aquí especialmente crítica: el presupuesto y las listas de autonomía tienen texto del CEO; los umbrales de alerta, las fichas de inventario y los procesos de revisión son propuestas.</li>
+</ol>
+<h2 id="2-politica-presupuestal-acta-d3">2. Política presupuestal (acta D3)</h2>
+<p><strong>Texto del CEO (acta D3, rango 1, cita textual):</strong></p>
+<blockquote>
+<p><em>"Sin límite presupuestal inicial. Toda decisión técnica prioriza calidad y escalabilidad. Cuando existan alternativas, se presentarán siempre en 4 niveles — Económica · Balanceada · Profesional · Enterprise — y el CEO decidirá cuál implementar."</em></p>
+</blockquote>
+<p>Consecuencias operativas ya vigentes en la Bible (no son nuevas aquí):</p>
+<ul>
+<li>El <strong>formato de 4 niveles</strong> es obligatorio en toda decisión con alternativas que llega al CEO por gate o ADR (1.1 §4.3; 1.2 §5). Los desacuerdos internos entre agentes se resuelven en la cadena de escalamiento <strong>sin</strong> ese formato (1.1 §4.3).</li>
+<li>La <strong>excepción</strong> de los 4 niveles: cuando la decisión de fondo ya fue tomada por el CEO en acta y el ADR solo la formaliza, los 4 niveles no aplican y el ADR lo declara (1.2 §5; ejercida en ADR-0001 y ADR-0004).</li>
+<li>"Sin límite inicial" significa que <strong>el criterio de selección es calidad y escalabilidad, no costo mínimo</strong>. No autoriza gasto sin visibilidad: la §3 hace visible el costo recurrente. Cualquier <strong>tope de gasto real</strong> que llegara a limitar capacidades modificaría la D3 (rango 1) y exigiría <strong>nueva acta del CEO</strong>; este capítulo no puede introducirlo.</li>
+</ul>
+<h2 id="3-visibilidad-de-costos-recurrentes-de-los-proveedores-del-mvp-mandato-de-22-6">3. Visibilidad de costos recurrentes de los proveedores del MVP (mandato de 2.2 §6)</h2>
+<p>El capítulo 2.2 §6 (Aprobado) remite aquí de forma explícita: <em>"Visibilidad de costos recurrentes de APIs y revisión de términos de servicio → 1.5"</em>, y registra como riesgo que <em>"el MVP depende de 3 APIs de nube"</em>. Los tres proveedores son los de la <strong>capacidad 6 del MVP (acta D2):</strong> integración con <strong>ChatGPT (OpenAI), Claude (Anthropic) y Gemini (Google)</strong>. Su uso como servicio de nube está <strong>explícitamente autorizado</strong> por el uso (a) de la D1 (<em>"consultar modelos de IA"</em>), sujeto a comunicación cifrada (D1.3) y a minimización previa (regla 5 del ADR-0001, aceptada por el CEO).</p>
+<p>Esta sección responde al <strong>qué</strong> (hacer visible el costo) con una estructura de reporte y unos umbrales de alerta; ambos son propuesta del CTO †.</p>
+<h3 id="31-estructura-del-reporte-de-costos-propuesta">3.1 Estructura del reporte de costos † (propuesta)</h3>
+<p>El reporte es un <strong>artefacto operativo</strong> (no crea reglas: refleja hechos): lo mantiene <strong>Haiku</strong> y lo valida <strong>Fable</strong>, sin gate del CEO (1.1 §3.1). Se actualiza con cada ciclo de facturación. Campos propuestos:</p>
+<ul>
+<li><strong>Período</strong> y proveedor (OpenAI · Anthropic · Google).</li>
+<li><strong>Costo del período</strong> por proveedor, con desglose por <strong>modelo</strong> y por <strong>capacidad/hito del MVP</strong> que lo consume (memoria 4.1, voz 6.2, orquestación 4.2). Esto conecta el costo con el enrutamiento: alimenta las decisiones del Model Router (4.2).</li>
+<li><strong>Volumen</strong> (llamadas y tokens de entrada/salida) por proveedor, como indicador independiente del dinero.</li>
+<li><strong>Línea base móvil</strong> (p. ej. media de los últimos 3 períodos) para medir variación, no solo valor absoluto.</li>
+<li><strong>Alertas disparadas</strong> en el período y su resolución.</li>
+</ul>
+<p>El reporte <strong>no</strong> es un límite de gasto: es un instrumento de visibilidad. Su lugar de residencia y formato exactos se fijan al inicializarlo como artefacto operativo (Próximos pasos).</p>
+<h3 id="32-umbrales-de-alerta-propuestos-visibilidad-no-topes">3.2 Umbrales de alerta propuestos † (visibilidad, no topes)</h3>
+<p>Declaración expresa para no contradecir la D3: <strong>estos umbrales no son límites de gasto</strong>. Son señales de visibilidad y detección de anomalías que se elevan al CEO; por sí mismos <strong>nunca bloquean</strong> a AURA. Valores propuestos por el CTO — el CEO fija los definitivos, como hizo con la ventana de 2.2 §3.4:</p>
+<ul>
+<li><strong>Alerta informativa:</strong> el costo mensual de un proveedor supera en <strong>≥30%</strong> su línea base móvil. Objetivo: enterarse de una deriva sostenida, no reaccionar.</li>
+<li><strong>Alerta prioritaria:</strong> salto de costo diario anómalo (propuesta: <strong>≥3×</strong> el promedio diario del período). Señal típica de un <strong>bucle de agente</strong>, una fuga o un enrutamiento defectuoso; se investiga de inmediato.</li>
+<li>La respuesta a una alerta prioritaria puede requerir intervención humana, coherente con Human-in-the-Loop (P-ARQ-1, 3.1): explicable y reversible. Detener una capacidad por costo sería un <strong>tope real</strong> y, como tal, exigiría nueva acta del CEO (§2).</li>
+</ul>
+<p>El costo evaluado de cada proveedor es además insumo del principio <strong>P-ARQ-4 (ningún proveedor único, 3.1)</strong>: la definición operativa de "alternativa viable" exige <em>"licencia y costo evaluados"</em>. El reporte de esta sección es la fuente de ese dato de costo.</p>
+<h2 id="4-marco-legal-de-licencias-terminos-y-responsabilidad">4. Marco legal de licencias, términos y responsabilidad</h2>
+<p>Marco de trabajo, <strong>no asesoría legal</strong> (§1). Organiza qué se vigila y quién lo mantiene.</p>
+<h3 id="41-inventario-de-licencias-oss-y-de-modelos-anexo-vivo-mantenido-por-haiku">4.1 Inventario de licencias OSS y de modelos (anexo vivo, mantenido por Haiku)</h3>
+<p>El índice asigna a <strong>Haiku</strong> el inventario de este capítulo, coherente con su rol (mantiene artefactos operativos, no modifica contenido normativo — 1.1 §4). El inventario es un <strong>anexo vivo</strong>: un artefacto operativo que Haiku mantiene y Fable valida, sin gate del CEO, y que se corrige si contradice un documento normativo (1.1 §3.1).</p>
+<p><strong>Estructura de ficha propuesta † (una por componente):</strong></p>
+<ul>
+<li><strong>Componente / proyecto / modelo</strong> y <strong>versión</strong>.</li>
+<li><strong>Tipo:</strong> biblioteca OSS · modelo (pesos locales) · servicio/API remota.</li>
+<li><strong>Licencia</strong> (identificador SPDX cuando aplique: p. ej. MIT, Apache-2.0, GPL-3.0) o, para servicios, el <strong>ToS</strong> de referencia.</li>
+<li><strong>Categoría:</strong> permisiva · copyleft débil · copyleft fuerte · propietaria · uso restringido (p. ej. "no comercial", "no derivados").</li>
+<li><strong>Uso en AURA:</strong> capacidad/módulo que depende de él (trazable a los capítulos de capacidad).</li>
+<li><strong>Obligaciones:</strong> atribución, aviso de licencia, <em>share-alike</em>, publicación de fuentes, límites de redistribución.</li>
+<li><strong>Campos específicos de modelo:</strong> restricciones de uso (comercial, número de usuarios, casos prohibidos) y <strong>uso de datos</strong> (si el proveedor entrena con los <em>inputs</em>).</li>
+<li><strong>Alternativa viable equivalente</strong> (P-ARQ-4): con qué se reemplazaría si su licencia o precio cambian.</li>
+<li><strong>Compatibilidad con la naturaleza del proyecto:</strong> pendiente hasta la decisión de la §5 — mientras tanto se evalúa contra el default prudente de §5.</li>
+<li><strong>Fecha de verificación</strong> y enlace a la licencia/ToS.</li>
+</ul>
+<p>La ficha de <strong>modelo</strong> se distingue de la de biblioteca porque las licencias de pesos suelen imponer restricciones de uso (comercial, número de usuarios, casos prohibidos) ausentes en una licencia OSS clásica; el inventario debe capturarlas explícitamente, sobre todo de cara a los modelos locales de R2 (Ollama, LM Studio — 2.2 §5).</p>
+<h3 id="42-revision-de-terminos-de-servicio-de-los-proveedores-openai-anthropic-google">4.2 Revisión de términos de servicio de los proveedores (OpenAI, Anthropic, Google)</h3>
+<p>Proceso de revisión (no dictamen). <strong>Qué revisar</strong>, por proveedor:</p>
+<ul>
+<li><strong>Uso de datos:</strong> ¿el proveedor usa los <em>inputs</em>/<em>outputs</em> para entrenar sus modelos? ¿Existe opción de exclusión (<em>opt-out</em>)? Este es el punto crítico frente a la D1: la regla 5 del ADR-0001 (minimización antes de todo modelo externo, aceptada por el CEO) fija <strong>qué</strong> debe proteger la revisión — cuanto menos dato salga del perímetro, menor la exposición aquí.</li>
+<li><strong>Retención:</strong> cuánto tiempo se retienen los datos enviados y si son eliminables a solicitud.</li>
+<li><strong>Restricciones de automatización:</strong> ¿se permite el uso programático y agéntico? ¿Hay límites de tasa o prohibiciones de casos de uso (por ejemplo, ciertas decisiones automatizadas)? Relevante porque AURA es, por diseño, un agente que orquesta estas APIs (4.2).</li>
+<li><strong>Propiedad del <em>output</em></strong> (enlaza con §4.3) y <strong>cambios de términos</strong> (cómo se notifican).</li>
+<li><strong>Disponibilidad, SLA y terminación</strong> del servicio.</li>
+</ul>
+<p><strong>Cadencia — verificación por evento, no por calendario</strong> (coherente con 1.2 §8 y P-ARQ-4): se revisa <strong>al adoptar</strong> un proveedor (parte del ADR de adopción y de su prueba de humo, P-ARQ-4) y se <strong>re-verifica ante evento</strong>: cambio de términos, de precio o de política de datos del proveedor primario. El resultado se refleja en el inventario (§4.1). Los tres proveedores del MVP quedan bajo esta revisión desde M1; la independencia estructural crece con R2 (modelos locales, 2.2 §5).</p>
+<h3 id="43-propiedad-intelectual-del-contenido-generado">4.3 Propiedad intelectual del contenido generado</h3>
+<p>Marco, no conclusión jurídica. Dos planos:</p>
+<ul>
+<li><strong>Frente al proveedor:</strong> el contenido que AURA genera se produce a través de modelos de terceros; la titularidad y las garantías del <em>output</em> se rigen por los ToS de cada proveedor y son, por tanto, un <strong>ítem de la revisión §4.2</strong>, verificable por proveedor y por cambio de términos. No se afirma aquí un resultado: se marca como punto a confirmar.</li>
+<li><strong>Dentro de AURA:</strong> el contenido generado que se incorpora a la memoria del usuario es <strong>dato del usuario</strong> (D1; ADR-0001) y se rige por el principio <em>"el usuario es el dueño: sus datos, su memoria y su AURA son suyos"</em> (2.1 §6.6), con la exportabilidad y portabilidad total que ese principio compromete (concreción en 3.5/4.1).</li>
+</ul>
+<p>La <strong>naturaleza del proyecto</strong> (§5) altera este plano: la cadena de derechos del <em>output</em> y la mezcla de licencias OSS tienen consecuencias en un producto comercial que no existen en un proyecto personal. Por eso §4.3 se resuelve después de §5.</p>
+<h3 id="44-responsabilidad-por-acciones-autonomas-listas-d4-auditoria-d9">4.4 Responsabilidad por acciones autónomas (listas D4 + auditoría D9)</h3>
+<p>AURA actúa siempre por cuenta de su usuario — en la v1, un único usuario, <strong>Mauricio</strong> (D5). El diseño de autonomía ya decidido por el CEO mantiene un humano en el bucle de toda acción de consecuencia:</p>
+<p><strong>Lista de ejecución automática (acta D4, cita textual):</strong></p>
+<blockquote>
+<p><em>"AURA ejecuta automáticamente solo acciones de bajo riesgo: automatizaciones, encender/apagar dispositivos, consultas, recordatorios, monitoreo, organización."</em></p>
+</blockquote>
+<p><strong>Lista que requiere autorización siempre (acta D4, cita textual):</strong></p>
+<blockquote>
+<p><em>"Requiere autorización siempre: pagos, compras, transferencias, eliminación de información, apertura de cerraduras, mensajes enviados a terceros, acciones legales, acciones financieras."</em></p>
+</blockquote>
+<p>Encuadre de responsabilidad †: las acciones con consecuencia jurídica o financiera están, por decisión del CEO, en la lista que <strong>exige autorización humana explícita siempre</strong>; de modo que ninguna decisión autónoma no supervisada compromete al usuario en esos dominios. La rendición de cuentas se apoya en el principio <strong>Human-in-the-Loop (acta D9, cita textual):</strong></p>
+<blockquote>
+<p><em>"Toda acción crítica deberá poder ser auditada, explicada y revertida. Nunca sacrificar seguridad por comodidad. Toda decisión tomada por AURA deberá ser explicable."</em></p>
+</blockquote>
+<p>El <strong>audit log</strong> (P-ARQ-1/P-ARQ-7, 3.1) es el registro de qué se hizo, con qué autorización y con qué resultado — el instrumento probatorio de esa cadena. <strong>Límite del marco:</strong> esto no determina responsabilidad civil ni penal ante terceros; es el diseño interno que garantiza supervisión humana. La atribución de responsabilidad frente a terceros depende de la naturaleza del proyecto (§5) y se remite a asesoría profesional. La materialización operativa (permisos, listas verde/roja, kill switch) vive en 5.3, y la trazabilidad de agentes en 4.3.</p>
+<h2 id="5-pregunta-abierta-al-ceo-personal-open-source-o-producto-comercial">5. Pregunta abierta al CEO: ¿personal, open source o producto comercial?</h2>
+<p>El capítulo presenta <strong>formalmente</strong> al CEO una decisión que hoy no está tomada y que condiciona §4.1 (licencias admisibles), §4.3 (PI del <em>output</em>) y el stack (3.6). Las tres opciones y su efecto:</p>
+<ul>
+<li><strong>Proyecto personal / privado.</strong> Máxima libertad de licencias: son utilizables dependencias copyleft (incluido copyleft fuerte) y modelos con cláusula "no comercial"; sin obligación de publicar código; el stack se elige solo por mérito técnico (D3). Es el <strong>estado de hecho actual</strong> (un único usuario, sin intención declarada de apertura ni comercialización, D5), pero como estado de hecho, no como decisión estratégica.</li>
+<li><strong>Open source.</strong> Obliga a elegir una licencia para AURA misma y a garantizar la <strong>compatibilidad de licencias</strong> de todas las dependencias (un copyleft fuerte puede imponer condiciones al conjunto); implica publicar el código y revisar si algún ToS o licencia de modelo restringe la redistribución.</li>
+<li><strong>Producto comercial futuro.</strong> Excluye dependencias con licencias "no comercial" o copyleft fuerte incompatibles; exige revisar restricciones de uso comercial en los ToS de OpenAI/Anthropic/Google y en las licencias de los modelos locales de R2; activa consecuencias en PI del <em>output</em> (§4.3), responsabilidad ante terceros (§4.4) y multiusuario operativo (D5, R3 en 2.2).</li>
+</ul>
+<p><strong>Decisión del CEO (acta D19, 2026-07-18):</strong> <em>"AURA nace como proyecto personal de largo plazo, pero su arquitectura se diseña con visión comercial y escalable. Ninguna decisión técnica podrá limitar una futura evolución hacia producto comercial, empresarial u open source parcial. Toda la arquitectura deberá mantenerse desacoplada para permitir cualquiera de estos escenarios sin rediseños mayores."</em> En consecuencia, el "default prudente" deja de ser provisional y se vuelve <strong>regla permanente</strong>: se prefieren licencias permisivas y se <strong>prohíbe</strong> toda dependencia que cierre el futuro comercial, empresarial u open source. Elegir una licencia restrictiva sería un límite artificial (ADR-0004) y comprometería la sustituibilidad (P-ARQ-4). El inventario (§4.1) marca cada dependencia como compatible o incompatible con los tres futuros simultáneamente.</p>
+<p><strong>Regla operativa †:</strong> preferir licencias permisivas y <strong>evitar dependencias que cierren cualquiera de los tres futuros</strong>. Elegir hoy licencias restrictivas equivaldría a crear un <strong>límite artificial</strong> —lo que el ADR-0004 (Evolución Permanente) prohíbe— y a comprometer la sustituibilidad que exige P-ARQ-4. Este default es una propuesta operativa †: <strong>no prejuzga la decisión</strong>, que sigue siendo del CEO y se registra como pendiente en Próximos pasos.</p>
+<h2 id="decisiones-tomadas">Decisiones tomadas</h2>
+<ul>
+<li><strong>Ninguna decisión nueva del CEO se toma en este capítulo.</strong> Se citan textualmente y se operativizan las ya vigentes: presupuesto (D3), listas de autonomía (D4) y Human-in-the-Loop (D9).</li>
+<li>Desarrollos del CTO † sujetos a este gate: la estructura de reporte de costos (§3.1) y los umbrales de alerta como visibilidad y no como topes (§3.2); la estructura de ficha del inventario de licencias y de modelos (§4.1); el proceso y la cadencia por evento de revisión de ToS (§4.2); el encuadre de PI (§4.3) y de responsabilidad por acciones autónomas (§4.4); y el default prudente de licencias mientras la §5 no se decida.</li>
+<li>Se eleva formalmente al CEO la pregunta abierta de la §5 como <strong>decisión pendiente bloqueante</strong> para §4.1, §4.3 y 3.6.</li>
+</ul>
+<h3 id="decisiones-aplicables-adrs">Decisiones aplicables (ADRs)</h3>
+<ul>
+<li><a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001 — Postura local-first estricta</a> (<code>accepted</code>): gobierna §4.2 — su regla 5 (minimización antes de todo modelo externo, aceptada por el CEO) fija qué debe proteger la revisión de uso de datos y retención de los tres proveedores, y su uso (a) de la D1 autoriza consultarlos. <strong>Nota de trazabilidad:</strong> 1.5 no figura hoy en el <code>impacta</code> de este ADR; se propone al gate alinear la referencia recíproca (verificación por evento, 1.2 §8).</li>
+<li><a href="../../adr/0004-evolucion-permanente.html">ADR-0004 — Evolución Permanente</a> (<code>accepted</code>): su regla 7 (<em>"Ninguna integración será exclusiva de un proveedor"</em>) y su regla 11 (interfaz estable versionada, con política de deprecación) son la razón de ser del inventario de licencias (§4.1) y del reporte de costos como insumo de "alternativa viable" (§3.2, P-ARQ-4). Misma nota de trazabilidad recíproca que ADR-0001.</li>
+</ul>
+<h2 id="riesgos">Riesgos</h2>
+<ul>
+<li><strong>Cambio unilateral de ToS o precios</strong> de OpenAI/Anthropic/Google que afecte costo, uso de datos o permisos de automatización. Mitigación: revisión por evento (§4.2), re-verificación P-ARQ-4, y R2 que acerca modelos locales (2.2 §5).</li>
+<li><strong>Costos recurrentes sin visibilidad</strong> → sorpresa de facturación o bucle de agente costoso. Mitigación: reporte (§3.1) y alertas (§3.2).</li>
+<li><strong>Incompatibilidad de licencias descubierta tarde</strong> si la naturaleza del proyecto (§5) se decide después de acumular dependencias. Mitigación: default prudente (§5) e inventario vivo (§4.1).</li>
+<li><strong>Tratar este marco como asesoría legal.</strong> Mitigación: declaración de límites (§1 y aviso de cabecera) y remisión a asesoría profesional.</li>
+<li><strong>Dependencia legal y comercial de 3 proveedores de nube en R1</strong> (hereda el riesgo de 2.2). Mitigación estructural: capa de abstracción 4.2 e independencia creciente en R2.</li>
+</ul>
+<h2 id="dependencias">Dependencias</h2>
+<p>Capítulos: 1.1 (Aprobado). Recibe el mandato de visibilidad de costos de <strong>2.2 §6</strong> (Aprobado) y opera dentro de <strong>ADR-0001</strong> y <strong>ADR-0004</strong> (<code>accepted</code>). Alimenta y remite a: 3.6 (stack, condicionado por §5), 4.2 (enrutamiento informado por costos §3), 5.3 (permisos y listas de autonomía §4.4), 5.5 (minimización y fronteras de datos §4.2), 3.5/4.1 (portabilidad del contenido generado §4.3).</p>
+<h2 id="proximos-pasos">Próximos pasos</h2>
+<ul>
+<li><strong>Naturaleza del proyecto: RESUELTA (acta D19).</strong> Personal de largo plazo con arquitectura comercial-escalable y desacoplada; ninguna dependencia puede cerrar el futuro comercial/empresarial/open source. §4.1, §4.3 y 3.6 se rigen por esta regla permanente.</li>
+<li><strong>Fijación de valores por el CEO:</strong> los umbrales de alerta de §3.2 (30% informativa, 3× prioritaria) son propuestas; el CEO fija los definitivos.</li>
+<li>Revisión pre-gate de Fable (1.1 §4.2) y gate del CEO (transición Borrador → En revisión → Aprobado, 1.1 §6).</li>
+<li>Tras la aprobación: Haiku inicializa el <strong>anexo vivo de licencias</strong> (§4.1) y el <strong>reporte de costos</strong> (§3.1) como artefactos operativos, validados por Fable.</li>
+<li>Alinear el <code>impacta</code> recíproco de ADR-0001 y ADR-0004 con 1.5 si el gate confirma su gobernanza (1.2 §8).</li>
+<li>Al redactar 5.3, 5.5, 4.2 y 3.6: honrar las remisiones marcadas en este capítulo.</li>
+</ul>
+<h2 id="referencias-cruzadas">Referencias cruzadas</h2>
+<ul>
+<li><a href="../../decisiones/2026-07-17-acta-decisiones-fundacionales.html">Acta de Decisiones Fundacionales (D1, D2, D3, D4, D9)</a> · <a href="../../decisiones/2026-07-16-brief-fundacional.html">Brief Fundacional</a></li>
+<li><a href="1.1-constitucion-roles-autoridad.html">Constitución (1.1)</a> · <a href="../libro-02-vision-y-producto/2.2-alcance-mvp-roadmap-releases.html">2.2 Alcance del MVP y Roadmap</a> · <a href="../libro-02-vision-y-producto/2.1-vision-mision-anti-vision.html">2.1 Visión</a> · <a href="../libro-03-arquitectura-del-sistema/3.1-principios-arquitectonicos.html">3.1 Principios Arquitectónicos</a></li>
+<li><a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001 — Postura local-first estricta</a> · <a href="../../adr/0004-evolucion-permanente.html">ADR-0004 — Evolución Permanente</a> · <a href="../../INDICE.html">Índice maestro</a></li>
+<li>Capítulos destino: 3.6 (stack), 4.2 (orquestación y enrutamiento), 5.3 (autonomía gobernada), 5.5 (privacidad y soberanía de datos), 3.5/4.1 (persistencia y memoria)</li>
+</ul>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

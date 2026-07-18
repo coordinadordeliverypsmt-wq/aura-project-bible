@@ -1,0 +1,284 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Proceso de Trabajo por Fases — AURA Project Bible</title><style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:52rem;margin:2rem auto;
+padding:0 1.5rem;line-height:1.6;color:#1a1a2e;background:#fbfaf7}
+h1,h2,h3{font-family:Helvetica,Arial,sans-serif;color:#0f3460}
+h1{border-bottom:3px solid #0f3460;padding-bottom:.3rem}
+h2{border-bottom:1px solid #ccc;padding-bottom:.2rem;margin-top:2rem}
+table{border-collapse:collapse;width:100%;font-size:.92em;font-family:Helvetica,Arial,sans-serif}
+th,td{border:1px solid #bbb;padding:.4rem .6rem;text-align:left;vertical-align:top}
+th{background:#0f3460;color:#fff}
+code{background:#eee9e0;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+blockquote{border-left:4px solid #e94560;margin-left:0;padding:.2rem 1rem;background:#f4efe8}
+a{color:#0f3460}
+.pie{margin-top:3rem;border-top:1px solid #ccc;font-size:.85em;color:#666;
+font-family:Helvetica,Arial,sans-serif}
+.meta{background:#f4efe8;border:1px solid #ddd;border-radius:6px;padding:.6rem 1rem;
+font-size:.85em;font-family:Helvetica,Arial,sans-serif}
+</style></head><body>
+<p><a href="../../index.html">← Índice de la Bible</a></p><div class="meta"><b>version</b>: 1.0.0 · <b>estado</b>: Aprobado · <b>fecha</b>: 2026-07-17 · <b>fecha_aprobacion</b>: 2026-07-18 · <b>autor</b>: Fable (CTO, AURA Labs) · <b>responsable</b>: Fable · <b>prioridad</b>: P1</div>
+<h1 id="13-proceso-de-trabajo-por-fases">1.3 — Proceso de Trabajo por Fases</h1>
+<blockquote>
+<p><strong>Estado:</strong> Aprobado (CEO, 2026-07-18) · <strong>Prioridad:</strong> P1 · <strong>Responsable:</strong> Fable · <strong>Nivel:</strong> Completo</p>
+</blockquote>
+<p><em>Convención † (1.1 §4): desarrollo del CTO que se vuelve exigible con la aprobación de este capítulo — no es texto de actas del CEO.</em></p>
+<h2 id="resumen-ejecutivo">Resumen ejecutivo</h2>
+<p>El brief fundacional mandata trabajar por fases que terminan completamente antes de iniciar la siguiente, con siete elementos obligatorios por fase. Este capítulo operacionaliza ese mandato: define la anatomía de una fase y su plan de apertura†, consolida la taxonomía completa de gates ya vigente en las normas aprobadas — gate de capítulo (1.1 §6), gate de ADR (1.2 §6-7), gate de hito (2.2 §3.2) y gate extraordinario (Alerta de Arquitectura D15/D16 en 1.1 §4 y circuito de fracaso en 2.2 §3.5) — e instituye† tres instrumentos de control: timeboxing como disparador de revisión (nunca de cierre), reglas contra el scope creep y un cierre formal en tres piezas. La tercera pieza no es propuesta del CTO: el <strong>CEO Executive Summary del acta D17 es entregable obligatorio de cierre de toda fase importante</strong> (rango 1). Las fases documentales D1 (completada, con su Executive Summary ya generado) y D2 (en curso) sirven como casos reales de todo el proceso.</p>
+<h2 id="objetivo">Objetivo</h2>
+<p>Convertir el mandato de fases cerradas del brief en un proceso ejecutable y verificable — quién abre una fase, qué contiene, qué gates la gobiernan, qué la cierra y qué se aprende y se comunica al cerrarla — para que ninguna fase futura, documental o de implementación, tenga que improvisar su método.</p>
+<h2 id="1-el-mandato-fases-cerradas">1. El mandato: fases cerradas</h2>
+<p><strong>Fuente de rango 1 (brief fundacional, texto del CEO):</strong> <em>"Por fases; cada fase termina completamente antes de iniciar la siguiente. Cada fase incluye: objetivos, alcance, riesgos, diagramas, decisiones, tareas y entregables."</em></p>
+<p>Tres consecuencias directas:</p>
+<ol>
+<li><strong>Cierre completo.</strong> Una fase no se abandona ni se deja "casi cerrada": termina con todos sus entregables en su estado objetivo, o se replantea mediante decisión explícita del CEO (§6.4). La divergencia silenciosa entre plan y realidad está prohibida por la misma lógica que la regla de oro de la constitución (1.1 §2).</li>
+<li><strong>Secuencialidad estricta entre fases, con válvula entre entregables.</strong> La siguiente fase inicia solo tras el cierre de la anterior. La única flexibilidad vigente opera <em>dentro</em> de una fase: mientras un gate espera respuesta, los agentes avanzan borradores marcados <code>condicionado-a</code> (1.1 §4.4)†.</li>
+<li><strong>La frontera mayor es la D7.</strong> El acta D7 (rango 1) fija el límite entre la era documental y la de implementación: <em>"No comenzará una sola línea de código hasta que: P0 aprobado · P1 aprobado · arquitectura validada · riesgos identificados · roadmap aprobado · ADRs principales documentados"</em> — desarrollada en 1.1 §7 y elevada a principio arquitectónico en 3.1 (P-ARQ-8). Coherente con la filosofía del brief: <em>"Siempre diseñar antes de programar. Siempre documentar antes de implementar."</em></li>
+</ol>
+<p><strong>Nomenclatura†:</strong> las fases documentales se numeran "Fase D1, Fase D2, …". Para evitar la colisión con las decisiones del acta (D1-D17), toda referencia a una fase lleva siempre la palabra "Fase"; "D1" a secas designa siempre la decisión del acta. Las fases de implementación posteriores a la Bible v1.0 recibirán un prefijo propio, a definir en el cierre de la v1.0.</p>
+<h2 id="2-anatomia-de-una-fase">2. Anatomía de una fase</h2>
+<p>Los siete elementos son mandato del brief (rango 1). Su operacionalización — la columna derecha y el plan de fase — es desarrollo del CTO†:</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Elemento (brief)</th>
+<th>Se materializa como†</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Objetivos</td>
+<td>Qué debe ser cierto al cerrar la fase, en 1-3 enunciados verificables</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Alcance</td>
+<td>Lista cerrada de entregables + exclusiones explícitas (qué NO entra)</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Riesgos</td>
+<td>Riesgos propios de la fase con mitigación; alimentan el futuro registro (5.1)</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Diagramas</td>
+<td>Los que el trabajo exija (grafo de dependencias, C4, flujos); "no aplica" se declara</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Decisiones</td>
+<td>Decisiones esperadas: qué gates y ADRs deberá resolver el CEO durante la fase</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Tareas</td>
+<td>Descomposición por responsable según la matriz RACI (1.1 §4.1)</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Entregables</td>
+<td>Artefactos con su estado objetivo (<code>Aprobado</code>, <code>accepted</code>, stub aprobado…)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Plan de fase†:</strong> toda fase se abre con un plan de máximo 2 páginas que instancia los 7 elementos, más su timebox (§5) y su backlog inicial vacío (§6.2). El plan se somete al gate de entrada (§4) y vive en <code>fases/</code> junto con la retrospectiva de cierre (§7.2); sus plantillas se definirán en 1.4. Precedente real: la Fase D1 se abrió sin plan formal único — sus 7 elementos quedaron repartidos entre la autorización del acta y el índice v0.2 (§8.1). Este capítulo instituye el plan como documento único a partir de su aprobación.</p>
+<h2 id="3-taxonomia-de-gates">3. Taxonomía de gates</h2>
+<p>El gate es una decisión explícita del CEO que cambia el estado de algo. La taxonomía siguiente <strong>consolida normas ya aprobadas</strong> — no crea gates nuevos:</p>
+<table>
+<thead>
+<tr>
+<th>Gate</th>
+<th>Qué decide</th>
+<th>Insumo</th>
+<th>Resultado</th>
+<th>Fuente</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>De capítulo</strong></td>
+<td><code>En revisión</code> → <code>Aprobado</code></td>
+<td>Capítulo + revisión pre-gate</td>
+<td>Norma de rango 4</td>
+<td>1.1 §6</td>
+</tr>
+<tr>
+<td><strong>De ADR</strong></td>
+<td><code>proposed</code> → <code>accepted</code> / <code>rejected</code></td>
+<td>ADR + matriz D11 + 4 niveles D3 cuando aplican</td>
+<td>Norma de rango 3; obliga a actualizar capítulos</td>
+<td>1.2 §6-7</td>
+</tr>
+<tr>
+<td><strong>De hito</strong></td>
+<td>Cierre de M1 / M2 / M3 y de R1</td>
+<td>Evidencia según 2.5 y 7.2</td>
+<td>Autoriza el hito siguiente</td>
+<td>2.2 §3.2, §3.4</td>
+</tr>
+<tr>
+<td><strong>Extraordinario</strong></td>
+<td>Riesgo o fracaso sobrevenido</td>
+<td>Alerta de Arquitectura o circuito de fracaso</td>
+<td>Veredicto del CEO; puede exigir nueva acta</td>
+<td>1.1 §4 (D15/D16) · 2.2 §3.5</td>
+</tr>
+</tbody>
+</table>
+<h3 id="31-gate-de-capitulo-11-6">3.1 Gate de capítulo (1.1 §6)</h3>
+<p>Cadena completa: redacción por el redactor asignado → revisión de un agente distinto del redactor (1.1 §4.2) → checklist pre-gate de Fable, que incluye la verificación de consistencia ADR↔capítulos (1.2 §8) → gate del CEO, única autoridad de la transición <code>En revisión</code> → <code>Aprobado</code>. Mientras el gate espera, aplican los gates pendientes (1.1 §4.4). Precedente real: los cinco gates de capítulo de la Fase D1.</p>
+<p><strong>Gates por lote†:</strong> en fases con muchos entregables — la Fase D2 tiene 28 capítulos — los gates de capítulo pueden agruparse en sesiones por lote coherente del grafo de dependencias. La aprobación sigue siendo individual por capítulo: un lote jamás se aprueba "en bloque".</p>
+<h3 id="32-gate-de-adr-12-6-7">3.2 Gate de ADR (1.2 §6-7)</h3>
+<p>El CEO resuelve <code>accepted</code> o <code>rejected</code> (<code>withdrawn</code> lo retira el proponente antes del gate). La aceptación dispara la regla de oro operativa: los capítulos afectados y el CHANGELOG se actualizan en el mismo commit o serie inmediata (1.2 §7), y ningún gate posterior puede abrirse con esa actualización pendiente. Precedentes reales: ADR-0001 (resuelto en la sesión del capítulo 1.2) y ADR-0004 (resuelto en la sesión del capítulo 3.1, y enmendado el mismo día por el paquete P-002 que el CEO autorizó).</p>
+<h3 id="33-gate-de-hito-22-32">3.3 Gate de hito (2.2 §3.2)</h3>
+<p>Norma del capítulo 2.2 (Aprobado; originada como propuesta del CTO ratificada por el CEO en su gate): <em>"el cierre de cada hito lo declara solo el CEO en un gate de hito, con la evidencia que definan 2.5 y 7.2. Ningún agente puede autodeclarar un hito cerrado."</em> Los hitos son secuenciales. La aceptación del MVP (R1) es un gate de hito agregado: la regla de la ventana (2.2 §3.4), con veredicto final del CEO.</p>
+<p><strong>Relación fase-hito†:</strong> cada hito M1-M3 se ejecutará como una o más fases de implementación cuyo gate de salida (§4) coincide con el gate de hito correspondiente. Así, un solo proceso — este capítulo — gobierna la era documental y la de implementación.</p>
+<h3 id="34-gate-extraordinario">3.4 Gate extraordinario</h3>
+<p>No está en el calendario: lo dispara un evento. Disparadores vigentes:</p>
+<ul>
+<li><strong>Alerta de Arquitectura (actas D15 y D16, rango 1).</strong> Si el CTO detecta que una decisión — incluida una del CEO — <em>"puede comprometer el proyecto dentro de 5 o 10 años"</em>, debe <em>"detener el proceso y levantar una ALERTA DE ARQUITECTURA"</em>. Mecánica vigente (1.1 §4): documento en <code>decisiones/alertas/</code> con la <strong>estructura obligatoria de 10 secciones del acta D16</strong> (problema detectado · riesgos si se ignora · tres alternativas · recomendación del CTO · impacto en costo, rendimiento, seguridad, mantenibilidad, 10 años y compatibilidad hacia atrás — ver <a href="../../decisiones/alertas/plantilla-alerta.html"><code>plantilla-alerta.md</code></a>), suspensión del trabajo afectado y gate extraordinario del CEO con alternativas — en los 4 niveles del acta D3 cuando aplique. <em>"El CEO prefiere una discusión técnica hoy que una mala arquitectura mañana"</em> (acta D15). <strong>Ejemplo real (ALERTA-001):</strong> el CTO detectó que el mandato "todo por el bus de eventos" era incompatible con la latencia de voz del hito M1; la alerta suspendió preventivamente el diseño de 3.3, 6.2 y 6.5, y el CEO resolvió la <strong>Opción A</strong> (bus como plano de control + canales dedicados para streams), aplicada en 3.1 v1.1.0. Ahí los 4 niveles D3 no aplicaron y la alerta lo declaró: era una corrección estructural, no una compra.</li>
+<li><strong>Circuito de fracaso de hito (2.2 §3.5).</strong> Si un hito no converge, gate extraordinario con opciones en los 4 niveles D3 (replantear alcance, cambiar enfoque vía ADR, o recortar); recortar cualquiera de las 9 capacidades exige nueva acta del CEO — la D2 es rango 1. La invalidación de los supuestos de entorno (2.2 §6) dispara el mismo circuito.</li>
+<li><strong>Fase que no converge†:</strong> este capítulo añade un tercer disparador — el vencimiento del timebox sin criterios de salida cumplidos, cuando la revisión de fase (§5.2) concluye que la fase no converge.</li>
+</ul>
+<h3 id="35-reglas-comunes-a-todo-gate">3.5 Reglas comunes a todo gate</h3>
+<ol>
+<li><strong>Solo el CEO aprueba</strong> (1.1 §6, 1.2 §6, 2.2 §3.2); su autoridad no es delegable (1.1 §4).</li>
+<li><strong>El silencio no aprueba</strong> (1.1 §3.2.6): un gate sin respuesta queda pendiente y visible; jamás autoriza a un agente a aprobar en nombre del CEO (1.1 §4.4).</li>
+<li><strong>Ningún agente aprueba su propio trabajo</strong> (1.1 §4.2).</li>
+<li><strong>Todo gate deja registro†:</strong> qué se aprobó, con qué cambios y qué quedó pendiente — en el historial del documento y el CHANGELOG. Las decisiones nuevas que el CEO emite en un gate se registran en acta (precedente real: las decisiones D10-D15 nacieron en gates de la Fase D1, y D16-D17 en el gate de apertura de la Fase D2).</li>
+<li><strong>El deber de disenso acompaña a todo gate</strong> (acta D15): llegar a un gate con una objeción conocida y callarla constituye incumplimiento del rol del CTO (1.1 §4).</li>
+</ol>
+<h2 id="4-gates-de-entrada-y-salida-de-fase">4. Gates de entrada y salida de fase†</h2>
+<p>Marco del CTO sujeto a este gate, que generaliza el precedente de rango 1: la apertura de fase por autorización del CEO.</p>
+<p><strong>Gate de entrada.</strong> Ninguna fase inicia sin autorización explícita del CEO sobre su plan (§2). Precedente: <em>"El CEO autoriza el inicio de la Fase D1: redacción de los 5 capítulos P0 (1.1 → 1.2 → 2.1 → 2.2 → 3.1), cada uno con gate de aprobación del CEO"</em> (acta, 2026-07-17). La apertura de la Fase D2 quedó sancionada al aprobar el CEO el capítulo 3.1, cuyo texto la anuncia en sus Próximos pasos.</p>
+<p><strong>Gate de salida.</strong> La fase cierra cuando el CEO así lo declara, con tres condiciones previas verificadas por Fable: (a) checklist de cierre completo (§7.1), (b) retrospectiva presentada (§7.2) y (c) <strong>CEO Executive Summary generado (§7.3, entregable obligatorio del acta D17)</strong>. El gate de salida puede coincidir con el último gate de entregable — como ocurrió con la Fase D1, cerrada en el quinto gate (3.1) — pero, a partir de la aprobación de este capítulo, el checklist, la retrospectiva y el CEO Executive Summary no son omisibles.</p>
+<p><strong>Flujo completo de una fase†</strong> (diagrama textual; el elemento 4 del brief se cubre así en este capítulo):</p>
+<p><code>plan de fase → GATE DE ENTRADA (CEO) → ejecución por lotes [gates de capítulo / ADR / hito + gates extraordinarios si un evento los dispara] → checklist de cierre + retrospectiva + CEO Executive Summary → GATE DE SALIDA (CEO) → siguiente fase</code></p>
+<h2 id="5-timeboxing">5. Timeboxing†</h2>
+<p>Regla central: <strong>el reloj convoca, los criterios cierran.</strong> Es la aplicación al nivel de fase del principio ya aprobado en 2.2 §6: los hitos se miden por criterios de salida, no por fechas de calendario.</p>
+<ol>
+<li>Todo plan de fase declara un <strong>timebox</strong>: presupuesto de duración o de sesiones de trabajo, indicativo y visible.</li>
+<li>El vencimiento del timebox sin criterios de salida cumplidos dispara una <strong>revisión de fase</strong> obligatoria: estado real de los entregables, causa de la desviación y opciones al CEO — extender con nuevo timebox, re-alcanzar la fase por el instrumento válido (§6.4) o escalar a gate extraordinario (§3.4).</li>
+<li>Una fase jamás se declara cerrada por vencimiento de timebox, y jamás se recorta silenciosamente "para cumplir el plazo".</li>
+<li><strong>Pisos de calendario:</strong> algunas pruebas exigen tiempo mínimo por definición — la memoria a semanas de M1 no se cierra con demos puntuales (2.2 §3.2). El timebox es techo de revisión, nunca presión para acortar esos pisos.</li>
+<li>En fases documentales, el timebox se declara además por lote de capítulos (§3.1), creando puntos de control intermedios; su desviación se reporta en cada gate de lote.</li>
+</ol>
+<h2 id="6-control-de-scope-creep">6. Control de scope creep†</h2>
+<p>El capítulo 2.2 protege el alcance del producto — "que ningún otro capítulo diseñe un sistema infinito". Esta sección protege el alcance de cada fase:</p>
+<ol>
+<li><strong>Alcance congelado al entrar.</strong> La lista de entregables del plan de fase es cerrada y sus exclusiones son explícitas (elemento 2 del brief).</li>
+<li><strong>Backlog de fase.</strong> Toda idea nueva surgida durante la fase se registra en el backlog del plan — visible, sin ejecutarse — y se propone para una fase futura en la retrospectiva. Precedente a escala de roadmap: el Backlog R5/Investigación del 2.2 §5.</li>
+<li><strong>Ampliación solo por el CEO.</strong> Nada entra a una fase abierta sin decisión explícita del CEO. Una instrucción del CEO en plena fase no es scope creep — es decisión de rango 1 — pero obliga al CTO a absorberla por el instrumento correcto (enmienda, revisión de capítulo o ADR), reportar su costo sobre el timebox y re-estimar. Precedente real: las decisiones D10-D15, emitidas en gates durante la Fase D1, se absorbieron mediante la enmienda constitucional (1.1 v1.2.0) y revisiones de capítulos sin descarrilar la fase; la D16 se absorbió después mediante la enmienda 1.1 v1.3.0. Si la adición compromete el proyecto a 5-10 años, el cauce es la Alerta de Arquitectura (D15), no la ejecución silenciosa.</li>
+<li><strong>Reducir también es cambiar el alcance.</strong> Recortar entregables exige decisión del CEO; si el recorte toca mandatos de rango 1, exige nueva acta (regla ya aprobada en 2.2 §3.5 para las 9 capacidades).</li>
+<li><strong>Scope creep interno prohibido.</strong> Ningún agente amplía el alcance por iniciativa propia; la revisión pre-gate (1.1 §4.2) verifica que el entregable no exceda su mandato. El deber de disenso (D15) es el cauce para proponer cambios — no la ampliación silenciosa.</li>
+</ol>
+<h2 id="7-retrospectiva-ceo-executive-summary-y-cierre-formal-de-fase">7. Retrospectiva, CEO Executive Summary y cierre formal de fase</h2>
+<p>El cierre de toda fase importante produce tres piezas. Dos son desarrollo del CTO† (checklist §7.1 y retrospectiva §7.2); la tercera la ordena directamente un acta de rango 1 (CEO Executive Summary §7.3, acta D17) y no es omisible.</p>
+<h3 id="71-checklist-de-cierre">7.1 Checklist de cierre†</h3>
+<p>Verificado por Fable y presentado al CEO en el gate de salida:</p>
+<ol>
+<li>Todos los entregables en su estado objetivo (<code>Aprobado</code>, <code>accepted</code>, stub aprobado).</li>
+<li>Conflictos normativos resueltos o registrados como pendientes visibles (1.1 §3.2.3). Precedente real: el gate de 3.1 cerró la Fase D1 con la revisión adversarial aún en curso, dejando sus hallazgos como pendiente visible (P-002); el CEO los autorizó completos el mismo día y se aplicaron en 3.1 v1.1.0 y en la enmienda del ADR-0004 — el mecanismo recorrió su ciclo completo, y hoy <code>decisiones/pendientes.md</code> no registra pendientes vivos de la Fase D1.</li>
+<li>Obligaciones de ADRs <code>accepted</code> cumplidas: capítulos afectados actualizados (1.2 §7) o bajo la regla transitoria declarada.</li>
+<li>Artefactos operativos sincronizados: índice, CHANGELOG, <code>adr/README.md</code> (1.1 §3.1).</li>
+<li>Riesgos residuales y backlog trasladados al plan de la fase siguiente.</li>
+</ol>
+<h3 id="72-retrospectiva">7.2 Retrospectiva†</h3>
+<p>Documento breve (máximo 2 páginas) del CTO al cierre de cada fase: qué funcionó, qué falló y qué se cambia — con destino concreto por cada mejora (enmienda, propuesta a 1.4 o ajuste del siguiente plan de fase) — más métricas simples: gates realizados, correcciones surgidas de revisión, pendientes trasladados y desviación del timebox. La retrospectiva <strong>no es normativa</strong>: sus propuestas siguen los instrumentos de cambio vigentes (1.2 §3). Mira hacia adentro (el proceso), y la genera el CTO para el equipo.</p>
+<p>La Fase D1 cerró antes de que este mecanismo existiera; no existe retrospectiva formal de ella (sí un CEO Executive Summary retroactivo, §7.3). A título ilustrativo†, las lecciones que una retrospectiva habría registrado: (a) la revisión adversarial pre-gate demostró su valor — el Executive Summary de la Fase D1 contabiliza ~90 hallazgos detectados y corregidos, incluidos dos serios (una contradicción interna en la constitución y una errata en el ADR-0004 que había dejado 3 cláusulas del CEO fuera de la fuente vigente); (b) los gates fueron la principal fuente de decisiones nuevas del CEO (D10-D15), lo que justifica el mecanismo de absorción del §6.3; (c) cerrar un gate con una revisión en curso genera pendientes que se resuelven en la ventana siguiente (P-002) — el checklist §7.1.2 los hace visibles, no los prohíbe.</p>
+<h3 id="73-ceo-executive-summary-entregable-obligatorio-acta-d17">7.3 CEO Executive Summary — entregable obligatorio (acta D17)</h3>
+<p><strong>Fuente de rango 1 (acta D17, texto del CEO):</strong> <em>"Al finalizar cada fase importante, el CTO generará un documento CEO Executive Summary que sintetice, en lenguaje ejecutivo, lo decidido, lo construido, los riesgos vivos y lo pendiente de la fase."</em></p>
+<p>Este es el único entregable de cierre que ordena directamente un acta; por eso encabeza la jerarquía de piezas de cierre. En consecuencia:</p>
+<ol>
+<li>Toda fase importante cierra con su CEO Executive Summary, redactado por el CTO y archivado en <code>resumenes-ejecutivos/</code> (destino que fija la propia D17).</li>
+<li>Sus cuatro contenidos mínimos son los que ordena la D17 — <strong>lo decidido, lo construido, los riesgos vivos y lo pendiente</strong> — en lenguaje ejecutivo, no técnico. La estructura concreta (secciones y longitud) es desarrollo del CTO†; el precedente real es el Executive Summary de la Fase D1, con seis secciones: qué se decidió, qué se construyó, calidad del trabajo, riesgos vivos, qué sigue y decisiones que esperan al CEO.</li>
+<li><strong>Distinción con la retrospectiva (§7.2):</strong> la retrospectiva mira el proceso hacia adentro (qué funcionó y qué falló en el método) y sirve al equipo; el CEO Executive Summary mira hacia el CEO (qué obtuvo, qué arriesga y qué debe decidir). Un documento no sustituye al otro; ambos son entregables de cierre.</li>
+<li><strong>Qué es una "fase importante"†</strong> (interpretación del CTO, no del acta): toda fase gobernada por gates de entrada/salida — las fases documentales (D1, D2, …) y las fases de implementación ligadas a un hito o release. Los lotes internos de una fase (§3.1) no disparan por sí solos un Executive Summary.</li>
+</ol>
+<h3 id="74-registro">7.4 Registro†</h3>
+<p>El cierre queda registrado en el CHANGELOG y, cuando el CEO emita decisiones al cerrar, en acta. Plan de fase y retrospectiva se archivan juntos en <code>fases/</code>; el CEO Executive Summary vive en <code>resumenes-ejecutivos/</code>, con su índice operativo (<code>resumenes-ejecutivos/README.md</code>) mantenido conforme a 1.1 §3.1.</p>
+<h2 id="8-casos-reales-las-fases-documentales">8. Casos reales: las fases documentales</h2>
+<h3 id="81-fase-d1-completada">8.1 Fase D1 — completada</h3>
+<p>Autorizada por el acta (rango 1) y cerrada en el quinto gate (3.1 v1.0.0, que según su historial <em>"cierra el conjunto P0"</em>). Los 7 elementos del brief, tal como los cubrió:</p>
+<table>
+<thead>
+<tr>
+<th>Elemento</th>
+<th>Cómo lo cubrió la Fase D1</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Objetivos</td>
+<td>Los 5 capítulos P0 aprobados por el CEO</td>
+</tr>
+<tr>
+<td>Alcance</td>
+<td>Lista cerrada del acta: 1.1 → 1.2 → 2.1 → 2.2 → 3.1</td>
+</tr>
+<tr>
+<td>Riesgos</td>
+<td>Sección "Riesgos" (D13) de cada capítulo</td>
+</tr>
+<tr>
+<td>Diagramas</td>
+<td>No se requirieron (gobernanza y producto); las vistas C4 pertenecen a 3.2</td>
+</tr>
+<tr>
+<td>Decisiones</td>
+<td>5 gates de capítulo, 2 aceptaciones de ADR (0001 y 0004) y un gate extraordinario (ALERTA-001, Opción A); el CEO emitió en esos gates las decisiones D10-D15</td>
+</tr>
+<tr>
+<td>Tareas</td>
+<td>Redacción según RACI y reparto 1.1 §4.2, con revisión adversarial pre-gate</td>
+</tr>
+<tr>
+<td>Entregables</td>
+<td>5 capítulos <code>Aprobado</code>, ADR-0001 y ADR-0004 <code>accepted</code>, acta v1.3.0, índice actualizado</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Cierre formal (reconstruido a la luz de este capítulo):</strong> la Fase D1 cerró sin checklist ni retrospectiva formales — ambos instrumentos nacen aquí. Sí cuenta con su <strong>CEO Executive Summary</strong>, generado retroactivamente por mandato del acta D17 (que se agregó en el gate de apertura de la Fase D2): <a href="../../resumenes-ejecutivos/2026-07-17-fase-d1-executive-summary.html"><code>resumenes-ejecutivos/2026-07-17-fase-d1-executive-summary.md</code></a>. Los pendientes que el gate de cierre dejó abiertos (P-001, P-002 y la ALERTA-001) figuran hoy como <strong>resueltos</strong> en <code>decisiones/pendientes.md</code>.</p>
+<h3 id="82-fase-d2-en-curso">8.2 Fase D2 — en curso</h3>
+<p>Su apertura quedó registrada en el capítulo 3.1 (Aprobado): <em>"Con el conjunto P0 cerrado, la Fase D2 redacta los 28 capítulos P1 según las prioridades del índice."</em> Este capítulo (1.3) forma parte de ella y es, a la vez, la formalización del proceso que la gobierna. Conforme a este capítulo, la Fase D2 debe formalizar†: su plan de fase mínimo retroactivo (entregables: los 28 capítulos P1; orden: grafo de dependencias del índice), su timebox por lotes (§5.5) y su backlog (§6.2). Los borradores avanzan bajo el mecanismo de gates pendientes (<code>condicionado-a</code>, 1.1 §4.4) cuando corresponde. En su gate de salida, la Fase D2 deberá entregar sus tres piezas de cierre (§7), incluido su <strong>CEO Executive Summary</strong> (D17) — el segundo del proyecto. La ubicación de los 3 stubs P2/P3 (5.6, 7.4, 7.5) — exigidos a nivel stub por el criterio de cierre de 1.1 §7 — y la eventual fase de cierre de la v1.0 se propondrán en la retrospectiva de la Fase D2†.</p>
+<h2 id="decisiones-tomadas">Decisiones tomadas</h2>
+<ul>
+<li>Mandato de fases cerradas y sus 7 elementos: brief fundacional (rango 1), citado textualmente en §1-2 — no negociable aquí.</li>
+<li>Taxonomía de 4 gates (§3): <strong>consolidación de normas ya aprobadas</strong> (1.1 §4 y §6, 1.2 §6-7, 2.2 §3.2 y §3.5, y actas D15/D16) — referencia, no decisión nueva.</li>
+<li>CEO Executive Summary como entregable obligatorio de cierre (§4, §7.3): <strong>mandato del acta D17 (rango 1)</strong>, citado textualmente — no es propuesta del CTO; lo que este capítulo aporta es su integración al gate de salida y su distinción respecto de la retrospectiva.</li>
+<li>Propuestas del CTO† sujetas a este gate: nomenclatura de fases (§1), plan de fase y su ubicación en <code>fases/</code> (§2, §7.4), gates por lote (§3.1), relación fase-hito (§3.3), tercer disparador de gate extraordinario (§3.4), reglas comunes 4-5 de gates (§3.5), gates de entrada/salida de fase (§4), timeboxing (§5), reglas anti-scope-creep (§6), checklist de cierre y retrospectiva (§7.1-§7.2), la definición de "fase importante" y la estructura del Executive Summary (§7.3) y la formalización mínima de la Fase D2 (§8.2).</li>
+</ul>
+<h3 id="decisiones-aplicables-adrs">Decisiones aplicables (ADRs)</h3>
+<ul>
+<li>Ninguno gobierna directamente este capítulo: es un capítulo de método, no de arquitectura. Una vez <code>Aprobado</code>, todo cambio que lo contradiga requerirá ADR (1.2 §3.4). El espíritu anti-sobre-ingeniería de la <strong>regla 13 del ADR-0004</strong> (versión fuerte, P-002.10) se adopta como criterio de diseño del proceso (ver Riesgos), sin que ese ADR lo gobierne formalmente.</li>
+</ul>
+<h2 id="riesgos">Riesgos</h2>
+<ul>
+<li><strong>Teatro de proceso:</strong> en un equipo de 1 humano + 4 agentes, planes, retrospectivas y resúmenes pueden degenerar en burocracia (mitigación: límites duros de 2 páginas, destino concreto por mejora y un solo documento de cara al CEO — el Executive Summary; espíritu de la regla 13 del ADR-0004).</li>
+<li><strong>CEO como cuello de botella de gates:</strong> 28 capítulos en la Fase D2 (mitigación: gates por lote §3.1 y gates pendientes 1.1 §4.4).</li>
+<li><strong>Timebox como letra muerta:</strong> sin fechas externas, el presupuesto de tiempo puede ignorarse (mitigación: declarado en el plan y reportado obligatoriamente en cada gate de lote, §5.5).</li>
+<li><strong>Colisión de nomenclatura</strong> entre fases (Fase D1) y decisiones (D1) (mitigación: regla del prefijo "Fase", §1).</li>
+<li><strong>Decisiones de rango 1 en plena fase:</strong> los gates seguirán generando decisiones nuevas del CEO (D10-D17 lo confirman); sin la disciplina del §6.3, cada una podría descarrilar el timebox (mitigación: absorción por instrumento correcto + re-estimación explícita).</li>
+<li><strong>Executive Summary que exagera lo logrado:</strong> un resumen ejecutivo puede pintar de verde una fase con riesgos vivos (mitigación: la D17 exige "riesgos vivos y lo pendiente" como contenido obligatorio; el del D1 los enumera sin adornos).</li>
+</ul>
+<h2 id="dependencias">Dependencias</h2>
+<p>Capítulos: 1.1 (Aprobado, v1.3.0). Usa además como fuentes de la taxonomía de gates a 1.2, 2.2 y 3.1 (aprobados), y como mandato de cierre el acta D17. Alimenta: 1.4 (plantillas de plan de fase y retrospectiva), 7.1-7.3 (fases de implementación) y la operación de la propia Fase D2.</p>
+<h2 id="proximos-pasos">Próximos pasos</h2>
+<ul>
+<li>Revisión pre-gate por un agente distinto del redactor (1.1 §4.2) → gate del CEO.</li>
+<li>Tras la aprobación: formalizar el plan mínimo de la Fase D2 (§8.2) y proponer en 1.4 las plantillas de plan de fase, retrospectiva y CEO Executive Summary.</li>
+<li>Al cerrar la Fase D2: primera retrospectiva formal (§7.2) y su CEO Executive Summary (§7.3), más la propuesta de la fase de cierre de la v1.0.</li>
+</ul>
+<h2 id="referencias-cruzadas">Referencias cruzadas</h2>
+<ul>
+<li><a href="../../decisiones/2026-07-16-brief-fundacional.html">Brief Fundacional (forma de trabajo, texto del CEO)</a> · <a href="../../decisiones/2026-07-17-acta-decisiones-fundacionales.html">Acta de Decisiones (D7, D15, D16, D17 y autorización de la Fase D1)</a></li>
+<li><a href="1.1-constitucion-roles-autoridad.html">Constitución 1.1 (gates de capítulo §6, Alerta D15/D16 §4, gates pendientes §4.4)</a> · <a href="1.2-sistema-adrs-gestion-cambio.html">1.2 Sistema de ADRs (gate de ADR §6-7)</a></li>
+<li><a href="../libro-02-vision-y-producto/2.2-alcance-mvp-roadmap-releases.html">2.2 Alcance del MVP (gate de hito §3.2, circuito de fracaso §3.5)</a> · <a href="../libro-03-arquitectura-del-sistema/3.1-principios-arquitectonicos.html">3.1 Principios (P-ARQ-8, Alerta §2.4)</a></li>
+<li><a href="../../resumenes-ejecutivos/2026-07-17-fase-d1-executive-summary.html">CEO Executive Summary — Fase D1 (acta D17)</a> · <a href="../../decisiones/alertas/2026-07-17-alerta-001-bus-vs-streaming.html">ALERTA-001 (gate extraordinario resuelto)</a> · <a href="../../decisiones/pendientes.html">Registro de pendientes</a></li>
+<li><a href="../../adr/0001-postura-local-first-estricta.html">ADR-0001</a> · <a href="../../adr/0004-evolucion-permanente.html">ADR-0004</a> · <a href="../../INDICE.html">Índice maestro</a></li>
+</ul>
+<div class="pie">AURA Project Bible — generado automáticamente por herramientas/publicar.py (acta D12)</div>
+</body></html>

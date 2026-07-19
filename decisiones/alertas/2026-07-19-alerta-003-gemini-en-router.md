@@ -1,9 +1,9 @@
 ---
 documento: "ALERTA DE ARQUITECTURA 003"
-estado: "Activa — pendiente de gate extraordinario del CEO"
+estado: "RESUELTA — Alternativa A (2026-07-19). Parche rechazado definitivamente."
 fecha: 2026-07-19
 emisor: "Fable (CTO), conforme al acta D15 y la constitucion 1.1 §4"
-trabajo-suspendido: "El parche solicitado a aura_skeleton/modules/router.py (cablear Google Gemini como proveedor principal con clave de API) y la instalacion de google-generativeai. NO se aplica hasta el veredicto del CEO."
+trabajo-suspendido: "Ninguno. Trabajo reanudado tras la resolucion."
 ---
 
 # ALERTA-003 — Cablear Gemini (API comercial + clave) como proveedor principal contradice D24/D1/ADR-0001/ADR-0010/P-ARQ-4
@@ -72,3 +72,62 @@ El parche rompe el contrato de abstraccion de proveedores y el baseline local-fi
 ## Resolucion
 
 Pendiente del gate extraordinario del CEO. El CTO recomienda A (arreglar Ollama). Si el CEO desea Gemini como opcion, B con enmienda de D24 y `GeminiProvider` tras el contrato. El parche solicitado (genai en router.py, Gemini principal, clave como default) no se aplica.
+
+
+---
+
+## 11. RESOLUCIÓN — Alternativa A (2026-07-19)
+
+**Veredicto: el parche queda rechazado definitivamente.** Se mantiene local-first. No se instala
+`google-generativeai` ni se cablea ningún SDK en el router.
+
+### La premisa que motivaba el parche quedó refutada por medición
+
+El diagnóstico que acompañaba la petición era: *"el sistema falla porque usa Ollama por defecto y no
+detecta la clave de Gemini"*. La instrumentación de hoy identificó la causa real:
+
+```
+[WARN] router  fallback: ollama fallo (timed out)
+demo 16:15:23 -> 16:18:24 = 181 s, exactamente el timeout=180 del cliente HTTP
+```
+
+Un **timeout del cliente HTTP**, no un defecto de Ollama, que estaba corriendo correctamente. La causa
+de fondo es capacidad de cómputo: `eval_duration` medido = **8.738 ms/token** con 2 CPU, 3,6 GB de RAM
+y sin GPU. Se corrigió parametrizando el timeout (`AURA_OLLAMA_TIMEOUT_S`), sin tocar la arquitectura.
+
+### Ollama demostró ser funcionalmente suficiente
+
+`demo_capacidad_m1.py --real` completó con **0 errores** y **6/6 capacidades**: memoria intra-sesión,
+lista verde auto-ejecutada, lista roja denegada vía HITL, kill switch bloqueando y reanudando,
+persistencia entre sesiones y recuperación desde backup. Con `qwen2.5:3b` local, sin ninguna nube.
+
+### Por qué el parche era peligroso precisamente porque habría funcionado
+
+Este es el punto central de la resolución. Gemini es rápido: aplicado el parche, la demo **habría
+pasado**. Y ese aparente éxito habría producido tres daños simultáneos e invisibles:
+
+1. El contexto de memoria del usuario habría empezado a salir a Google, rompiendo D1/ADR-0001 sin
+   que ningún test fallara.
+2. La verdadera restricción —hardware por debajo del mínimo documentado— habría quedado enmascarada,
+   y HC-1 se habría "cumplido" midiendo la latencia de red de un tercero en vez de la del sistema.
+3. El baseline local reproducible se habría convertido en uno de pago, dependiente de una clave.
+
+Un cambio que oculta un problema de infraestructura tras un síntoma resuelto es más dañino que un
+fallo visible. El mismo criterio que el CEO aplicó al autorizar el aumento de timeout —*"no quiero
+que el timeout oculte un problema de infraestructura"*— condena este parche con más fuerza aún.
+
+### Estado de las alternativas
+
+- **A — adoptada.** Causa real corregida (timeout + entorno). Cero cambios de arquitectura.
+- **B — disponible, sin justificación técnica vigente.** Si en el futuro el CEO decide habilitar
+  proveedores en nube, la vía correcta sigue siendo un `GeminiProvider` que implemente `ModelProvider`,
+  seleccionable por configuración explícita, con minimización previa, nunca como default, y con
+  enmienda documentada de D24. El router permanece agnóstico. **Nunca** cableando `genai` en el router.
+- **C — subsumida en A.**
+
+### Consecuencia
+
+D24, D1, ADR-0001, ADR-0010, P-ARQ-4 y D26 permanecen **intactos y sin enmendar**. AURA sigue siendo
+local-first, independiente de proveedores y reproducible sin claves de terceros.
+
+**Bloqueo del Milestone M1 levantado.**

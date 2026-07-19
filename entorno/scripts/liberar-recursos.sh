@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# Preparacion del USB secundario + liberacion de espacio interno (acta D31).
+# EJECUTAR CON SUDO:  sudo ./liberar-recursos.sh
+# Cada bloque verifica antes de actuar. Nada destructivo sin comprobacion previa.
+set -uo pipefail
+[ "$(id -u)" -eq 0 ] || { echo "Ejecutar con sudo."; exit 1; }
+USUARIO="${SUDO_USER:-majo1230}"
+
+echo "=========================================================="
+echo " 1. FORMATEO DEL USB SECUNDARIO -> ext4, etiqueta AURORA_BAK"
+echo "=========================================================="
+# Seguridad: localizar por ETIQUETA actual, nunca por /dev/sdX (el reboot los renombra).
+DEV="$(lsblk -nro PATH,LABEL | awk '$2=="EDILBERTO"{print $1; exit}')"
+if [ -z "$DEV" ]; then
+  echo "  [SALTADO] No se encuentra ningun dispositivo con etiqueta EDILBERTO."
+  echo "            (Si ya lo formateaste, es lo esperado.)"
+else
+  SZ_B=$(blockdev --getsize64 "$DEV" 2>/dev/null || echo 0)
+  SZ_G=$(( SZ_B / 1000000000 ))
+  ROOT_DEV="$(findmnt -nro SOURCE /)"
+  # Triple verificacion: no es el disco raiz, no es AURORA_EXT, y el tamano cuadra (~4 GB)
+  if [ "$DEV" = "$ROOT_DEV" ]; then echo "  [ABORTADO] $DEV es el disco raiz."; exit 1; fi
+  if lsblk -nro LABEL "$DEV" | grep -q AURORA_EXT; then echo "  [ABORTADO] $DEV es el USB principal."; exit 1; fi
+  if [ "$SZ_G" -gt 6 ]; then echo "  [ABORTADO] $DEV mide ${SZ_G}GB, se esperaba ~4GB."; exit 1; fi
+  echo "  Dispositivo: $DEV (${SZ_G} GB, etiqueta EDILBERTO)  -> verificado"
+  umount "$DEV" 2>/dev/null
+  mkfs.ext4 -F -L AURORA_BAK "$DEV" >/dev/null 2>&1 && echo "  [OK] Formateado a ext4 con etiqueta AURORA_BAK"
+  mkdir -p /media/"$USUARIO"/AURORA_BAK
+  grep -q "LABEL=AURORA_BAK" /etc/fstab || \
+    echo 'LABEL=AURORA_BAK /media/'"$USUARIO"'/AURORA_BAK ext4 defaults,nofail,x-systemd.device-timeout=10 0 2' >> /etc/fstab
+  mount -a 2>/dev/null
+  chown "$USUARIO":"$USUARIO" /media/"$USUARIO"/AURORA_BAK 2>/dev/null
+  sudo -u "$USUARIO" mkdir -p /media/"$USUARIO"/AURORA_BAK/{backups,snapshots,logs,benchmarks,exportaciones,validacion}
+  echo "  [OK] Montaje persistente por ETIQUETA + estructura creada"
+fi
+
+echo ""
+echo "=========================================================="
+echo " 2. MONTAJE PERSISTENTE DEL USB PRINCIPAL"
+echo "=========================================================="
+if grep -q "LABEL=AURORA_EXT" /etc/fstab; then
+  echo "  [OK] Ya presente en /etc/fstab"
+else
+  echo 'LABEL=AURORA_EXT /media/'"$USUARIO"'/AURORA_EXT ext4 defaults,nofail,x-systemd.device-timeout=10 0 2' >> /etc/fstab
+  echo "  [OK] Anadido a /etc/fstab (por ETIQUETA: sobrevive al renombrado sda->sdb)"
+fi
+
+echo ""
+echo "=========================================================="
+echo " 3. LIBERACION DE ESPACIO INTERNO (seguro)"
+echo "=========================================================="
+ANTES=$(df -BM --output=avail / | tail -1 | tr -dc '0-9')
+apt-get clean >/dev/null 2>&1 && echo "  [OK] Cache de apt purgada"
+apt-get autoremove --purge -y >/dev/null 2>&1 && echo "  [OK] Paquetes huerfanos eliminados"
+# Kernels antiguos: NUNCA el que esta en uso
+ACTUAL="$(uname -r)"
+for K in $(dpkg -l 'linux-image-[0-9]*' 2>/dev/null | awk '/^ii/{print $2}'); do
+  if [ "$K" != "linux-image-$ACTUAL" ]; then
+    echo "  - eliminando $K"; apt-get purge -y "$K" >/dev/null 2>&1
+  fi
+done
+echo "  [OK] Kernel en uso conservado: $ACTUAL"
+DESPUES=$(df -BM --output=avail / | tail -1 | tr -dc '0-9')
+echo "  ESPACIO LIBERADO: $(( (DESPUES - ANTES) )) MB"
+
+echo ""
+echo "=========================================================="
+echo " 4. TIMESHIFT — el mayor consumidor (NO se toca automaticamente)"
+echo "=========================================================="
+echo "  Ocupacion actual: $(du -xsh /timeshift 2>/dev/null | cut -f1)"
+echo "  Snapshots:"; ls -1 /timeshift/snapshots/ 2>/dev/null | sed 's/^/    /'
+echo ""
+echo "  Son respaldos del sistema, NO artefactos regenerables. La decision es del CEO."
+echo "  Para conservar solo los 2 mas recientes (libera ~15 GB):"
+echo "    sudo timeshift --list"
+echo "    sudo timeshift --delete --snapshot '<NOMBRE>'"
+
+echo ""
+echo "=========================================================="
+df -h / | tail -1
+lsblk -o NAME,SIZE,FSTYPE,LABEL,MOUNTPOINT | grep -E "sd|mmcblk0p2"

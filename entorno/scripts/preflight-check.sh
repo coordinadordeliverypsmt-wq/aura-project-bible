@@ -113,11 +113,26 @@ else
 fi
 
 # --- 5. Modelos duplicados en disco interno ------------------------------
+# Se comprueba si hay DATOS de modelo en interno, no la mera existencia del directorio:
+# /usr/share/ollama/.ollama/models puede ser un SYMLINK al USB (configuracion correcta),
+# en cuyo caso borrarlo destruiria la migracion. Nunca marcar por existencia del path.
 DUP=0
-if [ -d /usr/share/ollama ]; then
-  SZ="$(du -sh /usr/share/ollama 2>/dev/null | cut -f1)"
-  bad "Instalacion obsoleta en disco interno: /usr/share/ollama ($SZ)"
-  manual "sudo systemctl disable --now ollama && sudo rm -rf /usr/share/ollama"
+SVC_MODELS=/usr/share/ollama/.ollama/models
+if [ -e "$SVC_MODELS" ]; then
+  DEV_SVC="$(devof "$SVC_MODELS")"
+  if [ -L "$SVC_MODELS" ] && [ -n "${USB_DEV:-}" ] && [ "$DEV_SVC" = "$USB_DEV" ]; then
+    ok "Store del servicio enlazado al USB: $SVC_MODELS -> $(readlink "$SVC_MODELS")"
+  elif [ "$DEV_SVC" != "${USB_DEV:-}" ]; then
+    SZ="$(du -xsh "$SVC_MODELS" 2>/dev/null | cut -f1)"
+    bad "Modelos duplicados en disco interno: $SVC_MODELS ($SZ, dispositivo $DEV_SVC)"
+    manual "Verificar copia funcional en USB y despues: sudo rm -rf $SVC_MODELS"
+    DUP=1
+  fi
+fi
+# Blobs sueltos de gran tamano en interno (excluye snapshots de Timeshift: son respaldos)
+STRAY="$(find /usr /home /opt -xdev -name 'sha256-*' -size +100M 2>/dev/null | head -3)"
+if [ -n "$STRAY" ]; then
+  bad "Blobs de modelo en disco interno: $(echo "$STRAY" | tr '\n' ' ')"
   DUP=1
 fi
 [ "$DUP" = "0" ] && ok "Sin modelos duplicados en disco interno"

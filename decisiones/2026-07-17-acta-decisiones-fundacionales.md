@@ -1,6 +1,6 @@
 ---
 documento: "Acta de Decisiones Fundacionales"
-version: 1.10.0
+version: 1.11.0
 autor: "Mauricio (CEO) — registrada por Fable (CTO)"
 fecha: 2026-07-17
 estado: "Vinculante"
@@ -197,6 +197,33 @@ Ningún Sprint, Milestone o sesión de desarrollo comienza sin un **Preflight Ch
 **Entregable:** resumen con Estado (APTO/NO APTO), problemas encontrados, corregidos automáticamente, acciones manuales requeridas y riesgos abiertos. Sin estado APTO no se continúa, salvo autorización expresa del CEO.
 
 *Implementado en `entorno/scripts/preflight-check.sh` y `entorno/scripts/ollama-usb.sh` (lanzador con guardarraíl). Impacta: todo inicio de sesión, sprint y milestone.*
+
+## D31 — Almacenamiento distribuido: los USB son infraestructura permanente (2026-07-19)
+
+Los dispositivos USB dejan de tratarse como unidades externas y pasan a ser **infraestructura permanente del proyecto AURA**. El disco interno del Lenovo 100e no volverá a saturarse por datos regenerables.
+
+**Distribución permanente:**
+
+| Almacenamiento | Contenido |
+|---|---|
+| **Interno** (eMMC 57 G) | Sistema operativo, código fuente, repositorio Git, configuración, bases de datos pequeñas, cachés indispensables, paquetes Python (`~/.local`) |
+| **USB Principal** (`AURORA_EXT`, 7,3 G) | Modelos de Ollama, modelos Whisper, voces Piper, cachés regenerables, temporales grandes |
+| **USB Secundario** (`AURORA_BAK`, 3,6 G) | Backups, snapshots del proyecto, logs históricos, exportaciones, artefactos de pruebas, resultados de benchmarks y validaciones |
+
+**Reglas de operación:**
+
+1. Antes de instalar cualquier componente nuevo se verifica **automáticamente** dónde debe almacenarse.
+2. Si un componente se instala en el disco interno debiendo residir en USB, se **corrige automáticamente antes de continuar**.
+3. Ninguna instalación futura consume espacio interno si puede ubicarse en almacenamiento externo.
+4. Los montajes se declaran en `/etc/fstab` por **identificador estable** (UUID o LABEL), nunca por ruta `/dev/sdX`: el 2026-07-19 un reinicio renombró `sda1` → `sdb1` y una ruta fija habría apuntado al dispositivo equivocado. **Una sola entrada por punto de montaje**: dos entradas al mismo destino provocan montajes duplicados.
+
+**Preflight Check obligatorio en cada ejecución** (extiende D27): ambos USB montados; Ollama usando realmente el USB; Whisper y Piper en almacenamiento externo; swap activo = el definido para AURORA; margen mínimo configurable en el disco interno; **nunca se escriben modelos de IA en el disco interno**. Si alguna verificación falla, el proyecto **se detiene** y explica exactamente qué debe corregirse.
+
+**Excepción razonada (los paquetes Python permanecen en interno):** un entorno de ejecución alojado en una unidad extraíble deja de funcionar en cuanto la unidad no monta, y el fallo se manifiesta lejos de su causa. El criterio es que al USB van **datos y salidas**, no el software que debe estar disponible para arrancar.
+
+**Discrepancia técnica registrada del CTO (D15, deber de disenso):** se recomienda **no** trasladar el swap al USB. La latencia de acceso es del orden de 100x peor que la del eMMC interno, el swapping desgasta la memoria flash hasta inutilizarla, y una desconexión del USB con swap activo derriba el sistema. Se recomienda además **eliminar `swapfile_aurora`** del USB principal: ocupa 4 GB (55% de la unidad) sin prestar servicio, ya que el swap activo es `/swapfile` en el disco interno. Pendiente de decisión del CEO.
+
+*Implementado en `entorno/scripts/preflight-check.sh`, `ollama-usb.sh` y `liberar-recursos.sh`. Impacta: toda instalación futura, todo inicio de sesión, D27.*
 
 ## Autorización
 

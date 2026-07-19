@@ -38,3 +38,29 @@ Espacio USB: 2,9G libres — suficiente para 1,8 G.
 
 - Ollama: PID 19688, `OLLAMA_MODELS=/media/majo1230/AURORA_EXT/ollama_models` (ruta **sí** en el USB), responde `{"models":[]}`.
 - USB montado una sola vez en la ruta oficial (revertido el montaje duplicado que introduje).
+
+## E. Censo del disco interno (completado tras el cierre de Fase 1)
+
+| Directorio | Tamaño |
+|---|---|
+| `/timeshift` (5 snapshots) | **26 G** |
+| `/usr` | 13 G |
+| `/home` | 4,4 G |
+| `/var` | 861 M |
+| `/opt` | 416 M |
+| **Total `du`** | **48 G** |
+
+Snapshots: 2026-07-10, 07-11, 07-16, 07-17, 07-18.
+
+**Consecuencia para la planificación:** la migración completa de Ollama recupera ~3,6 G. Timeshift
+ocupa **26 G**, siete veces más. La migración sigue siendo correcta por política (los modelos no
+deben residir en interno), pero **no es la palanca principal de espacio**.
+
+**Evidencia del directorio enmascarado:** `df` reporta 50 G usados; `du -x` suma 48 G. La diferencia
+de ~2 G es coherente con ~1,8 G de archivos ocultos bajo el punto de montaje, que `df` contabiliza
+y `du` no puede alcanzar. Es evidencia indirecta consistente, **no** una verificación directa.
+
+**Blob principal:** `sha256-5ee4f07c…` = 1.929.903.008 bytes (`qwen2.5:3b`).
+
+> Timeshift NO entra en ninguna política de borrado automático. Son respaldos del sistema:
+> su eliminación es una decisión exclusiva del CEO.

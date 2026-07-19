@@ -46,7 +46,7 @@ class Orchestrator:
         t.mark("llm")
         decision = json.loads(out)
         action, args, say = decision["action"], decision.get("args", {}), decision["say"]
-        if action in ("encender_dispositivo", "apagar_dispositivo", "eliminar_informacion"):
+        if action != "consulta":  # FIX seguridad: TODA accion con efecto pasa por Permisos/HITL (ADR-0003/5.3)
             ok, reason = await self.perm.authorize(action, args, tid)
             if ok and action in self.ha.capabilities:
                 cmd_ev = Event("action.command", tid, uid, {"action": action, "args": args}, causation_id=ev.event_id)

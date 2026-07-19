@@ -27,7 +27,7 @@ El núcleo conversacional: **memoria permanente + conversación por voz + orques
 | M1.1 | Persistencia + **backups/recuperación** de memoria (3-2-1, integridad) | en curso | unit/integration |
 | M1.2 | **Kill Switch** (control-plane, reversible, auditable, fuera de banda) | en curso | unit/integration |
 | M1.3 | Bucle conversacional real (voz+LLM+memoria) sobre Ollama | pendiente hardware | e2e real |
-| M1.4 | Evals de IA (7.2): no-fabricación, guardrails, consistencia inter-modelo | pendiente stack real | eval |
+| M1.4 | Evals de IA (7.2): arnes `evals_m1.py` (HITL lista roja completa, no-ejecucion directa, grounding, consistencia). **Detecto y corrigio un bug de HITL** (solo 3 acciones pasaban por permisos). | arnes listo; evals reales pendientes de hardware | eval + regresion |
 | M1.5 | Cierre HC-1 en hardware objetivo | pendiente | run_demo_real |
 
 ## Fase actual: VALIDACION FUNCIONAL (directriz del CEO, 2026-07-18)

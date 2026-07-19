@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import urllib.request
 
 _SYSTEM = (
@@ -22,10 +23,19 @@ _SYSTEM = (
 class OllamaProvider:
     """Proveedor de inferencia local via Ollama. name/infer cumplen contracts.ModelProvider."""
 
-    def __init__(self, name: str, model: str, url: str = "http://127.0.0.1:11434") -> None:
+    # Timeout del cliente HTTP. Por defecto 180 s. Se puede elevar con AURA_OLLAMA_TIMEOUT_S
+    # para entornos de desarrollo por debajo del hardware minimo (p.ej. Lenovo 100e: 2 CPU,
+    # 3,6 GB RAM, sin GPU, ~8.700 ms/token). NO es una optimizacion: solo evita que el cliente
+    # aborte antes de que el modelo termine. El objetivo HC-1 (1.200 ms) sigue sin cumplirse.
+    DEFAULT_TIMEOUT_S = 180
+
+    def __init__(
+        self, name: str, model: str, url: str = "http://127.0.0.1:11434", timeout_s: int | None = None
+    ) -> None:
         self.name = name
         self.model = model
         self.url = url.rstrip("/")
+        self.timeout_s = timeout_s or int(os.getenv("AURA_OLLAMA_TIMEOUT_S", self.DEFAULT_TIMEOUT_S))
 
     async def infer(self, prompt: str) -> str:
         loop = asyncio.get_event_loop()
@@ -38,6 +48,6 @@ class OllamaProvider:
         req = urllib.request.Request(
             self.url + "/api/generate", data=body, headers={"Content-Type": "application/json"}
         )
-        with urllib.request.urlopen(req, timeout=180) as r:  # noqa: S310 (endpoint local, D24)
+        with urllib.request.urlopen(req, timeout=self.timeout_s) as r:  # noqa: S310 (endpoint local, D24)
             resp = json.load(r)
         return str(resp["response"])  # con format=json, ya es un JSON string

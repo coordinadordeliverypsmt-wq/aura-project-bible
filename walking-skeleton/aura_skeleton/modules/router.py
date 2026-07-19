@@ -66,6 +66,6 @@ class ModelRouter:
                 obs.log("LLM", "router", f"enrutado a {prov.name}", trace_id)
                 return prov.name, out
             except Exception as e:
-                obs.log("WARN", "router", f"fallback: {prov.name} fallo ({e})", trace_id)
+                obs.log("WARN", "router", f"fallback: {prov.name} fallo ({type(e).__name__}: {e})", trace_id)
                 self._open.add(prov.name)  # circuit breaker (4.2 3)
         raise RuntimeError("todos los proveedores fallaron (sin fallback disponible)")

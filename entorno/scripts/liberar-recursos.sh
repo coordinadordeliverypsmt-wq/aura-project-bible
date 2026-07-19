@@ -65,15 +65,37 @@ echo "  ESPACIO LIBERADO: $(( (DESPUES - ANTES) )) MB"
 
 echo ""
 echo "=========================================================="
-echo " 4. TIMESHIFT — el mayor consumidor (NO se toca automaticamente)"
+echo " 4. TIMESHIFT — conservar solo los 2 snapshots mas recientes"
 echo "=========================================================="
-echo "  Ocupacion actual: $(du -xsh /timeshift 2>/dev/null | cut -f1)"
-echo "  Snapshots:"; ls -1 /timeshift/snapshots/ 2>/dev/null | sed 's/^/    /'
-echo ""
-echo "  Son respaldos del sistema, NO artefactos regenerables. La decision es del CEO."
-echo "  Para conservar solo los 2 mas recientes (libera ~15 GB):"
-echo "    sudo timeshift --list"
-echo "    sudo timeshift --delete --snapshot '<NOMBRE>'"
+CONSERVAR=2
+if ! command -v timeshift >/dev/null; then
+  echo "  [ABORTADO] timeshift no esta instalado."
+else
+  ANTES_TS=$(df -BM --output=avail / | tail -1 | tr -dc '0-9')
+  echo "  Ocupacion actual: $(du -xsh /timeshift 2>/dev/null | cut -f1)"
+  # Los nombres son marcas de tiempo (AAAA-MM-DD_HH-MM-SS): el orden alfabetico es cronologico.
+  TODOS="$(ls -1 /timeshift/snapshots/ 2>/dev/null | sort)"
+  TOTAL=$(echo "$TODOS" | grep -c .)
+  if [ "$TOTAL" -le "$CONSERVAR" ]; then
+    echo "  [SALTADO] Hay $TOTAL snapshot(s); se conservan $CONSERVAR o menos. Nada que borrar."
+  else
+    BORRAR="$(echo "$TODOS" | head -n -"$CONSERVAR")"
+    MANTENER="$(echo "$TODOS" | tail -n "$CONSERVAR")"
+    echo "  Se CONSERVAN (los $CONSERVAR mas recientes):"; echo "$MANTENER" | sed 's/^/    + /'
+    echo "  Se ELIMINAN:";                                  echo "$BORRAR"   | sed 's/^/    - /'
+    echo ""
+    for S in $BORRAR; do
+      # Se usa el CLI de timeshift, NO rm -rf: los snapshots comparten enlaces duros
+      # y una base de datos interna; borrarlos a mano corrompe el estado de restauracion.
+      timeshift --delete --snapshot "$S" --yes >/dev/null 2>&1 \
+        && echo "  [OK] eliminado $S" || echo "  [FALLO] no se pudo eliminar $S"
+    done
+    DESPUES_TS=$(df -BM --output=avail / | tail -1 | tr -dc '0-9')
+    echo ""
+    echo "  ESPACIO LIBERADO POR TIMESHIFT: $(( DESPUES_TS - ANTES_TS )) MB"
+    echo "  Snapshots restantes: $(ls -1 /timeshift/snapshots/ 2>/dev/null | wc -l)"
+  fi
+fi
 
 echo ""
 echo "=========================================================="

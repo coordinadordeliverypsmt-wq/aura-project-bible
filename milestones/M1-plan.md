@@ -30,6 +30,14 @@ El núcleo conversacional: **memoria permanente + conversación por voz + orques
 | M1.4 | Evals de IA (7.2): no-fabricación, guardrails, consistencia inter-modelo | pendiente stack real | eval |
 | M1.5 | Cierre HC-1 en hardware objetivo | pendiente | run_demo_real |
 
+## Fase actual: VALIDACION FUNCIONAL (directriz del CEO, 2026-07-18)
+
+- **Mocks CONGELADOS:** el desarrollo sobre el entorno simulado queda congelado; **solo se aceptan correcciones de errores**. El foco es integrar y validar el **stack real** (Ollama, faster-whisper, Piper, NATS, memoria persistente) sobre los **contratos existentes**.
+- **Demostracion oficial de M1:** `walking-skeleton/demo_capacidad_m1.py --real` en el hardware objetivo.
+- **Arnes de medicion:** `walking-skeleton/validar_m1.py --real` registra automaticamente latencia por etapa/total, CPU/RAM/almacenamiento y errores/recuperaciones -> `resultados-m1.json`.
+- **Si un objetivo de rendimiento/estabilidad no se cumple:** Alerta de Arquitectura (D15), nunca ajuste silencioso.
+- **Criterio de avance:** comportamiento observado del producto en ejecucion, no cantidad de codigo.
+
 ## Reglas de M1
 
 - Cada entregable se integra con **sus pruebas** (Plan de Calidad); **Quality Gate en PASS** obligatorio.

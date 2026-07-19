@@ -84,6 +84,19 @@ python3 run_demo_real.py --text "Enciende la luz de la sala" --iterations 30
 python3 run_demo_real.py --audio /ruta/a/muestra.wav --iterations 30
 ```
 
+## 7.bis Validación oficial de M1 con registro automático de métricas
+
+```bash
+pip install -r walking-skeleton/requirements-validacion.txt   # psutil (opcional, D26)
+cd walking-skeleton
+# Demostracion oficial de M1 (producto, principio a fin):
+python3 demo_capacidad_m1.py --real
+# Arnes de metricas (registra latencia/CPU/RAM/almacenamiento/errores -> resultados-m1.json):
+python3 validar_m1.py --real --iterations 50 --text "Enciende la luz de la sala"
+#   con audio real (mide STT): python3 validar_m1.py --real --audio muestra.wav --iterations 50
+```
+`resultados-m1.json` contiene: latencia por etapa (STT/LLM/TTS), e2e P50/P95, recursos (CPU/RAM/almacenamiento) antes/despues, y estabilidad (errores/recuperaciones). **Compártelo** para el cierre de M1.
+
 ## 8. Interpretar el resultado HC-1
 
 `run_demo_real.py` imprime la latencia por etapa (STT/LLM/TTS) y de extremo a extremo (P50/P95), y compara contra:

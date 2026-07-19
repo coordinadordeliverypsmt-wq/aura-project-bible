@@ -6,3 +6,6 @@ __pycache__/
 .ruff_cache/
 .bin/
 voces/
+
+resultados-m1.json
+m1-validacion-datos/

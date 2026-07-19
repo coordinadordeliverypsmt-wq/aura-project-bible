@@ -1,0 +1,5 @@
+# Dependencias para la VALIDACION de M1 (arnes validar_m1.py).
+# psutil — dependencia OPCIONAL justificada (D26): aporta las metricas de CPU/RAM/almacenamiento
+# cross-plataforma que el CEO exige (beneficio medible) y REDUCE complejidad frente a codigo por-SO.
+# El arnes funciona sin ella (fallback a stdlib), con metricas mas limitadas.
+psutil>=5.9

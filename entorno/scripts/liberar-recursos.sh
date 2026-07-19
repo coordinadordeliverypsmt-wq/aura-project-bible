@@ -26,8 +26,13 @@ else
   umount "$DEV" 2>/dev/null
   mkfs.ext4 -F -L AURORA_BAK "$DEV" >/dev/null 2>&1 && echo "  [OK] Formateado a ext4 con etiqueta AURORA_BAK"
   mkdir -p /media/"$USUARIO"/AURORA_BAK
-  grep -q "LABEL=AURORA_BAK" /etc/fstab || \
+  # Se comprueba el PUNTO DE MONTAJE, no el identificador: una entrada previa por UUID
+  # apunta al mismo destino y anadir otra por LABEL genera un montaje duplicado en el arranque.
+  if grep -qE "^[^#]*[[:space:]]/media/$USUARIO/AURORA_BAK[[:space:]]" /etc/fstab; then
+    echo "  [OK] /media/$USUARIO/AURORA_BAK ya configurado en fstab (no se duplica)"
+  else
     echo 'LABEL=AURORA_BAK /media/'"$USUARIO"'/AURORA_BAK ext4 defaults,nofail,x-systemd.device-timeout=10 0 2' >> /etc/fstab
+  fi
   mount -a 2>/dev/null
   chown "$USUARIO":"$USUARIO" /media/"$USUARIO"/AURORA_BAK 2>/dev/null
   sudo -u "$USUARIO" mkdir -p /media/"$USUARIO"/AURORA_BAK/{backups,snapshots,logs,benchmarks,exportaciones,validacion}
@@ -38,11 +43,14 @@ echo ""
 echo "=========================================================="
 echo " 2. MONTAJE PERSISTENTE DEL USB PRINCIPAL"
 echo "=========================================================="
-if grep -q "LABEL=AURORA_EXT" /etc/fstab; then
-  echo "  [OK] Ya presente en /etc/fstab"
+# Igual que arriba: se comprueba el destino, no el identificador. UUID y LABEL son
+# ambos estables frente al renombrado sda->sdb; lo que rompe el arranque es tener DOS
+# entradas para el mismo punto de montaje.
+if grep -qE "^[^#]*[[:space:]]/media/$USUARIO/AURORA_EXT[[:space:]]" /etc/fstab; then
+  echo "  [OK] Ya configurado en /etc/fstab (no se duplica)"
 else
   echo 'LABEL=AURORA_EXT /media/'"$USUARIO"'/AURORA_EXT ext4 defaults,nofail,x-systemd.device-timeout=10 0 2' >> /etc/fstab
-  echo "  [OK] Anadido a /etc/fstab (por ETIQUETA: sobrevive al renombrado sda->sdb)"
+  echo "  [OK] Anadido a /etc/fstab por ETIQUETA"
 fi
 
 echo ""

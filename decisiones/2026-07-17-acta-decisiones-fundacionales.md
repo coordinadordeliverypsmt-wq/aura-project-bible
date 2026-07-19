@@ -1,6 +1,6 @@
 ---
 documento: "Acta de Decisiones Fundacionales"
-version: 1.9.0
+version: 1.10.0
 autor: "Mauricio (CEO) — registrada por Fable (CTO)"
 fecha: 2026-07-17
 estado: "Vinculante"
@@ -179,6 +179,24 @@ Al finalizar **cada milestone** se ejecuta una **Architecture Review** con el mi
 
 **Ningún ADR nuevo ni ninguna dependencia nueva** se incorpora sin **demostrar** que reduce complejidad o aporta un **beneficio medible**. La justificación se documenta (en el ADR o en la nota de la dependencia) con la métrica o el criterio de beneficio. Refuerza la regla 13 del ADR-0004 (anti-sobre-ingeniería) y el acta D24 (entorno).
 *Impacta: 1.2 (criterio de ADR), 3.6/entorno (dependencias), toda incorporación futura.*
+
+## D27 — Verificación de Entorno obligatoria (Preflight Check) (2026-07-19)
+
+Ningún Sprint, Milestone o sesión de desarrollo comienza sin un **Preflight Check** en estado **APTO**.
+
+**Principio rector:** se verifica siempre el **estado real del sistema**, nunca se asume que una configuración sigue siendo válida porque exista una variable de entorno o un archivo de configuración. En particular, se comprueba el **dispositivo físico que respalda cada ruta** (`df --output=source`), no la ruta en sí: un directorio `/media/.../AURORA_EXT` existe igualmente con el USB desmontado, y en ese caso las escrituras van al disco interno **sin error visible**. Esta fue la causa raíz del incidente del 2026-07-19.
+
+**Comprobaciones:** espacio libre interno y USB; USB realmente montado; punto de montaje = dispositivo esperado; existencia de rutas configuradas; Ollama usando de verdad el directorio del USB; ausencia de modelos duplicados en interno; swap activo esperado; margen suficiente para trabajar.
+
+**Reparación automática:** se corrige sin intervención todo lo que no requiera privilegios; lo que requiera root se entrega como comandos exactos para el CEO. Tras cualquier intervención se **vuelve a verificar** antes de continuar.
+
+**Prevención:** si se detecta que el proyecto va a escribir modelos, cachés o regenerables en el disco interno, se **detiene la operación**, se corrige, se reverifica y solo entonces se continúa.
+
+**Almacenamiento:** interno = SO, código, git, documentación, datos permanentes. USB = modelos (Ollama, Faster-Whisper, voces Piper), cachés, temporales, artefactos regenerables.
+
+**Entregable:** resumen con Estado (APTO/NO APTO), problemas encontrados, corregidos automáticamente, acciones manuales requeridas y riesgos abiertos. Sin estado APTO no se continúa, salvo autorización expresa del CEO.
+
+*Implementado en `entorno/scripts/preflight-check.sh` y `entorno/scripts/ollama-usb.sh` (lanzador con guardarraíl). Impacta: todo inicio de sesión, sprint y milestone.*
 
 ## Autorización
 

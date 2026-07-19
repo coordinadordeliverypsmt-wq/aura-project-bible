@@ -47,3 +47,22 @@ Todos los componentes son **gratuitos, open source y autoalojables**, sin claves
 - **Paquetes pip** (nats-py, faster-whisper, piper-tts, qdrant-client) en un venv.
 
 Total aproximado de descarga: **~3-5 GB** (dominado por el modelo LLM). Todo local tras la instalación; sin llamadas a terceros en ejecución.
+
+## Memoria y swap en el entorno estandarizado (2026-07-19)
+
+El entorno de desarrollo incorpora una **extension de swap de 4 GB** para dar estabilidad (evitar caidas por OOM durante builds, Quality Gate y herramientas).
+
+**Estado verificado el 2026-07-19:** el swap activo es **`/swapfile` (4 GB, en el almacenamiento interno)**; el dispositivo USB `/dev/sda1` (7,5 GB) esta presente pero **no** figura como swap (`swapon --show` no lo lista). Si la intencion era ubicarlo en el USB, verificar con `swapon --show` y, en su caso, activarlo y persistirlo en `/etc/fstab`.
+
+### Salvedad tecnica obligatoria (protege HC-1)
+
+**El swap NO es margen de memoria para la ruta critica de latencia.** El swap —sea archivo, mmc o USB— es **ordenes de magnitud mas lento que la RAM**:
+
+- Sirve como **red de seguridad de estabilidad** (evita que un proceso muera por OOM). Util para compilar, correr pruebas y herramientas.
+- **No sustituye RAM fisica** para Ollama (LLM), faster-whisper (STT) ni Piper (TTS). Si el modelo entra en swap durante la inferencia, la latencia se dispara y **HC-1 (P50 <= 1200 ms) se vuelve inalcanzable**.
+- Los **requisitos de RAM del stack no cambian**: R1 (CPU) sigue requiriendo **>= 12 GB de RAM fisica**; el swap no los rebaja.
+- Riesgo operativo: el swap intensivo desgasta memorias flash (USB/SD) y un USB puede desconectarse; no es soporte recomendable para swap sostenido en un sistema que custodia la memoria del usuario.
+
+### Regla de validez de las mediciones
+
+`walking-skeleton/validar_m1.py` **instrumenta el swap**: registra `swap.antes/despues` y las paginas entrada/salida durante la corrida. Si detecta swapping, marca `"hubo_swapping": true` y **`"medicion_valida": false`**, y avisa de forma explicita. **Una medicion de HC-1 con swapping no es valida** y debe repetirse liberando RAM (cerrar aplicaciones, modelo mas pequeno) o con mas RAM fisica.

@@ -40,6 +40,10 @@ python3 walking-skeleton/run_demo_real.py --iterations 50   # (proxima entrega: 
 
 Por turno, latencia de extremo a extremo (fin de habla → inicio de respuesta hablada) y por etapa: STT (faster-whisper), primer token del LLM (Ollama), TTS (Piper), bus (NATS). Se reportan P50/P95 sobre N iteraciones y se comparan contra R1 ≤ 1200 ms / R2 ≤ 800 ms. Registro automatico (2.2 §3.4), sin intervencion subjetiva.
 
+## Condicion de validez: sin swapping
+
+Antes de dar por buena cualquier medicion, comprueba en `resultados-m1.json` que **`"medicion_valida": true`** y **`"hubo_swapping": false`**. El swap (archivo/mmc/USB) es mucho mas lento que la RAM: si la inferencia entra en swap, los numeros no representan el rendimiento real y **la medicion no es valida**. Repite liberando RAM o con mas memoria fisica. Ver la salvedad en `stack-produccion.md`.
+
 ## Criterio de cierre de HC-1
 
 HC-1 se marca **Validado** cuando, en el hardware objetivo, el P50 cumple el umbral de su release (R1 o R2) de forma sostenida sobre N≥50 turnos. El resultado se registra en un CEO Executive Summary y, si un umbral no se alcanza, se levanta una Alerta de Arquitectura (D15) en vez de ajustar silenciosamente.

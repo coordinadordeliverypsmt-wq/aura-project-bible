@@ -50,10 +50,22 @@ class ModelProvider(Protocol):
 
 @runtime_checkable
 class Adapter(Protocol):
+    """Contrato de adaptador de dominio (Bible 6.1).
+
+    H1 (M2.0): la firma declarada omitia `trace_id` y `event_id`, que el orquestador SI pasa.
+    `runtime_checkable` solo comprueba que el metodo exista, no su firma, por lo que la prueba de
+    contrato pasaba con una declaracion incorrecta. Quien escribiera un adaptador nuevo siguiendo
+    el contrato habria escrito uno roto. Corregido para reflejar el uso real; la verificacion de
+    firma vive en `tests/test_contracts.py::test_contrato_adapter_firma`.
+
+    `event_id` es obligatorio: los adaptadores lo usan para idempotencia (3.3 §3), de modo que un
+    mismo evento reentregado no produzca dos efectos reales. En M2 esto deja de ser teorico.
+    """
+
     name: str
     capabilities: list[str]
 
-    async def execute(self, command: str, args: dict) -> dict: ...
+    async def execute(self, command: str, args: dict, trace_id: str, event_id: str) -> dict: ...
 
 
 @runtime_checkable

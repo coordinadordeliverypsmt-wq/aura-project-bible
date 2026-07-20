@@ -6,25 +6,63 @@ from __future__ import annotations
 from .. import observability as obs
 
 # ADR-0003 (acta D4) — listas permanentes
-GREEN = {
-    "encender_dispositivo",
-    "apagar_dispositivo",
-    "consulta",
-    "recordatorio",
-    "monitoreo",
-    "organizacion",
-    "automatizacion",
+# ---------------------------------------------------------------------------
+# CATALOGO EXPLICITO DE ACCIONES (H3, M2.0)
+#
+# Hasta M1 las listas eran categorias abstractas ("organizacion", "monitoreo"). En M2 el sistema
+# actua sobre archivos y procesos reales, y una categoria no basta para decidir si una operacion
+# concreta destruye datos.
+#
+# CRITERIO DE CLASIFICACION: REVERSIBILIDAD.
+#   verde -> no altera el estado del usuario (lectura, consulta) o es trivialmente reversible.
+#   roja  -> altera o destruye estado, o produce efectos observables fuera del sistema.
+#
+# El criterio es deliberadamente conservador: ante la duda, roja. Un falso positivo cuesta una
+# confirmacion al usuario; un falso negativo puede destruir datos irrecuperables (riesgo RN-1).
+#
+# NOTA PARA EL CEO: 6.4 §1 situa "organizar" en lista verde. Al descomponerlo en operaciones
+# concretas, `mover_archivo` y `renombrar_archivo` ALTERAN el estado del usuario y pueden perder
+# datos si el destino colisiona. Se clasifican en ROJA a la espera de ratificacion. Es una
+# divergencia consciente respecto a la Bible, no un descuido.
+# ---------------------------------------------------------------------------
+
+CATALOGO: dict[str, dict] = {
+    # --- Conversacion y dispositivos (heredado de M1) ---
+    "consulta": {"lista": "verde", "efecto": "ninguno", "desc": "responder sin actuar"},
+    "recordatorio": {"lista": "verde", "efecto": "interno", "desc": "crear recordatorio propio"},
+    "monitoreo": {"lista": "verde", "efecto": "lectura", "desc": "observar estado"},
+    "automatizacion": {"lista": "verde", "efecto": "interno", "desc": "definir regla (no ejecutarla)"},
+    "organizacion": {"lista": "verde", "efecto": "interno", "desc": "planificar organizacion (dry-run)"},
+    "encender_dispositivo": {"lista": "verde", "efecto": "reversible", "desc": "encender dispositivo"},
+    "apagar_dispositivo": {"lista": "verde", "efecto": "reversible", "desc": "apagar dispositivo"},
+    # --- Computador: solo lectura (M2) ---
+    "buscar_archivo": {"lista": "verde", "efecto": "lectura", "desc": "buscar por nombre o patron"},
+    "listar_directorio": {"lista": "verde", "efecto": "lectura", "desc": "listar contenido"},
+    "leer_archivo": {"lista": "verde", "efecto": "lectura", "desc": "leer contenido"},
+    "abrir_archivo": {"lista": "verde", "efecto": "lectura", "desc": "abrir en su aplicacion"},
+    "consultar_estado_sistema": {"lista": "verde", "efecto": "lectura", "desc": "disco, memoria, procesos"},
+    # --- Computador: alteran estado (M2) ---
+    "mover_archivo": {"lista": "roja", "efecto": "altera", "desc": "mover (puede colisionar en destino)"},
+    "renombrar_archivo": {"lista": "roja", "efecto": "altera", "desc": "renombrar"},
+    "escribir_archivo": {"lista": "roja", "efecto": "altera", "desc": "crear o sobrescribir"},
+    "borrar_archivo": {"lista": "roja", "efecto": "destruye", "desc": "eliminar del disco"},
+    "modificar_configuracion": {"lista": "roja", "efecto": "altera", "desc": "cambiar configuracion del sistema"},
+    "terminar_proceso": {"lista": "roja", "efecto": "altera", "desc": "matar un proceso"},
+    "instalar_software": {"lista": "roja", "efecto": "altera", "desc": "instalar o desinstalar"},
+    # --- Efectos fuera del sistema (heredado de M1) ---
+    "pago": {"lista": "roja", "efecto": "externo", "desc": "realizar un pago"},
+    "compra": {"lista": "roja", "efecto": "externo", "desc": "realizar una compra"},
+    "transferencia": {"lista": "roja", "efecto": "externo", "desc": "transferir fondos"},
+    "eliminar_informacion": {"lista": "roja", "efecto": "destruye", "desc": "eliminar informacion"},
+    "abrir_cerradura": {"lista": "roja", "efecto": "externo", "desc": "abrir una cerradura"},
+    "mensaje_a_tercero": {"lista": "roja", "efecto": "externo", "desc": "enviar mensaje a otra persona"},
+    "accion_legal": {"lista": "roja", "efecto": "externo", "desc": "accion con efecto legal"},
+    "accion_financiera": {"lista": "roja", "efecto": "externo", "desc": "accion financiera"},
 }
-RED = {
-    "pago",
-    "compra",
-    "transferencia",
-    "eliminar_informacion",
-    "abrir_cerradura",
-    "mensaje_a_tercero",
-    "accion_legal",
-    "accion_financiera",
-}
+
+# Fuente unica de verdad: las listas se DERIVAN del catalogo, no se mantienen en paralelo.
+GREEN = {a for a, m in CATALOGO.items() if m["lista"] == "verde"}
+RED = {a for a, m in CATALOGO.items() if m["lista"] == "roja"}
 
 
 class PermissionManager:

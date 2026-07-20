@@ -39,3 +39,30 @@ def test_voz_real_cumple_contrato():
     from aura_skeleton.adapters.voice_real import WhisperPiperVoice
 
     assert isinstance(WhisperPiperVoice(), VoiceAdapter)
+
+
+def test_contrato_adapter_firma():
+    """H1 (M2.0): la firma declarada en el Protocol debe coincidir con la de las implementaciones.
+
+    `isinstance` con `runtime_checkable` solo comprueba que el metodo EXISTA. Por eso el contrato
+    pudo declarar `execute(command, args)` mientras el orquestador llamaba con cuatro argumentos,
+    sin que ninguna prueba fallara. Esta comprobacion cierra ese hueco.
+    """
+    import inspect
+
+    from aura_skeleton.contracts import Adapter
+
+    esperada = [p for p in inspect.signature(Adapter.execute).parameters if p != "self"]
+    for impl in (HomeAssistantMock,):
+        real = [p for p in inspect.signature(impl.execute).parameters if p != "self"]
+        assert real == esperada, f"{impl.__name__}.execute{tuple(real)} != contrato{tuple(esperada)}"
+
+
+def test_contrato_adapter_refleja_la_llamada_real_del_orquestador():
+    """El contrato debe admitir exactamente como el orquestador invoca al adaptador."""
+    import inspect
+
+    from aura_skeleton.contracts import Adapter
+
+    params = [p for p in inspect.signature(Adapter.execute).parameters if p != "self"]
+    assert params == ["command", "args", "trace_id", "event_id"]

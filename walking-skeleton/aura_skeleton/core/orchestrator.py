@@ -36,6 +36,42 @@ def _extract_json(s: str) -> str:
     return s[a : b + 1] if 0 <= a < b else ""
 
 
+# ADR-0014 — El Core es la unica fuente de verdad sobre los hechos del sistema.
+# La deteccion de "el usuario pregunta por un recuerdo" es DETERMINISTA: no puede
+# delegarse en el LLM, porque el objetivo es precisamente no consultarlo cuando no
+# hay nada que recordar. Se normalizan acentos para que "habiamos"/"habíamos" coincidan.
+_PATRONES_CONSULTA_MEMORIA = (
+    "acordamos",
+    "quedamos en",
+    "recuerdas",
+    "te acuerdas",
+    "que dije",
+    "que dijimos",
+    "habiamos hablado",
+    "hablamos de",
+    "te conte",
+    "te comente",
+    "mencione",
+    "que sabes de mi",
+    "que recuerdas",
+    "mi preferencia",
+    "habiamos quedado",
+)
+
+
+def _normalizar(texto: str) -> str:
+    import unicodedata
+
+    t = unicodedata.normalize("NFD", texto.lower())
+    return "".join(c for c in t if unicodedata.category(c) != "Mn")
+
+
+def _es_consulta_de_memoria(texto: str) -> bool:
+    """True si el usuario pregunta por algo supuestamente recordado."""
+    t = _normalizar(texto)
+    return any(p in t for p in _PATRONES_CONSULTA_MEMORIA)
+
+
 class Orchestrator:
     def __init__(self, bus, memory, router, permissions, voice, ha):
         self.bus, self.memory, self.router = bus, memory, router
@@ -66,6 +102,17 @@ class Orchestrator:
         t = self._timers.get(tid) or Timer()
         hits = await self.memory.recall(uid, text)
         t.mark("memory")
+        # ADR-0014: la ausencia de memoria es un HECHO, no una inferencia. Si el usuario
+        # pregunta por un recuerdo y no existe registro, responde el nucleo y NO se consulta
+        # al LLM: no se le da ocasion de inferir, completar ni reformular lo inexistente.
+        if not hits and _es_consulta_de_memoria(text):
+            say = "No tengo ningun recuerdo registrado sobre eso."
+            obs.log(
+                "CORE", "grounding", "memoria vacia -> respuesta determinista (sin llamada al LLM)", tid, audit=True
+            )
+            await self._finalizar_turno(uid, tid, text, say, "core", t)
+            return
+
         ctx = " | ".join(h["content"] for h in hits) if hits else "(sin recuerdos relevantes)"
         buffer = self._dialogue.get(uid, [])
         recent = "\n".join(f"(previo) tu: {u} | AURA: {a}" for u, a in buffer) or "(inicio de la conversacion)"
@@ -83,6 +130,10 @@ class Orchestrator:
                 say = say + f" [accion {action} autorizada: {reason}]"
             else:
                 say = "No ejecute la accion." + f" [accion {action} {reason}]"
+        await self._finalizar_turno(uid, tid, text, say, prov, t)
+
+    async def _finalizar_turno(self, uid, tid, text, say, prov, t):
+        """Cierre comun del turno: persistencia, memoria de trabajo, voz, metricas y resultado."""
         await self.memory.write(uid, "episodica", f"usuario dijo: {text}", {"trace_id": tid, "fuente": "conversacion"})
         buffer = self._dialogue.setdefault(uid, [])
         buffer.append((text, say))

@@ -16,7 +16,12 @@ _SYSTEM = (
     "encender_dispositivo, apagar_dispositivo, consulta, recordatorio, monitoreo, organizacion, automatizacion "
     "(acciones de bajo riesgo), o eliminar_informacion, pago, compra, transferencia, abrir_cerradura, "
     "mensaje_a_tercero, accion_legal, accion_financiera (acciones que requieren confirmacion). "
-    "Elige la accion que mejor represente la peticion del usuario. No ejecutes nada; solo describe la decision."
+    "Elige la accion que mejor represente la peticion del usuario. No ejecutes nada; solo describe la decision. "
+    # ADR-0014 (refuerzo, Alternativa B): el nucleo ya impide llegar aqui sin recuerdos, pero el
+    # modelo tampoco debe insinuar lo inexistente si el contexto viene vacio.
+    "AUTORIDAD SOBRE LOS HECHOS: el nucleo del sistema es la unica fuente de verdad. Si el contexto de "
+    "memoria indica que no hay recuerdos, NUNCA afirmes ni insinues que existe informacion registrada; "
+    "di claramente que no tienes registro. No inventes, completes ni reformules recuerdos."
 )
 
 

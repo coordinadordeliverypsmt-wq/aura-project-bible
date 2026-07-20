@@ -1,6 +1,6 @@
 ---
 documento: "Acta de Decisiones Fundacionales"
-version: 1.12.0
+version: 1.13.0
 autor: "Mauricio (CEO) — registrada por Fable (CTO)"
 fecha: 2026-07-17
 estado: "Vinculante"
@@ -248,6 +248,16 @@ Los dispositivos USB dejan de tratarse como unidades externas y pasan a ser **in
 **Discrepancia técnica registrada del CTO (D15, deber de disenso):** se recomienda **no** trasladar el swap al USB. La latencia de acceso es del orden de 100x peor que la del eMMC interno, el swapping desgasta la memoria flash hasta inutilizarla, y una desconexión del USB con swap activo derriba el sistema. Se recomienda además **eliminar `swapfile_aurora`** del USB principal: ocupa 4 GB (55% de la unidad) sin prestar servicio, ya que el swap activo es `/swapfile` en el disco interno. Pendiente de decisión del CEO.
 
 *Implementado en `entorno/scripts/preflight-check.sh`, `ollama-usb.sh` y `liberar-recursos.sh`. Impacta: toda instalación futura, todo inicio de sesión, D27.*
+
+## D32 — `mover_archivo` y `renombrar_archivo` en lista roja hasta que exista dry-run (2026-07-20)
+
+Al descomponer la categoría "organizar" (6.4 §1, lista verde) en operaciones concretas, `mover_archivo` y `renombrar_archivo` **alteran el estado del usuario** y pueden perder datos si el destino colisiona. El CEO **ratifica la clasificación conservadora**: ambas permanecen en **lista roja**.
+
+**La Bible NO se modifica todavía.** Rige el principio de máxima seguridad hasta que el **motor de dry-run** exista, esté implementado y validado con evidencia.
+
+**Decisión pendiente registrada:** al cierre del motor de dry-run se reevaluará si estas acciones pueden pasar a lista verde **condicionadas a previsualización obligatoria**. En ese momento se revisará la coherencia entre implementación y Bible (6.4 §1), y se enmendará una u otra — no se dejará la divergencia abierta indefinidamente.
+
+*Impacta: `permissions.py` (catálogo), M2.1, M2.3 (dry-run), 6.4 §1.*
 
 ## Autorización
 

@@ -15,7 +15,13 @@ async def test_fallback_a_proveedor_sano():
 
 
 @pytest.mark.asyncio
-async def test_intencion_sobre_peticion_no_contexto():
+async def test_fixture_mockprovider_clasifica_sobre_la_peticion():
+    """AUTOPRUEBA DEL FIXTURE, no garantia del sistema (auditoria T1).
+
+    En produccion quien clasifica la intencion es el LLM, no este doble. Esta prueba solo
+    fija el comportamiento de MockProvider para que el resto de pruebas que lo usan como
+    ENTRADA sean deterministas. No debe leerse como evidencia de ninguna propiedad de AURA.
+    """
     # el contexto de memoria contiene 'luz' pero la peticion es borrar -> gana la lista roja (5.2)
     r = ModelRouter([MockProvider("b", 5, healthy=True)], 1200)
     _, out = await r.route("[contexto memoria: luz de la sala]\nUsuario: elimina el archivo", "t")

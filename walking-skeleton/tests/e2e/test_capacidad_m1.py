@@ -34,7 +34,7 @@ async def test_capacidad_conversacional_completa(tmp_path):
     orch = _orch(PersistentMemory(mem_path), ks)
 
     # accion segura
-    r = await _run(orch, "Enciende la luz de la sala")
+    r = await _run(orch, "Enciende la luz de la sala en modo tenue")
     assert "ejecutada" in r["say"]
     # accion peligrosa rechazada (HITL)
     r = await _run(orch, "Elimina el archivo de impuestos")
@@ -48,15 +48,22 @@ async def test_capacidad_conversacional_completa(tmp_path):
     # persistencia entre sesiones: nueva instancia carga del disco
     mem2 = PersistentMemory(mem_path)
     orch2 = _orch(mem2, ks)
-    r = await _run(orch2, "Que acordamos sobre la luz de la sala?")
-    assert "luz" in r["say"].lower()
+    # T1: la asercion debe discriminar RECUERDO de REPETICION de la pregunta. Se pregunta por
+    # "la sala" (termino presente en la pregunta) pero se asevera sobre "tenue", que aparece
+    # UNICAMENTE en el recuerdo cargado del disco. Antes se aseveraba "luz", palabra contenida
+    # en la propia pregunta: la prueba pasaba aunque no hubiera recuperacion de memoria alguna.
+    r = await _run(orch2, "Que acordamos sobre la sala?")
+    assert "tenue" in r["say"].lower(), (
+        f"no se recupero el recuerdo desde disco (respuesta: {r['say']!r}). "
+        "'tenue' solo puede provenir de la memoria persistida, no de la pregunta."
+    )
 
     # recuperacion tras perdida
     b = mem2.backup()
     mem2._items = []
     mem2._persist()
     assert mem2.restore(b) is True
-    assert await mem2.recall("mauricio", "luz")
+    assert await mem2.recall("mauricio", "tenue")
 
 
 async def _run(orch, text):

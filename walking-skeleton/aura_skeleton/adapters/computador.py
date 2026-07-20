@@ -99,6 +99,70 @@ class AdaptadorComputador:
         )
         return {"status": "ok", **resultado}
 
+    async def simular(self, command: str, args: dict, trace_id: str) -> dict:
+        """Previsualiza sin efectos (M2.3). Cumple `contracts.AdaptadorSimulable`.
+
+        Reutiliza la MISMA puerta de validacion y las MISMAS comprobaciones previas que la ruta
+        real (`_comprobar_destructiva`). Si divergieran, el dry-run podria aprobar algo que luego
+        falla, o al reves, y la previsualizacion dejaria de ser informacion fiable.
+
+        No existe aqui ninguna llamada a unlink, rename ni open de escritura.
+        """
+        seguros = validar(command, args, self._raices)
+        altera = command in _DESTRUCTIVAS
+        plan: dict = {"accion": command, "altera_estado": altera, "argumentos": seguros}
+        if altera:
+            try:
+                plan["efecto"] = self._comprobar_destructiva(command, seguros)
+                plan["viable"] = True
+            except ErrorDeValidacion as e:
+                plan["viable"] = False
+                plan["motivo"] = str(e)
+        else:
+            plan["viable"] = True
+            plan["efecto"] = "solo lectura: sin cambios en el sistema de archivos"
+        obs.log("DRYRUN", "computador", f"plan {command}: viable={plan['viable']}", trace_id)
+        return plan
+
+    def _comprobar_destructiva(self, command: str, a: dict) -> str:
+        """Comprobaciones previas COMPARTIDAS entre simulacion y ejecucion real.
+
+        Abre descriptores y verifica enlaces/colisiones, pero no muta nada. La ruta real las
+        repite justo antes de actuar: en simulacion informan, en ejecucion protegen (TOCTOU).
+        """
+        if command == "borrar_archivo":
+            fd = _fd_directorio_seguro(a["ruta"], self._raices)
+            try:
+                st = _exigir_no_enlace(os.path.basename(a["ruta"]), fd)
+                return f"se eliminaria {a['ruta']} ({st.st_size} bytes)"
+            finally:
+                os.close(fd)
+        if command == "escribir_archivo":
+            fd = _fd_directorio_seguro(a["ruta"], self._raices)
+            try:
+                base = os.path.basename(a["ruta"])
+                previo = _lstat_o_none(base, fd)  # nombre distinto: el tipo admite None
+                if previo is not None and stat.S_ISLNK(previo.st_mode):
+                    raise ErrorDeValidacion(f"el destino es un enlace simbolico: {base!r}")
+                verbo = "se sobrescribiria" if previo is not None else "se crearia"
+                return f"{verbo} {a['ruta']} ({len(a['contenido'].encode())} bytes)"
+            finally:
+                os.close(fd)
+        if command in ("mover_archivo", "renombrar_archivo"):
+            fd_o = _fd_directorio_seguro(a["origen"], self._raices)
+            try:
+                fd_d = _fd_directorio_seguro(a["destino"], self._raices)
+                try:
+                    _exigir_no_enlace(os.path.basename(a["origen"]), fd_o)
+                    if _lstat_o_none(os.path.basename(a["destino"]), fd_d) is not None:
+                        raise ErrorDeValidacion(f"el destino ya existe: {a['destino']!r}")
+                    return f"se moveria {a['origen']} -> {a['destino']}"
+                finally:
+                    os.close(fd_d)
+            finally:
+                os.close(fd_o)
+        raise ErrorDeValidacion(f"sin simulacion para {command!r}")
+
     def _despachar(self, command: str, a: dict) -> dict:
         if command == "listar_directorio":
             return {"entradas": sorted(os.listdir(a["ruta"]))}

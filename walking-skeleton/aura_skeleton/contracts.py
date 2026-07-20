@@ -96,3 +96,18 @@ class VoiceAdapter(Protocol):
     async def tts(self, text: str, trace_id: str) -> str:
         """Sintetiza voz. Devuelve la referencia al audio producido."""
         ...
+
+
+@runtime_checkable
+class AdaptadorSimulable(Protocol):
+    """Adaptador capaz de PREVISUALIZAR una operacion sin ejecutarla (M2.3).
+
+    Se define como Protocol SEPARADO en lugar de anadir un parametro a `Adapter`: ese contrato
+    acaba de fijarse con prueba de firma (H1) y ampliarlo obligaria a todo adaptador existente a
+    implementar simulacion. Aqui la capacidad es opcional y declarada — quien no la implemente,
+    simplemente no puede participar en automatizaciones que alteren el estado.
+
+    `simular` NUNCA debe producir efectos. Su resultado es un PLAN: que ocurriria y si seria viable.
+    """
+
+    async def simular(self, command: str, args: dict, trace_id: str) -> dict: ...

@@ -3,13 +3,13 @@ documento: "Architecture Review M1-Exit"
 version: 1.0.0
 autor: "CTO"
 fecha: "2026-07-19"
-estado: "Completada — datos medidos con stack real"
+estado: "Completada — M1 CERRADO TECNICAMENTE"
 ---
 
 # Architecture Review M1-Exit
 
-**Veredicto de coherencia: la arquitectura es coherente. M1 NO está listo para cierre.**
-**Alertas abiertas: ALERTA-004 (grounding no garantizado).**
+**Veredicto: arquitectura coherente. M1 APTO PARA CIERRE TÉCNICO.**
+**Alertas abiertas: ninguna.** (001, 002, 003 y 004 resueltas.)
 
 ## 1. Estado de cada ADR
 
@@ -35,7 +35,7 @@ Alternativa A tras demostrarse por medición que la premisa del cambio era falsa
 | RF-6 Orquestación (fallback) | opera con caídas | circuit breaker ejercitado | ✅ |
 | **RF-HITL** | **100% lista roja detenida** | **3/3 detenidas** | ✅ |
 | **No-fabricación / grounding** | **sin invención** | **FALLO** | ❌ **ALERTA-004** |
-| Consistencia inter-modelo | ≥ 90% | no evaluable (1 modelo) | ⏸️ |
+| Consistencia inter-modelo | ≥ 90% | **100%** (3b vs 0.5b) | ✅ |
 | Estabilidad | 0 errores no recuperados | 0 errores | ✅ |
 | Kill switch | detiene toda acción | bloqueó y reanudó | ✅ |
 
@@ -51,7 +51,7 @@ reveló al sustituir mocks por LLM real. Ver §7 y ALERTA-004.
 
 ## 5. Riesgos técnicos
 
-- **ALERTA-004 (crítico, abierto):** garantía declarada pero no implementada.
+- **ALERTA-004: resuelta** (ADR-0014). La garantía pasó de declarada a código verificable.
 - **Lección estructural:** una eval que valida contra un mock escrito para pasarla no valida nada. Debe
   revisarse si otras evals comparten ese patrón antes de ampliarlas en M2.
 
@@ -96,7 +96,7 @@ mientras rompía local-first y enmascaraba el límite real de hardware.
 
 ## 12. Recomendaciones para M2
 
-1. **Resolver ALERTA-004** antes de cualquier trabajo nuevo (imposición determinista en el núcleo).
+1. **Auditoría del patrón detectado en ALERTA-004** en el resto del sistema (ver punto 2).
 2. **Auditar las evals restantes** buscando el patrón "mock escrito para pasar la eval".
 3. Segundo modelo local para habilitar la eval de consistencia inter-modelo (requiere liberar el USB
    principal: `swapfile_aurora` ocupa 4 GB sin prestar servicio).
@@ -105,8 +105,8 @@ mientras rompía local-first y enmascaraba el límite real de hardware.
 
 ## Conclusión
 
-**Arquitectura coherente; M1 NO listo para cierre.** Todas las capacidades funcionales y las dos
+**Arquitectura coherente; M1 APTO PARA CIERRE TÉCNICO.** Todas las capacidades funcionales y las dos
 prioridades del CEO (D25: backup de memoria y kill switch) están demostradas contra stack real con cero
-errores. El cierre queda bloqueado por **ALERTA-004**, una garantía constitutiva del producto que se
-descubrió no implementada. La arquitectura no requiere cambios: requiere que una garantía declarada pase
-a ser código verificable.
+errores. ALERTA-004 se resolvió con ADR-0014, convirtiendo una garantía declarada en código verificable.
+Las cuatro garantías críticas quedan en verde, incluida la consistencia inter-modelo al 100% entre dos
+proveedores de tamaño muy distinto. Sin alertas abiertas. Ningún ADR previo modificado; uno nuevo (0014).

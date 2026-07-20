@@ -1,6 +1,6 @@
 ---
 documento: "Acta de Decisiones Fundacionales"
-version: 1.11.0
+version: 1.12.0
 autor: "Mauricio (CEO) — registrada por Fable (CTO)"
 fecha: 2026-07-17
 estado: "Vinculante"
@@ -197,6 +197,30 @@ Ningún Sprint, Milestone o sesión de desarrollo comienza sin un **Preflight Ch
 **Entregable:** resumen con Estado (APTO/NO APTO), problemas encontrados, corregidos automáticamente, acciones manuales requeridas y riesgos abiertos. Sin estado APTO no se continúa, salvo autorización expresa del CEO.
 
 *Implementado en `entorno/scripts/preflight-check.sh` y `entorno/scripts/ollama-usb.sh` (lanzador con guardarraíl). Impacta: todo inicio de sesión, sprint y milestone.*
+
+## D28 — Riesgo aceptado: cierre de la verificación forense del directorio enmascarado (2026-07-19)
+
+La verificación directa del directorio enmascarado por el punto de montaje se da por cerrada. La evidencia disponible (`df`, `du`, inventario, ubicación física de los modelos y censo del disco) es suficiente para decidir. No se requiere más investigación forense.
+*Impacta: Fase 1 de la migración de almacenamiento.*
+
+## D29 — Cambio de prioridad: Timeshift es el consumidor principal (2026-07-19)
+
+El mayor consumidor de almacenamiento interno es Timeshift (26 GB), no los modelos de IA. La migración de Ollama al USB sigue siendo **obligatoria por política** (D31), pero deja de ser la palanca principal para liberar espacio.
+*Impacta: planificación de mantenimiento; ejecutado con `liberar-recursos.sh` (5,4 GB → 13 GB libres).*
+
+## D30 — Prohibición de bloqueos administrativos (2026-07-19)
+
+No se detiene el desarrollo por verificaciones cuyo resultado ya no cambia una decisión de arquitectura. Si la evidencia es suficiente para decidir, se continúa automáticamente.
+
+**Criterio obligatorio antes de declarar un FAIL bloqueante**, a responder internamente:
+1. ¿La información adicional cambiaría realmente una decisión técnica?
+2. ¿Existe un riesgo real para la integridad del proyecto?
+3. ¿O simplemente se está buscando certeza absoluta?
+
+Si la respuesta a la tercera es "sí": **registrar el riesgo, documentar la incertidumbre y continuar**.
+
+**Principio:** *evidencia suficiente > certeza absoluta.* El proyecto debe avanzar.
+*Impacta: todo gate, toda fase, todo Preflight Check. Complementa D27.*
 
 ## D31 — Almacenamiento distribuido: los USB son infraestructura permanente (2026-07-19)
 

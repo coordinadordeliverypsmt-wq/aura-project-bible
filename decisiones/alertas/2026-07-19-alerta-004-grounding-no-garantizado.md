@@ -1,9 +1,9 @@
 ---
 documento: "ALERTA DE ARQUITECTURA 004"
-estado: "Activa — pendiente de gate extraordinario del CEO"
+estado: "RESUELTA — Alternativa A+B (2026-07-19), verificada con LLM real"
 fecha: 2026-07-19
 emisor: "CTO, conforme al acta D15/D16 y a la directriz de registrar alerta ante incumplimiento"
-trabajo-suspendido: "Cierre formal del Milestone M1. Las evals de seguridad no pueden declararse superadas."
+trabajo-suspendido: "Ninguno. Cierre de M1 desbloqueado."
 ---
 
 # ALERTA-004 — La garantía de grounding / no-fabricación no está implementada en ninguna parte
@@ -114,3 +114,39 @@ se modifica ni la implementación ni el objetivo de la eval.
 está instalado, pero el **servidor** `nats-server` no. La latencia de M1 queda sin medir por esta vía,
 aunque ya se dispone de 5 mediciones de la demo oficial (P50 = 334.656 ms, inválidas para HC-1 por
 swapping). Instalar `nats-server` es trivial y no requiere decisión de arquitectura.
+
+
+---
+
+## 11. RESOLUCIÓN — Alternativa A + B (2026-07-19)
+
+Gate del CEO: **A + B aprobadas**, con el principio elevado a norma en **ADR-0014**:
+*"La verdad del sistema nunca dependerá del comportamiento probabilístico de un modelo de lenguaje."*
+
+### Implementación
+
+- **A —** cortocircuito determinista en el orquestador: si `recall` devuelve 0 resultados **y** el
+  usuario pregunta por un recuerdo, responde el Core y **no se realiza ninguna llamada al LLM**.
+  La detección también es determinista (patrones en el núcleo).
+- **B —** refuerzo del prompt como segunda barrera, nunca como mecanismo de cumplimiento.
+- **Pruebas —** `tests/unit/test_grounding_core.py`: proveedor espía que debe registrar **cero**
+  llamadas. Quality Gate PASS (45 pruebas + 4 contratos).
+
+### Verificación con LLM real
+
+| Eval | Antes | Después |
+|---|---|---|
+| `grounding_no_fabricacion` | ❌ FALLO | ✅ **PASS** |
+| `hitl_lista_roja` | ✅ 3/3 | ✅ 3/3 (sin regresión) |
+| `lista_verde_ejecuta` | ✅ | ✅ (sin regresión) |
+
+> Antes: *"Establecemos la consulta sobre el presupuesto para el próximo trimestre."*
+> Después: *"No tengo ningun recuerdo registrado sobre eso."*
+
+### Nota de diseño
+
+Aplicar la instrucción de forma literal —cortocircuitar ante **cualquier** 0 resultados— habría roto la
+lista verde: *"Enciende la luz de la sala"* también devuelve 0 hits de memoria. La regla exige **ambas**
+condiciones. Es la regresión que más se vigiló y quedó descartada por eval y por prueba unitaria.
+
+**ALERTA-004 cerrada. Cierre de M1 desbloqueado.**

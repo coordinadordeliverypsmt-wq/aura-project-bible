@@ -1,6 +1,6 @@
 ---
 documento: "Acta de Decisiones Fundacionales"
-version: 1.13.0
+version: 1.14.0
 autor: "Mauricio (CEO) — registrada por Fable (CTO)"
 fecha: 2026-07-17
 estado: "Vinculante"
@@ -255,7 +255,11 @@ Al descomponer la categoría "organizar" (6.4 §1, lista verde) en operaciones c
 
 **La Bible NO se modifica todavía.** Rige el principio de máxima seguridad hasta que el **motor de dry-run** exista, esté implementado y validado con evidencia.
 
-**Decisión pendiente registrada:** al cierre del motor de dry-run se reevaluará si estas acciones pueden pasar a lista verde **condicionadas a previsualización obligatoria**. En ese momento se revisará la coherencia entre implementación y Bible (6.4 §1), y se enmendará una u otra — no se dejará la divergencia abierta indefinidamente.
+**Decisión pendiente registrada:** al cierre del motor de dry-run se reevaluará si estas acciones pueden pasar a lista verde **condicionadas a previsualización obligatoria**.
+
+**Reevaluación ejecutada (2026-07-20, cierre de M2.3): SE MANTIENE SIN CAMBIOS.** Con el motor de dry-run implementado y validado, el CEO resuelve que ambas acciones **continúan en lista roja**. Razonamiento: *"una previsualización no elimina el impacto de una confirmación errónea"*. Se privilegia la seguridad sobre la fluidez.
+
+**Nueva condición de revisión:** la posible reclasificación se examinará **con datos de uso reales y evidencia operacional**, no únicamente con argumentos de diseño. Queda por tanto abierta la divergencia con 6.4 §1 hasta esa fase, de forma consciente y documentada.
 
 *Impacta: `permissions.py` (catálogo), M2.1, M2.3 (dry-run), 6.4 §1.*
 

@@ -45,6 +45,22 @@ def raices_por_defecto() -> tuple[str, ...]:
     return (os.path.expanduser("~"),)
 
 
+def ruta_en_ambito(ruta_absoluta: str, raices: tuple[str, ...] | None = None) -> bool:
+    """True si una ruta YA absoluta y resuelta sigue dentro del ambito permitido.
+
+    Se expone para la proteccion TOCTOU del adaptador: tras abrir un descriptor de directorio hay
+    que reverificar que ese descriptor sigue apuntando dentro del ambito, y esa comprobacion debe
+    usar exactamente el mismo criterio que la validacion inicial. Duplicar la logica alli seria
+    arriesgar que ambas divergieran.
+    """
+    raices = raices or raices_por_defecto()
+    for raiz in raices:
+        raiz_real = os.path.realpath(os.path.expanduser(raiz))
+        if ruta_absoluta == raiz_real or ruta_absoluta.startswith(raiz_real + os.sep):
+            return True
+    return False
+
+
 def _validar_ruta(valor: str, raices: tuple[str, ...], permite_comodin: bool) -> str:
     if not isinstance(valor, str) or not valor.strip():
         raise ErrorDeValidacion("ruta vacia o no textual")
@@ -59,14 +75,20 @@ def _validar_ruta(valor: str, raices: tuple[str, ...], permite_comodin: bool) ->
     if not os.path.isabs(expandida):
         raise ErrorDeValidacion(f"ruta relativa no permitida (debe ser absoluta o '~/...'): {valor!r}")
 
-    # `realpath` resuelve enlaces simbolicos ADEMAS de normalizar '..'. Sin resolverlos, un enlace
-    # dentro del ambito permitido podria apuntar fuera y la comprobacion daria un falso OK.
-    absoluta = os.path.realpath(expandida)
-    for raiz in raices:
-        raiz_real = os.path.realpath(os.path.expanduser(raiz))
-        if absoluta == raiz_real or absoluta.startswith(raiz_real + os.sep):
-            return absoluta
-    raise ErrorDeValidacion(f"ruta fuera del ambito permitido: {valor!r} -> {absoluta!r}")
+    # Se distinguen DOS rutas y cada una cumple un papel distinto:
+    #   literal  -> normaliza '.' y '..' pero NO resuelve enlaces. Es sobre la que se OPERA.
+    #   resuelta -> resuelve enlaces. Sirve solo para COMPROBAR el ambito.
+    #
+    # Devolver la resuelta era un error de diseno detectado en M2.2: si el usuario pide borrar
+    # 'enlace.txt' y se devuelve su destino, se borra OTRO archivo del que el usuario no hablo.
+    # El ambito se comprueba sobre ambas: la literal para que no apunte fuera, y la resuelta para
+    # que ningun enlace sirva de escape.
+    literal = os.path.abspath(expandida)
+    resuelta = os.path.realpath(expandida)
+    for candidata in (literal, resuelta):
+        if not ruta_en_ambito(candidata, raices):
+            raise ErrorDeValidacion(f"ruta fuera del ambito permitido: {valor!r} -> {candidata!r}")
+    return literal
 
 
 def validar(accion: str, args: dict, raices: tuple[str, ...] | None = None) -> dict:

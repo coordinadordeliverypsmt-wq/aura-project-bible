@@ -1,29 +1,64 @@
 ---
 documento: "CEO Executive Summary — Milestone M1"
-version: 0.1.0
-autor: "Fable (CTO)"
-fecha: "AAAA-MM-DD (al cierre)"
-estado: "Plantilla — a poblar con datos medidos"
+version: 1.0.0
+autor: "CTO"
+fecha: "2026-07-19"
+estado: "M1 condicionado — bloqueado por ALERTA-004"
 ---
 
-# CEO Executive Summary — Milestone M1 (Nucleo Conversacional)
+# CEO Executive Summary — Milestone M1 (Núcleo Conversacional)
 
-**Estado:** _[cerrado / condicionado]_ · **Fecha:** _[AAAA-MM-DD]_
+**Estado: CONDICIONADO** — no cerrado. · **Fecha:** 2026-07-19
 
 ## 1. Capacidad entregada
-AURA sostiene un flujo conversacional de principio a fin con el stack real local: conversa por voz (Whisper/Piper), razona con el LLM local (Ollama), recuerda entre sesiones (memoria persistente + backups + recuperacion), entiende seguimientos (memoria de trabajo), ejecuta acciones seguras y **detiene toda accion peligrosa** (HITL en toda la lista roja), y puede apagarse por kill switch.
 
-## 2. Resultados medidos [MEDIDO]
-_[De RESULTADOS-MEDIDOS.md: latencia e2e P50/P95, por etapa; CPU/RAM/almacenamiento; estabilidad (errores/recuperaciones); evals (HITL, grounding, consistencia).]_
+AURA sostiene un flujo conversacional completo con stack real, local y de código abierto: razona con LLM
+local (Ollama + `qwen2.5:3b`), habla con voz propia (Piper, es_MX), recuerda entre sesiones, se recupera
+desde backup, ejecuta acciones seguras, **detiene toda acción peligrosa** y puede apagarse por completo.
 
-## 3. Cumplimiento vs objetivos de la Bible [MEDIDO]
-HC-1 R1 (<=1200 ms): _[si/no]_ · R2 (<=800 ms): _[si/no]_ · Guardrails: _[OK/fallo -> Alerta]_.
+Sin APIs comerciales. Sin claves de terceros. Sin que un solo dato del usuario salga de la máquina.
+
+## 2. Resultados medidos
+
+| | |
+|---|---|
+| Demo oficial `--real` | **6/6 capacidades, 0 errores** |
+| HITL lista roja | **3/3 detenidas** (tolerancia cero cumplida) |
+| Grounding / no-fabricación | ❌ **FALLO** → ALERTA-004 |
+| Consistencia inter-modelo | no evaluable (un solo modelo) |
+| Quality Gate | PASS (39 pruebas + 4 contratos) |
+| Latencia P50 | 334.656 ms — **inválida** (swapping) |
+
+## 3. Cumplimiento vs objetivos
+
+HC-1 R1 (≤1200 ms): **pendiente de validación en entorno objetivo** (D24), no fallido — la causa es
+hardware (2 CPU, 3,6 GB RAM, sin GPU; 8.738 ms/token), no implementación.
+Guardarraíles: HITL y kill switch ✅ · grounding ❌.
 
 ## 4. Riesgos vivos
-_[HC-1 R2 si aplica, endurecimiento de backups en produccion, revision legal KCM, evals ampliadas.]_
+
+1. **ALERTA-004** — el grounding estaba declarado en la Bible pero no implementado en ninguna parte.
+2. Las evals con mocks pueden dar falsa confianza: el mock estaba escrito para pasar la eval que debía
+   verificar el sistema.
+3. HC-1 no validable en este hardware.
 
 ## 5. Decisiones para el CEO
-_[Aprobar cierre de M1 / autorizar Alerta si algo fallo / prioridades de M2.]_
+
+- **Gate sobre ALERTA-004:** A (imposición determinista en el núcleo, recomendada), B (solo prompt) o C
+  (aceptar riesgo, desaconsejada).
+- Autorizar segundo modelo local para la eval de consistencia.
+- Decidir sobre `swapfile_aurora` (4 GB en el USB principal sin prestar servicio).
 
 ## 6. Siguiente milestone
-_[M2 (manos digitales): control del computador, automatizacion, notificaciones — con la misma disciplina (capacidades demostradas, Quality Gate, Architecture Review).]_
+
+M2 (manos digitales) **no debe iniciarse** antes de resolver ALERTA-004 y auditar las evals restantes.
+
+---
+
+## Nota del CTO
+
+M1 entrega más de lo que su cierre formal refleja. Lo relevante no es solo que las capacidades funcionen,
+sino **qué aprendimos sobre cómo verificarlas**: las garantías que impone el núcleo sobrevivieron al paso
+de mocks a modelo real; la única que se delegaba implícitamente en el LLM, no. Ese criterio —guardarraíl
+es código verificable, no expectativa sobre un modelo— es el activo más valioso que deja este milestone,
+y se descubrió precisamente porque se exigió validar contra stack real en vez de contra simulaciones.

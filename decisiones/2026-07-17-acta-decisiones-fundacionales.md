@@ -1,6 +1,6 @@
 ---
 documento: "Acta de Decisiones Fundacionales"
-version: 1.15.0
+version: 1.16.0
 autor: "Mauricio (CEO) — registrada por Fable (CTO)"
 fecha: 2026-07-17
 estado: "Vinculante"
@@ -285,6 +285,28 @@ Presentado el análisis técnico comparativo de plataformas y modelos para R1, e
 **Consecuencia operativa:** toda medición de rendimiento debe registrarse junto a la plataforma en que se obtuvo. HC-1 se evalúa contra la plataforma de referencia vigente, y ese vínculo debe ser explícito en cada informe.
 
 *Impacta: ADR-0016, `entorno/ANALISIS-PLATAFORMA-OBJETIVO-R1.md`, HC-1, M3.*
+
+## D34 — No se construyen entornos artificiales para aprobar un milestone
+
+**Fecha:** 2026-07-21. **Decide:** CEO.
+
+Ante la ausencia de una instancia de Home Assistant en el entorno actual, el CEO **rechaza instalar una únicamente para satisfacer el milestone**:
+
+> *"No se construyen entornos artificiales únicamente para aprobar un milestone."*
+
+**Regla permanente:** una capacidad que actúa sobre el mundo físico **se valida contra el mundo físico**. Un laboratorio montado a propósito no demuestra que la capacidad funcione donde va a operar; demuestra que funciona en el laboratorio.
+
+**Aplicación a M3.1:**
+
+- El adaptador **puede diseñarse** con antelación.
+- **No se declarará completado** hasta superar una validación *end-to-end* contra una instalación real de Home Assistant, con dispositivos reales (sensores, cámaras, luces).
+- M3.1 queda **pendiente** hasta que exista el escenario de despliegue definitivo.
+
+**Alcance general.** El principio no se limita a Home Assistant: rige para toda capacidad cuya corrección dependa de datos o dispositivos reales. Complementa el criterio heredado de T1 —*"si la prueba solo puede fallar por culpa del doble, no vale"*— y lo extiende: **un entorno fabricado para pasar la prueba es un doble con otro nombre.**
+
+**Consecuencia asumida:** algunos milestones quedarán abiertos más tiempo. Se prefiere un milestone honestamente incompleto a uno cerrado contra un decorado.
+
+*Impacta: M3.1, M3.2 (inferencia sobre datos reales), roadmap de M3, criterios de validación de 7.2.*
 
 ## Autorización
 

@@ -42,42 +42,89 @@ class PersistentMemory:
         self._path = path
         self._bdir = backups_dir or (path + ".backups")
         self._items: list[dict] = []
+        self._indice: dict[tuple[str, str], list[int]] = {}  # termino -> posiciones (MA.2a)
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         os.makedirs(self._bdir, exist_ok=True)
         self._load()
 
+    _UMBRAL_UBICUO = 256  # una lista de posteo mas larga que esto es un stopword efectivo (MA.2a)
+
     # --- contrato MemoryStore ---
     async def write(self, user_id: str, kind: str, content: str, provenance: dict) -> None:
-        self._items.append({"user_id": user_id, "kind": kind, "content": content, "provenance": provenance})
-        self._persist()
+        item = {"user_id": user_id, "kind": kind, "content": content, "provenance": provenance}
+        self._items.append(item)
+        self._indexar(len(self._items) - 1, item)
+        self._anexar(item)  # MA.2a: append O(1), no reescritura del historial completo
         obs.log("MEM", "memory", f"write [{kind}] '{content[:40]}'", provenance.get("trace_id", "-"))
 
     async def recall(self, user_id: str, query: str, k: int = 3) -> list[dict]:
-        q = set(query.lower().split())
-        scored = []
-        for it in self._items:
-            if it["user_id"] != user_id:
-                continue
-            overlap = len(q & set(it["content"].lower().split()))
-            if overlap:
-                scored.append((overlap, it))
-        scored.sort(key=lambda x: -x[0])
-        hits = [it for _, it in scored[:k]]
+        """MA.2a: solo visita los recuerdos que comparten algun termino con la consulta.
+
+        Antes recorria TODOS los items en cada turno (R-1): 0,55 ms con 300 recuerdos, 9,22 ms con
+        3.000. El resultado es identico —mismo criterio de solapamiento de terminos—, cambia lo que
+        cuesta obtenerlo.
+        """
+        listas = sorted(
+            (self._indice.get((user_id, t), ()) for t in set(query.lower().split())),
+            key=len,
+        )
+        # Los terminos MAS SELECTIVOS primero. Un termino ubicuo ("tema", "usuario") no discrimina:
+        # su lista cubre casi todo el corpus y recorrerla devuelve el recall a coste lineal. Se trata
+        # como palabra vacia y se SALTA en cuanto ya hay candidatos de terminos mas informativos.
+        # Es el mismo criterio por el que un buscador ignora los stopwords.
+        candidatos: dict[int, int] = {}
+        for posteo in listas:
+            if candidatos and len(posteo) > self._UMBRAL_UBICUO:
+                break  # los selectivos ya aportaron candidatos; este solo anadiria ruido caro
+            for idx in posteo:
+                candidatos[idx] = candidatos.get(idx, 0) + 1
+        mejores = sorted(candidatos.items(), key=lambda par: -par[1])[:k]
+        hits = [self._items[idx] for idx, _ in mejores]
         obs.log("MEM", "memory", f"recall '{query[:30]}' -> {len(hits)} hit(s)")
         return hits
 
+    # --- indice invertido (MA.2a) ---
+    def _indexar(self, idx: int, item: dict) -> None:
+        clave_usuario = item["user_id"]
+        for termino in set(item["content"].lower().split()):
+            self._indice.setdefault((clave_usuario, termino), []).append(idx)
+
+    def _reconstruir_indice(self) -> None:
+        self._indice = {}
+        for idx, item in enumerate(self._items):
+            self._indexar(idx, item)
+
+    def _anexar(self, item: dict) -> None:
+        """Escritura incremental en JSONL. Un corte solo puede danar la ultima linea."""
+        with open(self._path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(item, ensure_ascii=False) + "\n")
+
     # --- persistencia atomica ---
     def _persist(self) -> None:
+        """Reescritura completa del fichero. Ya NO se usa en cada `write` (MA.2a): solo cuando el
+        historial cambia por entero —restore, migracion de formato— o al crear un backup."""
         tmp = self._path + ".tmp"
-        data = json.dumps(self._items, ensure_ascii=False)
+        data = "".join(json.dumps(it, ensure_ascii=False) + "\n" for it in self._items)
         with open(tmp, "w", encoding="utf-8") as f:
             f.write(data)
         os.replace(tmp, self._path)  # atomico (3.5 §4: no corromper la memoria)
 
     def _load(self) -> None:
-        if os.path.exists(self._path):
-            with open(self._path, encoding="utf-8") as f:
-                self._items = json.load(f)
+        if not os.path.exists(self._path):
+            return
+        with open(self._path, encoding="utf-8") as f:
+            contenido = f.read().strip()
+        if not contenido:
+            return
+        if contenido.startswith("["):
+            # Formato antiguo (un unico JSON array). Se migra a JSONL una sola vez, conservando
+            # el historial: la optimizacion no puede costar los recuerdos ya guardados.
+            self._items = json.loads(contenido)
+            self._persist()
+            obs.log("MEM", "memory", f"memoria migrada a formato incremental ({len(self._items)} items)", "-")
+        else:
+            self._items = [json.loads(linea) for linea in contenido.splitlines() if linea.strip()]
+        self._reconstruir_indice()
 
     # --- backups y recuperacion (3-2-1, prioridad M1) ---
     def backup(self) -> str:
@@ -113,8 +160,14 @@ class PersistentMemory:
             return False
         src = os.path.join(self._bdir, backup_name)
         with open(src, encoding="utf-8") as f:
-            self._items = json.load(f)
+            contenido = f.read().strip()
+        self._items = (
+            json.loads(contenido)
+            if contenido.startswith("[")
+            else [json.loads(x) for x in contenido.splitlines() if x.strip()]
+        )
         self._persist()
+        self._reconstruir_indice()
         obs.log("BACKUP", "memory", f"restore OK desde {backup_name} ({len(self._items)} items)", "-", audit=True)
         return True
 

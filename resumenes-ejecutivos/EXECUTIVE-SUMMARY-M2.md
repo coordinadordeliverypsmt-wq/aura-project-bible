@@ -118,7 +118,8 @@ normativos vigentes, que son los que gobiernan la implementación.
 
 ## Integración de la rama `worktree-m2-exit`
 
-Cinco commits, en orden:
+**Seis** commits, no cinco: el cierre documental ordenado en el gate añadió uno más a los cinco que
+existían cuando se pidió el listado.
 
 | # | Commit | Contenido |
 |---|---|---|
@@ -126,7 +127,9 @@ Cinco commits, en orden:
 | 2 | `7afe8a7` | M2.5 — integración del orquestador; registro de adaptadores; ejecutor único; prueba de alcanzabilidad |
 | 3 | `82c8cfd` | Demo de capacidad M2 + corrección del error no recuperado que la demo encontró |
 | 4 | `ad6adf8` | Architecture Review M2-Exit, Executive Summary, ALERTA-005 resuelta, evidencia archivada |
-| 5 | *(este)* | Cierre documental: consistencia del flujo, hallazgo del modelo, resumen final |
+| 5 | `a4f3b68` | Cierre documental: orden canónico del flujo, hallazgo del modelo, resumen final |
+
+Todos parten de `744bab2` (M2.4), punta actual de `main`.
 
 **Estrategia recomendada: `merge --no-ff` a `main`.**
 

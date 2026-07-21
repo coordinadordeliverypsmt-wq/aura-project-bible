@@ -1,6 +1,6 @@
 ---
 documento: "Acta de Decisiones Fundacionales"
-version: 1.16.0
+version: 1.17.0
 autor: "Mauricio (CEO) — registrada por Fable (CTO)"
 fecha: 2026-07-17
 estado: "Vinculante"
@@ -307,6 +307,24 @@ Ante la ausencia de una instancia de Home Assistant en el entorno actual, el CEO
 **Consecuencia asumida:** algunos milestones quedarán abiertos más tiempo. Se prefiere un milestone honestamente incompleto a uno cerrado contra un decorado.
 
 *Impacta: M3.1, M3.2 (inferencia sobre datos reales), roadmap de M3, criterios de validación de 7.2.*
+
+## D35 — M3 en espera de habilitadores externos; se abre la linea "Preparacion del Entorno Objetivo"
+
+**Fecha:** 2026-07-21. **Decide:** CEO.
+
+Entregadas M3.0 y M3.2a, el trabajo restante de M3 depende de datos de uso real y de un entorno domestico que todavia no existen. El CEO resuelve:
+
+**1. Congelacion.** **M3.1** (hogar real) y **M3.2b** (inferencia de preferencias) quedan **congeladas** hasta disponer de entorno domestico y datos reales suficientes.
+
+**2. Prohibicion de infraestructura no validable.** No se implementara mas infraestructura cuya validacion requiera datos o entornos inexistentes. Es la aplicacion directa de **D34**.
+
+**3. Nueva linea de trabajo: "Preparacion del Entorno Objetivo"**, independiente del roadmap funcional. Produce **unicamente documentacion y analisis** sobre: hardware objetivo, modelo base, sistema operativo, estrategia de despliegue, arquitectura de conectores futuros, requisitos minimos y recomendados, y costes/consumo/mantenimiento.
+
+**Precision del CEO — el estado de M3.** *"No considero M3 bloqueado, sino en espera de habilitadores externos."* La distincion es material: un milestone bloqueado señala un fallo del proyecto; uno en espera señala una dependencia externa identificada y gestionada. M3 se reanudara desde este punto cuando el entorno real exista.
+
+**Restriccion sobre las metricas.** Esta linea **no modifica el Core** y **no incrementa el Product Readiness**. La cifra permanece en **41%** mientras no se entregue capacidad verificable al usuario. Documentar el entorno futuro no acerca a AURA a ser usable; solo prepara la decision que si lo hara.
+
+*Impacta: roadmap de M3, `entorno-objetivo/`, Product Readiness, HC-1.*
 
 ## Autorización
 

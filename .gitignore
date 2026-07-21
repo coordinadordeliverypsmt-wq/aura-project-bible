@@ -1,3 +1,6 @@
 site/
 node_modules/
 .cache/
+
+# Worktrees y estado local del harness (contienen copias del propio repo)
+.claude/worktrees/

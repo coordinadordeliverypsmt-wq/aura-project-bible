@@ -1,0 +1,42 @@
+  [VOICE] voice-stt      trace=c87cc143 transcripcion: 'Busca mis archivos de factura en /tmp/aura_m2_ryf50uqd/documentos'
+  [EVENT] event-bus      trace=c87cc143 publish perception.turn_end event_id=ec619d5974fc
+  [MEM  ] memory         trace=- recall 'Busca mis archivos de factura ' -> 0 hit(s)
+  [WARN ] router         trace=c87cc143 fallback: ollama fallo (TimeoutError: timed out)
+======================================================================
+DEMO DE CAPACIDAD M2 — Manos digitales de AURA
+======================================================================
+Entorno de trabajo: /tmp/aura_m2_ryf50uqd/documentos
+
+----------------------------------------------------------------------
+1. Manos digitales: una peticion hablada llega al computador
+----------------------------------------------------------------------
+
+  Usuario: "Busca mis archivos de factura en /tmp/aura_m2_ryf50uqd/documentos"
+Traceback (most recent call last):
+  File "/home/majo1230/Documentos/AURA/aura-project-bible/.claude/worktrees/m2-exit/walking-skeleton/demo_capacidad_m2.py", line 268, in <module>
+    sys.exit(asyncio.run(main()))
+             ^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/runners.py", line 194, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/base_events.py", line 687, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/home/majo1230/Documentos/AURA/aura-project-bible/.claude/worktrees/m2-exit/walking-skeleton/demo_capacidad_m2.py", line 151, in main
+    r = await _say(orch, f"Busca mis archivos de factura en {docs}")
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/majo1230/Documentos/AURA/aura-project-bible/.claude/worktrees/m2-exit/walking-skeleton/demo_capacidad_m2.py", line 73, in _say
+    await orch.handle_utterance(USER, text, tid)
+  File "/home/majo1230/Documentos/AURA/aura-project-bible/.claude/worktrees/m2-exit/walking-skeleton/aura_skeleton/core/orchestrator.py", line 109, in handle_utterance
+    await self.bus.publish(Event("perception.turn_end", trace_id, user_id, {"text": text}))
+  File "/home/majo1230/Documentos/AURA/aura-project-bible/.claude/worktrees/m2-exit/walking-skeleton/aura_skeleton/bus.py", line 29, in publish
+    await h(event)
+  File "/home/majo1230/Documentos/AURA/aura-project-bible/.claude/worktrees/m2-exit/walking-skeleton/aura_skeleton/core/orchestrator.py", line 137, in on_turn
+    prov, out = await self.router.route(prompt, tid)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/majo1230/Documentos/AURA/aura-project-bible/.claude/worktrees/m2-exit/walking-skeleton/aura_skeleton/modules/router.py", line 71, in route
+    raise RuntimeError("todos los proveedores fallaron (sin fallback disponible)")
+RuntimeError: todos los proveedores fallaron (sin fallback disponible)

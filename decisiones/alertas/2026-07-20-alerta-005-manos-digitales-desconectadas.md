@@ -1,9 +1,9 @@
 ---
 documento: "ALERTA DE ARQUITECTURA 005"
-estado: "ABIERTA — pendiente de gate del CEO"
+estado: "RESUELTA — Alternativa A (2026-07-21), verificada con stack real"
 fecha: 2026-07-20
 emisor: "CTO, conforme al acta D15/D16"
-trabajo-suspendido: "Demo de capacidad M2 y cierre de M2 (DoD 9 y 10)"
+trabajo-suspendido: "Ninguno. Cierre de M2 desbloqueado."
 ---
 
 # ALERTA-005 — Las manos digitales de M2 no están conectadas al cuerpo
@@ -204,3 +204,47 @@ alcanzable. Prefiero un cierre tardío y cierto a uno puntual y falso.
    producir un error explícito al usuario**, en lugar de la frase de éxito del LLM? Lo considero una
    corrección de defecto y no un cambio de alcance, pero afecta a lo que AURA le dice al usuario sobre
    sus propios actos y prefiero no decidirlo solo.
+
+---
+
+## 11. RESOLUCIÓN — Alternativa A (2026-07-21)
+
+**Gate del CEO:** aprobada la Alternativa A con cinco condiciones. Todas cumplidas.
+
+| Condición del CEO | Cómo se cumplió |
+|---|---|
+| Sin rutas de ejecución alternativas ni bypass | El orquestador **no llama a ningún adaptador**: delega en el motor, único ejecutor del sistema, compartido por conversación, reglas y notificaciones |
+| Mismo flujo también por vía conversacional | Camino único: dry-run → Permisos/HITL → adaptador → ejecución → auditoría |
+| Error explícito si no hay adaptador capaz | La frase del modelo solo sobrevive con resultado real del adaptador; en otro caso, error explícito |
+| Prueba permanente de alcanzabilidad en el Quality Gate | `tests/integration/test_alcanzabilidad_capacidades.py`, validada por mutación |
+| Demo con stack real y Product Readiness solo con evidencia | 8/9 capacidades; Product Readiness 41% (objetivo era 45%) |
+
+### Divergencia respecto al orden literal indicado por el CEO
+
+El CEO especificó: *catálogo → validación de ámbito → permisos/HITL → dry-run → ejecución →
+auditoría*. La implementación sitúa el **dry-run antes de Permisos**, no después.
+
+Motivo: el dry-run es lo que hace **informada** la confirmación. Pedirla antes de previsualizar
+sería confirmar a ciegas, contradiciendo la condición previa del propio CEO en M2.3 —*"ninguna acción
+de lista roja podrá ejecutarse sin previsualización y confirmación explícita"*—. El dry-run no altera
+nada, de modo que ejecutarlo antes no añade riesgo. El resto del orden se respeta.
+
+### Corrección detectada durante la implementación
+
+Se probó primero a resolver el adaptador **antes** de Permisos (fallar rápido). Las pruebas e2e de
+lista roja detectaron una regresión real: **una acción roja sin adaptador dejaba de pasar por HITL y
+desaparecía del registro forense**. Un intento de `transferencia` debe quedar auditado aunque AURA no
+tenga hoy forma de transferir nada; que la capacidad no exista es una circunstancia de la
+instalación, no una razón para no aplicar el control. Orden final: dry-run → **Permisos** →
+adaptador.
+
+### Defecto adicional hallado por la demo
+
+Una regla que dispara dos veces sobre el mismo archivo propagaba `FileNotFoundError` a través del
+motor y **derribaba el turno completo**. Corregido: degrada a `detenida` o `error` sin derribar el
+turno, con dos pruebas de regresión.
+
+### Estado final
+
+Quality Gate **PASS** — 234 pruebas, 3 omitidas, 8 contratos. Demo con dobles 9/9; con stack real
+8/9. Cero errores no recuperados. Evidencia en `milestones/m2-exit/`.

@@ -32,6 +32,16 @@ Se consolida la política de autonomía como decisión arquitectónica permanent
 
 Reglas permanentes: toda acción pasa por el Gestor de Permisos (5.3) antes de tocar un adaptador; la lista roja exige confirmación con **tolerancia cero a falsos negativos** (2.5 §5.4); toda acción es auditable, explicable y reversible (D9, P-ARQ-1); los niveles superiores de autonomía solo se habilitan por política y decisión del usuario/CEO, nunca automáticamente.
 
+**Precisión del orden (M2.5, gate del CEO 2026-07-21).** El orden canónico es
+`dry-run → Permisos/HITL → resolución de adaptador → ejecución → auditoría` (5.3 §3.1). Dos
+consecuencias para este ADR:
+
+- La confirmación de lista roja se pide **con la previsualización delante**. Confirmar a ciegas no
+  satisface el requisito de consentimiento informado.
+- Permisos se aplica **aunque no exista adaptador capaz** de ejecutar la acción. Un intento de acción
+  roja queda auditado igualmente; de lo contrario el gobierno dependería de qué adaptadores estén
+  instalados.
+
 ## Consecuencias
 
 **Positivas:** política de autonomía estable y trazable; ningún agente/plugin ejecuta sin pasar por Permisos. **Negativas:** confirmaciones para lista roja añaden fricción (deseada). **Riesgos aceptados:** ninguno nuevo; materializa decisiones vigentes.

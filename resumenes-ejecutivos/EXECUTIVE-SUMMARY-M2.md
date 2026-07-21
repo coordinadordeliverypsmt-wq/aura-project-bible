@@ -1,12 +1,19 @@
 ---
-documento: "Executive Summary — Cierre de M2"
+documento: "Executive Summary FINAL — Cierre de M2"
 milestone: "M2 — Manos Digitales"
 fecha: 2026-07-21
 autor: "CTO"
 destinatario: "CEO — AURA Labs"
+estado: "Cierre técnico aprobado por el CEO el 2026-07-21; pendiente el cierre oficial"
+version: "final"
 ---
 
 # Executive Summary — M2 (Manos Digitales)
+
+> **Nota de versión.** Documento final de cierre. Incorpora el gate del CEO del 2026-07-21, que fijó
+> como oficiales: el orden canónico del flujo (`dry-run → Permisos/HITL → adaptador → ejecución →
+> auditoría`), el Product Readiness del **41%**, la demo como **8/9** capacidades y **HC-1 en estado
+> Pendiente** por no existir medición de latencia válida.
 
 ## En una frase
 
@@ -95,9 +102,62 @@ que tenga.
 | Errores no recuperados | **0** (tras corregir el hallado por la demo) |
 | Alertas de arquitectura abiertas | **0** |
 
+## Cierre documental ordenado en el gate
+
+| Acción ordenada por el CEO | Resultado |
+|---|---|
+| Consistencia del orden del flujo en toda la documentación | **5.3 §3.1** pasa a ser la fuente única del orden canónico; actualizados ADR-0003, 3.2 (texto y diagrama de secuencia), 6.4 §2 y el Plan de Calidad |
+| Registro formal del hallazgo sobre selección de acciones | `milestones/m2-exit/HALLAZGO-M2-SELECCION-DE-ACCIONES-DEL-MODELO.md` — clasificado explícitamente como limitación de capacidad, **no** fallo de seguridad |
+| Executive Summary final | Este documento |
+| Commits y estrategia de integración | §"Integración de la rama", más abajo |
+
+**Los documentos históricos no se han reescrito.** Las actas y los Architecture Review ya firmados
+(M1-Exit, M2.0 a M2.4) conservan su redacción original: registran lo que se sabía al firmarlos y
+alterarlos falsearía el historial de decisiones. La consistencia se impone en los documentos
+normativos vigentes, que son los que gobiernan la implementación.
+
+## Integración de la rama `worktree-m2-exit`
+
+Cinco commits, en orden:
+
+| # | Commit | Contenido |
+|---|---|---|
+| 1 | `32217a3` | ALERTA-005 — hallazgo, verificación empírica y análisis de las tres alternativas |
+| 2 | `7afe8a7` | M2.5 — integración del orquestador; registro de adaptadores; ejecutor único; prueba de alcanzabilidad |
+| 3 | `82c8cfd` | Demo de capacidad M2 + corrección del error no recuperado que la demo encontró |
+| 4 | `ad6adf8` | Architecture Review M2-Exit, Executive Summary, ALERTA-005 resuelta, evidencia archivada |
+| 5 | *(este)* | Cierre documental: consistencia del flujo, hallazgo del modelo, resumen final |
+
+**Estrategia recomendada: `merge --no-ff` a `main`.**
+
+Un *squash* comprimiría los cinco en uno y perdería lo más instructivo del milestone: que la alerta
+se emitió **antes** de la corrección, y que la corrección precedió a la demo que encontró un defecto
+adicional. Esa secuencia es la trazabilidad que exige D25 y el mejor argumento disponible sobre por
+qué el proceso funciona. Un *rebase* tampoco aporta: no hay commits paralelos en `main` con los que
+entrelazar.
+
+### Riesgo residual de la integración
+
+| Riesgo | Valoración |
+|---|---|
+| **Conflictos con `main`** | **Ninguno esperado.** La rama parte de `744bab2`, que es la punta de `main`; nadie más ha commiteado |
+| **Regresión funcional** | **Baja.** Quality Gate PASS en el estado final; las 218 pruebas previas siguen pasando |
+| **Cambio de firma del `Orchestrator`** | **Real pero contenido.** Su sexto parámetro admite ahora un registro *o* un adaptador suelto, y acepta `motor` opcional. Las llamadas antiguas siguen funcionando; verificado por las pruebas heredadas de M1 |
+| **Cambio de comportamiento observable** | **Deliberado.** Una acción autorizada sin adaptador capaz ya no responde con éxito, sino con error explícito. Es el punto 4 que aprobaste; cualquier script que dependiera de la respuesta anterior dependía de un fallo |
+| **Prompt del sistema modificado** | **Bajo.** Pasa a derivarse del catálogo, ampliándose de ~200 a ~393 tokens. En hardware objetivo es irrelevante; en el actual añade coste de *prefill* a una latencia ya inasumible |
+| **Sin remoto configurado** | El repositorio no tiene *remote*, de modo que no hay copia fuera de esta máquina. **Es el único riesgo que recomiendo atender**: cinco commits de trabajo dependen de un solo disco |
+
+Comandos sugeridos:
+
+```bash
+git checkout main
+git merge --no-ff worktree-m2-exit -m "M2 — Manos Digitales: cierre del milestone"
+cd walking-skeleton && bash quality-gate.sh   # verificación tras el merge
+```
+
 ## Decisión que solicito
 
-**Cierre formal de M2.** Lo presento como 8/9 en la demo, no como 9/9.
+**Cierre oficial de M2.** Lo presento como 8/9 en la demo, no como 9/9.
 
 ## Recomendación sobre M3
 

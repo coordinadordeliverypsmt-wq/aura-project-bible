@@ -1,6 +1,6 @@
 ---
 documento: "Acta de Decisiones Fundacionales"
-version: 1.14.0
+version: 1.15.0
 autor: "Mauricio (CEO) — registrada por Fable (CTO)"
 fecha: 2026-07-17
 estado: "Vinculante"
@@ -262,6 +262,29 @@ Al descomponer la categoría "organizar" (6.4 §1, lista verde) en operaciones c
 **Nueva condición de revisión:** la posible reclasificación se examinará **con datos de uso reales y evidencia operacional**, no únicamente con argumentos de diseño. Queda por tanto abierta la divergencia con 6.4 §1 hasta esa fase, de forma consciente y documentada.
 
 *Impacta: `permissions.py` (catálogo), M2.1, M2.3 (dry-run), 6.4 §1.*
+
+## D33 — Neutralidad tecnológica: la plataforma objetivo se decide con el escenario de despliegue
+
+**Fecha:** 2026-07-21. **Decide:** CEO.
+
+Presentado el análisis técnico comparativo de plataformas y modelos para R1, el CEO **acepta las conclusiones técnicas** —el requisito relevante es la **latencia percibida** (primer token ≤500 ms y generación por encima del ritmo del habla), y el Core está verificadamente desacoplado del runtime del modelo— pero **no oficializa ninguna plataforma objetivo**.
+
+**Apple Silicon queda como plataforma de referencia para pruebas de rendimiento**, no como plataforma del proyecto.
+
+**La decisión definitiva se tomará al definir el escenario de despliegue:** uso personal, instalación doméstica, distribución a terceros o producto comercial. Son escenarios con requisitos incompatibles entre sí; comprometer hardware antes de conocer cuál aplica fijaría una restricción a 10 años (D20) sobre una incógnita.
+
+**Principios permanentes de arquitectura** (registrados en **ADR-0016**):
+
+1. Core independiente del modelo.
+2. Core independiente del hardware.
+3. Modelos, runtimes y aceleradores reemplazables mediante adaptadores.
+4. Proveedores de contexto desacoplados mediante ADR-0015.
+
+**Regla derivada:** *cambiar de hardware o de modelo puede cambiar lo útil que es AURA, nunca lo segura que es.*
+
+**Consecuencia operativa:** toda medición de rendimiento debe registrarse junto a la plataforma en que se obtuvo. HC-1 se evalúa contra la plataforma de referencia vigente, y ese vínculo debe ser explícito en cada informe.
+
+*Impacta: ADR-0016, `entorno/ANALISIS-PLATAFORMA-OBJETIVO-R1.md`, HC-1, M3.*
 
 ## Autorización
 

@@ -1,14 +1,30 @@
 ---
-documento: "Análisis técnico — Plataforma objetivo y modelo base para R1"
+documento: "Análisis técnico — Plataforma de referencia y modelo base para R1"
 fecha: 2026-07-21
 autor: "CTO"
-estado: "Propuesta — pendiente de decisión del CEO (P1/P2)"
+estado: "Aprobado con precisión del CEO (2026-07-21). Ver aviso de alcance."
 alcance: "Referencia permanente para decisiones de rendimiento y capacidades"
 ---
 
-# Análisis técnico — Plataforma objetivo y modelo base (R1)
+# Análisis técnico — Plataforma de referencia y modelo base (R1)
 
 Documento de referencia encargado por el CEO antes de continuar con M3.1.
+
+> ## ⚠ Aviso de alcance — precisión del CEO (2026-07-21)
+>
+> **Ninguna plataforma de este documento es la plataforma objetivo oficial del proyecto.**
+>
+> El CEO aprobó las conclusiones técnicas —el requisito de latencia percibida y el desacoplamiento
+> del Core respecto al runtime— pero **no oficializó Apple Silicon** ni ninguna otra opción. Lo
+> aprobado es su uso como **plataforma de referencia para pruebas de rendimiento**.
+>
+> **La decisión de plataforma definitiva se tomará cuando se defina el escenario de despliegue**: uso
+> personal, instalación doméstica, distribución a terceros o producto comercial. Son escenarios con
+> requisitos incompatibles entre sí, y elegir hardware antes de saber cuál aplica sería fijar una
+> restricción de 10 años (D20) sobre una incógnita.
+>
+> Las recomendaciones de §1.5 deben leerse como **evaluación comparativa**, no como decisión. La
+> neutralidad tecnológica queda registrada en **ADR-0016**.
 
 ## 0. Cómo leer las cifras de este documento
 
@@ -85,10 +101,14 @@ Nota sobre **[terceros]**: Ollama 0.19 (marzo 2026) cambió su backend de Metal 
 Silicon, con saltos de rendimiento notables en los datos publicados. Es un cambio reciente y conviene
 verificarlo antes de comprometer la decisión.
 
-### 1.5 Recomendación
+### 1.5 Evaluación comparativa
 
-**Opción D (Mac mini Apple Silicon, 16 GB o más) como plataforma objetivo de R1**, con la **opción C
-como alternativa** si se prefiere hardware x86 abierto o ya se dispone de una GPU.
+> **No es una decisión de plataforma.** Ver el aviso de alcance al inicio: el CEO no oficializó
+> ninguna plataforma objetivo. Lo que sigue es la comparación técnica que sustenta el uso de una
+> plataforma **de referencia para pruebas**.
+
+**La opción D (Apple Silicon, 16 GB o más) es la mejor referencia de prueba disponible**, con la
+**opción C como alternativa** si se prefiere hardware x86 abierto o ya se dispone de una GPU.
 
 Razones, en orden de peso:
 

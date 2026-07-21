@@ -2,6 +2,31 @@
 
 Versionado documental con [Semantic Versioning](https://semver.org/lang/es/). La v1.0.0 corresponderá a la Bible cerrada según el criterio del capítulo 1.1.
 
+## [1.3.0] — 2026-07-21 — Cierre de M2 (Manos Digitales)
+
+### Gobernanza
+- **Orden canónico del flujo de acción** fijado por gate del CEO y documentado en **5.3 §3.1**: `dry-run → Permisos/HITL → resolución de adaptador → ejecución → auditoría`. El dry-run precede a la confirmación porque es lo que la hace **informada**; Permisos se aplica aunque no exista adaptador capaz, para que un intento de acción roja quede auditado igualmente.
+- **Prohibido el éxito sin evidencia de ejecución**: una acción autorizada sin adaptador capaz devuelve error explícito, nunca una frase de éxito.
+- **Product Readiness oficial de M2: 41%** (objetivo declarado: 45%). Demo registrada como **8/9** capacidades. **HC-1 sigue Pendiente**: no existe medición de latencia válida en el hardware actual.
+
+### Agregado
+- **M2.0–M2.4**: catálogo de 9 operaciones tipadas, adaptador del computador con protección TOCTOU, motor de automatización con dry-run obligatorio, centro único de notificaciones.
+- **M2.5** (fase no planificada): integración del orquestador con los componentes de M2. Registro de adaptadores (una capacidad, un dueño) y **ejecutor único** compartido por conversación, reglas y notificaciones.
+- **Criterio permanente de alcanzabilidad** en el Quality Gate (Plan de Calidad §1.1): una capacidad declarada y no alcanzable desde la conversación hace fallar la integración. Validado por mutación.
+- **ALERTA-005** (resuelta): las manos digitales de M2 estaban construidas, probadas y desconectadas; el Core respondía con éxito a acciones que nadie ejecutaba.
+- `milestones/m2-exit/`: Architecture Review M2-Exit, hallazgo sobre selección de acciones del modelo, logs de la demo con stack real.
+- `resumenes-ejecutivos/EXECUTIVE-SUMMARY-M2.md`.
+
+### Cambiado
+- **ADR-0003**, **3.2** (texto y diagrama de secuencia), **6.4 §2** y **Plan de Calidad**: consistentes con el orden canónico y con el ejecutor único.
+- El prompt del sistema se **deriva del catálogo** en lugar de mantenerse a mano: hasta M2.4 no incluía ninguna operación del computador y el modelo no podía emitirlas.
+
+### Corregido
+- Error **no recuperado** hallado por la demo: una regla que disparaba dos veces sobre el mismo archivo propagaba `FileNotFoundError` a través del motor y derribaba el turno completo.
+
+### Estado
+- Quality Gate **PASS** — 234 pruebas, 3 omitidas, 8 contratos. Sin alertas de arquitectura abiertas.
+
 ## [1.2.0] — 2026-07-18 — Auditoría del entorno + Entorno de Desarrollo v1.0
 
 ### Agregado

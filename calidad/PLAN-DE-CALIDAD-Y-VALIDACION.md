@@ -22,7 +22,27 @@ Se ejecuta **antes de cada ejecución o integración** (`walking-skeleton/qualit
 | 4 | **Pruebas** | `pytest` (unit/integración/e2e/rendimiento) | Comportamiento correcto |
 | 5 | **Contratos** | `pytest tests/test_contracts.py` | Las implementaciones cumplen los Protocolos (EventBus, MemoryStore, ModelProvider, Adapter) |
 
-**Estado actual (2026-07-18):** GATE = **PASS** — 25 pruebas, mypy sin issues, lint limpio, contratos verificados.
+**Estado actual (2026-07-21, cierre de M2):** GATE = **PASS** — 234 pruebas (3 omitidas), mypy sin issues, lint limpio, 8 contratos verificados.
+
+### 1.1 Criterio permanente de alcanzabilidad (M2.5, ALERTA-005)
+
+`tests/integration/test_alcanzabilidad_capacidades.py` forma parte del gate y **hace fallar la
+integración si una capacidad declarada por un adaptador registrado no es alcanzable desde una
+petición conversacional**.
+
+Existe por una razón concreta: ALERTA-004 y ALERTA-005 fueron el mismo fallo con un día de
+diferencia —algo declarado en un documento de arquitectura, ausente del código, invisible porque cada
+prueba verificaba su pieza en aislamiento—. M2 llegó a tener **218 pruebas en verde con su capacidad
+principal inalcanzable**.
+
+De ahí la regla que generaliza el caso:
+
+> **Una prueba que verifica una pieza no demuestra que la pieza esté conectada.** Toda capacidad
+> declarada debe tener una prueba que la ejercite por el camino real del usuario.
+
+La prueba recorre `registro.capacidades()` —no una lista escrita a mano—, su espía **delega** en el
+adaptador real, comprueba el efecto en disco e incluye caso de control. Está **validada por
+mutación**: al reproducir el fallo original, falla.
 
 Toolchain reproducible: `pip install -r walking-skeleton/requirements-dev.txt`. En el futuro (7.3) el gate correrá también en CI antes de cada merge.
 
@@ -46,7 +66,7 @@ Implementada en `aura_skeleton/observability.py`; los logs son **dato del usuari
 
 - **Logging estructurado:** cada registro lleva `level`, `module`, `msg`, `trace_id` y pares clave-valor; salida legible y filtrable. En producción, formato JSON y residencia local.
 - **Métricas:** contadores/sumas por nombre (`metric_inc`, `metrics()`) — p. ej. eventos publicados, acciones autorizadas/denegadas, latencia por etapa. Base de los dashboards de 7.4.
-- **Trazabilidad entre módulos:** el **`trace_id`** correlaciona todo un turno de extremo a extremo (percepción → memoria → router → permisos → acción → respuesta) y también los streams de baja latencia con los eventos de control (invariante de la ALERTA-001). El **audit log** (subconjunto marcado `audit=True`) es el registro inmutable de acciones (HITL/D9, 5.3).
+- **Trazabilidad entre módulos:** el **`trace_id`** correlaciona todo un turno de extremo a extremo (percepción → memoria → router → **dry-run → permisos/HITL → adaptador** → acción → respuesta; orden canónico en 5.3 §3.1) y también los streams de baja latencia con los eventos de control (invariante de la ALERTA-001). El **audit log** (subconjunto marcado `audit=True`) es el registro inmutable de acciones (HITL/D9, 5.3).
 
 ## 4. Política de crecimiento: "toda funcionalidad con su validación"
 

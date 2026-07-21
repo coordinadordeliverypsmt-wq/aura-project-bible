@@ -64,6 +64,22 @@ CATALOGO: dict[str, dict] = {
 GREEN = {a for a, m in CATALOGO.items() if m["lista"] == "verde"}
 RED = {a for a, m in CATALOGO.items() if m["lista"] == "roja"}
 
+# Acciones que exigen DRY-RUN antes de confirmarse (M2.5, ALERTA-005).
+#
+# Se derivan del efecto declarado, no de una lista escrita a mano que pueda divergir del catalogo.
+# Quedan dentro `altera`, `destruye` y `externo`: lo que no es trivialmente reversible.
+#
+# `reversible` (encender/apagar un dispositivo) queda FUERA a proposito. Exigirle previsualizacion
+# obligaria a todo adaptador domotico a implementar `simular()` y, si no lo hiciera, el ejecutor
+# rechazaria encender una luz: una regresion de la garantia de M1 "lista verde ejecuta" a cambio de
+# ninguna proteccion real, porque apagar lo que se encendio cuesta un segundo.
+ALTERA_ESTADO = {a for a, m in CATALOGO.items() if m["efecto"] in ("altera", "destruye", "externo")}
+
+
+def altera_estado(accion: str) -> bool:
+    """Criterio unico de "necesita dry-run", consultable por el ejecutor."""
+    return accion in ALTERA_ESTADO
+
 
 class PermissionManager:
     def __init__(self, human_confirm, kill_switch=None):

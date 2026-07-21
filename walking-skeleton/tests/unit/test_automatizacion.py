@@ -219,3 +219,47 @@ def test_toda_accion_destructiva_del_catalogo_exige_dry_run():
     for accion in ("borrar_archivo", "mover_archivo", "renombrar_archivo", "escribir_archivo"):
         assert _altera(accion), f"'{accion}' no exigiria dry-run"
         assert accion in RED, f"'{accion}' deberia ser de lista roja"
+
+
+@pytest.mark.asyncio
+async def test_regla_reincidente_no_rompe_el_turno(entorno):
+    """Defecto hallado por la demo de capacidad M2 (DoD 9: cero errores NO recuperados).
+
+    Una regla que dispara dos veces sobre el mismo archivo encontraba el segundo disparo con el
+    origen ya movido. `os.lstat` lanzaba FileNotFoundError, que atravesaba el motor y mataba el
+    turno completo. El estado del disco es una condicion del entorno, no un error de programa:
+    debe degradar a "detenida" y dejar el sistema en pie.
+    """
+    ruta, ad = entorno
+    (ruta / "sub").mkdir(exist_ok=True)
+    motor = MotorAutomatizacion(ad, PermissionManager(_confirma), _altera)
+    regla = Regla(
+        "archivar",
+        "sensor.disco",
+        "mover_archivo",
+        {"origen": str(ruta / "datos.txt"), "destino": str(ruta / "sub" / "datos.txt")},
+    )
+    motor.agregar(regla)
+
+    await motor.on_event(_ev())
+    assert motor.ejecutadas[-1]["estado"] == "ejecutada"
+
+    await motor.on_event(_ev())  # el origen ya no existe
+    segundo = motor.ejecutadas[-1]
+    assert segundo["estado"] == "detenida", "un disparo sobre un archivo ausente no puede propagar OSError"
+    assert "no realizable" in segundo["motivo"] or "no viable" in segundo["motivo"]
+
+
+@pytest.mark.asyncio
+async def test_desaparicion_entre_confirmacion_y_ejecucion_se_recupera(entorno):
+    """El disco puede cambiar tras confirmar. El turno debe sobrevivir e informar el fallo."""
+    ruta, ad = entorno
+    objetivo = ruta / "datos.txt"
+
+    async def confirma_y_borra(accion, args, tid):
+        objetivo.unlink()  # un tercero elimina el archivo justo despues de confirmar
+        return True
+
+    motor = MotorAutomatizacion(ad, PermissionManager(confirma_y_borra), _altera)
+    r = await motor.ejecutar("borrar_archivo", {"ruta": str(objetivo)}, "t", "e1", "conversacion")
+    assert r["estado"] == "error" and "sistema de archivos" in r["motivo"]

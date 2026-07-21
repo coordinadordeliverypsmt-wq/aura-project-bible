@@ -9,6 +9,8 @@ import asyncio
 from .. import observability as obs
 from ..contracts import Event
 from ..observability import Timer
+from .automatizacion import MotorAutomatizacion
+from .registro import RegistroAdaptadores
 
 
 def _parse_decision(out: str, tid: str) -> tuple[str, dict, str]:
@@ -73,9 +75,24 @@ def _es_consulta_de_memoria(texto: str) -> bool:
 
 
 class Orchestrator:
-    def __init__(self, bus, memory, router, permissions, voice, ha):
+    """Coordina el turno conversacional. NO ejecuta acciones por su cuenta (M2.5, ALERTA-005).
+
+    El sexto parametro admite un adaptador suelto (uso historico de M1) o un `RegistroAdaptadores`
+    con varios. En ambos casos la ejecucion se delega en el `MotorAutomatizacion`, que es el unico
+    camino de ejecucion del sistema: el orquestador no tiene acceso directo a ningun adaptador.
+    """
+
+    def __init__(self, bus, memory, router, permissions, voice, adaptadores, motor=None):
         self.bus, self.memory, self.router = bus, memory, router
-        self.perm, self.voice, self.ha = permissions, voice, ha
+        self.perm, self.voice = permissions, voice
+        # Un adaptador suelto se envuelve; el resto del codigo trabaja siempre contra un registro.
+        if hasattr(adaptadores, "para"):
+            self.registro = adaptadores
+        else:
+            self.registro = RegistroAdaptadores([adaptadores])
+        # Sin motor inyectado se construye uno sobre el mismo registro y los mismos permisos: el
+        # flujo es identico venga de donde venga la peticion.
+        self.motor = motor if motor is not None else MotorAutomatizacion(self.registro, permissions)
         self._timers: dict[str, Timer] = {}
         self._done: dict[str, asyncio.Event] = {}
         self._results: dict[str, dict] = {}
@@ -120,17 +137,32 @@ class Orchestrator:
         prov, out = await self.router.route(prompt, tid)
         t.mark("llm")
         action, args, say = _parse_decision(out, tid)
-        if action != "consulta":  # FIX seguridad: TODA accion con efecto pasa por Permisos/HITL (ADR-0003/5.3)
-            ok, reason = await self.perm.authorize(action, args, tid)
-            if ok and action in self.ha.capabilities:
-                cmd_ev = Event("action.command", tid, uid, {"action": action, "args": args}, causation_id=ev.event_id)
-                await self.ha.execute(action, args, tid, cmd_ev.event_id)
-                say = say + f" [accion {action} ejecutada: {reason}]"
-            elif ok:
-                say = say + f" [accion {action} autorizada: {reason}]"
-            else:
-                say = "No ejecute la accion." + f" [accion {action} {reason}]"
+        if action != "consulta":
+            # M2.5 (ALERTA-005): la ejecucion se delega en el motor, unico camino del sistema. El
+            # orquestador no llama a ningun adaptador: aqui no hay ruta alternativa que mantener.
+            cmd_ev = Event("action.command", tid, uid, {"action": action, "args": args}, causation_id=ev.event_id)
+            res = await self.motor.ejecutar(action, args, tid, cmd_ev.event_id, origen="conversacion")
+            say = self._redactar(action, say, res)
         await self._finalizar_turno(uid, tid, text, say, prov, t)
+
+    def _redactar(self, action: str, say_llm: str, res: dict) -> str:
+        """Construye la respuesta sobre el RESULTADO REAL, no sobre lo que el modelo dijo.
+
+        ALERTA-005 punto 4: queda prohibido responder con exito cuando no hay evidencia de
+        ejecucion. Antes de M2.5, una accion autorizada que ningun adaptador podia atender devolvia
+        la frase del LLM —"Listo el directorio"— y AURA afirmaba haber hecho algo que no hizo.
+
+        La frase del modelo solo sobrevive cuando el adaptador devolvio un resultado. En cualquier
+        otro caso se DESCARTA: el modelo no es autoridad sobre los hechos del sistema (ADR-0014), y
+        una frase de exito redactada antes de intentar la accion no es informacion, es ruido con
+        apariencia de confirmacion.
+        """
+        estado = res.get("estado")
+        if estado == "ejecutada":
+            return f"{say_llm} [accion {action} ejecutada]"
+        if estado == "detenida":
+            return f"No ejecute la accion. [accion {action} detenida: {res.get('motivo')}]"
+        return f"No pude ejecutar la accion. [error en {action}: {res.get('motivo')}]"
 
     async def _finalizar_turno(self, uid, tid, text, say, prov, t):
         """Cierre comun del turno: persistencia, memoria de trabajo, voz, metricas y resultado."""

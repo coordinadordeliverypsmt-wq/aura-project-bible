@@ -23,6 +23,7 @@ import os
 from dataclasses import dataclass, field
 
 from . import observability as obs
+from .adapters.hitl_consola import confirmar_por_consola
 from .adapters.home_assistant import HomeAssistantMock
 from .adapters.voice import VoiceAdapterMock
 from .bus import InProcessEventBus
@@ -75,27 +76,6 @@ class Sistema:
     ruta_audit: str
 
 
-async def _confirmar_por_consola(accion: str, args: dict, trace_id: str) -> bool:
-    """HITL por defecto (ADR-0003). Ante cualquier duda, NO.
-
-    La previsualizacion del dry-run viaja en `args["_previsualizacion"]` (5.3 §3.1): confirmar sin
-    verla no seria consentimiento informado.
-    """
-    previa = args.get("_previsualizacion")
-    print(f"\n  AURA solicita confirmar una accion de lista roja: {accion}")
-    if previa:
-        print(f"  Efecto previsto: {previa}")
-    else:
-        print("  ADVERTENCIA: sin previsualizacion disponible.")
-    try:
-        respuesta = input("  ¿Autorizas? [escribe SI para confirmar]: ").strip()
-    except (EOFError, KeyboardInterrupt):
-        # Sin humano al otro lado, una accion destructiva NO se ejecuta.
-        print("  (sin respuesta) -> denegada")
-        return False
-    return respuesta == "SI"
-
-
 def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
     """Arma AURA completa. Unico cableado del proyecto.
 
@@ -114,7 +94,7 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
     obs.configure_audit(ruta_audit)
 
     kill_switch = KillSwitch(ruta_kill)
-    permisos = PermissionManager(confirmador or _confirmar_por_consola, kill_switch=kill_switch)
+    permisos = PermissionManager(confirmador or confirmar_por_consola, kill_switch=kill_switch)
 
     # --- Adaptadores: todo lo que AURA puede hacer -------------------------
     from .adapters.computador import AdaptadorComputador

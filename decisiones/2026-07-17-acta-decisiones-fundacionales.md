@@ -1,6 +1,6 @@
 ---
 documento: "Acta de Decisiones Fundacionales"
-version: 1.19.0
+version: 1.20.0
 autor: "Mauricio (CEO) — registrada por Fable (CTO)"
 fecha: 2026-07-17
 estado: "Vinculante"
@@ -408,6 +408,20 @@ Lo aplazado son **unicamente** las capacidades cuya validacion depende del hardw
 **Relacion con D38.** D38 prohibia generar documentacion preparatoria que no desbloqueara un milestone; sigue vigente. D39 **no la contradice**: distingue entre documentar el futuro —restringido— y **construir arquitectura que estara lista cuando el futuro llegue** —autorizado—.
 
 *Impacta: estado del proyecto, roadmap, `auditoria/2026-07-21-auditoria-tecnica-integral.md` (que aporta el inventario de trabajo admisible).*
+
+## D40 — Principios permanentes del arranque y la composicion
+
+**Fecha:** 2026-07-21. **Decide:** CEO, al aprobar MA.1.
+
+**1. Observabilidad del arranque.** *"AURA debe indicar siempre que cree que esta activo antes de comenzar a operar."*
+
+El informe de arranque —capacidades activas, fuentes de contexto, rutas de estado, kill switch— deja de ser una comodidad de MA.1 y pasa a ser **principio permanente**. Su valor es preciso: convierte un cableado incompleto en algo **visible el dia uno**, en lugar de un defecto que se descubre semanas despues. Es la contramedida directa al patron de ALERTA-004 y ALERTA-005.
+
+**2. Punto de entrada unico.** `python -m aura_skeleton` es la **unica forma oficial** de iniciar AURA. Cualquier ejecutable nuevo **debe consumir `composicion.componer()`**, nunca reconstruir el sistema. Un cableado propio en otro fichero reabre exactamente el agujero que MA.1 cerro.
+
+**3. La composicion debe permanecer declarativa.** Su responsabilidad es **ensamblar componentes, no contener logica de negocio**. Si empieza a tomar decisiones funcionales, **debe refactorizarse antes de continuar**.
+
+*Impacta: `composicion.py`, `__main__.py`, todo ejecutable futuro, MA.2 a MA.5.*
 
 ## Autorización
 

@@ -1,6 +1,6 @@
 ---
 documento: "Acta de Decisiones Fundacionales"
-version: 1.18.0
+version: 1.19.0
 autor: "Mauricio (CEO) — registrada por Fable (CTO)"
 fecha: 2026-07-17
 estado: "Vinculante"
@@ -379,6 +379,35 @@ La linea abierta por D35 queda **concluida y aceptada**. No incrementa el Produc
 El proyecto queda a la espera de **decisiones de arquitectura** o de la **disponibilidad del entorno real** (hardware, Home Assistant, dispositivos y uso cotidiano) para reanudar los milestones correspondientes.
 
 *Impacta: `entorno-objetivo/`, ritmo de trabajo del CTO.*
+
+## D39 — El proyecto NO esta congelado: desarrollo continuo con restricciones de hardware
+
+**Fecha:** 2026-07-21. **Decide:** CEO. **Corrige una caracterizacion erronea del CTO.**
+
+El CTO habia descrito el estado del proyecto como *"congelado"*. **El CEO corrige el concepto:**
+
+> *"No quiero una pausa de desarrollo; quiero una adaptacion del roadmap a las limitaciones actuales."*
+
+**Estado oficial: desarrollo continuo con restricciones de hardware.**
+
+Lo aplazado son **unicamente** las capacidades cuya validacion depende del hardware objetivo o de un entorno fisico real: M3.1, M3.2b, y las partes de M3.3 y M3.4 que asi lo requieran. **Todo lo demas sigue avanzando.**
+
+**Criterios de admision del trabajo.** Es valido todo aquel que cumpla alguno de estos ocho:
+
+1. No depende del hardware objetivo.
+2. Aporta valor arquitectonico real.
+3. Reduce deuda tecnica.
+4. Mejora la calidad del codigo.
+5. Fortalece la seguridad.
+6. Simplifica el despliegue.
+7. Mejora el runtime de produccion.
+8. Prepara la integracion futura de sensores, wearables y demas conectores aprobados.
+
+**Objetivo declarado:** *"Cuando llegue el nuevo hardware, el objetivo es que AURA ya tenga toda la arquitectura madura y unicamente sea necesario habilitar las capacidades que requieren esa plataforma, no empezar a construirlas desde cero."*
+
+**Relacion con D38.** D38 prohibia generar documentacion preparatoria que no desbloqueara un milestone; sigue vigente. D39 **no la contradice**: distingue entre documentar el futuro —restringido— y **construir arquitectura que estara lista cuando el futuro llegue** —autorizado—.
+
+*Impacta: estado del proyecto, roadmap, `auditoria/2026-07-21-auditoria-tecnica-integral.md` (que aporta el inventario de trabajo admisible).*
 
 ## Autorización
 

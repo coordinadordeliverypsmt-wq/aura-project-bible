@@ -1,6 +1,6 @@
 ---
 documento: "Acta de Decisiones Fundacionales"
-version: 1.17.0
+version: 1.18.0
 autor: "Mauricio (CEO) — registrada por Fable (CTO)"
 fecha: 2026-07-17
 estado: "Vinculante"
@@ -325,6 +325,60 @@ Entregadas M3.0 y M3.2a, el trabajo restante de M3 depende de datos de uso real 
 **Restriccion sobre las metricas.** Esta linea **no modifica el Core** y **no incrementa el Product Readiness**. La cifra permanece en **41%** mientras no se entregue capacidad verificable al usuario. Documentar el entorno futuro no acerca a AURA a ser usable; solo prepara la decision que si lo hara.
 
 *Impacta: roadmap de M3, `entorno-objetivo/`, Product Readiness, HC-1.*
+
+## D36 — Escenario de despliegue oficializado: E1 inicial, E2 objetivo de la primera version estable
+
+**Fecha:** 2026-07-21. **Decide:** CEO.
+
+- **E1 — uso personal:** escenario **inicial oficial**.
+- **E2 — hogar inteligente:** **objetivo de la primera version estable**.
+- **E3 (distribucion a terceros) y E4 (producto comercial):** **fuera del alcance actual**. No deben condicionar decisiones de arquitectura mientras no exista un cambio explicito de alcance.
+
+**Consecuencia inmediata:** queda resuelta la dependencia que mantenia en espera a tres fases de M3, a la elección de hardware, de modelo y de sistema operativo. Lo que sigue pendiente ya no es una decision, sino la **disponibilidad material** del entorno: equipo, Home Assistant, dispositivos y uso cotidiano.
+
+**Consecuencia sobre el diseno:** al quedar E3/E4 fuera de alcance, no se disenara para multiusuario ajeno, soporte a terceros ni cumplimiento contractual. Las obligaciones legales que E3/E4 introducirian (RGPD como responsable del tratamiento, reparto de responsabilidad del HITL) **no se abordan**, y su aparicion futura requerira revision de arquitectura.
+
+*Impacta: M3.1, M3.2b, D33 (plataforma), `entorno-objetivo/02-estrategia-de-despliegue.md`.*
+
+## D37 — Precision del principio local-first: independencia funcional, no aislamiento
+
+**Fecha:** 2026-07-21. **Decide:** CEO. **Corrige una formulacion imprecisa del CTO.**
+
+El CTO habia documentado que los conectores hacia wearables (Garmin, Apple Watch, Oura, Fitbit) *"chocan con ADR-0001 (local-first)"*, por acceder a datos mediante APIs en la nube del fabricante. **El CEO corrige esa lectura**, y la correccion se acepta:
+
+> *"No chocan con local-first. Lo que ocurre es que esos fabricantes no permiten acceder a todos los datos directamente desde el dispositivo. Ese matiz evita convertir el principio local-first en una limitacion innecesaria."*
+
+**Formulacion vigente del principio** (precisa ADR-0001, no lo modifica):
+
+1. **AURA funciona completamente sin Internet.** Ninguna capacidad basica depende de un servicio externo.
+2. **Opcionalmente**, el usuario puede conectar servicios externos para **enriquecer** el contexto.
+3. **Si un servicio deja de funcionar o el usuario revoca el acceso, AURA sigue operando**; simplemente pierde esa fuente.
+
+**La distincion clave:** lo prohibido es la **dependencia funcional**, no la existencia de fuentes opcionales. *Local-first* no es *local-only*.
+
+### Decision PENDIENTE de arquitectura — conectores hacia servicios de terceros
+
+No se renuncia a integrarlos ni se modifica el principio. Queda registrado como pendiente, con estas condiciones ya fijadas por el CEO:
+
+- **Habilitacion explicita del usuario.** Ningun conector externo se activa por defecto.
+- **Transparencia sobre el recorrido del dato:** debe quedar claro **que datos permanecen locales y cuales pasan necesariamente por servicios del fabricante**.
+- **Ningun proveedor externo sera requisito** para el funcionamiento basico de AURA.
+
+Su implementacion requerira ADR propio. Hasta entonces, ningun conector de este tipo se construye.
+
+*Impacta: ADR-0001 (precisado, no modificado), ADR-0015, D24, `entorno-objetivo/04-conectores-futuros.md`.*
+
+## D38 — Cierre de la linea "Preparacion del Entorno Objetivo"
+
+**Fecha:** 2026-07-21. **Decide:** CEO.
+
+La linea abierta por D35 queda **concluida y aceptada**. No incrementa el Product Readiness, que permanece en **41%**.
+
+**Regla operativa:** *"No continues generando documentacion preparatoria si no aporta nueva evidencia o desbloquea un milestone."*
+
+El proyecto queda a la espera de **decisiones de arquitectura** o de la **disponibilidad del entorno real** (hardware, Home Assistant, dispositivos y uso cotidiano) para reanudar los milestones correspondientes.
+
+*Impacta: `entorno-objetivo/`, ritmo de trabajo del CTO.*
 
 ## Autorización
 

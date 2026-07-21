@@ -28,31 +28,47 @@ una cámara inexistente y comprueba que funciona sin que el núcleo la mencione.
 Las tres restricciones permanentes aplican **igual** a toda fuente futura: capturar no implica
 inferir, la captura es pasiva, y no se generan perfiles persistentes de terceros.
 
-## 2. Un hallazgo que condiciona la mitad de las fuentes previstas
+## 2. Servicios de terceros: local-first no es local-only
 
-Al analizar las fuentes una por una aparece un problema que no es de integración, sino de principios.
+> **Corrección (D37, 2026-07-21).** La primera versión de esta sección afirmaba que los wearables
+> *"chocan con ADR-0001 (local-first)"*. **Esa formulación era incorrecta** y el CEO la corrigió.
+> Convertía un principio de independencia en una prohibición de integración, que es una limitación
+> que el principio nunca impuso. Lo que sigue es la lectura vigente.
 
-**Los wearables no exponen sus datos localmente.** Garmin, Fitbit, Oura, Polar y Apple Watch publican
-sus métricas a través de **APIs en la nube**: el dispositivo sincroniza con el servidor del
-fabricante, y el acceso se hace contra ese servidor, con credenciales de terceros.
+**El hecho técnico:** Garmin, Fitbit, Oura, Polar y Apple Watch no exponen todas sus métricas
+directamente desde el dispositivo. El acceso oficial es a través de **APIs en la nube del
+fabricante**.
 
-Eso choca de frente con dos decisiones fundacionales:
+**Lo que eso NO significa:** que integrarlos rompa local-first.
 
-| Decisión | Texto | Conflicto |
-|---|---|---|
-| **ADR-0001** | Local-first estricto | Los datos ya han salido del perímetro antes de que AURA los lea |
-| **D24** | Stack local, **sin claves de terceros** | Estas APIs exigen exactamente eso |
+### Formulación vigente del principio (D37)
 
-**No es un obstáculo técnico —el conector sería sencillo— sino una contradicción con la identidad del
-proyecto.** Y conviene verlo con precisión: AURA no filtraría datos al integrarse; los datos **ya
-están** en la nube del fabricante por el diseño del dispositivo. Lo que AURA haría es **traerlos de
-vuelta**.
+1. **AURA funciona completamente sin Internet.** Ninguna capacidad básica depende de un servicio
+   externo.
+2. **Opcionalmente**, el usuario puede conectar servicios externos para **enriquecer** el contexto.
+3. **Si un servicio cae o el usuario revoca el acceso, AURA sigue operando**; simplemente pierde esa
+   fuente.
 
-Ese matiz no resuelve el conflicto con D24, pero cambia la pregunta: no es *"¿exponemos datos del
-usuario?"*, sino *"¿aceptamos depender de un servicio de terceros para funcionar?"*.
+**Lo prohibido es la dependencia funcional, no la existencia de fuentes opcionales.**
 
-**Requerirá una decisión explícita del CEO y probablemente un ADR.** Lo dejo señalado ahora,
-antes de que alguien lo descubra a mitad de implementación.
+La distinción es además la correcta desde el punto de vista de los datos: los datos de un wearable
+**ya están** en la nube del fabricante por el diseño del dispositivo, con o sin AURA. Integrarlos no
+los expone; los **trae de vuelta** al perímetro del usuario.
+
+### Condiciones ya fijadas para cualquier conector de este tipo (D37)
+
+| Condición | Consecuencia de diseño |
+|---|---|
+| **Habilitación explícita del usuario** | Ningún conector externo se activa por defecto |
+| **Transparencia sobre el recorrido del dato** | Debe quedar claro qué permanece local y qué pasa por el fabricante |
+| **Ningún proveedor externo es requisito** | La degradación por pérdida de una fuente debe ser limpia y no afectar a ninguna garantía |
+
+La tercera condición tiene una implicación concreta para el diseño del conector: **la caída de una
+fuente externa ya está contemplada** por el mecanismo de ADR-0015 —un proveedor que falla degrada la
+captura, no la derriba—, de modo que la arquitectura vigente ya soporta esta exigencia sin cambios.
+
+**Estado: decisión pendiente de arquitectura.** Requerirá ADR propio antes de construir ningún
+conector de este tipo.
 
 ## 3. Las fuentes, una por una
 
@@ -92,12 +108,13 @@ credenciales externas, y el conector puede leer del audit log igual que el actua
 |---|---|
 | **Señales** | Actividad, sueño, rutinas, esfuerzo |
 | **Acceso** | **Nube del fabricante** — ver §2 |
-| **Dificultad** | Baja técnica, **alta en principios** |
-| **Bloqueante** | **Conflicto con ADR-0001 y D24** |
+| **Dificultad** | Baja técnica |
+| **Bloqueante** | **Decisión pendiente de arquitectura (D37)**, no conflicto de principios |
 
-Salvedad: algunos dispositivos permiten exportación local o sincronización sin nube (Gadgetbridge y
-similares). Si se decidiera integrar wearables, **priorizar los que admitan lectura local** sería la
-vía coherente con el proyecto — y acotaría el conflicto en lugar de aceptarlo.
+Salvedad útil: algunos dispositivos permiten exportación local o sincronización sin nube
+(Gadgetbridge y similares). Priorizar los que admitan **lectura local** reduce la superficie de
+dependencia externa y simplifica la condición de transparencia de D37 — no porque la vía por nube
+esté vedada, sino porque menos intermediarios es siempre más fácil de explicar al usuario.
 
 ### 3.4 Sensores biométricos
 
@@ -108,11 +125,13 @@ vía coherente con el proyecto — y acotaría el conflicto en lugar de aceptarl
 | **Dificultad** | **Alta en todos los ejes** |
 | **Bloqueante** | Categoría especial de datos |
 
-**Datos de salud.** En cualquier escenario distinto del uso estrictamente personal (E3/E4), son
-categoría especial bajo RGPD, con obligaciones que hoy el proyecto no tiene resueltas.
+**Datos de salud**, categoría especial bajo RGPD. Con **D36** el escenario ya está decidido —E1
+personal, E2 hogar; E3/E4 fuera de alcance—, lo que **reduce sustancialmente la exposición
+regulatoria**: en uso personal y doméstico el usuario trata sus propios datos.
 
-Recomendación: **no abordarlos hasta que E1–E4 esté decidido**. Es la fuente cuya incorporación
-equivocada resulta más cara de revertir.
+No la elimina del todo: en E2 conviven varias personas en un hogar, y P-ARQ-5 y ALERTA-002 dejan de
+ser teóricos. Sigue siendo la fuente cuya incorporación equivocada resulta más cara de revertir, y la
+que menos prisa tiene.
 
 ### 3.5 Sensores ambientales
 
@@ -133,7 +152,7 @@ candidata para ser la primera fuente nueva tras Home Assistant.
 | **Señales** | Desplazamientos, rutinas de trayecto |
 | **Acceso** | Casi siempre **nube del fabricante** |
 | **Dificultad** | Alta |
-| **Bloqueante** | Mismo conflicto que wearables, más geolocalización |
+| **Bloqueante** | Mismas condiciones que wearables (D37), más la sensibilidad de la geolocalización |
 
 La ubicación es de las señales más sensibles: revela domicilio, trabajo, hábitos y presencia o
 ausencia en casa. Merece tratamiento aparte.
@@ -153,8 +172,8 @@ los principios del proyecto:
 | 2 | **Sensores ambientales** | Local, sencillo, no versa sobre personas |
 | 3 | **Cámaras** | Local, pero exige resolver la privacidad de terceros primero |
 | 4 | **Wearables con lectura local** | Sólo los que no exijan nube |
-| 5 | Wearables por nube · Vehículos | **Requieren decisión sobre ADR-0001/D24** |
-| 6 | Biométricos | **Sólo con el escenario de despliegue decidido** |
+| 5 | Wearables por nube · Vehículos | **Requieren el ADR pendiente de D37** (opt-in, transparencia, nunca requisito) |
+| 6 | Biométricos | Los de mayor sensibilidad; sin urgencia y con el diseño multiusuario de E2 resuelto antes |
 
 ## 5. La advertencia que cierra este documento
 

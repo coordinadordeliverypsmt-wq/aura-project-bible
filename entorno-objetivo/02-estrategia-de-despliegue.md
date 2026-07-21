@@ -7,6 +7,17 @@ autor: "CTO"
 
 # Estrategia de despliegue
 
+> ## ✅ DECIDIDO — D36 (2026-07-21)
+>
+> **E1 (uso personal) es el escenario inicial oficial. E2 (hogar inteligente) es el objetivo de la
+> primera versión estable.** E3 y E4 quedan **fuera del alcance actual** y no condicionan decisiones
+> de arquitectura mientras no haya un cambio explícito de alcance.
+>
+> Este documento se conserva como el análisis que sustentó la decisión. Las secciones sobre E3/E4
+> (§3) siguen siendo válidas como advertencia para el día en que se reconsideren, no como trabajo
+> pendiente.
+
+
 Este es el documento central de la línea. Los otros comparan opciones; **este identifica la decisión
 que da sentido a esas comparaciones.**
 
@@ -117,9 +128,18 @@ baratas si se toman antes que después.
 
 No hace falta comprometerse con E3. Sí conviene saber si está en el horizonte.
 
-## 6. Decisión requerida del CEO
+## 6. Resolución (D36)
 
-1. ¿Se adopta **E1 como paso inmediato y E2 como objetivo de R1**?
-2. ¿Están **E3/E4 en el horizonte del proyecto**, aunque no se decidan ahora? La respuesta cambia
-   qué decisiones conviene tomar pronto, no qué se implementa hoy.
-3. ¿Hay una fecha o condición para disponer del equipo de E1? De ella depende cuándo se reanuda M3.
+| Pregunta planteada | Resolución del CEO |
+|---|---|
+| ¿E1 inmediato y E2 objetivo de R1? | **Sí.** E1 inicial oficial; E2 objetivo de la primera versión estable |
+| ¿E3/E4 en el horizonte? | **No.** Fuera del alcance actual; no condicionan la arquitectura |
+| ¿Cuándo el equipo de E1? | **Pendiente de disponibilidad material**, no de decisión |
+
+**Consecuencia:** al quedar E3/E4 fuera, no se diseña para multiusuario ajeno, soporte a terceros ni
+cumplimiento contractual. Las obligaciones legales de §3 —RGPD como responsable del tratamiento,
+reparto de responsabilidad del HITL— **no se abordan**, y su aparición futura exigiría una revisión
+de arquitectura.
+
+Lo que queda pendiente ya no es una decisión, sino la **disponibilidad material** del entorno:
+equipo, Home Assistant, dispositivos y uso cotidiano.

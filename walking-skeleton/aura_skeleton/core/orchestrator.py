@@ -9,6 +9,7 @@ import asyncio
 from .. import observability as obs
 from ..contracts import Event
 from ..observability import Timer
+from .almacen_senales import AlmacenSenales
 from .automatizacion import MotorAutomatizacion
 from .registro import RegistroAdaptadores
 
@@ -82,9 +83,14 @@ class Orchestrator:
     camino de ejecucion del sistema: el orquestador no tiene acceso directo a ningun adaptador.
     """
 
-    def __init__(self, bus, memory, router, permissions, voice, adaptadores, motor=None):
+    def __init__(self, bus, memory, router, permissions, voice, adaptadores, motor=None, contexto=None):
         self.bus, self.memory, self.router = bus, memory, router
         self.perm, self.voice = permissions, voice
+        # M3.0 — captura de senales. OPCIONAL y PASIVA: si no hay registro de contexto, el sistema
+        # se comporta exactamente igual que en M2. La captura observa el turno; no participa en
+        # ninguna decision (restriccion 2 del gate del CEO).
+        self.contexto = contexto
+        self.almacen = AlmacenSenales(memory) if contexto is not None else None
         # Un adaptador suelto se envuelve; el resto del codigo trabaja siempre contra un registro.
         if hasattr(adaptadores, "para"):
             self.registro = adaptadores
@@ -164,9 +170,30 @@ class Orchestrator:
             return f"No ejecute la accion. [accion {action} detenida: {res.get('motivo')}]"
         return f"No pude ejecutar la accion. [error en {action}: {res.get('motivo')}]"
 
+    async def _capturar_senales(self, uid, tid, text):
+        """Captura pasiva de senales de aprendizaje (M3.0).
+
+        Se ejecuta al CIERRE del turno, despues de que la respuesta ya este decidida: asi es
+        estructuralmente imposible que la captura influya en lo que AURA contesta (restriccion 2).
+
+        Un fallo aqui no puede costarle el turno al usuario. La captura es infraestructura para el
+        futuro; la conversacion es el producto de hoy.
+        """
+        if self.contexto is None or self.almacen is None:
+            return
+        try:
+            self.contexto.observar(text)
+            senales = await self.contexto.recoger_todas(tid)
+            if senales:
+                n = await self.almacen.guardar(uid, senales)
+                obs.log("CTX", "senales", f"capturadas {n} senal(es) de aprendizaje", tid)
+        except Exception as e:
+            obs.log("WARN", "senales", f"captura fallida (turno no afectado): {e}", tid)
+
     async def _finalizar_turno(self, uid, tid, text, say, prov, t):
         """Cierre comun del turno: persistencia, memoria de trabajo, voz, metricas y resultado."""
         await self.memory.write(uid, "episodica", f"usuario dijo: {text}", {"trace_id": tid, "fuente": "conversacion"})
+        await self._capturar_senales(uid, tid, text)
         buffer = self._dialogue.setdefault(uid, [])
         buffer.append((text, say))
         del buffer[: max(0, len(buffer) - self._DIALOG_N)]  # conserva las ultimas N (memoria de trabajo)

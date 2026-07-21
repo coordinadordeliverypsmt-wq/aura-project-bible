@@ -1,6 +1,6 @@
 ---
 documento: "Acta de Decisiones Fundacionales"
-version: 1.14.0
+version: 1.18.0
 autor: "Mauricio (CEO) — registrada por Fable (CTO)"
 fecha: 2026-07-17
 estado: "Vinculante"
@@ -262,6 +262,123 @@ Al descomponer la categoría "organizar" (6.4 §1, lista verde) en operaciones c
 **Nueva condición de revisión:** la posible reclasificación se examinará **con datos de uso reales y evidencia operacional**, no únicamente con argumentos de diseño. Queda por tanto abierta la divergencia con 6.4 §1 hasta esa fase, de forma consciente y documentada.
 
 *Impacta: `permissions.py` (catálogo), M2.1, M2.3 (dry-run), 6.4 §1.*
+
+## D33 — Neutralidad tecnológica: la plataforma objetivo se decide con el escenario de despliegue
+
+**Fecha:** 2026-07-21. **Decide:** CEO.
+
+Presentado el análisis técnico comparativo de plataformas y modelos para R1, el CEO **acepta las conclusiones técnicas** —el requisito relevante es la **latencia percibida** (primer token ≤500 ms y generación por encima del ritmo del habla), y el Core está verificadamente desacoplado del runtime del modelo— pero **no oficializa ninguna plataforma objetivo**.
+
+**Apple Silicon queda como plataforma de referencia para pruebas de rendimiento**, no como plataforma del proyecto.
+
+**La decisión definitiva se tomará al definir el escenario de despliegue:** uso personal, instalación doméstica, distribución a terceros o producto comercial. Son escenarios con requisitos incompatibles entre sí; comprometer hardware antes de conocer cuál aplica fijaría una restricción a 10 años (D20) sobre una incógnita.
+
+**Principios permanentes de arquitectura** (registrados en **ADR-0016**):
+
+1. Core independiente del modelo.
+2. Core independiente del hardware.
+3. Modelos, runtimes y aceleradores reemplazables mediante adaptadores.
+4. Proveedores de contexto desacoplados mediante ADR-0015.
+
+**Regla derivada:** *cambiar de hardware o de modelo puede cambiar lo útil que es AURA, nunca lo segura que es.*
+
+**Consecuencia operativa:** toda medición de rendimiento debe registrarse junto a la plataforma en que se obtuvo. HC-1 se evalúa contra la plataforma de referencia vigente, y ese vínculo debe ser explícito en cada informe.
+
+*Impacta: ADR-0016, `entorno/ANALISIS-PLATAFORMA-OBJETIVO-R1.md`, HC-1, M3.*
+
+## D34 — No se construyen entornos artificiales para aprobar un milestone
+
+**Fecha:** 2026-07-21. **Decide:** CEO.
+
+Ante la ausencia de una instancia de Home Assistant en el entorno actual, el CEO **rechaza instalar una únicamente para satisfacer el milestone**:
+
+> *"No se construyen entornos artificiales únicamente para aprobar un milestone."*
+
+**Regla permanente:** una capacidad que actúa sobre el mundo físico **se valida contra el mundo físico**. Un laboratorio montado a propósito no demuestra que la capacidad funcione donde va a operar; demuestra que funciona en el laboratorio.
+
+**Aplicación a M3.1:**
+
+- El adaptador **puede diseñarse** con antelación.
+- **No se declarará completado** hasta superar una validación *end-to-end* contra una instalación real de Home Assistant, con dispositivos reales (sensores, cámaras, luces).
+- M3.1 queda **pendiente** hasta que exista el escenario de despliegue definitivo.
+
+**Alcance general.** El principio no se limita a Home Assistant: rige para toda capacidad cuya corrección dependa de datos o dispositivos reales. Complementa el criterio heredado de T1 —*"si la prueba solo puede fallar por culpa del doble, no vale"*— y lo extiende: **un entorno fabricado para pasar la prueba es un doble con otro nombre.**
+
+**Consecuencia asumida:** algunos milestones quedarán abiertos más tiempo. Se prefiere un milestone honestamente incompleto a uno cerrado contra un decorado.
+
+*Impacta: M3.1, M3.2 (inferencia sobre datos reales), roadmap de M3, criterios de validación de 7.2.*
+
+## D35 — M3 en espera de habilitadores externos; se abre la linea "Preparacion del Entorno Objetivo"
+
+**Fecha:** 2026-07-21. **Decide:** CEO.
+
+Entregadas M3.0 y M3.2a, el trabajo restante de M3 depende de datos de uso real y de un entorno domestico que todavia no existen. El CEO resuelve:
+
+**1. Congelacion.** **M3.1** (hogar real) y **M3.2b** (inferencia de preferencias) quedan **congeladas** hasta disponer de entorno domestico y datos reales suficientes.
+
+**2. Prohibicion de infraestructura no validable.** No se implementara mas infraestructura cuya validacion requiera datos o entornos inexistentes. Es la aplicacion directa de **D34**.
+
+**3. Nueva linea de trabajo: "Preparacion del Entorno Objetivo"**, independiente del roadmap funcional. Produce **unicamente documentacion y analisis** sobre: hardware objetivo, modelo base, sistema operativo, estrategia de despliegue, arquitectura de conectores futuros, requisitos minimos y recomendados, y costes/consumo/mantenimiento.
+
+**Precision del CEO — el estado de M3.** *"No considero M3 bloqueado, sino en espera de habilitadores externos."* La distincion es material: un milestone bloqueado señala un fallo del proyecto; uno en espera señala una dependencia externa identificada y gestionada. M3 se reanudara desde este punto cuando el entorno real exista.
+
+**Restriccion sobre las metricas.** Esta linea **no modifica el Core** y **no incrementa el Product Readiness**. La cifra permanece en **41%** mientras no se entregue capacidad verificable al usuario. Documentar el entorno futuro no acerca a AURA a ser usable; solo prepara la decision que si lo hara.
+
+*Impacta: roadmap de M3, `entorno-objetivo/`, Product Readiness, HC-1.*
+
+## D36 — Escenario de despliegue oficializado: E1 inicial, E2 objetivo de la primera version estable
+
+**Fecha:** 2026-07-21. **Decide:** CEO.
+
+- **E1 — uso personal:** escenario **inicial oficial**.
+- **E2 — hogar inteligente:** **objetivo de la primera version estable**.
+- **E3 (distribucion a terceros) y E4 (producto comercial):** **fuera del alcance actual**. No deben condicionar decisiones de arquitectura mientras no exista un cambio explicito de alcance.
+
+**Consecuencia inmediata:** queda resuelta la dependencia que mantenia en espera a tres fases de M3, a la elección de hardware, de modelo y de sistema operativo. Lo que sigue pendiente ya no es una decision, sino la **disponibilidad material** del entorno: equipo, Home Assistant, dispositivos y uso cotidiano.
+
+**Consecuencia sobre el diseno:** al quedar E3/E4 fuera de alcance, no se disenara para multiusuario ajeno, soporte a terceros ni cumplimiento contractual. Las obligaciones legales que E3/E4 introducirian (RGPD como responsable del tratamiento, reparto de responsabilidad del HITL) **no se abordan**, y su aparicion futura requerira revision de arquitectura.
+
+*Impacta: M3.1, M3.2b, D33 (plataforma), `entorno-objetivo/02-estrategia-de-despliegue.md`.*
+
+## D37 — Precision del principio local-first: independencia funcional, no aislamiento
+
+**Fecha:** 2026-07-21. **Decide:** CEO. **Corrige una formulacion imprecisa del CTO.**
+
+El CTO habia documentado que los conectores hacia wearables (Garmin, Apple Watch, Oura, Fitbit) *"chocan con ADR-0001 (local-first)"*, por acceder a datos mediante APIs en la nube del fabricante. **El CEO corrige esa lectura**, y la correccion se acepta:
+
+> *"No chocan con local-first. Lo que ocurre es que esos fabricantes no permiten acceder a todos los datos directamente desde el dispositivo. Ese matiz evita convertir el principio local-first en una limitacion innecesaria."*
+
+**Formulacion vigente del principio** (precisa ADR-0001, no lo modifica):
+
+1. **AURA funciona completamente sin Internet.** Ninguna capacidad basica depende de un servicio externo.
+2. **Opcionalmente**, el usuario puede conectar servicios externos para **enriquecer** el contexto.
+3. **Si un servicio deja de funcionar o el usuario revoca el acceso, AURA sigue operando**; simplemente pierde esa fuente.
+
+**La distincion clave:** lo prohibido es la **dependencia funcional**, no la existencia de fuentes opcionales. *Local-first* no es *local-only*.
+
+### Decision PENDIENTE de arquitectura — conectores hacia servicios de terceros
+
+No se renuncia a integrarlos ni se modifica el principio. Queda registrado como pendiente, con estas condiciones ya fijadas por el CEO:
+
+- **Habilitacion explicita del usuario.** Ningun conector externo se activa por defecto.
+- **Transparencia sobre el recorrido del dato:** debe quedar claro **que datos permanecen locales y cuales pasan necesariamente por servicios del fabricante**.
+- **Ningun proveedor externo sera requisito** para el funcionamiento basico de AURA.
+
+Su implementacion requerira ADR propio. Hasta entonces, ningun conector de este tipo se construye.
+
+*Impacta: ADR-0001 (precisado, no modificado), ADR-0015, D24, `entorno-objetivo/04-conectores-futuros.md`.*
+
+## D38 — Cierre de la linea "Preparacion del Entorno Objetivo"
+
+**Fecha:** 2026-07-21. **Decide:** CEO.
+
+La linea abierta por D35 queda **concluida y aceptada**. No incrementa el Product Readiness, que permanece en **41%**.
+
+**Regla operativa:** *"No continues generando documentacion preparatoria si no aporta nueva evidencia o desbloquea un milestone."*
+
+El proyecto queda a la espera de **decisiones de arquitectura** o de la **disponibilidad del entorno real** (hardware, Home Assistant, dispositivos y uso cotidiano) para reanudar los milestones correspondientes.
+
+*Impacta: `entorno-objetivo/`, ritmo de trabajo del CTO.*
 
 ## Autorización
 

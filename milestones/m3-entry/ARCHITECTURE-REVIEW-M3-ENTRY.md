@@ -32,8 +32,15 @@ el código son un comentario del router y un patrón de detección de consultas.
 
 La anticipación **no se puede acelerar con más ingeniería**. Un sistema que propone acciones útiles
 necesita haber observado al usuario durante semanas; el algoritmo es lo de menos si no hay historial
-sobre el que operar. La Bible lo anticipó con precisión —"se retrasa semanas por diseño"— y ese
-retraso **empieza a contar el día que se instrumente la captura, no el día que empiece M3**.
+sobre el que operar. La Bible lo anticipó con precisión —"se retrasa semanas por diseño"—.
+
+> **Corrección posterior (2026-07-21).** En la primera redacción escribí que el retraso *"empieza a
+> contar el día que se instrumente la captura"*. Es impreciso: empieza a contar el día que haya **uso
+> real instrumentado**. La verificación encargada por el CEO
+> ([DEUDA-CAPTURA-DE-SENALES.md](DEUDA-CAPTURA-DE-SENALES.md)) mostró que el proyecto tiene **12
+> entradas de memoria persistente en total**, de una sesión de validación: instrumentar un sistema
+> que nadie usa produce un esquema vacío. El obstáculo dominante no son las señales, es la ausencia
+> de uso real — y esa depende del hardware (P1).
 
 Es el tercer caso del mismo patrón (ALERTA-004, ALERTA-005): declarado en un documento de
 arquitectura, ausente del código. Con una diferencia que conviene registrar: **esta vez se detectó
@@ -161,8 +168,13 @@ prioridad que fijaste —hardware y modelo antes que capacidades— es la correc
 ## 9. Recomendación del CTO
 
 Aprobar el arranque **solo de M3.0**, y dentro de él dar precedencia a la instrumentación de captura
-de señales, que puede comenzar **sin esperar a P1**: no depende del hardware y cada día de retraso se
-descuenta del historial que el resto del milestone necesita.
+de señales, que puede comenzar **sin esperar a P1**: no depende del hardware y es condición necesaria
+para que el historial empiece a acumularse.
+
+Matiz que la verificación posterior obliga a añadir: **es condición necesaria pero no suficiente.**
+El historial no crece porque exista instrumentación, sino porque alguien use el sistema a diario, y
+eso hoy es materialmente imposible a más de dos minutos por turno. Detalle y alternativas en
+[M3.0-PLAN.md](M3.0-PLAN.md) §4.
 
 Las fases M3.1 en adelante deberían esperar a que P1 y P2 estén decididos. Comprometerse antes a un
 diseño de anticipación sería fijar decisiones sobre un modelo base que quizá cambie.

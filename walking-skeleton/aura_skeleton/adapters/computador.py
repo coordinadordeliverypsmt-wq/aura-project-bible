@@ -118,6 +118,13 @@ class AdaptadorComputador:
             except ErrorDeValidacion as e:
                 plan["viable"] = False
                 plan["motivo"] = str(e)
+            except OSError as e:
+                # El estado del disco es una condicion del entorno, no un error de programa: el
+                # archivo pudo desaparecer entre el disparo de una regla y su simulacion, o la
+                # regla puede dispararse dos veces seguidas. Detectado por la demo M2, donde una
+                # regla reincidente rompia el turno completo con FileNotFoundError.
+                plan["viable"] = False
+                plan["motivo"] = f"no realizable sobre el estado actual del disco: {e.strerror or e}"
         else:
             plan["viable"] = True
             plan["efecto"] = "solo lectura: sin cambios en el sistema de archivos"

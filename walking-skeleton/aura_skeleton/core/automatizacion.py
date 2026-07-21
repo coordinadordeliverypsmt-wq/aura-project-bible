@@ -115,6 +115,8 @@ class MotorAutomatizacion:
                 plan = await adaptador.simular(accion, args, trace_id)
             except ErrorDeValidacion as e:
                 return self._detener(accion, trace_id, origen, f"dry-run rechazo la operacion: {e}")
+            except OSError as e:
+                return self._detener(accion, trace_id, origen, f"dry-run no pudo completarse: {e.strerror or e}")
             if not plan.get("viable"):
                 return self._detener(accion, trace_id, origen, f"dry-run no viable: {plan.get('motivo')}")
 
@@ -152,6 +154,11 @@ class MotorAutomatizacion:
         except ErrorDeValidacion as e:
             # El adaptador revalida en su propia puerta. Si rechaza, es un fallo, no un exito.
             return self._error(accion, trace_id, origen, f"el adaptador rechazo la operacion: {e}")
+        except OSError as e:
+            # Entre la confirmacion y la ejecucion el disco pudo cambiar. Un turno conversacional
+            # no puede morir por eso: se informa el fallo y el sistema sigue en pie. La DoD de M2
+            # exige cero errores NO RECUPERADOS; este queda recuperado y auditado.
+            return self._error(accion, trace_id, origen, f"fallo del sistema de archivos: {e.strerror or e}")
 
         obs.log("AUTO", "ejecutor", f"[{origen}] ejecuto {accion}", trace_id, audit=True)
         return {"accion": accion, "estado": "ejecutada", "plan": plan, "resultado": resultado, "origen": origen}

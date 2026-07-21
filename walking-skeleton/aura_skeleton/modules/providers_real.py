@@ -9,13 +9,36 @@ import json
 import os
 import urllib.request
 
+
+def _catalogo_para_prompt() -> str:
+    """Construye la lista de acciones DESDE el catalogo del nucleo (M2.5).
+
+    Hasta M2.4 esta lista estaba escrita a mano en el prompt y no incluia ninguna operacion del
+    computador: el modelo no podia emitirlas aunque el adaptador existiera. Mantener a mano una
+    copia del catalogo garantiza que ambas diverjan —es la misma clase de fallo que ALERTA-005—,
+    asi que se deriva. Anadir una accion al catalogo la hace conocida por el modelo sin tocar esto.
+
+    El prompt NO decide permisos: solo informa al modelo de que puede pedir. La clasificacion
+    verde/roja la resuelve el nucleo (ADR-0014); se menciona unicamente para que el modelo no
+    prometa al usuario cosas que requeriran confirmacion.
+    """
+    from ..core.operaciones import ESPECIFICACIONES
+    from ..core.permissions import CATALOGO
+
+    lineas = []
+    for accion, meta in CATALOGO.items():
+        spec = ESPECIFICACIONES.get(accion)
+        args = f" args: {{{', '.join(spec['args'])}}}" if spec and spec["args"] else ""
+        lineas.append(f"- {accion} ({meta['lista']}){args}")
+    return "\n".join(lineas)
+
+
 _SYSTEM = (
     "Eres AURA. Responde UNICAMENTE un objeto JSON con las claves: "
     "intent (string), action (string), args (object), say (string en espanol). "
-    "action debe ser EXACTAMENTE una de estas: "
-    "encender_dispositivo, apagar_dispositivo, consulta, recordatorio, monitoreo, organizacion, automatizacion "
-    "(acciones de bajo riesgo), o eliminar_informacion, pago, compra, transferencia, abrir_cerradura, "
-    "mensaje_a_tercero, accion_legal, accion_financiera (acciones que requieren confirmacion). "
+    "action debe ser EXACTAMENTE una de las de este catalogo:\n" + _catalogo_para_prompt() + "\n"
+    "Las marcadas (roja) requeriran confirmacion del usuario; no prometas haberlas hecho. "
+    "Para operaciones de archivos usa RUTAS ABSOLUTAS tal y como aparezcan en la peticion. "
     "Elige la accion que mejor represente la peticion del usuario. No ejecutes nada; solo describe la decision. "
     # ADR-0014 (refuerzo, Alternativa B): el nucleo ya impide llegar aqui sin recuerdos, pero el
     # modelo tampoco debe insinuar lo inexistente si el contexto viene vacio.

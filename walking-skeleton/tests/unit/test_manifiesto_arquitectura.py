@@ -52,7 +52,9 @@ def test_todo_constructor_del_sistema_esta_clasificado():
     declarado en el manifiesto. Un ejecutable NUEVO sin clasificar dispara esta prueba (D40/D41)."""
     m = _manifiesto()
     clasificados = (
-        {m["produccion"]["composicion"]} | {a["archivo"] for a in m["arneses"]} | {o["archivo"] for o in m["obsoletos"]}
+        {m["produccion"]["composicion"]}
+        | {a["archivo"] for a in m.get("arneses", [])}
+        | {o["archivo"] for o in m.get("obsoletos", [])}
     )
     constructores = {_rel(p) for p in _ejecutables_del_sistema() if _construye_orchestrator(p)}
     sin_clasificar = constructores - clasificados
@@ -92,9 +94,9 @@ def test_el_manifiesto_no_tiene_entradas_fantasma():
     referencias = (
         list(m["produccion"]["entrypoints"])
         + [m["produccion"]["composicion"]]
-        + [a["archivo"] for a in m["arneses"]]
+        + [a["archivo"] for a in m.get("arneses", [])]
         + list(m["no_construyen_sistema"]["scripts"])
-        + [o["archivo"] for o in m["obsoletos"]]
+        + [o["archivo"] for o in m.get("obsoletos", [])]
     )
     faltan = [r for r in referencias if not (RAIZ / r).exists()]
     assert not faltan, f"el manifiesto referencia ficheros inexistentes: {faltan}"

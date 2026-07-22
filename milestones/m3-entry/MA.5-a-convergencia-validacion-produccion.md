@@ -45,11 +45,11 @@ Esta es la version **narrada** de la clasificacion. La version **operativa** es 
 | `validar_voz_t2.py` | Valida el adaptador de voz Whisper/Piper aislado. **No construye `Orchestrator`** → D40 no le aplica. |
 | `generar_m1_exit.py` | Generador de informe (no construye `Orchestrator`); consume el JSON de los arneses `--real`. |
 
-**Obsoletos (candidatos a eliminacion, con evidencia de cobertura equivalente):**
+**Eliminado en MA.5-a (por convergencia arquitectonica, no por desuso):**
 
-| Candidato | Evidencia de que ya no aporta cobertura |
+| Retirado | Razon |
 |---|---|
-| `run_demo.py` | Su fallback/circuit-breaker esta cubierto por `tests/unit/test_router.py::test_fallback_a_proveedor_sano`; su flujo conversacional (memoria/HITL/kill switch/persistencia) por `tests/e2e/test_capacidad_m1.py`. No tiene proposito de hardware (lo real lo cubre `run_demo_real.py`). Como forma de "correr AURA" queda superseded por `python -m aura_skeleton`. **Propuesto a eliminacion tras verificacion adicional (seccion 5.7).** |
+| `run_demo.py` | **Retirado en MA.5-a.** Dejo de ser un punto de entrada valido tras la consolidacion de D40: su funcionalidad quedo absorbida por `python -m aura_skeleton` (unico punto de entrada oficial) y su comportamiento esta cubierto por la suite (`test_router::test_fallback_a_proveedor_sano` y `tests/e2e/test_capacidad_m1.py`). **No se elimino por desuso, sino por convergencia arquitectonica.** Verificacion previa completamente positiva: sin referencias de uso —directas ni indirectas— en documentacion, scripts, CI o pruebas. El commit de eliminacion consta en el historial (`git log --diff-filter=D -- walking-skeleton/run_demo.py`). |
 
 **Resultado honesto:** la divergencia "8/9" de la revision pre-M3 **era real**, pero su correccion para
 la mayoria es *clasificar y documentar como arnes autorizado*, no reescribir ni borrar. Solo
@@ -88,9 +88,10 @@ regresion real: un script-doble que construye `Orchestrator` sin declararse debe
 4. Clasificar **`demo_capacidad_m2.py`** como arnes autorizado en el manifiesto (opcion B, 2026-07-22): necesita un proveedor guionado que no cabe en produccion (D40.5). No se reescribe ni se toca produccion.
 5. Implementar la **prueba anti-regresion** (seccion 4) **leyendo el manifiesto**.
 6. Ejecutar el **Quality Gate**.
-7. Si el Gate sigue verde, **proponer** la eliminacion de `run_demo.py` (no eliminarla). Antes de
-   proponerla, verificar ademas: **(a)** que ningun documento, script de CI, README o guia lo
-   referencia; **(b)** que ninguna prueba depende de el, ni directa ni indirecta. Solo si ambas son
-   positivas se propone su eliminacion, en un paso independiente.
+7. ~~Proponer la eliminacion de `run_demo.py`.~~ **HECHO (aprobado por el CEO, 2026-07-22):**
+   verificacion completa positiva —sin referencias de uso directas ni indirectas en docs, scripts,
+   CI o pruebas; el README ya apunta a `python -m aura_skeleton`— y `run_demo.py` **eliminado por
+   convergencia arquitectonica** (no por desuso), junto con su entrada en el manifiesto y esta
+   actualizacion documental.
 
 **Nada de lo anterior toca `composicion` ni el bus** (ADR-0018 no cambia produccion).

@@ -21,8 +21,8 @@ from aura_skeleton.core.senales import ClaseSenal
 def _audit(tmp_path, registros):
     p = tmp_path / "audit.jsonl"
     with open(p, "w", encoding="utf-8") as f:
-        for r in registros:
-            f.write(json.dumps(r) + "\n")
+        for i, r in enumerate(registros, start=1):
+            f.write(json.dumps({**r, "seq": i}) + "\n")  # seq monotonico, como lo asigna AuditLog (MA.3)
     return str(p)
 
 

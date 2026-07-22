@@ -58,7 +58,4 @@ motivo = "demo de capacidad M2 reproducible; necesita un proveedor guionado (_Pr
 scripts = ["validar_voz_t2.py", "generar_m1_exit.py"]
 
 # --- Candidatos a eliminacion (clasificados, con evidencia). No se eliminan sin gate. ---
-
-[[obsoletos]]
-archivo = "run_demo.py"
-motivo = "fallback cubierto por test_router; conversacion por e2e test_capacidad_m1; sin proposito de hardware; superseded por 'python -m aura_skeleton'"
+# (Sin candidatos actualmente: run_demo.py fue retirado en MA.5-a por convergencia arquitectonica.)

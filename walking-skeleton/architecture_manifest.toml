@@ -1,0 +1,64 @@
+# architecture_manifest.toml
+#
+# FUENTE UNICA DE VERDAD de la clasificacion de ejecutables del sistema (principio D41).
+# La consume la prueba anti-regresion tests/unit/test_manifiesto_arquitectura.py (MA.5-a).
+#
+# NO duplicar esta clasificacion en codigo ni documentacion: la doc la REFERENCIA
+# (milestones/m3-entry/MA.5-a-convergencia-validacion-produccion.md), no la copia.
+#
+# Regla (D40, ADR-0018):
+#   - El unico punto de entrada de PRODUCCION consume composicion.componer() y NO construye
+#     Orchestrator directamente.
+#   - composicion.py es el UNICO lugar que ensambla el sistema (construye Orchestrator por definicion).
+#   - Los ARNESES de validacion pueden ensamblar variantes deliberadas (otro bus, varios proveedores,
+#     un componente aislado) SOLO si estan declarados aqui.
+#
+# CRITERIO DE ADMISION de un arnes (CEO, 2026-07-22):
+#   Un arnes solo puede quedar en el manifiesto si necesita una variacion deliberada que NO tendria
+#   sentido incorporar al cableado de produccion. Si esa variacion pasa a tener valor para produccion,
+#   se revisa si debe convertirse en una capacidad de composicion(); de lo contrario, permanece como
+#   arnes autorizado.
+#
+# Rutas relativas a walking-skeleton/.
+
+[produccion]
+# Punto(s) de entrada de produccion: consumen composicion; NO construyen Orchestrator.
+entrypoints = ["aura_skeleton/__main__.py"]
+# El unico lugar que ensambla el sistema. Construye Orchestrator por definicion (no es excepcion).
+composicion = "aura_skeleton/composicion.py"
+
+# --- Arneses de validacion autorizados a construir el sistema fuera de composicion ---
+
+[[arneses]]
+archivo = "run_demo_nats.py"
+motivo = "sustituibilidad de bus in-process->NATS (E2, P-ARQ-4); unico que ejercita bus_nats.py"
+
+[[arneses]]
+archivo = "run_demo_real.py"
+motivo = "stack real / HC-1 (E2, hardware)"
+
+[[arneses]]
+archivo = "validar_m1.py"
+motivo = "metricas de latencia HC-1 en hardware"
+
+[[arneses]]
+archivo = "evals_m1.py"
+motivo = "evals de seguridad sobre modelo real (HITL lista roja, grounding, consistencia)"
+
+[[arneses]]
+archivo = "demo_capacidad_m1.py"
+motivo = "demo de capacidad M1, ruta --real en hardware"
+
+[[arneses]]
+archivo = "demo_capacidad_m2.py"
+motivo = "demo de capacidad M2 reproducible; necesita un proveedor guionado (_ProveedorGuiado), un doble determinista que no tendria sentido en produccion (criterio de admision)"
+
+[no_construyen_sistema]
+# No crean Orchestrator: no son puntos de entrada del sistema. D40 no les aplica.
+scripts = ["validar_voz_t2.py", "generar_m1_exit.py"]
+
+# --- Candidatos a eliminacion (clasificados, con evidencia). No se eliminan sin gate. ---
+
+[[obsoletos]]
+archivo = "run_demo.py"
+motivo = "fallback cubierto por test_router; conversacion por e2e test_capacidad_m1; sin proposito de hardware; superseded por 'python -m aura_skeleton'"

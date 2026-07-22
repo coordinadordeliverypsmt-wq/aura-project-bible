@@ -19,8 +19,16 @@ Primera etapa de construccion de AURA (Bible 7.3), autorizada por el CEO el 2026
 
 ## Ejecutar
 
+El **unico punto de entrada oficial** de AURA es (D40, ADR-0018):
+
 ```
-python3 run_demo.py
+python -m aura_skeleton              # inicia AURA (conversacion interactiva)
+python -m aura_skeleton --verificar  # informa que quedo activo y sale
 ```
 
-No requiere dependencias externas (solo stdlib de Python 3.11+).
+Ambos ensamblan el sistema desde `composicion.componer()` (la unica composicion). No requiere
+dependencias externas (solo la stdlib de Python 3.11+ para el arranque en modo mock).
+
+Los scripts de demo y validacion (`run_demo_*.py`, `demo_capacidad_*.py`, `validar_*.py`, `evals_m1.py`)
+son **arneses de validacion**, no puntos de entrada de produccion. Su clasificacion —fuente unica de
+verdad (D41)— vive en `architecture_manifest.toml`.

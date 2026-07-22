@@ -32,6 +32,7 @@ from .conectores.conversacion import ConectorConversacion
 from .conectores.hogar import ConectorHogar
 from .contracts import Adapter, ModelProvider, VoiceAdapter
 from .core.automatizacion import MotorAutomatizacion
+from .core.conectores_externos import habilitar
 from .core.contexto import RegistroContexto
 from .core.kill_switch import KillSwitch
 from .core.orchestrator import Orchestrator
@@ -55,6 +56,9 @@ class Configuracion:
     usar_stack_real: bool = field(default_factory=lambda: os.environ.get("AURA_STACK_REAL") == "1")
     modelo: str = field(default_factory=lambda: os.environ.get("AURA_LLM_MODEL", "qwen2.5:3b"))
     presupuesto_latencia_ms: int = 1200
+    # Conectores externos habilitados por el usuario (MA.4, ADR-0019). Opt-in explicito: por defecto
+    # NINGUNO. Es configuracion del usuario, no una lista blanca en el Core (ADR-0015).
+    conectores_externos_habilitados: frozenset[str] = field(default_factory=frozenset)
 
     @classmethod
     def desde_entorno(cls) -> Configuracion:
@@ -110,9 +114,15 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
     motor = MotorAutomatizacion(registro_adaptadores, permisos)
 
     # --- Conectores de contexto: todo lo que AURA observa (ADR-0015) -------
-    registro_contexto = RegistroContexto(
-        [ConectorConversacion(), ConectorComputador(ruta_audit), ConectorHogar(ruta_audit)]
+    # Gate de habilitacion (MA.4, ADR-0019): un conector externo requiere opt-in explicito del usuario
+    # y declaracion de transparencia. Hoy TODOS los conectores son locales -> el gate es un no-op.
+    habilitacion = habilitar(
+        [ConectorConversacion(), ConectorComputador(ruta_audit), ConectorHogar(ruta_audit)],
+        config.conectores_externos_habilitados,
     )
+    registro_contexto = RegistroContexto(habilitacion.activos)
+    if habilitacion.informe:
+        obs.log("BOOT", "composicion", f"conectores externos habilitados:\n{habilitacion.informe}", "-", audit=True)
 
     # --- Modelo y voz ------------------------------------------------------
     if config.usar_stack_real:

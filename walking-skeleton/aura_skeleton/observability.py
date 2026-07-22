@@ -9,16 +9,23 @@ import sys
 import time
 
 _records: list[dict] = []
+
+# --- Metricas: IMPLEMENTACION PENDIENTE del contrato P-ARQ-7 (Bible 7.4, "metricas basicas"). ---
+# Clasificado por D42 (2026-07-22): el CONTRATO existe (operacion minima viable, 7.4); la
+# IMPLEMENTACION aun NO esta cableada (ningun componente incrementa ni lee metricas); esa brecha es
+# consciente y rastreable. **NO es codigo muerto mientras el contrato siga vigente** (D42). Cablearlo
+# es una iniciativa funcional independiente, fuera del alcance de limpieza de MA.5-b.
 _metrics: dict[str, float] = {}
 _audit: AuditLog | None = None
 
 
 def metric_inc(name: str, value: float = 1.0) -> None:
-    """Metrica acumulativa (Bible P-ARQ-7): contadores y sumas por nombre."""
+    """Metrica acumulativa del contrato P-ARQ-7 (Bible 7.4). PENDIENTE de cableado (ver D42)."""
     _metrics[name] = _metrics.get(name, 0.0) + value
 
 
 def metrics() -> dict:
+    """Lectura de metricas del contrato P-ARQ-7 (Bible 7.4). PENDIENTE de cableado (ver D42)."""
     return dict(_metrics)
 
 

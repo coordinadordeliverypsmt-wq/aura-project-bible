@@ -437,6 +437,16 @@ El informe de arranque —capacidades activas, fuentes de contexto, rutas de est
 
 *Impacta: MA.5-a, la prueba anti-regresion, ADR-0018, todo documento que clasifique ejecutables.*
 
+## D42 — Un elemento "pendiente de contrato" no es codigo muerto; se clasifica explicitamente
+
+**Fecha:** 2026-07-22. **Decide:** CEO, durante MA.5-b.
+
+**Regla permanente.** Todo elemento clasificado como **implementacion pendiente (o parcial) de un contrato** debera quedar **identificado de forma explicita en la documentacion arquitectonica**, y **no podra volver a ser considerado "codigo muerto" mientras el contrato que lo justifica permanezca vigente**. Antes de eliminar algo que "parezca muerto" (condicion fijada para MA.5-b) debe demostrarse con evidencia objetiva **(1)** que su funcionalidad esta completamente absorbida o sustituida por otra (convergencia arquitectonica), **o (2)** que nunca formo parte de un comportamiento observable ni de un contrato vigente. Si no puede demostrarse una de las dos, se **conserva y se clasifica**, no se elimina.
+
+**Primer elemento clasificado (MA.5-b):** el subsistema de **metricas** (`observability.py`: `metric_inc`/`metrics`/`_metrics`). El contrato existe —Bible **7.4** (operacion minima viable) exige *"metricas basicas (P-ARQ-7)"*—; la implementacion **no esta cableada** (ningun componente incrementa ni lee metricas). Se **conserva** como implementacion pendiente del contrato P-ARQ-7, clasificada en el codigo (`observability.py`) y aqui. Cablearla seria una **iniciativa funcional independiente**, no limpieza (fuera del alcance de MA.5-b).
+
+*Impacta: MA.5-b, `observability.py`, Bible 7.4/P-ARQ-7, todo futuro juicio de "codigo muerto".*
+
 ## Autorización
 
 El CEO autoriza el inicio de la **Fase D1**: redacción de los 5 capítulos P0 (1.1 → 1.2 → 2.1 → 2.2 → 3.1), cada uno con gate de aprobación del CEO.

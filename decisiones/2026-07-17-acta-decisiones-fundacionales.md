@@ -423,6 +423,8 @@ El informe de arranque —capacidades activas, fuentes de contexto, rutas de est
 
 **4. Precision del alcance (2026-07-22, con ADR-0018 y D41).** El punto 2 distingue **punto de entrada de produccion** de **arnes de validacion**: el unico ejecutable de produccion (`python -m aura_skeleton`) debe consumir `composicion`; los arneses de validacion pueden ensamblar variantes deliberadas de la arquitectura (otro bus, varios proveedores, un componente aislado) **solo si estan declarados en la fuente unica de clasificacion** (manifiesto, D41) y **nunca** como punto de entrada de produccion. Todo ejecutable que construya el sistema y no este clasificado en el manifiesto es una violacion de D40, verificada por prueba anti-regresion.
 
+**5. Criterio de admision de un arnes (2026-07-22).** Un arnes solo puede quedar en el manifiesto si necesita una **variacion deliberada que no tendria sentido incorporar al cableado de produccion**. Si esa variacion pasa a tener valor para produccion, se revisa si debe **convertirse en una capacidad de `composicion()`**; de lo contrario, permanece como arnes autorizado. *(Primera aplicacion: `demo_capacidad_m2` queda como arnes porque su proveedor guionado es un doble de prueba determinista, no una capacidad que tenga sentido en produccion.)*
+
 *Impacta: `composicion.py`, `__main__.py`, todo ejecutable futuro, MA.2 a MA.5.*
 
 ## D41 — Fuente unica de verdad para la clasificacion estructural del sistema

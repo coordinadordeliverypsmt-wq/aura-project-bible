@@ -41,7 +41,7 @@ Esta es la version **narrada** de la clasificacion. La version **operativa** es 
 | `validar_m1.py` | Instrumenta latencia HC-1 sobre hardware (uso `--real` diferido). |
 | `evals_m1.py` | Evals de seguridad de IA sobre modelo real (HITL lista roja, grounding, consistencia). Uso `--real`/hardware. |
 | `demo_capacidad_m1.py` | Demo de capacidad M1; la ruta `--real` es la demo oficial en hardware. (La ruta mock solapa con `tests/e2e/test_capacidad_m1.py`.) |
-| `demo_capacidad_m2.py` | Demo de capacidad M2. **Converge:** se reescribe para consumir `composicion` (stack mock/real in-process) y **gana la captura de senales** que hoy le falta. Deja de ser excepcion. |
+| `demo_capacidad_m2.py` | Demo de capacidad M2 reproducible. **Arnes autorizado** (opcion B, 2026-07-22): necesita `_ProveedorGuiado`, un doble determinista que mapea cada frase a su accion; no tendria sentido en produccion (criterio de admision, D40.5). `composicion` no inyecta proveedores, y no se cambia produccion. No se reescribe. |
 | `validar_voz_t2.py` | Valida el adaptador de voz Whisper/Piper aislado. **No construye `Orchestrator`** → D40 no le aplica. |
 | `generar_m1_exit.py` | Generador de informe (no construye `Orchestrator`); consume el JSON de los arneses `--real`. |
 
@@ -85,7 +85,7 @@ regresion real: un script-doble que construye `Orchestrator` sin declararse debe
 1. Commit de **ADR-0018**.
 2. Commit de la **precision de D40 + D41 + esta clasificacion**.
 3. Crear el **manifiesto** `walking-skeleton/architecture_manifest.toml` (fuente unica, D41).
-4. Adaptar **`demo_capacidad_m2.py`** para consumir `composicion.componer()`.
+4. Clasificar **`demo_capacidad_m2.py`** como arnes autorizado en el manifiesto (opcion B, 2026-07-22): necesita un proveedor guionado que no cabe en produccion (D40.5). No se reescribe ni se toca produccion.
 5. Implementar la **prueba anti-regresion** (seccion 4) **leyendo el manifiesto**.
 6. Ejecutar el **Quality Gate**.
 7. Si el Gate sigue verde, **proponer** la eliminacion de `run_demo.py` (no eliminarla). Antes de

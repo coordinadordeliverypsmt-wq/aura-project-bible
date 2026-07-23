@@ -447,6 +447,38 @@ El informe de arranque —capacidades activas, fuentes de contexto, rutas de est
 
 *Impacta: MA.5-b, `observability.py`, Bible 7.4/P-ARQ-7, todo futuro juicio de "codigo muerto".*
 
+## D43 — Evolucion por capacidades del hardware (perfiles, no versiones)
+
+**Fecha:** 2026-07-22. **Decide:** CEO, al aprobar ADR-0020.
+
+**Principio permanente.** AURA es **un solo proyecto, un solo codigo, un solo contrato funcional, un solo formato de datos y una sola arquitectura** que **se adapta automaticamente al hardware detectado**. Los distintos "niveles" son **perfiles de ejecucion de esa unica arquitectura, NO versiones de AURA**: el contrato funcional de una capacidad permanece identico y solo cambia su **implementacion interna**, elegida de forma **automatica, reversible y transparente** para el usuario en instalacion/reconfiguracion.
+
+- **Mas hardware = mas capacidad, autonomia y rendimiento; menos hardware degrada sin perder memoria, configuracion ni compatibilidad.** El usuario nunca elige "que version instalar" ni interviene.
+- **Independencia tecnologica:** los perfiles se definen por **capacidades**, no por el nombre de una tecnologia; un motor mejor en el futuro ocupa el perfil que corresponda sin cambiar la arquitectura.
+- **La deteccion de hardware que gobierna el perfil se verifica en el momento** (D27), nunca se supone.
+
+Complementa **ADR-0016/D33** (neutralidad tecnologica: la seguridad nunca cambia con el hardware, la utilidad puede escalar). Primera aplicacion: la memoria (**ADR-0020**, perfiles N1/N2/N3). Rige cualquier componente futuro con implementaciones dependientes de recursos.
+
+*Impacta: ADR-0020, ADR-0011, ADR-0016, Bible 4.1, todo componente con implementaciones dependientes de recursos.*
+
+## D44 — Capacidad EFECTIVA (verificada por pruebas), no capacidad declarada por specs
+
+**Fecha:** 2026-07-22. **Decide:** CEO, al aprobar ADR-0020.
+
+**Regla permanente (completa D43).** La deteccion del perfil de hardware **nunca depende solo de las especificaciones tecnicas** (RAM, CPU, GPU). Se basa en la **capacidad real verificada** del equipo, combinando tres fuentes:
+
+1. **Caracteristicas del hardware detectado** (specs declaradas).
+2. **Resultados de pruebas reales de rendimiento** —latencia, memoria disponible, velocidad de inferencia, etc.— ejecutadas en el propio equipo (D27: verificacion en el momento).
+3. **Requisitos minimos definidos para cada capacidad.**
+
+El hardware declara una **capacidad potencial**; las pruebas determinan la **capacidad efectiva**. Asi se evita clasificar un equipo como "alto rendimiento" solo porque tiene GPU cuando, en la practica, no cumple los objetivos.
+
+**El perfil se recalcula automaticamente** cuando cambie el hardware, el sistema operativo, los modelos utilizados, o aparezca una version de AURA mas eficiente — manteniendo la evolucion automatica **sin reglas fijas**.
+
+**Alcance:** aplica a **toda capacidad dependiente del hardware** (memoria, inferencia, voz, automatizaciones, vision, etc.), no solo a la memoria. Es la referencia de la nueva linea base para cualquier seleccion de perfil por hardware.
+
+*Impacta: ADR-0020, D43, D27, toda capacidad futura con implementaciones dependientes de recursos; el mecanismo de instalacion/reconfiguracion.*
+
 ## Autorización
 
 El CEO autoriza el inicio de la **Fase D1**: redacción de los 5 capítulos P0 (1.1 → 1.2 → 2.1 → 2.2 → 3.1), cada uno con gate de aprobación del CEO.

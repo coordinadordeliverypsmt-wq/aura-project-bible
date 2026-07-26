@@ -4,7 +4,7 @@ fecha: 2026-07-26
 autor: "CTO"
 encargo: "CEO — ratificacion de la opcion A: documentar formalmente que el trabajo verificable sin hardware queda agotado y declarar esta como la nueva linea base del proyecto"
 base: "main @ b19e3fe (origin/main sincronizada) — Quality Gate PASS (310 passed / 3 skipped)"
-estado: "Linea base vigente. El proyecto queda en congelacion controlada hasta un desencadenante autorizado (ver §5)."
+estado: "Linea base vigente y REFERENCIA OFICIAL de reanudacion. El proyecto queda en congelacion controlada hasta un desencadenante autorizado (ver §5); desde este documento se retomara el desarrollo cuando exista nuevo hardware."
 ---
 
 # Linea base — Congelacion controlada de AURA
@@ -13,6 +13,13 @@ Tras cerrar la linea MA (madurez de arquitectura), la iniciativa A1 (analisis de
 la iniciativa A2 (realizacion del contrato de metricas P-ARQ-7), la revision del estado real del
 repositorio concluye que **el trabajo de arquitectura verificable con el hardware actual queda
 agotado**. Este documento formaliza esa conclusion y la declara **nueva linea base** del proyecto.
+
+**Encuadre — esto es un hito de madurez, no una pausa por problemas tecnicos.** Toda la arquitectura
+verificable con el hardware actual quedo **completada y validada** (Quality Gate PASS, 310 passed / 3
+skipped). El proyecto no se detiene por un defecto, una limitacion de diseno ni una dificultad de
+ingenieria: se detiene porque **lo que resta depende de capacidades fisicas** —hardware o dispositivos
+reales— y de los datos que solo el uso real genera, **no de trabajo pendiente de arquitectura**. Alcanzar
+este punto es un logro, no un tropiezo.
 
 Las cinco afirmaciones siguientes son el nucleo de la declaracion. Cada una es una condicion permanente
 de esta linea base, no una observacion de coyuntura.
@@ -103,6 +110,26 @@ infraestructura que nadie pueda validar (D34, y la advertencia ya anticipada en
 `milestones/m3-entry/ROADMAP-M3-REORDENADO.md` §4).
 
 ---
+
+## Cierre ejecutivo
+
+**Esta linea base es un hito de madurez del proyecto, no una pausa por problemas tecnicos.** Toda la
+arquitectura que podia construirse y verificarse con el hardware actual esta **completada y validada**:
+punto de entrada unico y composicion declarativa (D40), memoria escalable y por niveles de capacidad
+(MA.2/ADR-0020), audit log forense con rotacion (MA.3), marco de conectores externos con transparencia
+(MA.4/ADR-0019), convergencia validacion↔produccion (MA.5/D41), backups de memoria con restauracion
+probada (7.4), soberania del modelo del usuario (M3.2a/ADR-0017) y metricas basicas cableadas
+(A2/P-ARQ-7). Nada de esto es provisional: esta cubierto por pruebas y, donde aplica, validado por mutacion.
+
+**Lo que resta no es trabajo de arquitectura pendiente, sino capacidades que dependen de recursos
+fisicos** —hardware o dispositivos reales— y de datos de uso real. Diferirlas es la decision correcta
+(D34/D39/D44), no una omision.
+
+**Este documento es la referencia oficial desde la que se retomara el desarrollo** cuando exista nuevo
+hardware. La reanudacion preservara integramente los principios de **ADR-0020**, **D43** y **D44**: AURA
+**evolucionara automaticamente por capacidades**, habilitando lo que el nuevo equipo permita **sin
+bifurcar el proyecto** y **sin perder memoria, configuracion, historial ni compatibilidad**. No habra un
+"AURA 2": habra el mismo AURA, en un perfil de capacidad superior.
 
 ## Nota de cierre — Presupuesto de hardware cero (registro expreso)
 

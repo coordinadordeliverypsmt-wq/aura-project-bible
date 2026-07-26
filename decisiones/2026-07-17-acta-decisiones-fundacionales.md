@@ -481,6 +481,42 @@ El hardware declara una **capacidad potencial**; las pruebas determinan la **cap
 
 *Impacta: ADR-0020, D43, D27, toda capacidad futura con implementaciones dependientes de recursos; el mecanismo de instalacion/reconfiguracion.*
 
+## D45 — Arquitectura completa; capacidades latentes en un Registro de Capacidades
+
+**Fecha:** 2026-07-26. **Decide:** CEO. **Materializa:** ADR-0021. **Va un paso mas alla de** ADR-0020/D43/D44.
+
+**Regla permanente.** AURA es **un solo proyecto** —un solo codigo, una sola arquitectura, un solo
+contrato y un solo formato de memoria—. Las capacidades dependientes del hardware **no se documentan ni
+se tratan como "pendientes"**: son **capacidades latentes ya previstas por la arquitectura**, cuya
+activacion depende unicamente de los recursos disponibles. La arquitectura esta **siempre completa**; lo
+unico que evoluciona es el **conjunto de capacidades que AURA puede ejercer** segun el hardware.
+
+1. **Registro de Capacidades (Capability Registry).** Cada capacidad es un **modulo autonomo** que se
+   auto-declara con, al menos: (1) contrato funcional, (2) grado de latencia —**activable** o
+   **prevista**—, (3) requisitos minimos de activacion, (4) dependencias, (5) garantias de seguridad a
+   mantener, (6) criterio objetivo D44 de habilitacion. El registro es la **fuente unica** de la
+   clasificacion de capacidades (D41).
+2. **Capability Manager agnostico.** No conoce ninguna capacidad concreta: recorre el registro y activa o
+   desactiva segun la **capacidad efectiva** del entorno (D44). Anadir una capacidad es **registrar un
+   modulo**, no tocar el nucleo (D40, P-ARQ-4).
+3. **Dos grados de latencia.** *Activable* (implementacion existente, se enciende sola por perfil) y
+   *prevista* (arquitectura reserva contrato y lugar; se construye+valida cuando el hardware/datos lo
+   permiten, ADR-0004). Esto respeta **regla 13 / D3 / D34 / D38**: "preparada para todas" = todas tienen
+   lugar y contrato en el registro, **no** que todas esten construidas y apagadas.
+4. **La seguridad es invariante (D33).** Activar mas capacidades **nunca** relaja garantias; el Manager no
+   activa una capacidad si no puede preservar las suyas. La **utilidad escala con el hardware; la
+   seguridad, jamas**.
+5. **Evolucion sin cambio de arquitectura.** Al mejorar el hardware AURA **solo incrementa** las
+   capacidades que ejerce. **Nunca** ediciones Lite/Pro/Enterprise; **nunca** un "AURA 2"; **nunca**
+   migraciones manuales; el usuario **instala una sola vez**. La activacion/desactivacion es
+   **transparente, reversible y sin perdida** de memoria, configuracion, historial ni compatibilidad.
+
+**Alcance:** todo el sistema —IA local, memoria, inferencia, voz, vision, Home Assistant,
+automatizaciones, agentes, conectores externos, avatar y cualquier capacidad futura—. La memoria
+(ADR-0020) es una capacidad mas del registro; ADR-0018 y ADR-0019 son instancias del patron.
+
+*Impacta: ADR-0021, ADR-0020, ADR-0018, ADR-0019, ADR-0004, D33/ADR-0016, D43, D44, D41, Bible 3.1/3.2/3.4, la linea base 2026-07-26, todo componente y capacidad futura.*
+
 ## Autorización
 
 El CEO autoriza el inicio de la **Fase D1**: redacción de los 5 capítulos P0 (1.1 → 1.2 → 2.1 → 2.2 → 3.1), cada uno con gate de aprobación del CEO.

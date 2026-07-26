@@ -40,9 +40,10 @@ metricas basicas cableadas (A2). Todo esto es **infraestructura lista para habil
 
 ## 2. No se considera deuda tecnica
 
-Las funcionalidades pendientes **no fueron omitidas ni pasadas por alto**: fueron **diferidas
-deliberadamente** por depender de recursos fisicos o de datos reales, conforme a las decisiones
-permanentes del proyecto:
+Lo que resta **no son funcionalidades "pendientes"**: son **capacidades latentes ya previstas por la
+arquitectura** (D45, ADR-0021), cuya activacion depende unicamente de los recursos disponibles. No fueron
+omitidas ni pasadas por alto; su realizacion se difiere **deliberadamente** por depender de recursos
+fisicos o de datos reales, conforme a las decisiones permanentes del proyecto:
 
 - **D34** — prohibe fabricar un entorno (mocks, datos sinteticos) para aprobar un milestone: la calidad
   de una capacidad probabilistica *es* su acierto sobre datos reales.
@@ -51,16 +52,19 @@ permanentes del proyecto:
 - **D44** — la capacidad efectiva se determina por **pruebas reales**, no por specs: una capacidad
   dependiente del hardware no se declara cumplida hasta verificarse en el entorno que la ejecuta.
 
-| Fase diferida | Depende de | Decision que la difiere |
-|---|---|---|
-| M3.2b · Inferencia de preferencias | Datos de uso real | D34, D44 |
-| M3.1 · Hogar real (Home Assistant) | Instalacion fisica real | D34 |
-| M3.3 · Anticipacion (CM4) | M3.2b + datos + calidad de modelo | D34, D44 |
-| M3.4 · Avatar | Plataforma de despliegue | D33 |
-| HC-1 (latencia e2e) · CM1 (ventana de semanas) | Uso real sostenido (hardware) | D39, D44 |
+Cada una tiene su **lugar y su contrato en el Registro de Capacidades** (ADR-0021). Su grado de latencia
+distingue —sin ambiguedad— lo que ya podria encenderse solo de lo que aun debe construirse+validarse:
 
-Diferir con criterio no es acumular deuda: **es gobierno honesto del alcance**. Un requisito
-identificado, argumentado y pospuesto por dependencia fisica es lo contrario de una omision silenciosa.
+| Capacidad latente | Grado (ADR-0021) | Depende de | Decision |
+|---|---|---|---|
+| M3.2b · Inferencia de preferencias | prevista | Datos de uso real | D34, D44 |
+| M3.1 · Hogar real (Home Assistant) | prevista | Instalacion fisica real | D34 |
+| M3.3 · Anticipacion (CM4) | prevista | M3.2b + datos + calidad de modelo | D34, D44 |
+| M3.4 · Avatar | prevista | Plataforma de despliegue | D33 |
+| HC-1 (latencia e2e) · CM1 (ventana de semanas) | (criterio de verificacion) | Uso real sostenido (hardware) | D39, D44 |
+
+Diferir con criterio no es acumular deuda: **es gobierno honesto del alcance**. Una capacidad prevista,
+con contrato y lugar reservados en el registro, es lo contrario de una omision silenciosa.
 
 ## 3. El estado del proyecto queda congelado de forma controlada
 
@@ -79,11 +83,16 @@ documentado**, con un punto de reanudacion definido:
 ## 4. La evolucion futura seguira el principio de capacidades
 
 Cuando exista un equipo con mayor capacidad, **AURA no cambiara de arquitectura ni de proyecto**:
-**habilitara automaticamente** nuevas capacidades conforme a **ADR-0020**, **D43** y **D44**.
+**habilitara automaticamente** capacidades conforme a **D45 / ADR-0021** (Registro de Capacidades),
+**ADR-0020**, **D43** y **D44**.
 
-- **ADR-0020** — la memoria (y toda capacidad dependiente de recursos) opera en **perfiles de capacidad**
-  detras de un **contrato funcional unico**; el perfil se selecciona de forma automatica, reversible y
-  transparente.
+- **D45 / ADR-0021** — **Registro de Capacidades + Capability Manager agnostico**: cada capacidad es un
+  modulo autonomo que declara su contrato, grado de latencia (activable/prevista), requisitos minimos,
+  dependencias, garantias de seguridad y criterio D44; el Manager recorre el registro y activa/desactiva
+  segun la capacidad efectiva, **sin conocer ninguna capacidad concreta**. AURA esta **siempre completa
+  como arquitectura**; solo evoluciona el **conjunto de capacidades que ejerce**.
+- **ADR-0020** — la memoria (una capacidad mas del registro) opera en **perfiles de capacidad** detras de
+  un **contrato funcional unico**; el perfil se selecciona de forma automatica, reversible y transparente.
 - **D43** — evolucion por capacidades del hardware: un solo proyecto, un solo codigo, una sola
   arquitectura que se adapta al hardware detectado, **sin bifurcar el codigo**.
 - **D44** — capacidad efectiva verificada por pruebas: el hardware declara lo potencial, las pruebas
@@ -91,7 +100,9 @@ Cuando exista un equipo con mayor capacidad, **AURA no cambiara de arquitectura 
   una version mas eficiente de AURA.
 
 La consecuencia practica: mas hardware = mas capacidad, autonomia y rendimiento, **sin migracion manual
-del usuario y sin una nueva version del proyecto**.
+del usuario, sin ediciones (Lite/Pro/Enterprise), sin un "AURA 2" y sin una nueva version del proyecto**.
+Reanudar el desarrollo sera **registrar/habilitar capacidades** en su lugar ya previsto, **no** construir
+una arquitectura nueva.
 
 ## 5. El siguiente trabajo no sera una continuacion artificial del roadmap
 
@@ -126,10 +137,14 @@ fisicos** —hardware o dispositivos reales— y de datos de uso real. Diferirla
 (D34/D39/D44), no una omision.
 
 **Este documento es la referencia oficial desde la que se retomara el desarrollo** cuando exista nuevo
-hardware. La reanudacion preservara integramente los principios de **ADR-0020**, **D43** y **D44**: AURA
-**evolucionara automaticamente por capacidades**, habilitando lo que el nuevo equipo permita **sin
-bifurcar el proyecto** y **sin perder memoria, configuracion, historial ni compatibilidad**. No habra un
-"AURA 2": habra el mismo AURA, en un perfil de capacidad superior.
+hardware. La reanudacion preservara integramente los principios de **D45 / ADR-0021** (Registro de
+Capacidades), **ADR-0020**, **D43** y **D44**: cada capacidad futura (IA local, inferencia, voz, vision,
+Home Assistant, automatizaciones, agentes, conectores externos, avatar) se **registrara** con su contrato,
+grado de latencia, requisitos, dependencias, garantias de seguridad y criterio D44, y el **Capability
+Manager** la habilitara automaticamente cuando el entorno lo permita. AURA **evolucionara por
+capacidades**, habilitando lo que el nuevo equipo permita **sin bifurcar el proyecto** y **sin perder
+memoria, configuracion, historial ni compatibilidad**. No habra un "AURA 2": habra el mismo AURA, en un
+perfil de capacidad superior.
 
 ## Nota de cierre — Presupuesto de hardware cero (registro expreso)
 
@@ -147,8 +162,9 @@ perfil actual y crecera sola el dia que el hardware lo permita, sobre el mismo c
 
 ## Referencias
 
+- **Registro de Capacidades (Capability Registry/Manager):** `adr/0021-registro-de-capacidades-y-activacion-por-perfil.md`
 - Linea MA (cierre): `revisiones/2026-07-22-architecture-review-cierre-linea-MA.md`
 - A1 (memoria por capacidades): `adr/0020-memoria-por-niveles-de-capacidad.md`
 - A2 (metricas P-ARQ-7): `milestones/m3-entry/A2-metricas-basicas.md`
 - Roadmap M3 reordenado (agotamiento anticipado, §4): `milestones/m3-entry/ROADMAP-M3-REORDENADO.md`
-- Decisiones permanentes: `decisiones/2026-07-17-acta-decisiones-fundacionales.md` (D33, D34, D39, D42, D43, D44)
+- Decisiones permanentes: `decisiones/2026-07-17-acta-decisiones-fundacionales.md` (D33, D34, D39, D42, D43, D44, **D45**)

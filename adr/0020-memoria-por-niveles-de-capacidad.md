@@ -129,3 +129,17 @@ esta fase** (solo diseno; la implementacion es una fase posterior).
 > concretas. Complementa ADR-0016/D33 (la seguridad nunca cambia con el hardware; la utilidad puede
 > escalar). Se aplica primero a la memoria (ADR-0020) y rige cualquier componente futuro con
 > implementaciones dependientes de recursos.
+
+## Principios permanentes de la memoria (consolidacion A1 — CEO, 2026-07-22)
+
+Guian **cualquier implementacion futura de memoria**; reafirman y hacen explicitas las garantias de este ADR:
+
+1. **La memoria es un activo permanente.** Es **independiente del motor** que la gestione. Cambiar de N1 a
+   N2/N3, o sustituir el motor vectorial por otro en el futuro, **nunca** implica perdida de informacion ni
+   migraciones manuales del usuario.
+2. **La evolucion es automatica.** Ante una mejora o reduccion de capacidades del equipo, AURA se adapta
+   sola al perfil mas adecuado; el usuario **no decide el backend**. La adaptacion es **transparente,
+   reversible y verificable**.
+3. **La implementacion siempre es sustituible.** ADR-0020 **no** es una decision a favor de un motor
+   concreto: Qdrant, pgvector o cualquier alternativa futura son **reemplazables**. Lo permanente es el
+   **contrato funcional** y la **compatibilidad** de la memoria.

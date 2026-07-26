@@ -6,7 +6,7 @@ fecha: 2026-07-26
 fecha-resolucion: 2026-07-26
 decisor: "Mauricio (CEO)"
 proponente: "CTO"
-impacta: ["ADR-0020", "ADR-0018", "ADR-0019", "ADR-0004", "ADR-0016", "D33", "D34", "D38", "D43", "D44", "D45", "Bible 3.1", "Bible 3.2", "Bible 3.4"]
+impacta: ["ADR-0020", "ADR-0018", "ADR-0019", "ADR-0004", "ADR-0016", "ADR-0003", "P-ARQ-1", "D33", "D34", "D38", "D43", "D44", "D45", "Bible 3.1", "Bible 3.2", "Bible 3.4", "Bible 5.3"]
 origen: "Directriz del CEO 2026-07-26: arquitectura completa con capacidades latentes; generalizar ADR-0020 a todo el sistema mediante un Registro de Capacidades"
 reabre: "—"
 supersede: "—"
@@ -46,26 +46,42 @@ tomada, se omiten los 4 niveles (D3).
 ## Decision
 
 ### 1. Capacidad = modulo autonomo autodeclarativo
-Cada capacidad del sistema es un **modulo autonomo** que declara en el **Registro de Capacidades**, como
-minimo, **seis campos**:
+Cada capacidad del sistema es un **modulo autonomo, autocontenido, verificable y auditable** que declara
+en el **Registro de Capacidades**, como minimo, **diez campos**. Un contrato completo por capacidad evita
+que atributos como la seguridad o la autonomia queden dispersos entre distintos ADR o documentos:
 
 1. **Contrato funcional** — la interfaz estable que ofrece cuando esta activa (P-ARQ-4).
-2. **Grado de latencia** — **activable** (implementacion ya existente tras el contrato, se enciende/apaga
+2. **Prerequisitos minimos** — recursos necesarios para activarse (RAM, GPU, CPU, disco, dependencias de entorno).
+3. **Mecanismo de deteccion** — como se comprueba, con **pruebas reales** (D44), si el entorno la soporta;
+   no specs, sino capacidad efectiva verificada (latencia, memoria disponible, velocidad de inferencia).
+4. **Comportamiento degradado** — que ofrece cuando no puede activarse plenamente; degradacion **limpia**,
+   nunca fallo silencioso (coherente con ADR-0019 y el checklist de arquitectura 3.1 §2.3.10).
+5. **Criterio de promocion automatica** — la condicion objetiva (verificada por 3) bajo la cual el Manager
+   la **activa** o sube su nivel.
+6. **Criterio de degradacion automatica** — la condicion bajo la cual el Manager la **desactiva** o baja su
+   nivel, **sin perdida de informacion ni de coherencia** (ver §7).
+7. **Grado de latencia** — **activable** (implementacion ya existente tras el contrato, se enciende/apaga
    sola por perfil) o **prevista** (la arquitectura reserva su contrato y su lugar; la implementacion se
    realizara y validara cuando el hardware/datos lo permitan, ADR-0004, sin rediseno).
-3. **Requisitos minimos** para poder activarse (recursos: RAM, GPU, CPU, disco, dependencias de entorno).
-4. **Dependencias** necesarias (otras capacidades o servicios de los que depende).
-5. **Garantias de seguridad** que deben mantenerse mientras este activa (p. ej. gate HITL, ADR-0001,
-   minimizacion). Innegociables: ver §4.
-6. **Criterio objetivo D44** por el que se determina si puede habilitarse — no specs, sino **capacidad
-   efectiva verificada por pruebas reales** (latencia, memoria disponible, velocidad de inferencia).
+8. **Dependencias** — otras capacidades o servicios de los que depende.
+9. **Garantias de seguridad a mantener** — las que deben preservarse mientras este activa (gate HITL,
+   ADR-0001, minimizacion). **Innegociables** (ver §4); acotan el campo 10.
+10. **Nivel de autonomia permitido** — el nivel **maximo** de autonomia de la capacidad y como evoluciona
+    segun recursos y decisiones arquitectonicas vigentes, en una escala creciente y **siempre subordinada
+    al campo 9 y a P-ARQ-1 / ADR-0003 / Bible 5.3**: (a) solo observacion, (b) recomendacion, (c) ejecucion
+    con autorizacion (HITL), (d) ejecucion automatica controlada, (e) ejecucion autonoma limitada, (f)
+    ejecucion autonoma completa (**solo cuando la arquitectura lo permita**). El Manager decide no solo
+    **si** activar una capacidad, sino **hasta donde** puede actuar en ese hardware y contexto — nunca por
+    encima del gate HITL de una accion de lista roja (D9/ADR-0003).
 
 ### 2. Capability Manager agnostico
 El **Capability Manager no conoce ninguna capacidad concreta**. En instalacion/arranque/reconfiguracion:
-(a) determina la **capacidad efectiva** del entorno (D44: specs + pruebas reales + requisitos minimos);
-(b) recorre el registro; (c) **activa** las capacidades cuyo criterio D44 se cumple y cuyas dependencias
-y garantias de seguridad estan satisfechas, y **desactiva** las que no. Anadir una capacidad nueva es
-**registrar un modulo**, no tocar el Manager ni el nucleo.
+(a) determina la **capacidad efectiva** del entorno (D44: specs + pruebas reales + prerequisitos minimos);
+(b) recorre el registro; (c) **promueve** las capacidades cuyo criterio de promocion (campo 5) se cumple y
+cuyas dependencias (8) y garantias de seguridad (9) estan satisfechas, y **degrada** las que cumplen su
+criterio de degradacion (campo 6); (d) fija **hasta donde** puede actuar cada una segun su nivel de
+autonomia permitido (campo 10), nunca por encima de sus garantias de seguridad. Anadir una capacidad nueva
+es **registrar un modulo**, no tocar el Manager ni el nucleo.
 
 ### 3. Dos grados de latencia (ninguna capacidad es "pendiente")
 
@@ -79,10 +95,13 @@ necesita ni puede validarse): "preparada para todas" significa que **todas tiene
 en el registro**, no que todas esten construidas y solo apagadas.
 
 ### 4. Invariante de seguridad (D33) — innegociable
-Activar mas capacidades **nunca** relaja la seguridad. Cada capacidad declara (campo 5) las garantias que
+Activar mas capacidades **nunca** relaja la seguridad. Cada capacidad declara (campo 9) las garantias que
 debe preservar; el Manager **no activa** una capacidad si sus garantias no pueden mantenerse. **La utilidad
 escala con el hardware; la seguridad, jamas** (ADR-0016 / D33). Encender Home Assistant no salta el gate
-HITL; encender vision no elude ADR-0001/minimizacion.
+HITL; encender vision no elude ADR-0001/minimizacion. **El nivel de autonomia (campo 10) esta subordinado
+a este invariante y al gate HITL (P-ARQ-1 / ADR-0003 / Bible 5.3):** por mucha capacidad efectiva que
+tenga el hardware, una accion de lista roja **siempre** requiere confirmacion humana. La autonomia escala
+con los recursos y el contexto **dentro** de la seguridad, nunca por encima de ella.
 
 ### 5. Alcance — todo el sistema
 Aplica a **toda** capacidad, no solo a la memoria: **IA local, memoria, modelos de inferencia, voz,
@@ -93,25 +112,38 @@ futura**. La memoria (ADR-0020) pasa a ser **una capacidad mas del registro**; A
 ### 6. Principio de evolucion (formaliza D45)
 AURA **nunca cambia de arquitectura** al mejorar el hardware; **solo incrementa el numero de capacidades
 que puede ejercer**. Por tanto: **nunca** ediciones Lite/Pro/Enterprise; **nunca** un "AURA 2"; **nunca**
-migraciones manuales entre perfiles; el usuario **instala AURA una sola vez**. AURA detecta el entorno,
-determina el perfil efectivo (D44) y **habilita o deshabilita** capacidades de forma **transparente,
-reversible y sin perdida de memoria, configuracion, historial ni compatibilidad**.
+migraciones manuales entre perfiles; el usuario **instala AURA una sola vez** y **jamas elige perfiles,
+ediciones o versiones**. AURA detecta el entorno, determina el perfil efectivo (D44) y **se reorganiza
+sola**, habilitando o deshabilitando capacidades de forma **transparente, reversible y sin perdida de
+memoria, configuracion, historial ni compatibilidad**. **Objetivo final:** al conectar AURA a un equipo
+mas potente, este simplemente **"despierta"** capacidades que la arquitectura **ya tenia previstas** —no
+aparece un proyecto distinto ni una nueva version—.
+
+### 7. Crecer y retroceder: evolucion simetrica sin perdida
+La evolucion **no es solo "activar mas"**. Toda capacidad debe poder **crecer y tambien retroceder
+automaticamente** —promocion (campo 5) y degradacion (campo 6)— **sin perdida de informacion ni de
+coherencia del sistema**. Si el hardware disminuye o cambia el contexto, el Manager **degrada
+elegantemente** (usando el comportamiento degradado del campo 4), conservando memoria, configuracion e
+historial y preservando el contrato de datos (ADR-0020). La reversibilidad es una **propiedad de primera
+clase**, no un caso excepcional: un portatil modesto → un equipo potente → de vuelta al modesto debe
+recorrer ese camino sin que el usuario pierda nada ni intervenga.
 
 ## Consecuencias
 
 **Positivas:** un solo proyecto/codigo/arquitectura para todo el rango de hardware; el nucleo no crece al
-anadir capacidades (registro + Manager agnostico); la evolucion es aditiva; la seguridad queda como
-invariante declarada y verificada por el Manager. **Negativas:** hay que mantener y probar el registro y
-el Manager, y cada capacidad debe declarar sus seis campos con rigor; el **criterio D44 por capacidad**
-debe definirse con pruebas reales (dependiente de hardware, fase posterior). **Riesgos aceptados:** la
-calibracion de los umbrales D44 por capacidad es la incognita hardware-sensible, a medir al reanudar; el
-registro debe ser la **fuente unica** de la clasificacion de capacidades (D41).
+anadir capacidades (registro + Manager agnostico); la evolucion es aditiva y **simetrica** (crece y
+retrocede sin perdida); la seguridad y la autonomia quedan **autocontenidas** en cada capacidad y
+verificadas por el Manager. **Negativas:** hay que mantener y probar el registro y el Manager, y cada
+capacidad debe declarar sus **diez campos** con rigor; los **criterios de promocion/degradacion por
+capacidad** deben definirse con pruebas reales (dependiente de hardware, fase posterior). **Riesgos
+aceptados:** la calibracion de los umbrales D44 por capacidad es la incognita hardware-sensible, a medir
+al reanudar; el registro debe ser la **fuente unica** de la clasificacion de capacidades (D41).
 
 ## Impacto (acta D11 — obligatorio)
 
 | Dimensión | Impacto |
 |---|---|
-| Seguridad | Neutro/invariante: la seguridad no escala con el hardware (D33); cada capacidad declara y el Manager exige sus garantias (campo 5). |
+| Seguridad | Neutro/invariante: la seguridad no escala con el hardware (D33); cada capacidad declara y el Manager exige sus garantias (campo 9); el nivel de autonomia (campo 10) queda subordinado al gate HITL (P-ARQ-1/ADR-0003). |
 | Privacidad | Neutro/positivo: capacidades locales (ADR-0001); activar mas no crea canales de fuga; conectores externos siguen ADR-0019. |
 | Modularidad | Muy positivo: capacidades como modulos autonomos tras contrato (P-ARQ-4); Manager agnostico; nucleo estable (D40). |
 | Costo | Positivo: un solo codigo, sin ramas/ediciones; se activa solo lo que el hardware justifica (D26, regla 13). |
@@ -120,13 +152,17 @@ registro debe ser la **fuente unica** de la clasificacion de capacidades (D41).
 
 ## Trazabilidad
 
-**Generaliza ADR-0020** (memoria por perfiles) a todo el sistema; convierte **ADR-0018** y **ADR-0019**
-en instancias del patron. Se apoya en **ADR-0004** (evolucion sin rediseno, interfaces estables),
-**P-ARQ-4** (sustituibilidad), **ADR-0016 / D33** (seguridad invariante, utilidad escalable), **D27**
+**Generaliza ADR-0020** (memoria por perfiles) a todo el sistema y se convierte en **uno de los pilares
+fundamentales de la arquitectura de AURA** (ya no es un ADR de memoria ni de hardware). Convierte
+**ADR-0018** y **ADR-0019** en instancias del patron. Se apoya en **ADR-0004** (evolucion sin rediseno,
+interfaces estables), **P-ARQ-4** (sustituibilidad), **ADR-0016 / D33** (seguridad invariante, utilidad
+escalable), **P-ARQ-1 / ADR-0003 / Bible 5.3** (HITL: acota el nivel de autonomia del campo 10), **D27**
 (hardware verificado), **D43** (evolucion por capacidades), **D44** (capacidad efectiva por pruebas),
 **D41** (fuente unica: el registro) y **regla 13 / D3 / D34 / D38** (no construir/especular de mas: de
 ahi los dos grados de latencia). Registra el principio permanente **D45**. **Requiere actualizar la
 Bible** (3.1 principios; 3.2 arquitectura de referencia; 3.4 capacidades como modulos) —**materia
-reservada al CEO**, aprobada el 2026-07-26—. **Modulos de codigo: ninguno en esta fase** (congelacion
-controlada, linea base 2026-07-26): este ADR fija el contrato y el lugar del Capability Registry/Manager;
-su implementacion es una fase posterior, a habilitar cuando exista hardware para validarla (D34/D44).
+reservada al CEO**: la propuesta queda preparada y **en espera** hasta consolidar D45 + ADR-0021, para
+hacer una sola actualizacion (una unica fuente de verdad)—. **Modulos de codigo: ninguno en esta fase**
+(congelacion controlada, linea base 2026-07-26): este ADR fija el contrato y el lugar del Capability
+Registry/Manager; su implementacion es una fase posterior, a habilitar cuando exista hardware para
+validarla (D34/D44).

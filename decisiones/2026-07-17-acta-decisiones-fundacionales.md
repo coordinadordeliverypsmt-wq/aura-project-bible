@@ -486,16 +486,23 @@ El hardware declara una **capacidad potencial**; las pruebas determinan la **cap
 **Fecha:** 2026-07-26. **Decide:** CEO. **Materializa:** ADR-0021. **Va un paso mas alla de** ADR-0020/D43/D44.
 
 **Regla permanente.** AURA es **un solo proyecto** —un solo codigo, una sola arquitectura, un solo
-contrato y un solo formato de memoria—. Las capacidades dependientes del hardware **no se documentan ni
-se tratan como "pendientes"**: son **capacidades latentes ya previstas por la arquitectura**, cuya
-activacion depende unicamente de los recursos disponibles. La arquitectura esta **siempre completa**; lo
-unico que evoluciona es el **conjunto de capacidades que AURA puede ejercer** segun el hardware.
+contrato y un solo formato de memoria—. **AURA nunca debe quedar con "pendientes" por limitaciones de
+hardware.** Toda capacidad prevista por la arquitectura tiene **desde el inicio** su **contrato**, su
+**punto de integracion** y las **condiciones objetivas para activarse**; si el hardware no alcanza, la
+capacidad permanece **latente**, y cuando el hardware aparezca AURA la **habilita automaticamente** sin
+rediseñar la arquitectura ni requerir reinstalaciones. La distincion es deliberada: **"pendiente"
+implica un sistema incompleto; "capacidad latente" implica un sistema ya preparado** para ejercer esa
+capacidad cuando existan los recursos. La arquitectura esta **siempre completa**; lo unico que evoluciona
+es el **conjunto de capacidades que AURA puede ejercer** segun el hardware.
 
-1. **Registro de Capacidades (Capability Registry).** Cada capacidad es un **modulo autonomo** que se
-   auto-declara con, al menos: (1) contrato funcional, (2) grado de latencia —**activable** o
-   **prevista**—, (3) requisitos minimos de activacion, (4) dependencias, (5) garantias de seguridad a
-   mantener, (6) criterio objetivo D44 de habilitacion. El registro es la **fuente unica** de la
-   clasificacion de capacidades (D41).
+1. **Registro de Capacidades (Capability Registry).** Cada capacidad es un **modulo autonomo,
+   autocontenido, verificable y auditable** que se auto-declara con **diez campos**: (1) contrato
+   funcional, (2) prerequisitos minimos, (3) mecanismo de deteccion (pruebas reales, D44), (4)
+   comportamiento degradado, (5) criterio de promocion automatica, (6) criterio de degradacion automatica,
+   (7) grado de latencia —**activable** o **prevista**—, (8) dependencias, (9) garantias de seguridad a
+   mantener, (10) nivel de autonomia permitido (subordinado al campo 9 y al gate HITL — P-ARQ-1/ADR-0003/
+   5.3). Un contrato completo por capacidad evita que la seguridad o la autonomia queden dispersas entre
+   distintos ADR. El registro es la **fuente unica** de la clasificacion de capacidades (D41).
 2. **Capability Manager agnostico.** No conoce ninguna capacidad concreta: recorre el registro y activa o
    desactiva segun la **capacidad efectiva** del entorno (D44). Anadir una capacidad es **registrar un
    modulo**, no tocar el nucleo (D40, P-ARQ-4).
@@ -503,19 +510,30 @@ unico que evoluciona es el **conjunto de capacidades que AURA puede ejercer** se
    *prevista* (arquitectura reserva contrato y lugar; se construye+valida cuando el hardware/datos lo
    permiten, ADR-0004). Esto respeta **regla 13 / D3 / D34 / D38**: "preparada para todas" = todas tienen
    lugar y contrato en el registro, **no** que todas esten construidas y apagadas.
-4. **La seguridad es invariante (D33).** Activar mas capacidades **nunca** relaja garantias; el Manager no
-   activa una capacidad si no puede preservar las suyas. La **utilidad escala con el hardware; la
-   seguridad, jamas**.
+4. **La seguridad y la autonomia son invariantes acotadas (D33, P-ARQ-1).** Activar mas capacidades
+   **nunca** relaja garantias; el Manager no activa una capacidad si no puede preservar las suyas (campo
+   9). El **nivel de autonomia** (campo 10) esta **subordinado** a esas garantias y al gate HITL: por
+   mucha capacidad efectiva que tenga el hardware, una accion de lista roja **siempre** exige confirmacion
+   humana (ADR-0003/5.3). La **utilidad escala con el hardware; la seguridad, jamas**.
 5. **Evolucion sin cambio de arquitectura.** Al mejorar el hardware AURA **solo incrementa** las
    capacidades que ejerce. **Nunca** ediciones Lite/Pro/Enterprise; **nunca** un "AURA 2"; **nunca**
-   migraciones manuales; el usuario **instala una sola vez**. La activacion/desactivacion es
-   **transparente, reversible y sin perdida** de memoria, configuracion, historial ni compatibilidad.
+   migraciones manuales; el usuario **instala una sola vez** y **jamas elige perfiles, ediciones o
+   versiones**. La activacion/desactivacion es **transparente, reversible y sin perdida** de memoria,
+   configuracion, historial ni compatibilidad. **Objetivo final:** conectar AURA a un equipo mas potente
+   hace que **"despierten"** capacidades ya previstas por la arquitectura, no que aparezca un proyecto
+   distinto ni una nueva version.
+6. **Crecer y retroceder, sin perdida.** La evolucion **no es solo "activar mas"**: toda capacidad debe
+   poder **crecer y tambien retroceder automaticamente** —promocion y degradacion— **sin perdida de
+   informacion ni de coherencia**. Cuando las condiciones bajan, el Manager **degrada elegantemente**
+   (comportamiento degradado, campo 4) conservando memoria, configuracion, historial y compatibilidad. La
+   reversibilidad es propiedad de primera clase, no excepcion.
 
 **Alcance:** todo el sistema —IA local, memoria, inferencia, voz, vision, Home Assistant,
 automatizaciones, agentes, conectores externos, avatar y cualquier capacidad futura—. La memoria
-(ADR-0020) es una capacidad mas del registro; ADR-0018 y ADR-0019 son instancias del patron.
+(ADR-0020) es una capacidad mas del registro; ADR-0018 y ADR-0019 son instancias del patron. **ADR-0021
+deja de ser un ADR de memoria/hardware y pasa a ser un pilar de toda la arquitectura de AURA.**
 
-*Impacta: ADR-0021, ADR-0020, ADR-0018, ADR-0019, ADR-0004, D33/ADR-0016, D43, D44, D41, Bible 3.1/3.2/3.4, la linea base 2026-07-26, todo componente y capacidad futura.*
+*Impacta: ADR-0021, ADR-0020, ADR-0018, ADR-0019, ADR-0004, ADR-0003, P-ARQ-1, D33/ADR-0016, D43, D44, D41, Bible 3.1/3.2/3.4/5.3, la linea base 2026-07-26, todo componente y capacidad futura.*
 
 ## Autorización
 

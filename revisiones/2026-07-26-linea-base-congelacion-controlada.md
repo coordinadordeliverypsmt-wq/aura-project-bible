@@ -87,10 +87,12 @@ Cuando exista un equipo con mayor capacidad, **AURA no cambiara de arquitectura 
 **ADR-0020**, **D43** y **D44**.
 
 - **D45 / ADR-0021** — **Registro de Capacidades + Capability Manager agnostico**: cada capacidad es un
-  modulo autonomo que declara su contrato, grado de latencia (activable/prevista), requisitos minimos,
-  dependencias, garantias de seguridad y criterio D44; el Manager recorre el registro y activa/desactiva
-  segun la capacidad efectiva, **sin conocer ninguna capacidad concreta**. AURA esta **siempre completa
-  como arquitectura**; solo evoluciona el **conjunto de capacidades que ejerce**.
+  modulo autonomo, autocontenido y auditable que declara **diez campos** (contrato, prerequisitos minimos,
+  mecanismo de deteccion, comportamiento degradado, criterio de promocion y de degradacion automaticas,
+  grado de latencia, dependencias, garantias de seguridad y nivel de autonomia); el Manager recorre el
+  registro y **promueve o degrada** segun la capacidad efectiva —**sin conocer ninguna capacidad
+  concreta** y sin perdida de informacion—. AURA esta **siempre completa como arquitectura**; solo
+  evoluciona el **conjunto de capacidades que ejerce**.
 - **ADR-0020** — la memoria (una capacidad mas del registro) opera en **perfiles de capacidad** detras de
   un **contrato funcional unico**; el perfil se selecciona de forma automatica, reversible y transparente.
 - **D43** — evolucion por capacidades del hardware: un solo proyecto, un solo codigo, una sola
@@ -139,9 +141,10 @@ fisicos** —hardware o dispositivos reales— y de datos de uso real. Diferirla
 **Este documento es la referencia oficial desde la que se retomara el desarrollo** cuando exista nuevo
 hardware. La reanudacion preservara integramente los principios de **D45 / ADR-0021** (Registro de
 Capacidades), **ADR-0020**, **D43** y **D44**: cada capacidad futura (IA local, inferencia, voz, vision,
-Home Assistant, automatizaciones, agentes, conectores externos, avatar) se **registrara** con su contrato,
-grado de latencia, requisitos, dependencias, garantias de seguridad y criterio D44, y el **Capability
-Manager** la habilitara automaticamente cuando el entorno lo permita. AURA **evolucionara por
+Home Assistant, automatizaciones, agentes, conectores externos, avatar) se **registrara** con sus **diez
+campos** (contrato, prerequisitos, deteccion, comportamiento degradado, criterios de promocion/degradacion,
+grado de latencia, dependencias, garantias de seguridad y nivel de autonomia), y el **Capability Manager**
+la habilitara —y la degradara sin perdida— automaticamente cuando el entorno cambie. AURA **evolucionara por
 capacidades**, habilitando lo que el nuevo equipo permita **sin bifurcar el proyecto** y **sin perder
 memoria, configuracion, historial ni compatibilidad**. No habra un "AURA 2": habra el mismo AURA, en un
 perfil de capacidad superior.

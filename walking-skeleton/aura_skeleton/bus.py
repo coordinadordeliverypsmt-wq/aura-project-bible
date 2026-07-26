@@ -19,6 +19,7 @@ class InProcessEventBus:
 
     async def publish(self, event: Event) -> None:
         obs.log("EVENT", "event-bus", f"publish {event.type}", event.trace_id, event_id=event.event_id)
+        obs.metric_inc("eventos.publicados")  # metrica basica P-ARQ-7 (Bible 7.4); local, en memoria
         handlers = [h for pref, hs in self._subs.items() if event.type.startswith(pref) for h in hs]
         for h in handlers:
             # idempotencia: cada (handler,event_id) se entrega una vez

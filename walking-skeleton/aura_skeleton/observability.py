@@ -10,22 +10,25 @@ import time
 
 _records: list[dict] = []
 
-# --- Metricas: IMPLEMENTACION PENDIENTE del contrato P-ARQ-7 (Bible 7.4, "metricas basicas"). ---
-# Clasificado por D42 (2026-07-22): el CONTRATO existe (operacion minima viable, 7.4); la
-# IMPLEMENTACION aun NO esta cableada (ningun componente incrementa ni lee metricas); esa brecha es
-# consciente y rastreable. **NO es codigo muerto mientras el contrato siga vigente** (D42). Cablearlo
-# es una iniciativa funcional independiente, fuera del alcance de limpieza de MA.5-b.
+# --- Metricas basicas del contrato P-ARQ-7 (Bible 7.4, "metricas basicas"). ---
+# Cableado en A2 (2026-07-26): el subsistema existia sin llamadores (clasificado por D42 el
+# 2026-07-22 como implementacion pendiente, NO codigo muerto). A2 lo realiza en sus puntos de emision
+# reales: `bus.publish` (eventos.publicados) y `permissions.authorize` (acciones.autorizadas/
+# denegadas). Contadores acumulativos por nombre: evolucion ADITIVA (una metrica nueva no altera las
+# existentes). Observabilidad INTERNA, local y en memoria (ADR-0001/D24): no es API publica ni un
+# contrato para consumidores externos; nunca sale del perimetro (sin telemetria remota). La latencia
+# por etapa se cubre con `Timer` + logs (decision CEO 2026-07-26): sin promedios ni agregaciones aqui.
 _metrics: dict[str, float] = {}
 _audit: AuditLog | None = None
 
 
 def metric_inc(name: str, value: float = 1.0) -> None:
-    """Metrica acumulativa del contrato P-ARQ-7 (Bible 7.4). PENDIENTE de cableado (ver D42)."""
+    """Incrementa una metrica basica acumulativa (P-ARQ-7 / Bible 7.4). Aditiva por nombre."""
     _metrics[name] = _metrics.get(name, 0.0) + value
 
 
 def metrics() -> dict:
-    """Lectura de metricas del contrato P-ARQ-7 (Bible 7.4). PENDIENTE de cableado (ver D42)."""
+    """Instantanea de las metricas basicas (P-ARQ-7 / Bible 7.4). Observabilidad interna, local."""
     return dict(_metrics)
 
 

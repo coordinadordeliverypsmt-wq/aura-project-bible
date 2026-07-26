@@ -445,6 +445,8 @@ El informe de arranque —capacidades activas, fuentes de contexto, rutas de est
 
 **Primer elemento clasificado (MA.5-b):** el subsistema de **metricas** (`observability.py`: `metric_inc`/`metrics`/`_metrics`). El contrato existe —Bible **7.4** (operacion minima viable) exige *"metricas basicas (P-ARQ-7)"*—; la implementacion **no esta cableada** (ningun componente incrementa ni lee metricas). Se **conserva** como implementacion pendiente del contrato P-ARQ-7, clasificada en el codigo (`observability.py`) y aqui. Cablearla seria una **iniciativa funcional independiente**, no limpieza (fuera del alcance de MA.5-b).
 
+**Actualizacion de estado (A2, 2026-07-26):** ese ejemplo pasa de *pendiente* a **realizado**. La iniciativa independiente **A2** cableo el contrato en sus puntos de emision reales —`bus.publish` (`eventos.publicados`) y `permissions.authorize` (`acciones.autorizadas`/`acciones.denegadas`)— bajo TDD estricto (RED→GREEN→Quality Gate→mutacion), manteniendo `metric_inc`/`metrics` simples y locales (sin dependencias, sin persistencia, sin telemetria). **La regla D42 permanece intacta**: solo transita el estado del elemento que fue su primer ejemplo (ver `milestones/m3-entry/A2-metricas-basicas.md`).
+
 *Impacta: MA.5-b, `observability.py`, Bible 7.4/P-ARQ-7, todo futuro juicio de "codigo muerto".*
 
 ## D43 — Evolucion por capacidades del hardware (perfiles, no versiones)

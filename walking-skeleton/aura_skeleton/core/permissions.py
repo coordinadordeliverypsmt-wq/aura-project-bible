@@ -81,6 +81,12 @@ def altera_estado(accion: str) -> bool:
     return accion in ALTERA_ESTADO
 
 
+def _metrica_resultado(ok: bool) -> None:
+    """Metrica basica P-ARQ-7 (Bible 7.4): cuenta cada decision del gate como autorizada o
+    denegada. Fuente unica del nombre (D41); observabilidad interna, local y en memoria (ADR-0001)."""
+    obs.metric_inc("acciones.autorizadas" if ok else "acciones.denegadas")
+
+
 class PermissionManager:
     def __init__(self, human_confirm, kill_switch=None):
         self._confirm = human_confirm  # callable(action, args, trace_id) -> bool  (HITL)
@@ -89,6 +95,7 @@ class PermissionManager:
     async def authorize(self, action: str, args: dict, trace_id: str) -> tuple[bool, str]:
         if self._kill is not None and self._kill.is_engaged():
             obs.log("KILL", "permissions", f"kill switch activo: {action} BLOQUEADA", trace_id, audit=True)
+            _metrica_resultado(False)
             return False, "kill switch activo (5.3 §5)"
         if action in RED:
             obs.log(
@@ -102,9 +109,12 @@ class PermissionManager:
                 trace_id,
                 audit=True,
             )
+            _metrica_resultado(ok)
             return ok, ("confirmada por el usuario" if ok else "denegada por el usuario")
         if action in GREEN:
             obs.log("AUDIT", "permissions", f"lista verde {action} -> auto-ejecucion", trace_id, audit=True)
+            _metrica_resultado(True)
             return True, "auto (lista verde)"
         obs.log("AUDIT", "permissions", f"accion desconocida {action} -> denegada por defecto", trace_id, audit=True)
+        _metrica_resultado(False)
         return False, "accion no clasificada (deny por defecto)"

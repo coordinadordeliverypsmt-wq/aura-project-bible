@@ -40,13 +40,12 @@ def _ram(op: Operador, mb: float) -> Regla:
 MEMORIA = Capacidad(
     nombre="memoria",
     contrato="memoria-4.1",  # (1) contrato funcional de la Bible 4.1 (identico en todos los niveles)
-    prerequisitos=(),  # (2) N1 corre en presupuesto cero: sin prerequisitos duros
-    deteccion="memoria.recall_ms",  # (3) sonda D44: latencia de recuperacion medida en el equipo
-    comportamiento_degradado=(  # (4) que ofrece si no alcanza el motor avanzado
+    comportamiento_degradado=(  # (4) DOCUMENTAL: que ofrece si no alcanza el motor avanzado
         "almacen minimo N1 (fuerza bruta o indice ligero), mismo contrato 4.1, sin servicios adicionales"
     ),
     promocion=_ram(Operador.GE, _MEM_MOTOR_AVANZADO_RAM_MB),  # (5) motor avanzado si hay recursos
-    degradacion=_ram(Operador.GE, _MEM_MINIMO_RAM_MB),  # (6) N1 siempre viable -> nunca latente
+    # (6) viabilidad reducida (PISO): N1 es viable en cualquier equipo -> memoria nunca queda latente
+    degradacion=_ram(Operador.GE, _MEM_MINIMO_RAM_MB),
     latencia=GradoLatencia.ACTIVABLE,  # (7) implementada (MA.2), no prevista
     dependencias=(),  # (8) la memoria base no depende de otra capacidad
     garantias_seguridad=(  # (9) dato de sensibilidad maxima

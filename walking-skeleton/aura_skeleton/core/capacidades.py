@@ -160,16 +160,22 @@ class Capacidad:
     """
 
     nombre: str  # identidad unica en el registro
-    contrato: str  # (1) id/version del Protocol que expone (contrato funcional), no la implementacion
-    prerequisitos: tuple[Condicion, ...] = ()  # (2) recursos minimos, como condiciones declarativas
-    deteccion: str = ""  # (3) nombre de la sonda D44 que ejecuta el DetectorPerfil
-    comportamiento_degradado: str = ""  # (4) que ofrece si no puede activarse plenamente
-    promocion: Regla | None = None  # (5) criterio de promocion (regla declarativa, no funcion)
-    degradacion: Regla | None = None  # (6) criterio de degradacion (regla declarativa, no funcion)
-    latencia: GradoLatencia = GradoLatencia.PREVISTA  # (7) activable / prevista
-    dependencias: tuple[str, ...] = ()  # (8) otras capacidades requeridas
-    garantias_seguridad: tuple[str, ...] = ()  # (9) invariantes a preservar (HITL, ADR-0001, ...)
-    autonomia_maxima: NivelAutonomia = NivelAutonomia.OBSERVACION  # (10) techo de autonomia
+    # --- OPERATIVOS: gobiernan una decision o una materializacion ---
+    contrato: str  # (1) id/version del Protocol que expone; consumidor previsto: la composicion
+    promocion: Regla | None = None  # (5) criterio de promocion -> ACTIVA. Consumidor: Manager
+    # (6) Criterio de VIABILIDAD REDUCIDA: **PISO, no techo**. Si se cumple (5) -> ACTIVA; si no y se
+    # cumple (6) -> DEGRADADA; si ninguno -> LATENTE. El identificador conserva el nombre historico
+    # `degradacion`; la lectura "condicion para bajar de nivel" quedo DEROGADA en ADR-0021 v1.1.0.
+    degradacion: Regla | None = None
+    latencia: GradoLatencia = GradoLatencia.PREVISTA  # (7) activable / prevista. Consumidor: Manager
+    dependencias: tuple[str, ...] = ()  # (8) otras CAPACIDADES requeridas; nunca servicios (INV-6)
+    # --- DOCUMENTALES: auditables por humanos; ningun componente deriva comportamiento de ellos ---
+    comportamiento_degradado: str = ""  # (4) descripcion del modo reducido; no gobierna materializacion
+    garantias_seguridad: tuple[str, ...] = ()  # (9) que debe preservarse; lo hace cumplir el gate de permisos
+    # --- PROVISIONAL: sin consumidor. No gobierna nada (ADR-0021 v1.1.0 §1) ---
+    # Se conserva unicamente por el coste asimetrico de reintroducirlo (obligaria a redeclarar todas las
+    # capacidades), a la espera de evidencia arquitectonica. No se le atribuye funcion actual ni futura.
+    autonomia_maxima: NivelAutonomia = NivelAutonomia.OBSERVACION  # (10)
 
 
 class Estado(Enum):

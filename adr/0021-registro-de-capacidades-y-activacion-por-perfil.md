@@ -159,10 +159,10 @@ interfaces estables), **P-ARQ-4** (sustituibilidad), **ADR-0016 / D33** (segurid
 escalable), **P-ARQ-1 / ADR-0003 / Bible 5.3** (HITL: acota el nivel de autonomia del campo 10), **D27**
 (hardware verificado), **D43** (evolucion por capacidades), **D44** (capacidad efectiva por pruebas),
 **D41** (fuente unica: el registro) y **regla 13 / D3 / D34 / D38** (no construir/especular de mas: de
-ahi los dos grados de latencia). Registra el principio permanente **D45**. **Requiere actualizar la
-Bible** (3.1 principios; 3.2 arquitectura de referencia; 3.4 capacidades como modulos) —**materia
-reservada al CEO**: la propuesta queda preparada y **en espera** hasta consolidar D45 + ADR-0021, para
-hacer una sola actualizacion (una unica fuente de verdad)—. **Modulos de codigo: ninguno en esta fase**
-(congelacion controlada, linea base 2026-07-26): este ADR fija el contrato y el lugar del Capability
-Registry/Manager; su implementacion es una fase posterior, a habilitar cuando exista hardware para
-validarla (D34/D44).
+ahi los dos grados de latencia). Registra los principios permanentes **D45** y **D46**. La **Bible** quedo
+actualizada (3.1 P-ARQ-9 y §2.4; ecos en 3.2/3.4). **Implementacion:** el mecanismo (Capability
+Registry/Manager) es **determinista** y se **construyo sin hardware** en **C1** (TDD + mutacion + Quality
+Gate). Lo que **si** depende de hardware —y por tanto permanece latente-prevista— es la **calibracion** de
+los umbrales D44 por capacidad y la implementacion/validacion de capacidades **probabilisticas** o ligadas
+a **dispositivos/datos reales** (D34/D44). Coherente con **D46**: ninguna limitacion de hardware justifica
+dejar la **arquitectura** pendiente.

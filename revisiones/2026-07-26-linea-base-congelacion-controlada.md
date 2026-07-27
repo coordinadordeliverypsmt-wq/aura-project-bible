@@ -1,18 +1,27 @@
 ---
-documento: "Linea base — Congelacion controlada: trabajo verificable sin hardware agotado"
+documento: "Linea base — Congelacion SELECTIVA por capacidad (arquitectura completa; solo se difiere lo dependiente de hardware)"
 fecha: 2026-07-26
 autor: "CTO"
-encargo: "CEO — ratificacion de la opcion A: documentar formalmente que el trabajo verificable sin hardware queda agotado y declarar esta como la nueva linea base del proyecto"
-base: "main @ b19e3fe (origin/main sincronizada) — Quality Gate PASS (310 passed / 3 skipped)"
-estado: "Linea base vigente y REFERENCIA OFICIAL de reanudacion. El proyecto queda en congelacion controlada hasta un desencadenante autorizado (ver §5); desde este documento se retomara el desarrollo cuando exista nuevo hardware."
+encargo: "CEO — declarar la linea base del proyecto. Rectificado (D46): la congelacion es SELECTIVA por capacidad; el trabajo de arquitectura determinista continua sin hardware."
+base: "main @ b19e3fe (origin/main sincronizada) — Quality Gate PASS (310 passed / 3 skipped). Rectificacion D46 sobre main @ ceb3d70 (tras cerrar C1)."
+estado: "Linea base vigente y REFERENCIA OFICIAL. La congelacion es SELECTIVA: solo se difiere la implementacion/validacion de capacidades dependientes de hardware, dispositivos o datos reales; el trabajo de arquitectura determinista (Capability Registry/Manager, declaracion de capacidades) CONTINUA sin hardware (D46, C1)."
 ---
 
-# Linea base — Congelacion controlada de AURA
+# Linea base — Congelacion selectiva por capacidad
+
+> **Rectificacion (D46, 2026-07-26).** La congelacion **nunca fue total**: es **selectiva por
+> capacidad**. Solo se difiere la **implementacion o validacion** de capacidades cuya ejecucion depende
+> **objetivamente** del hardware, de dispositivos fisicos o de datos reales. El **trabajo de arquitectura
+> determinista continua sin hardware** —y de hecho continuo: la Fase C (Capability Registry/Manager, C1)
+> se construyo enteramente sin equipo nuevo—. **Ninguna limitacion de hardware justifica dejar
+> arquitectura pendiente** (D46, consolida D45). Las expresiones originales de "trabajo agotado" se leen
+> exclusivamente respecto al **roadmap M3 heredado** (M3.1-M3.4), no a la arquitectura del sistema.
 
 Tras cerrar la linea MA (madurez de arquitectura), la iniciativa A1 (analisis de memoria → ADR-0020) y
-la iniciativa A2 (realizacion del contrato de metricas P-ARQ-7), la revision del estado real del
-repositorio concluye que **el trabajo de arquitectura verificable con el hardware actual queda
-agotado**. Este documento formaliza esa conclusion y la declara **nueva linea base** del proyecto.
+la iniciativa A2 (realizacion del contrato de metricas P-ARQ-7), la revision del estado del repositorio
+concluye que el trabajo **del roadmap M3 heredado** (M3.1-M3.4) que puede validarse con el hardware
+actual queda **cubierto o diferido**, y declara esta **nueva linea base**. Lo que **no** se agota es el
+trabajo **arquitectonico determinista** (completar AURA como arquitectura), que prosigue en la Fase C.
 
 **Encuadre — esto es un hito de madurez, no una pausa por problemas tecnicos.** Toda la arquitectura
 verificable con el hardware actual quedo **completada y validada** (Quality Gate PASS, 310 passed / 3
@@ -66,19 +75,22 @@ distingue —sin ambiguedad— lo que ya podria encenderse solo de lo que aun de
 Diferir con criterio no es acumular deuda: **es gobierno honesto del alcance**. Una capacidad prevista,
 con contrato y lugar reservados en el registro, es lo contrario de una omision silenciosa.
 
-## 3. El estado del proyecto queda congelado de forma controlada
+## 3. El estado del proyecto: congelacion SELECTIVA por capacidad
 
 Esta linea base representa un sistema **estable, verificable y listo para evolucionar** cuando cambien
-las capacidades del hardware. "Controlada" significa que la congelacion es un estado **elegido y
-documentado**, con un punto de reanudacion definido:
+las capacidades del hardware. La congelacion es **selectiva** (D46): se difiere solo lo que depende
+objetivamente de hardware/dispositivos/datos reales; el trabajo de arquitectura determinista prosigue.
 
 - **Estable y verificable ahora:** `main == origin/main @ b19e3fe`, arboles limpios, 0 commits sin
   publicar, **Quality Gate PASS (310 passed / 3 skipped)**. Todo lo construido esta cubierto por pruebas
   y, donde aplico, validado por mutacion.
 - **Congelacion, no abandono:** no se retira ni degrada ninguna capacidad; el sistema sigue operativo en
-  su perfil actual. Simplemente **no se abre trabajo nuevo** que no pueda validarse.
-- **Reanudacion definida:** la salida de este estado esta gobernada por §5 (desencadenantes), no por la
-  inercia del roadmap.
+  su perfil actual. **Lo unico que se difiere** es la implementacion/validacion que **no pueda hacerse
+  sin hardware, dispositivos o datos reales**; el trabajo **arquitectonico determinista** —completar AURA
+  como arquitectura (Capability Registry/Manager, declaracion de capacidades)— **si se abre y prosigue**
+  (la Fase C es la prueba).
+- **Reanudacion definida:** la salida de la parte diferida esta gobernada por §5 (desencadenantes); la
+  parte arquitectonica no espera a ningun desencadenante.
 
 ## 4. La evolucion futura seguira el principio de capacidades
 

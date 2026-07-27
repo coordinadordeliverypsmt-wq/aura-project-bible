@@ -49,20 +49,30 @@ class NivelAutonomia(IntEnum):
 
 
 class Fuente(Enum):
-    """De que tabla del `PerfilHardware` procede la metrica de una condicion."""
+    """De donde procede el dato de una condicion, dentro del `ActivationContext`.
+
+    RECURSO/PRUEBA -> metricas verificadas del `PerfilHardware` (magnitudes, D44).
+    SOPORTE        -> hecho de dominio: la capacidad esta soportada por el entorno.
+    """
 
     RECURSO = "recurso"
     PRUEBA = "prueba"
+    SOPORTE = "soporte"
 
 
 class Operador(Enum):
-    """Comparadores admitidos en una condicion declarativa. El Manager los interpreta."""
+    """Comparadores admitidos en una condicion declarativa. El Manager los interpreta.
+
+    Los cinco primeros son numericos (metricas); PRESENTE/AUSENTE son de pertenencia (soporte).
+    """
 
     GE = ">="
     LE = "<="
     GT = ">"
     LT = "<"
     EQ = "=="
+    PRESENTE = "presente"
+    AUSENTE = "ausente"
 
 
 @dataclass(frozen=True)
@@ -82,13 +92,52 @@ class PerfilHardware:
 
 
 @dataclass(frozen=True)
+class ActivationContext:
+    """**Unico contrato de entrada** del CapabilityManager (I-A4 / INV-4). Objeto de DOMINIO.
+
+    Contiene exactamente dos cosas, ambas en lenguaje del dominio:
+      - `hardware`: **metricas verificadas** (D44) — gobierna lo que ESCALA (promueve/degrada por umbral).
+      - `capacidades_soportadas`: **nombres de capacidades que el entorno soporta** — gobierna lo que
+        ABRE/CIERRA (gate). "Soportada" NO es "activa": es una ENTRADA; la decision de estado es
+        exclusiva del Manager (I-A1).
+
+    **NO contiene** tecnologia (MQTT, Ollama, Whisper, credenciales, dispositivos por producto, marcas,
+    modelos, SO), ni decisiones (`Estado`/`Decision`/`PlanActivacion`), ni reglas del Registry, ni
+    referencias a detectores o fuentes concretas.
+
+    **Quien lo construye:** unicamente el ActivationContextBuilder (I-A3), a partir del detector de
+    hardware (metricas) y de los detectores especializados (hechos de soporte).
+    **Quien puede modificarlo:** NADIE tras su construccion (`frozen`). El Manager solo lo LEE.
+
+    Invariantes permanentes del contrato (CEO, 2026-07-27):
+      - **I-AC1** — los elementos de `capacidades_soportadas` solo pueden ser **nombres de capacidades
+        declaradas en el Registry**. Queda prohibido usarlo para tokens tecnicos, nombres de productos,
+        servicios, protocolos o cualquier identificador ajeno al dominio.
+      - **I-AC2** — si el soporte necesitara informacion adicional (grado, version, confianza...), **no**
+        se anadira automaticamente un tipo nuevo: primero debe demostrarse que ha aparecido un **concepto
+        del dominio**, no una mera necesidad de implementacion. Solo entonces se reconsidera la representacion.
+    """
+
+    hardware: PerfilHardware
+    capacidades_soportadas: frozenset[str] = frozenset()
+
+    def soporta(self, capacidad: str) -> bool:
+        """Lectura del hecho de dominio: ¿el entorno soporta esta capacidad?"""
+        return capacidad in self.capacidades_soportadas
+
+
+@dataclass(frozen=True)
 class Condicion:
-    """Condicion declarativa sobre una metrica del perfil. Datos puros: serializable y comparable."""
+    """Condicion declarativa sobre el contexto de activacion. Datos puros: serializable y comparable.
+
+    `metrica` nombra la magnitud (fuentes RECURSO/PRUEBA) o la **capacidad** cuyo soporte se consulta
+    (fuente SOPORTE). `valor` se ignora en las condiciones de soporte (PRESENTE/AUSENTE).
+    """
 
     fuente: Fuente
     metrica: str
     operador: Operador
-    valor: float
+    valor: float = 0.0  # irrelevante (y omitible) en condiciones de soporte: PRESENTE/AUSENTE
 
 
 @dataclass(frozen=True)

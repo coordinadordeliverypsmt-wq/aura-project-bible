@@ -16,6 +16,7 @@ ni escala con el hardware (I1).
 from aura_skeleton.core.capability_manager import CapabilityManager
 from aura_skeleton.core.capability_registry import CapabilityRegistry
 from aura_skeleton.core.capacidades import (
+    ActivationContext,
     Capacidad,
     Condicion,
     Fuente,
@@ -42,8 +43,18 @@ def _cap(nombre: str, **kw) -> Capacidad:
     return Capacidad(nombre=nombre, **kw)
 
 
-def _plan(caps, perfil):
-    return CapabilityManager(CapabilityRegistry(caps)).planificar(perfil)
+def _ctx(perfil, soportadas=()):
+    """ActivationContext: unico contrato de entrada del Manager (I-A4/INV-4)."""
+    return ActivationContext(hardware=perfil, capacidades_soportadas=frozenset(soportadas))
+
+
+def _plan(caps, perfil, soportadas=()):
+    return CapabilityManager(CapabilityRegistry(caps)).planificar(_ctx(perfil, soportadas))
+
+
+def _soporte(nombre: str, op: Operador = Operador.PRESENTE) -> Regla:
+    """Regla declarativa sobre un hecho de dominio: la capacidad esta soportada por el entorno."""
+    return Regla((Condicion(Fuente.SOPORTE, nombre, op, 0.0),))
 
 
 # --- 2. Promocion / perfil insuficiente ---
@@ -121,9 +132,9 @@ def test_determinismo_independiente_del_orden():
 def test_simetria_promociona_degrada_repromociona():
     caps = [_cap("m", promocion=_ram_ge(16000), degradacion=_ram_ge(4000))]
     mgr = CapabilityManager(CapabilityRegistry(caps))
-    assert mgr.planificar(RICO).activas == ("m",)
-    assert mgr.planificar(MEDIO).degradadas == ("m",)
-    assert mgr.planificar(RICO).activas == ("m",)  # re-promociona, sin estado retenido
+    assert mgr.planificar(_ctx(RICO)).activas == ("m",)
+    assert mgr.planificar(_ctx(MEDIO)).degradadas == ("m",)
+    assert mgr.planificar(_ctx(RICO)).activas == ("m",)  # re-promociona, sin estado retenido
 
 
 # --- 9. Agnosticismo (I5): capacidad nueva sin tocar el Manager ---
@@ -142,6 +153,76 @@ def test_cada_decision_lleva_motivo():
 def test_registro_vacio_produce_plan_vacio():
     plan = CapabilityManager(CapabilityRegistry()).planificar(RICO)
     assert plan.decisiones == ()
+
+
+# --- Etapa 2: gate de SOPORTE (hecho de dominio del entorno) ---
+def test_soporte_presente_permite_activar():
+    plan = _plan([_cap("voz", promocion=_soporte("voz"))], RICO, soportadas=["voz"])
+    assert plan.activas == ("voz",)
+
+
+def test_soporte_ausente_queda_latente():
+    # El entorno NO soporta la capacidad: por mucho hardware que haya, no se activa.
+    plan = _plan([_cap("voz", promocion=_soporte("voz"))], RICO, soportadas=[])
+    assert plan.latentes == ("voz",)
+
+
+def test_soporte_operador_ausente():
+    cap = _cap("modo_offline", promocion=_soporte("red", Operador.AUSENTE))
+    assert _plan([cap], RICO, soportadas=[]).activas == ("modo_offline",)
+    assert _plan([cap], RICO, soportadas=["red"]).latentes == ("modo_offline",)
+
+
+def test_regla_mixta_hardware_y_soporte():
+    """Una regla puede exigir AMBOS: metrica verificada (hardware) y soporte del entorno."""
+    mixta = Regla(
+        (
+            Condicion(Fuente.RECURSO, "ram_mb", Operador.GE, 16000),
+            Condicion(Fuente.SOPORTE, "inferencia", Operador.PRESENTE),
+        )
+    )
+    cap = [_cap("agentes", promocion=mixta)]
+    assert _plan(cap, RICO, soportadas=["inferencia"]).activas == ("agentes",)  # ambos
+    assert _plan(cap, RICO, soportadas=[]).latentes == ("agentes",)  # falta soporte
+    assert _plan(cap, POBRE, soportadas=["inferencia"]).latentes == ("agentes",)  # falta hardware
+
+
+def test_soporte_no_decide_por_si_mismo():
+    """I-A1: 'soportada' es una ENTRADA, no un veredicto. Una prevista soportada sigue latente."""
+    plan = _plan(
+        [_cap("avatar", latencia=GradoLatencia.PREVISTA, promocion=_soporte("avatar"))],
+        RICO,
+        soportadas=["avatar"],
+    )
+    assert plan.latentes == ("avatar",)
+
+
+# --- Propiedades exigidas por el CEO en la Etapa 2 ---
+def test_manager_puro_y_determinista():
+    """P1: mismo contexto -> mismo plan; el Manager no retiene estado ni produce efectos."""
+    caps = [_cap("a", promocion=_ram_ge(1000)), _cap("b", promocion=_soporte("b"))]
+    mgr = CapabilityManager(CapabilityRegistry(caps))
+    ctx = _ctx(RICO, ["b"])
+    assert mgr.planificar(ctx) == mgr.planificar(ctx) == mgr.planificar(ctx)
+
+
+def test_contexto_es_el_unico_contrato_de_entrada():
+    """P2: planificar recibe UN solo argumento: el ActivationContext (I-A4)."""
+    import inspect
+
+    params = list(inspect.signature(CapabilityManager.planificar).parameters)
+    assert params == ["self", "contexto"], f"firma inesperada: {params}"
+
+
+def test_contexto_es_inmutable():
+    """INV-1: construido una vez, solo lectura despues."""
+    import dataclasses
+
+    import pytest
+
+    ctx = _ctx(RICO, ["x"])
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        ctx.capacidades_soportadas = frozenset()  # type: ignore[misc]
 
 
 # --- Objetivo arquitectonico (CEO): Capacidad es declaracion PASIVA serializable, sin funciones ---

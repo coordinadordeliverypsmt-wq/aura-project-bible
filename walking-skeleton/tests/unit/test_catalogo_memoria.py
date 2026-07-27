@@ -12,7 +12,13 @@ import dataclasses
 
 from aura_skeleton.core.capability_manager import CapabilityManager
 from aura_skeleton.core.capability_registry import CapabilityRegistry
-from aura_skeleton.core.capacidades import Estado, GradoLatencia, NivelAutonomia, PerfilHardware
+from aura_skeleton.core.capacidades import (
+    ActivationContext,
+    Estado,
+    GradoLatencia,
+    NivelAutonomia,
+    PerfilHardware,
+)
 from aura_skeleton.core.catalogo_capacidades import MEMORIA
 
 ALTO = PerfilHardware(recursos={"ram_mb": 32000})
@@ -20,7 +26,9 @@ MODESTO = PerfilHardware(recursos={"ram_mb": 2000})
 
 
 def _plan(perfil):
-    return CapabilityManager(CapabilityRegistry([MEMORIA])).planificar(perfil)
+    # Memoria decide solo por hardware: el conjunto de capacidades soportadas es irrelevante para ella.
+    contexto = ActivationContext(hardware=perfil, capacidades_soportadas=frozenset())
+    return CapabilityManager(CapabilityRegistry([MEMORIA])).planificar(contexto)
 
 
 def test_memoria_declarada_completa():

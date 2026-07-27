@@ -34,7 +34,7 @@ from .contracts import Adapter, ModelProvider, VoiceAdapter
 from .core.automatizacion import MotorAutomatizacion
 from .core.capability_manager import CapabilityManager
 from .core.capability_registry import CapabilityRegistry
-from .core.capacidades import Estado, PerfilHardware, PlanActivacion
+from .core.capacidades import ActivationContext, Estado, PerfilHardware, PlanActivacion
 from .core.catalogo_capacidades import catalogo
 from .core.conectores_externos import habilitar
 from .core.contexto import RegistroContexto
@@ -169,7 +169,11 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
     # El Capability Manager decide el estado de cada capacidad SOLO desde el PerfilHardware. La
     # composicion consume el plan (ensambla, no decide, D40) y selecciona la implementacion de memoria
     # segun el nivel que el plan permite. El Manager es el UNICO que decide estados (regla permanente).
-    plan = CapabilityManager(CapabilityRegistry(catalogo())).planificar(config.perfil)
+    # El contexto es el UNICO contrato de entrada del Manager (I-A4). En esta etapa se construye aqui con
+    # el perfil inyectado y SIN capacidades soportadas: los detectores y su agregador (Builder) llegan en
+    # la etapa siguiente, y entonces esta construccion se delega en el.
+    contexto = ActivationContext(hardware=config.perfil, capacidades_soportadas=frozenset())
+    plan = CapabilityManager(CapabilityRegistry(catalogo())).planificar(contexto)
     dec_memoria = plan.decision("memoria")
     estado_memoria = dec_memoria.estado if dec_memoria is not None else Estado.DEGRADADA
     memoria, nivel_memoria = _memoria_por_nivel(estado_memoria, ruta_memoria)

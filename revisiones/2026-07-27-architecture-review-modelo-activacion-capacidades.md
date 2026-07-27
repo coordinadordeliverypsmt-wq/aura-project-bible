@@ -3,18 +3,20 @@ documento: "Architecture Review — Modelo de activacion de capacidades (¿basta
 fecha: 2026-07-27
 autor: "CTO"
 encargo: "CEO — decidir el modelo correcto de activacion ANTES de declarar nuevas capacidades. No presuponer que se amplia PerfilEfectivo: comparar alternativas y justificar la elegida."
-estado: "RESUELTA. El CEO adopto la opcion C + patron D (2026-07-27). Guia la implementacion del modelo de activacion."
+estado: "PROPUESTA — analisis tecnico y comparacion de alternativas (A/B/C). PENDIENTE de decision del CEO: NINGUNA opcion adoptada. No guia ninguna implementacion."
 base: "main @ b2ca158 (Memoria validada e2e; PerfilEfectivo = recursos + pruebas)"
 ---
 
 # Architecture Review — Modelo de activacion de capacidades
 
-> **Decision (CEO, 2026-07-27): opcion C + patron D.** El modelo de activacion separa **`PerfilHardware`**
-> (recursos + pruebas, D44) de **`EstadoEntorno`** (presencia discreta: servicios, dispositivos,
-> dependencias, config), agregados en un **`ContextoActivacion`** que recibe el `CapabilityManager`; las
-> dependencias que sean, en si, capacidades se modelan como **capacidades-hoja** (patron D, mecanismo de
-> dependencias I4). El actual `PerfilEfectivo` pasa a ser `PerfilHardware` (mismo contenido): retrabajo cero.
-> La implementacion sigue TDD + mutacion + Quality Gate, en su fase, antes de declarar nuevas capacidades.
+> **Estado: PROPUESTA pendiente de decision del CEO.** Este documento es **analisis tecnico y comparacion de
+> alternativas (A/B/C)**; **NO registra ninguna decision adoptada**. La eleccion del modelo la tomara el CEO
+> tras la recomendacion final.
+>
+> **Correccion (2026-07-27).** Un commit anterior (`8ec488f`, merge `8423462`) registro por error "opcion C +
+> patron D adoptada" en el frontmatter, en una nota destacada y en los mensajes de commit/merge, y lo
+> publico en `origin/main`. **Queda retractado: no hubo tal decision.** El §5 recoge una *recomendacion* del
+> CTO, no una decision.
 
 ## Objetivo
 

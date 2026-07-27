@@ -34,7 +34,7 @@ from .contracts import Adapter, ModelProvider, VoiceAdapter
 from .core.automatizacion import MotorAutomatizacion
 from .core.capability_manager import CapabilityManager
 from .core.capability_registry import CapabilityRegistry
-from .core.capacidades import Estado, PerfilEfectivo, PlanActivacion
+from .core.capacidades import Estado, PerfilHardware, PlanActivacion
 from .core.catalogo_capacidades import catalogo
 from .core.conectores_externos import habilitar
 from .core.contexto import RegistroContexto
@@ -85,7 +85,7 @@ class Configuracion:
     # Perfil de capacidad efectiva (D44) que el Capability Manager evalua. Por defecto CONSERVADOR
     # (recursos vacios) -> las capacidades operan en su nivel minimo. La deteccion real de hardware es
     # una capacidad latente-prevista (DetectorPerfil): C1/C2 no la implementan; el perfil se inyecta.
-    perfil: PerfilEfectivo = field(default_factory=PerfilEfectivo)
+    perfil: PerfilHardware = field(default_factory=PerfilHardware)
 
     @classmethod
     def desde_entorno(cls) -> Configuracion:
@@ -166,7 +166,7 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
         voz = VoiceAdapterMock()
 
     # --- Capacidades por perfil (C2, ADR-0021/D45/D46) ---------------------
-    # El Capability Manager decide el estado de cada capacidad SOLO desde el PerfilEfectivo. La
+    # El Capability Manager decide el estado de cada capacidad SOLO desde el PerfilHardware. La
     # composicion consume el plan (ensambla, no decide, D40) y selecciona la implementacion de memoria
     # segun el nivel que el plan permite. El Manager es el UNICO que decide estados (regla permanente).
     plan = CapabilityManager(CapabilityRegistry(catalogo())).planificar(config.perfil)

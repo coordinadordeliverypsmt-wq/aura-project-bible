@@ -4,7 +4,7 @@ Declaraciones `Capacidad` de los subsistemas reales, en codigo (fuente valida ho
 producirlas desde JSON/YAML/BD sin tocar el Registry ni el Manager — independencia del catalogo, ADR-0021).
 Cada capacidad se declara COMPLETA (los diez campos) desde que existe una decision arquitectonica que la
 aprueba, aunque su implementacion funcional llegue despues (D46). El estado (activa/degradada/latente) lo
-decide el CapabilityManager a partir del PerfilEfectivo; aqui solo hay datos pasivos.
+decide el CapabilityManager a partir del PerfilHardware; aqui solo hay datos pasivos.
 
 Los umbrales de las reglas son **parametros calibrables por D44** (capacidad efectiva verificada con
 pruebas reales): los valores actuales son un punto de partida razonable, no una medicion; se ajustaran al

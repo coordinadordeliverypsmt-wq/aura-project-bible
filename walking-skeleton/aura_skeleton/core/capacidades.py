@@ -15,7 +15,7 @@ formato externo en una coleccion de `Capacidad`. Ni el `CapabilityRegistry` ni e
 conocen formatos: podra anadirse cualquier Loader nuevo sin tocar una sola linea de ellos. Patron
 permanente para todo catalogo futuro de AURA.
 
-La INTELIGENCIA (interpretar las reglas contra un `PerfilEfectivo` y decidir el estado) pertenece
+La INTELIGENCIA (interpretar las reglas contra un `PerfilHardware` y decidir el estado) pertenece
 EXCLUSIVAMENTE al `CapabilityManager` (regla permanente del CEO), no a esta declaracion.
 """
 
@@ -49,7 +49,7 @@ class NivelAutonomia(IntEnum):
 
 
 class Fuente(Enum):
-    """De que tabla del `PerfilEfectivo` procede la metrica de una condicion."""
+    """De que tabla del `PerfilHardware` procede la metrica de una condicion."""
 
     RECURSO = "recurso"
     PRUEBA = "prueba"
@@ -66,7 +66,7 @@ class Operador(Enum):
 
 
 @dataclass(frozen=True)
-class PerfilEfectivo:
+class PerfilHardware:
     """Capacidad EFECTIVA del entorno (D44): specs + resultados de pruebas reales.
 
     Es lo UNICO que el Manager recibe. Deliberadamente NO contiene marcas, modelos ni OS: solo metricas
@@ -171,10 +171,10 @@ class PlanActivacion:
 
 
 class DetectorPerfil(Protocol):
-    """Produce el `PerfilEfectivo` (specs + pruebas reales, D44).
+    """Produce el `PerfilHardware` (specs + pruebas reales, D44).
 
     Aisla TODA la inteligencia de deteccion. Su implementacion real es **latente-prevista** (requiere
     hardware): C1 no la construye. El Manager solo consume su resultado.
     """
 
-    def detectar(self) -> PerfilEfectivo: ...
+    def detectar(self) -> PerfilHardware: ...

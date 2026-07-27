@@ -3,20 +3,23 @@ documento: "Architecture Review — Modelo de activacion de capacidades (¿basta
 fecha: 2026-07-27
 autor: "CTO"
 encargo: "CEO — decidir el modelo correcto de activacion ANTES de declarar nuevas capacidades. No presuponer que se amplia PerfilEfectivo: comparar alternativas y justificar la elegida."
-estado: "PROPUESTA — analisis tecnico y comparacion de alternativas (A/B/C). PENDIENTE de decision del CEO: NINGUNA opcion adoptada. No guia ninguna implementacion."
+estado: "CERRADA (CEO, 2026-07-27) tras el refinamiento completo. El modelo de activacion queda definido y sus fronteras registradas como Invariantes Arquitectonicos (§ final), restricciones permanentes de la arquitectura. Guia la implementacion; NO declara capacidades nuevas. El diseno no se reabre salvo evidencia nueva que contradiga los invariantes."
 base: "main @ b2ca158 (Memoria validada e2e; PerfilEfectivo = recursos + pruebas)"
 ---
 
 # Architecture Review — Modelo de activacion de capacidades
 
-> **Estado: PROPUESTA pendiente de decision del CEO.** Este documento es **analisis tecnico y comparacion de
-> alternativas (A/B/C)**; **NO registra ninguna decision adoptada**. La eleccion del modelo la tomara el CEO
-> tras la recomendacion final.
+> **Estado: CERRADA (CEO, 2026-07-27).** Los §§1-7 son el **analisis** (evidencia, alternativas A/B/C,
+> matriz de validacion, dos niveles, interfaz de dominio) que condujo al **modelo resuelto** y a los
+> **Invariantes Arquitectonicos**, ambos al final del documento. Esos invariantes son **restricciones
+> permanentes**: a partir de aqui la discusion es de **implementacion**; el diseno no se reabre salvo
+> evidencia nueva que los contradiga.
 >
-> **Correccion (2026-07-27).** Un commit anterior (`8ec488f`, merge `8423462`) registro por error "opcion C +
-> patron D adoptada" en el frontmatter, en una nota destacada y en los mensajes de commit/merge, y lo
-> publico en `origin/main`. **Queda retractado: no hubo tal decision.** El §5 recoge una *recomendacion* del
-> CTO, no una decision.
+> **Trazabilidad.** Un commit anterior (`8ec488f`, merge `8423462`) registro por error "opcion C + patron D
+> adoptada" **antes** de completar el refinamiento; fue **retractado** (`0645016`/`4f309e6`). El cierre actual
+> lo autoriza el CEO **tras** el refinamiento completo (interfaz de dominio, semantica "soportada", ambitos de
+> detector, flujo con agregador y frontera anti-God-Object). El modelo resuelto se describe por sus
+> **propiedades**, no por una etiqueta A/B/C.
 
 ## Objetivo
 
@@ -130,3 +133,59 @@ mezclar concerns; A la descarto porque hace que el modelo represente algo que no
 1. ¿Qué modelo adoptamos: **A**, **B** o **C** (mi recomendacion), y con o sin el patron **D**?
 2. Con tu eleccion, preparo la fase de implementacion (contratos + TDD) **antes** de declarar cualquier
    capacidad nueva. Hasta entonces, el Registry permanece con **solo memoria**.
+
+> **Resuelto (2026-07-27).** El §7 refleja la fase de decision; su resultado —tras el refinamiento— esta en
+> los §§8-9 (modelo resuelto e Invariantes Arquitectonicos).
+
+## 8. Modelo de activacion resuelto (cierre conceptual, CEO 2026-07-27)
+
+El modelo queda definido por sus **componentes y su flujo**, no por una etiqueta A/B/C:
+
+**Flujo:** `Detectores → ActivationContextBuilder → ActivationContext → Capability Manager → PlanActivacion → Composicion`.
+
+- **Detectores** (por ambito, sin invasion): el **detector de hardware** produce `metricas_verificadas` (D44);
+  los **detectores especializados** reducen cualquier combinacion concreta (servicios, dependencias,
+  dispositivos, config, datos) a **hechos de dominio de soporte**: *"capacidad X soportada por el entorno"*.
+  Toda la tecnologia concreta (MQTT, Ollama, Whisper, credenciales) queda **encapsulada aqui**.
+- **ActivationContextBuilder** (agregador): ejecuta los detectores, **normaliza** sus salidas (estructural:
+  nombres canonicos, unidades, union de conjuntos, descarte defensivo con log) y **construye** el
+  `ActivationContext`. **No aplica reglas ni decide** (frontera demostrada; §9).
+- **ActivationContext**: el **unico contrato de entrada** del Manager. Agrega `metricas_verificadas` +
+  `capacidades_soportadas`, en **lenguaje de dominio** (nombres de capacidad y metricas), sin tecnologia.
+- **Capability Manager**: funcion **pura** que decide `activa/degradada/latente` y la autonomia a partir del
+  `ActivationContext` + las **reglas declaradas** del Registry (dependencias I4, seguridad, autonomia). Es el
+  **unico** que decide estados. Nunca conoce tecnologia ni la maquinaria de deteccion.
+- **Registry**: declaraciones **pasivas y serializables** (datos, no logica); fuente unica de la
+  clasificacion (D41); un Loader externo puede producirlas desde cualquier formato (independencia del catalogo).
+- **Patron D**: un requisito de entorno se modela como **capacidad-hoja** cuyo "soportada" fija su detector;
+  las demas dependen de ella (I4). Sin campos de tecnologia.
+
+Nota semantica: se descarta "disponible"; los detectores informan **"soportada"** (el entorno puede
+sostenerla); la decision de estado es exclusiva del Manager.
+
+## 9. Invariantes Arquitectonicos (restricciones permanentes)
+
+Fronteras de responsabilidad **demostradas** en esta revision. Son **restricciones permanentes** de la
+arquitectura, no conclusiones de un analisis puntual. Toda implementacion y toda evolucion futura debe
+respetarlas.
+
+- **I-A1 · Manager puro.** El Capability Manager es una funcion pura de decision:
+  `planificar(ActivationContext) → PlanActivacion` con las reglas del Registry. **No** ejecuta deteccion,
+  **no** conoce tecnologia ni implementacion, **no** tiene efectos. Determinista.
+- **I-A2 · Detectores especializados y en su ambito.** El detector de hardware produce **solo** metricas
+  verificadas (D44); los especializados producen **solo** hechos de dominio de soporte. **Ningun detector
+  invade el ambito de otro**; toda la tecnologia concreta se encapsula aqui.
+- **I-A3 · Builder sin reglas de negocio.** El ActivationContextBuilder **solo** ejecuta detectores,
+  normaliza (estructural) y construye el `ActivationContext`. **No** aplica reglas, umbrales ni decisiones;
+  **no** referencia `Registry`/`Manager`/`Estado`/reglas. Protegido por **prueba anti-regresion** (precedente
+  D41/MA.5-a, por AST) en el Quality Gate.
+- **I-A4 · ActivationContext, unico contrato de entrada.** El Manager recibe **exclusivamente** un
+  `ActivationContext` (metricas verificadas + capacidades soportadas, en lenguaje de dominio). **No** recibe
+  detectores ni fuentes concretas. Es el unico punto de entrada de informacion de activacion.
+- **I-A5 · Registry declarativo.** Las capacidades son **declaraciones pasivas y serializables** (datos, no
+  logica); el Registry es la **fuente unica** de la clasificacion (D41), reemplazable por cualquier Loader
+  (independencia del catalogo). **Toda la inteligencia de decision vive en el Manager, nunca en la declaracion.**
+
+**Gobierno.** Con estos invariantes, la Architecture Review queda **cerrada**. La discusion posterior es de
+**implementacion** (contratos + TDD + mutacion + Quality Gate). El diseno **no se reabre** salvo evidencia
+nueva que contradiga alguno de I-A1…I-A5.

@@ -53,6 +53,12 @@ def _memoria_por_nivel(estado: Estado, ruta: str) -> tuple[PersistentMemory, str
     y **N3** (motor especializado) son **latente-prevista** (requieren librerias/servicios ausentes). Por
     eso el nivel efectivo es N1 aunque el plan promueva memoria a motor avanzado —degradacion transparente
     sin perdida (ADR-0020)—. Cuando N2/N3 existan, se anaden aqui sin tocar el resto de la composicion.
+
+    **Matiz (registro para evitar interpretaciones futuras).** Aunque el `PlanActivacion` clasifique memoria
+    como ACTIVA en perfiles altos, la implementacion efectiva **sigue siendo N1** porque N2/N3 aun no
+    existen. **NO hay seleccion dinamica entre implementaciones inexistentes**: esta funcion es unicamente
+    el **punto de extension** preparado para incorporar N2/N3 cuando se implementen. El sistema degrada de
+    forma transparente al nivel disponible.
     """
     ruta_avanzado = "N1 (almacen minimo); N2/N3 previstos"
     nivel = ruta_avanzado if estado is Estado.ACTIVA else "N1 (almacen minimo)"

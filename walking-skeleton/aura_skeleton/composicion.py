@@ -31,10 +31,11 @@ from .conectores.computador import ConectorComputador
 from .conectores.conversacion import ConectorConversacion
 from .conectores.hogar import ConectorHogar
 from .contracts import Adapter, ModelProvider, VoiceAdapter
+from .core.activation_context_builder import ActivationContextBuilder
 from .core.automatizacion import MotorAutomatizacion
 from .core.capability_manager import CapabilityManager
 from .core.capability_registry import CapabilityRegistry
-from .core.capacidades import ActivationContext, Estado, PerfilHardware, PlanActivacion
+from .core.capacidades import Estado, PerfilHardware, PlanActivacion
 from .core.catalogo_capacidades import catalogo
 from .core.conectores_externos import habilitar
 from .core.contexto import RegistroContexto
@@ -44,6 +45,21 @@ from .core.permissions import PermissionManager
 from .core.registro import RegistroAdaptadores
 from .modules.memory import PersistentMemory
 from .modules.router import ModelRouter
+
+
+class _PerfilInyectado:
+    """DetectorHardware del arranque: devuelve el perfil que trae `Configuracion`.
+
+    Cableado, no arquitectura: implementa el contrato ya aprobado (`DetectorHardware`) para que el
+    Builder tenga de donde tomar las metricas. El detector REAL —el que mide capacidad efectiva con
+    pruebas (D44)— es **latente-prevista**: requiere hardware para construirse y validarse.
+    """
+
+    def __init__(self, perfil: PerfilHardware) -> None:
+        self._perfil = perfil
+
+    def detectar(self) -> PerfilHardware:
+        return self._perfil
 
 
 def _memoria_por_nivel(estado: Estado, ruta: str) -> tuple[PersistentMemory, str]:
@@ -169,10 +185,11 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
     # El Capability Manager decide el estado de cada capacidad SOLO desde el PerfilHardware. La
     # composicion consume el plan (ensambla, no decide, D40) y selecciona la implementacion de memoria
     # segun el nivel que el plan permite. El Manager es el UNICO que decide estados (regla permanente).
-    # El contexto es el UNICO contrato de entrada del Manager (I-A4). En esta etapa se construye aqui con
-    # el perfil inyectado y SIN capacidades soportadas: los detectores y su agregador (Builder) llegan en
-    # la etapa siguiente, y entonces esta construccion se delega en el.
-    contexto = ActivationContext(hardware=config.perfil, capacidades_soportadas=frozenset())
+    # Flujo definitivo: Detectores -> Builder -> ActivationContext -> Manager -> Plan.
+    # La composicion ENSAMBLA (D40): inyecta los detectores, pide el contexto al Builder y consume el plan.
+    # Hoy no hay detectores de entorno (ninguna capacidad declarada los necesita), asi que el conjunto de
+    # capacidades soportadas sale vacio, igual que en el ensamblaje provisional.
+    contexto = ActivationContextBuilder(_PerfilInyectado(config.perfil), ()).construir()
     plan = CapabilityManager(CapabilityRegistry(catalogo())).planificar(contexto)
     dec_memoria = plan.decision("memoria")
     estado_memoria = dec_memoria.estado if dec_memoria is not None else Estado.DEGRADADA

@@ -32,6 +32,10 @@ from .conectores.conversacion import ConectorConversacion
 from .conectores.hogar import ConectorHogar
 from .contracts import Adapter, ModelProvider, VoiceAdapter
 from .core.automatizacion import MotorAutomatizacion
+from .core.capability_manager import CapabilityManager
+from .core.capability_registry import CapabilityRegistry
+from .core.capacidades import Estado, PerfilEfectivo, PlanActivacion
+from .core.catalogo_capacidades import catalogo
 from .core.conectores_externos import habilitar
 from .core.contexto import RegistroContexto
 from .core.kill_switch import KillSwitch
@@ -40,6 +44,19 @@ from .core.permissions import PermissionManager
 from .core.registro import RegistroAdaptadores
 from .modules.memory import PersistentMemory
 from .modules.router import ModelRouter
+
+
+def _memoria_por_nivel(estado: Estado, ruta: str) -> tuple[PersistentMemory, str]:
+    """Selecciona la implementacion de memoria segun el nivel que el plan permite (C2.3, ADR-0020).
+
+    HOY solo **N1** (almacen minimo, `PersistentMemory`, MA.2) esta implementado; **N2** (indice embebido)
+    y **N3** (motor especializado) son **latente-prevista** (requieren librerias/servicios ausentes). Por
+    eso el nivel efectivo es N1 aunque el plan promueva memoria a motor avanzado —degradacion transparente
+    sin perdida (ADR-0020)—. Cuando N2/N3 existan, se anaden aqui sin tocar el resto de la composicion.
+    """
+    ruta_avanzado = "N1 (almacen minimo); N2/N3 previstos"
+    nivel = ruta_avanzado if estado is Estado.ACTIVA else "N1 (almacen minimo)"
+    return PersistentMemory(ruta), nivel
 
 
 @dataclass
@@ -59,6 +76,10 @@ class Configuracion:
     # Conectores externos habilitados por el usuario (MA.4, ADR-0019). Opt-in explicito: por defecto
     # NINGUNO. Es configuracion del usuario, no una lista blanca en el Core (ADR-0015).
     conectores_externos_habilitados: frozenset[str] = field(default_factory=frozenset)
+    # Perfil de capacidad efectiva (D44) que el Capability Manager evalua. Por defecto CONSERVADOR
+    # (recursos vacios) -> las capacidades operan en su nivel minimo. La deteccion real de hardware es
+    # una capacidad latente-prevista (DetectorPerfil): C1/C2 no la implementan; el perfil se inyecta.
+    perfil: PerfilEfectivo = field(default_factory=PerfilEfectivo)
 
     @classmethod
     def desde_entorno(cls) -> Configuracion:
@@ -76,6 +97,7 @@ class Sistema:
     registro_adaptadores: RegistroAdaptadores
     registro_contexto: RegistroContexto
     memoria: PersistentMemory
+    plan: PlanActivacion
     ruta_memoria: str
     ruta_audit: str
 
@@ -137,7 +159,23 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
         proveedores = [MockProvider("mock", 100, healthy=True)]
         voz = VoiceAdapterMock()
 
-    memoria = PersistentMemory(ruta_memoria)
+    # --- Capacidades por perfil (C2, ADR-0021/D45/D46) ---------------------
+    # El Capability Manager decide el estado de cada capacidad SOLO desde el PerfilEfectivo. La
+    # composicion consume el plan (ensambla, no decide, D40) y selecciona la implementacion de memoria
+    # segun el nivel que el plan permite. El Manager es el UNICO que decide estados (regla permanente).
+    plan = CapabilityManager(CapabilityRegistry(catalogo())).planificar(config.perfil)
+    dec_memoria = plan.decision("memoria")
+    estado_memoria = dec_memoria.estado if dec_memoria is not None else Estado.DEGRADADA
+    memoria, nivel_memoria = _memoria_por_nivel(estado_memoria, ruta_memoria)
+    obs.log(
+        "BOOT",
+        "composicion",
+        f"plan de capacidades: activas={list(plan.activas)} degradadas={list(plan.degradadas)} "
+        f"latentes={list(plan.latentes)}; memoria -> {nivel_memoria}",
+        "-",
+        audit=True,
+    )
+
     orquestador = Orchestrator(
         InProcessEventBus(),
         memoria,
@@ -167,6 +205,7 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
         registro_adaptadores=registro_adaptadores,
         registro_contexto=registro_contexto,
         memoria=memoria,
+        plan=plan,
         ruta_memoria=ruta_memoria,
         ruta_audit=ruta_audit,
     )

@@ -1,6 +1,6 @@
 """Unit: CapabilityManager (C1, ADR-0021 / D45 / Bible 3.1 P-ARQ-9).
 
-Comportamiento observable del mecanismo agnostico: recibe SOLO un `PerfilEfectivo` y decide el estado
+Comportamiento observable del mecanismo agnostico: recibe SOLO un `PerfilHardware` y decide el estado
 (activa/degradada/latente) y el motivo de cada capacidad del registro. No inspecciona marcas, modelos ni
 OS. Determinista. Validado por mutacion.
 
@@ -22,13 +22,13 @@ from aura_skeleton.core.capacidades import (
     GradoLatencia,
     NivelAutonomia,
     Operador,
-    PerfilEfectivo,
+    PerfilHardware,
     Regla,
 )
 
-POBRE = PerfilEfectivo(recursos={"ram_mb": 2000})
-MEDIO = PerfilEfectivo(recursos={"ram_mb": 8000})
-RICO = PerfilEfectivo(recursos={"ram_mb": 32000})
+POBRE = PerfilHardware(recursos={"ram_mb": 2000})
+MEDIO = PerfilHardware(recursos={"ram_mb": 8000})
+RICO = PerfilHardware(recursos={"ram_mb": 32000})
 
 
 def _ram_ge(mb: float) -> Regla:
@@ -89,8 +89,8 @@ def test_dependencia_satisfecha_permite_activar():
 # --- 5. Seguridad (I1): la autonomia no escala con el hardware ---
 def test_autonomia_no_escala_con_hardware():
     caps = [_cap("x", promocion=_ram_ge(1000), autonomia_maxima=NivelAutonomia.RECOMENDACION)]
-    d_pobre = _plan(caps, PerfilEfectivo(recursos={"ram_mb": 1500})).decision("x")
-    d_rico = _plan(caps, PerfilEfectivo(recursos={"ram_mb": 999999})).decision("x")
+    d_pobre = _plan(caps, PerfilHardware(recursos={"ram_mb": 1500})).decision("x")
+    d_rico = _plan(caps, PerfilHardware(recursos={"ram_mb": 999999})).decision("x")
     assert d_pobre.autonomia_efectiva == NivelAutonomia.RECOMENDACION
     assert d_rico.autonomia_efectiva == NivelAutonomia.RECOMENDACION  # NO sube por mas hardware
 

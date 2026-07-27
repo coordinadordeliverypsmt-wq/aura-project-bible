@@ -1,7 +1,7 @@
 """Unit: Memoria como primera capacidad real del Capability Registry (C2, ADR-0020/0011, Bible 4.1).
 
 Patron obligatorio (D46): la capacidad se DECLARA completamente (10 campos) y el CapabilityManager decide
-su estado SOLO desde el PerfilEfectivo. Aqui se verifica ese comportamiento observable con Memoria, sin
+su estado SOLO desde el PerfilHardware. Aqui se verifica ese comportamiento observable con Memoria, sin
 implementar aun el cableado del motor por nivel (eso es un paso posterior).
 
 Modelo de Memoria (ADR-0020): siempre opera. Perfil alto -> ACTIVA (motor avanzado, N2/N3); perfil modesto
@@ -12,11 +12,11 @@ import dataclasses
 
 from aura_skeleton.core.capability_manager import CapabilityManager
 from aura_skeleton.core.capability_registry import CapabilityRegistry
-from aura_skeleton.core.capacidades import Estado, GradoLatencia, NivelAutonomia, PerfilEfectivo
+from aura_skeleton.core.capacidades import Estado, GradoLatencia, NivelAutonomia, PerfilHardware
 from aura_skeleton.core.catalogo_capacidades import MEMORIA
 
-ALTO = PerfilEfectivo(recursos={"ram_mb": 32000})
-MODESTO = PerfilEfectivo(recursos={"ram_mb": 2000})
+ALTO = PerfilHardware(recursos={"ram_mb": 32000})
+MODESTO = PerfilHardware(recursos={"ram_mb": 2000})
 
 
 def _plan(perfil):
@@ -48,7 +48,7 @@ def test_memoria_degradada_en_perfil_modesto():
 def test_memoria_nunca_latente():
     # Para cualquier perfil realista, memoria opera (al menos N1); nunca queda latente.
     for ram in (0, 1, 500, 2000, 8000, 64000, 1_000_000):
-        d = _plan(PerfilEfectivo(recursos={"ram_mb": ram})).decision("memoria")
+        d = _plan(PerfilHardware(recursos={"ram_mb": ram})).decision("memoria")
         assert d.estado is not Estado.LATENTE, f"memoria latente con ram_mb={ram}"
 
 

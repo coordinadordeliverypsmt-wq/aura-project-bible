@@ -1,7 +1,7 @@
 """Capability Manager (C1, ADR-0021 / D45 / Bible 3.1 P-ARQ-9).
 
 El UNICO componente autorizado para decidir el estado de una capacidad (regla permanente del CEO): ningun
-modulo se autoactiva. Es **agnostico**: recibe SOLO un `PerfilEfectivo` (metricas de recursos y de pruebas
+modulo se autoactiva. Es **agnostico**: recibe SOLO un `PerfilHardware` (metricas de recursos y de pruebas
 reales, D44) y produce un `PlanActivacion` determinista. Nunca inspecciona marcas, modelos ni sistema
 operativo; esa inteligencia de deteccion es del futuro `DetectorPerfil`.
 
@@ -28,7 +28,7 @@ from .capacidades import (
     GradoLatencia,
     NivelAutonomia,
     Operador,
-    PerfilEfectivo,
+    PerfilHardware,
     PlanActivacion,
     Regla,
 )
@@ -43,11 +43,11 @@ _OPS: dict[Operador, Callable[[float, float], bool]] = {
 }
 
 
-def _cumple_condicion(c: Condicion, perfil: PerfilEfectivo) -> bool:
+def _cumple_condicion(c: Condicion, perfil: PerfilHardware) -> bool:
     return _OPS[c.operador](perfil.valor(c.fuente, c.metrica), c.valor)
 
 
-def _cumple(regla: Regla | None, perfil: PerfilEfectivo) -> bool:
+def _cumple(regla: Regla | None, perfil: PerfilHardware) -> bool:
     """Interpreta una regla declarativa contra el perfil. Sin regla o sin condiciones -> no se cumple."""
     if regla is None or not regla.condiciones:
         return False
@@ -58,7 +58,7 @@ class CapabilityManager:
     def __init__(self, registro: CapabilityRegistry) -> None:
         self._registro = registro
 
-    def planificar(self, perfil: PerfilEfectivo) -> PlanActivacion:
+    def planificar(self, perfil: PerfilHardware) -> PlanActivacion:
         capacidades = sorted(self._registro.todas(), key=lambda c: c.nombre)
 
         # 1) Estado base por capacidad, sin resolver dependencias todavia.
@@ -98,7 +98,7 @@ class CapabilityManager:
         return PlanActivacion(decisiones)
 
     @staticmethod
-    def _estado_base(c: Capacidad, perfil: PerfilEfectivo) -> tuple[Estado, str]:
+    def _estado_base(c: Capacidad, perfil: PerfilHardware) -> tuple[Estado, str]:
         if c.latencia is GradoLatencia.PREVISTA:
             # I6: una capacidad prevista no se enciende aunque el perfil diera; no hay implementacion.
             return Estado.LATENTE, "capacidad prevista: sin implementacion, permanece latente"

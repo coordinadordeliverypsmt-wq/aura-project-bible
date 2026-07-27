@@ -125,6 +125,22 @@ capacidades reales aparece **evidencia objetiva** de que alguno es **insuficient
 tal caso: **detenerse, presentar la evidencia y esperar decision explicita del CEO**. Ninguna decision de
 diseno por iniciativa propia. Reabrir el debate **sin evidencia** no es admisible.
 
+### Que constituye evidencia objetiva (precision del CEO, 2026-07-27)
+
+La evidencia debe provenir de una **implementacion o validacion real sobre el sistema**, nunca de un
+razonamiento teorico ni de una preferencia de diseno.
+
+**Es evidencia suficiente:**
+- un **caso de uso real** que el modelo no pueda expresar;
+- una **contradiccion demostrable** entre invariantes;
+- una **implementacion que obligue a romper un invariante** para funcionar correctamente.
+
+**NO es evidencia suficiente:**
+- una alternativa que parezca mas elegante;
+- una simplificacion conceptual;
+- una preferencia arquitectonica;
+- una hipotesis sobre posibles necesidades futuras.
+
 Las decisiones de ciclo de vida (§3) **si** pueden revisarse sin tocar los invariantes, por ser propias de
 esta version.
 

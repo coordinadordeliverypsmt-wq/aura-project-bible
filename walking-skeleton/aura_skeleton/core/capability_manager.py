@@ -21,14 +21,15 @@ from collections.abc import Callable
 
 from .capability_registry import CapabilityRegistry
 from .capacidades import (
+    ActivationContext,
     Capacidad,
     Condicion,
     Decision,
     Estado,
+    Fuente,
     GradoLatencia,
     NivelAutonomia,
     Operador,
-    PerfilHardware,
     PlanActivacion,
     Regla,
 )
@@ -43,29 +44,35 @@ _OPS: dict[Operador, Callable[[float, float], bool]] = {
 }
 
 
-def _cumple_condicion(c: Condicion, perfil: PerfilHardware) -> bool:
-    return _OPS[c.operador](perfil.valor(c.fuente, c.metrica), c.valor)
+def _cumple_condicion(c: Condicion, contexto: ActivationContext) -> bool:
+    """Interpreta UNA condicion contra el contexto. Enruta por fuente; no conoce tecnologia."""
+    if c.fuente is Fuente.SOPORTE:
+        # Hecho de dominio: ¿el entorno soporta esa capacidad? (pertenencia, no magnitud)
+        soportada = contexto.soporta(c.metrica)
+        return soportada if c.operador is Operador.PRESENTE else not soportada
+    # Metricas verificadas (D44): comparacion numerica sobre el perfil de hardware.
+    return _OPS[c.operador](contexto.hardware.valor(c.fuente, c.metrica), c.valor)
 
 
-def _cumple(regla: Regla | None, perfil: PerfilHardware) -> bool:
-    """Interpreta una regla declarativa contra el perfil. Sin regla o sin condiciones -> no se cumple."""
+def _cumple(regla: Regla | None, contexto: ActivationContext) -> bool:
+    """Interpreta una regla declarativa contra el contexto. Sin regla o sin condiciones -> no se cumple."""
     if regla is None or not regla.condiciones:
         return False
-    return all(_cumple_condicion(c, perfil) for c in regla.condiciones)
+    return all(_cumple_condicion(c, contexto) for c in regla.condiciones)
 
 
 class CapabilityManager:
     def __init__(self, registro: CapabilityRegistry) -> None:
         self._registro = registro
 
-    def planificar(self, perfil: PerfilHardware) -> PlanActivacion:
+    def planificar(self, contexto: ActivationContext) -> PlanActivacion:
         capacidades = sorted(self._registro.todas(), key=lambda c: c.nombre)
 
         # 1) Estado base por capacidad, sin resolver dependencias todavia.
         estado: dict[str, Estado] = {}
         motivo: dict[str, str] = {}
         for c in capacidades:
-            e, m = self._estado_base(c, perfil)
+            e, m = self._estado_base(c, contexto)
             estado[c.nombre] = e
             motivo[c.nombre] = m
 
@@ -98,13 +105,13 @@ class CapabilityManager:
         return PlanActivacion(decisiones)
 
     @staticmethod
-    def _estado_base(c: Capacidad, perfil: PerfilHardware) -> tuple[Estado, str]:
+    def _estado_base(c: Capacidad, contexto: ActivationContext) -> tuple[Estado, str]:
         if c.latencia is GradoLatencia.PREVISTA:
             # I6: una capacidad prevista no se enciende aunque el perfil diera; no hay implementacion.
             return Estado.LATENTE, "capacidad prevista: sin implementacion, permanece latente"
-        if _cumple(c.promocion, perfil):
+        if _cumple(c.promocion, contexto):
             return Estado.ACTIVA, "criterio de promocion cumplido"
-        if _cumple(c.degradacion, perfil):
+        if _cumple(c.degradacion, contexto):
             return Estado.DEGRADADA, "criterio de degradacion cumplido: opera en modo reducido"
         return Estado.LATENTE, "perfil insuficiente para promocion o degradacion"
 

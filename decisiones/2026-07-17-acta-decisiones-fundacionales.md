@@ -535,6 +535,39 @@ deja de ser un ADR de memoria/hardware y pasa a ser un pilar de toda la arquitec
 
 *Impacta: ADR-0021, ADR-0020, ADR-0018, ADR-0019, ADR-0004, ADR-0003, P-ARQ-1, D33/ADR-0016, D43, D44, D41, Bible 3.1/3.2/3.4/5.3, la linea base 2026-07-26, todo componente y capacidad futura.*
 
+## D46 — AURA siempre arquitectonicamente completo; la latencia solo la justifica el hardware
+
+**Fecha:** 2026-07-26. **Decide:** CEO, al cerrar C1. **Consolida:** D45. **Resuelve:** cualquier lectura de "congelacion total".
+
+**Regla permanente (texto del CEO).**
+
+> AURA debe permanecer siempre **arquitectonicamente completo**. La **unica latencia aceptable** es la de
+> capacidades cuya **ejecucion o validacion dependa objetivamente del hardware, dispositivos fisicos o
+> datos reales**. **Ninguna limitacion de hardware justifica dejar arquitectura pendiente.**
+
+**Consecuencias operativas:**
+
+1. El **Capability Registry** y el **Capability Manager** (C1) son el **mecanismo oficial** para gobernar
+   la evolucion del sistema.
+2. **Toda nueva capacidad se registra** desde que exista una decision arquitectonica que la apruebe,
+   aunque su implementacion funcional llegue despues.
+3. Las capacidades **nunca** se marcan "pendientes", sino **latentes** (activables o previstas), con sus
+   contratos, criterios de activacion, degradacion, seguridad y comportamiento degradado **definidos desde
+   el principio** (los diez campos de ADR-0021).
+4. Al cambiar el hardware, AURA **no** requiere rediseno, migraciones ni ediciones: **reevalua el entorno
+   y activa automaticamente** las capacidades ya previstas.
+
+**Patron obligatorio por capacidad:** (a) declarar completamente en el Registry → (b) el Manager decide su
+estado **solo** desde el `PerfilEfectivo` → (c) implementar/conectar su funcionalidad → (d) activacion
+automatica al cambiar el hardware, sin tocar su arquitectura. Aplica a memoria, IA local, voz, vision,
+automatizaciones, Home Assistant y cualquier capacidad futura.
+
+**Filtro permanente antes de implementar:** *¿esta implementacion deja a AURA mas completo
+arquitectonicamente y mas preparado para activarse automaticamente en cualquier hardware, sin rediseno
+futuro?* Si no, es complejidad sin valor y se replantea.
+
+*Impacta: D45, ADR-0021, ADR-0020, la linea base 2026-07-26, toda la Fase C y toda capacidad futura.*
+
 ## Autorización
 
 El CEO autoriza el inicio de la **Fase D1**: redacción de los 5 capítulos P0 (1.1 → 1.2 → 2.1 → 2.2 → 3.1), cada uno con gate de aprobación del CEO.

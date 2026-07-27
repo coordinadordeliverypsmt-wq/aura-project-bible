@@ -2,10 +2,13 @@
 numero: ADR-0021
 titulo: "Registro de capacidades y activacion automatica por perfil de capacidad efectiva (Capability Registry / Manager)"
 estado: accepted
+version: 1.1.0
 fecha: 2026-07-26
 fecha-resolucion: 2026-07-26
+fecha-revision: 2026-07-27
 decisor: "Mauricio (CEO)"
 proponente: "CTO"
+revision: "v1.1.0 (2026-07-27) — Revision del modelo declarativo tras la auditoria de consistencia del Registry. Aprobada por el CEO campo a campo. Elimina los campos 2 y 3, fija la semantica del 6, corrige el 8 y el §4, y clasifica cada campo superviviente como OPERATIVO o DOCUMENTAL. Ver §0."
 impacta: ["ADR-0020", "ADR-0018", "ADR-0019", "ADR-0004", "ADR-0016", "ADR-0003", "P-ARQ-1", "D33", "D34", "D38", "D43", "D44", "D45", "Bible 3.1", "Bible 3.2", "Bible 3.4", "Bible 5.3"]
 origen: "Directriz del CEO 2026-07-26: arquitectura completa con capacidades latentes; generalizar ADR-0020 a todo el sistema mediante un Registro de Capacidades"
 reabre: "—"
@@ -15,6 +18,39 @@ motivo-rechazo: "—"
 ---
 
 # ADR-0021 — Registro de capacidades y activacion por perfil de capacidad efectiva
+
+## 0. Revision v1.1.0 (2026-07-27) — modelo declarativo
+
+Esta revision **no cambia la decision** (registro autodeclarativo + Manager agnostico + activacion por
+perfil): corrige el **modelo declarativo** a la luz de los invariantes **INV-1…INV-11**, congelados
+*despues* de redactarse este ADR. La auditoria de consistencia del Registry demostro que varios campos
+atribuian al Registry o al Manager responsabilidades que los invariantes posteriores **reasignaron** a
+otros componentes, dejandolos sin consumidor legitimo.
+
+**Causa raiz:** ADR-0021 v1.0.0 se escribio antes de que existieran los invariantes. INV-3/INV-4 movieron
+la deteccion a los detectores; INV-7 movio la autoridad sobre la ejecucion a permisos/HITL/kill switch;
+INV-6 endurecio la frontera dominio↔realizacion.
+
+**Cambios, aprobados por el CEO campo a campo (2026-07-27):**
+
+| Campo | Cambio | Motivo |
+|---|---|---|
+| **2** `prerequisitos` | **ELIMINADO** | Sin diferenciacion estructural ni semantica frente al campo 5: mismo tipo, mismo contexto, mismo significado operativo. Su funcion de "piso" la ejerce el campo 6. |
+| **3** `deteccion` | **ELIMINADO** | **Sin consumidor posible** bajo los invariantes: el Manager puede leer el Registry pero es puro y sin E/S (INV-1); el Builder ejecuta detectores pero no puede leer el Registry (INV-4); los detectores no conocen el Registry (INV-3). Ademas nombraba a `DetectorPerfil`, derogado. |
+| **6** `degradacion` | **Semantica fijada: PISO** | El texto v1.0.0 ("condicion bajo la cual el Manager la **desactiva**") contradecia la implementacion y el uso real. Se alinea el ADR al comportamiento implementado. |
+| **8** `dependencias` | Suprimido "o servicios" | **INV-6**: las dependencias relacionan capacidades entre si, **nunca** capacidades con implementaciones o servicios. |
+| **9** `garantias_seguridad` | Pasa a **DOCUMENTAL**; §4 corregido | La promesa de v1.0.0 §4 (el Manager no activa si no puede mantenerlas) es **incompatible con INV-1 e INV-7**: el Manager es puro y sin E/S, y la verificacion en ejecucion pertenece a permisos/HITL/kill switch. |
+| **4** `comportamiento_degradado` | Pasa a **DOCUMENTAL** | Texto libre: no puede gobernar materializacion. Su valor es descriptivo y auditable. |
+| **10** `autonomia_maxima` | **Se conserva provisionalmente** | Sin consumidor definido hoy. Se mantiene por **asimetria de reversibilidad**: eliminarlo y reintroducirlo obligaria a redeclarar todas las capacidades. Se revisara cuando una capacidad real demuestre necesidad. |
+| **1** `contrato` | Sin cambio de definicion | Su consumidor previsto es la **composicion**; su cableado pertenece a la linea de infraestructura, no a este ADR. |
+
+**Numeracion:** los campos supervivientes **conservan su numero original** (1, 4, 5, 6, 7, 8, 9, 10). No
+se renumera: toda la documentacion, el codigo y las pruebas citan estos numeros, y renumerar produciria
+una migracion masiva sin beneficio.
+
+**Criterio que gobierna esta revision:** el objetivo **no es reducir campos por estetica**, sino que
+**cada campo tenga dueno, consumidor y proposito verificable**. El Registry es un **modelo declarativo de
+capacidad**, no un punto adicional de gobierno de la ejecucion.
 
 ## Contexto
 
@@ -46,42 +82,94 @@ tomada, se omiten los 4 niveles (D3).
 ## Decision
 
 ### 1. Capacidad = modulo autonomo autodeclarativo
-Cada capacidad del sistema es un **modulo autonomo, autocontenido, verificable y auditable** que declara
-en el **Registro de Capacidades**, como minimo, **diez campos**. Un contrato completo por capacidad evita
-que atributos como la seguridad o la autonomia queden dispersos entre distintos ADR o documentos:
 
-1. **Contrato funcional** — la interfaz estable que ofrece cuando esta activa (P-ARQ-4).
-2. **Prerequisitos minimos** — recursos necesarios para activarse (RAM, GPU, CPU, disco, dependencias de entorno).
-3. **Mecanismo de deteccion** — como se comprueba, con **pruebas reales** (D44), si el entorno la soporta;
-   no specs, sino capacidad efectiva verificada (latencia, memoria disponible, velocidad de inferencia).
-4. **Comportamiento degradado** — que ofrece cuando no puede activarse plenamente; degradacion **limpia**,
-   nunca fallo silencioso (coherente con ADR-0019 y el checklist de arquitectura 3.1 §2.3.10).
-5. **Criterio de promocion automatica** — la condicion objetiva (verificada por 3) bajo la cual el Manager
-   la **activa** o sube su nivel.
-6. **Criterio de degradacion automatica** — la condicion bajo la cual el Manager la **desactiva** o baja su
-   nivel, **sin perdida de informacion ni de coherencia** (ver §7).
-7. **Grado de latencia** — **activable** (implementacion ya existente tras el contrato, se enciende/apaga
-   sola por perfil) o **prevista** (la arquitectura reserva su contrato y su lugar; la implementacion se
-   realizara y validara cuando el hardware/datos lo permitan, ADR-0004, sin rediseno).
-8. **Dependencias** — otras capacidades o servicios de los que depende.
-9. **Garantias de seguridad a mantener** — las que deben preservarse mientras este activa (gate HITL,
-   ADR-0001, minimizacion). **Innegociables** (ver §4); acotan el campo 10.
-10. **Nivel de autonomia permitido** — el nivel **maximo** de autonomia de la capacidad y como evoluciona
-    segun recursos y decisiones arquitectonicas vigentes, en una escala creciente y **siempre subordinada
-    al campo 9 y a P-ARQ-1 / ADR-0003 / Bible 5.3**: (a) solo observacion, (b) recomendacion, (c) ejecucion
-    con autorizacion (HITL), (d) ejecucion automatica controlada, (e) ejecucion autonoma limitada, (f)
-    ejecucion autonoma completa (**solo cuando la arquitectura lo permita**). El Manager decide no solo
-    **si** activar una capacidad, sino **hasta donde** puede actuar en ese hardware y contexto — nunca por
-    encima del gate HITL de una accion de lista roja (D9/ADR-0003).
+Cada capacidad del sistema es un **modulo autonomo, autocontenido, verificable y auditable** que declara
+en el **Registro de Capacidades** los **ocho campos** siguientes. Cada uno tiene **dueno, consumidor y
+proposito verificable**; ninguno queda sin destinatario.
+
+**Clasificacion (v1.1.0).** Todo campo pertenece a una de tres clases, y la clase determina que se espera
+de el:
+
+- **OPERATIVO** — dato que **gobierna una decision o una materializacion**. Debe tener consumidor.
+- **DOCUMENTAL** — declaracion **auditable por humanos**, sin semantica operativa. **Ningun componente
+  deriva comportamiento de el**, y declararlo asi es deliberado, no una carencia.
+- **PROVISIONAL** — conservado sin consumidor definido, a la espera de evidencia. Su permanencia se
+  revisa; no se le atribuye funcion.
+
+| # | Campo | Clase | Consumidor |
+|---|---|---|---|
+| 1 | Contrato funcional | OPERATIVO | Composicion |
+| 4 | Comportamiento degradado | **DOCUMENTAL** | — (auditoria humana) |
+| 5 | Criterio de promocion | OPERATIVO | Manager |
+| 6 | Criterio de viabilidad reducida | OPERATIVO | Manager |
+| 7 | Grado de latencia | OPERATIVO | Manager |
+| 8 | Dependencias | OPERATIVO | Manager |
+| 9 | Garantias de seguridad | **DOCUMENTAL** | — (auditoria humana) |
+| 10 | Nivel de autonomia permitido | **PROVISIONAL** | — (pendiente de evidencia) |
+
+**Definiciones:**
+
+1. **Contrato funcional** *(OPERATIVO)* — la interfaz estable que ofrece cuando esta activa (P-ARQ-4).
+   Identifica **que** materializar; su consumidor previsto es la composicion.
+
+4. **Comportamiento degradado** *(DOCUMENTAL)* — descripcion de que ofrece cuando no puede activarse
+   plenamente. Su valor es **auditable, no ejecutable**: ningun componente deriva comportamiento de este
+   texto. La materializacion del modo reducido la realiza la composicion, gobernada por el **estado** que
+   emite el Manager, no por esta descripcion. La exigencia de **degradacion limpia, nunca fallo
+   silencioso** (ADR-0019, checklist 3.1 §2.3.10) sigue vigente como requisito de diseno.
+
+5. **Criterio de promocion** *(OPERATIVO)* — regla declarativa sobre el `ActivationContext` bajo la cual
+   el Manager activa la capacidad en su **nivel pleno**.
+
+6. **Criterio de viabilidad reducida** *(OPERATIVO)* — **PISO, no techo.** Regla declarativa que expresa
+   la condicion **minima bajo la cual la capacidad puede operar en modo reducido**. Semantica exacta,
+   fijada en v1.1.0 y alineada con la implementacion: si se cumple el campo 5 → **ACTIVA**; si no, y se
+   cumple el campo 6 → **DEGRADADA**; si ninguno → **LATENTE**. *(El nombre historico "criterio de
+   degradacion" indujo a leerlo como techo — "condicion para bajar de nivel" —; esa lectura queda
+   derogada.)*
+
+7. **Grado de latencia** *(OPERATIVO)* — **activable** (implementacion ya existente tras el contrato, se
+   enciende/apaga sola por perfil) o **prevista** (la arquitectura reserva su contrato y su lugar; la
+   implementacion se realizara y validara cuando el hardware/datos lo permitan, ADR-0004, sin rediseno).
+
+8. **Dependencias** *(OPERATIVO)* — **otras capacidades** de las que depende. **Nunca servicios,
+   implementaciones ni tecnologias** (INV-6). El Manager las resuelve exclusivamente contra nombres
+   declarados en el Registry.
+
+9. **Garantias de seguridad a mantener** *(DOCUMENTAL)* — las que deben preservarse mientras este activa
+   (gate HITL, ADR-0001, minimizacion). Son **innegociables** y su declaracion es **auditable**, pero
+   **el Manager no las verifica**: hacerlo exigiria E/S y comprobacion en ejecucion, incompatibles con
+   INV-1 (Manager puro) e INV-7 (la ejecucion se gobierna por permisos, HITL y kill switch, no por el
+   plan). Quien las hace cumplir es el gate de permisos, con independencia del Registry. Ver §4.
+
+10. **Nivel de autonomia permitido** *(PROVISIONAL)* — valor declarado en escala creciente: (a) solo
+    observacion, (b) recomendacion, (c) ejecucion con autorizacion (HITL), (d) ejecucion automatica
+    controlada, (e) ejecucion autonoma limitada, (f) ejecucion autonoma completa.
+
+    **Estado normativo: sin consumidor.** El campo **no gobierna nada**: ningun componente lo consume, ni
+    normativa ni operativamente. La funcion que la v1.0.0 le atribuia —*"el Manager decide hasta donde
+    puede actuar"*— **queda derogada**: **INV-7** asigno el gobierno de la ejecucion, de forma exclusiva,
+    a permisos, HITL y kill switch. Declarar un valor en este campo **no autoriza ni restringe** ninguna
+    accion; la autoridad es y sigue siendo el gate de permisos (§4).
+
+    **Motivo de su conservacion (unico registrado):** eliminarlo y reintroducirlo obligaria a **redeclarar
+    todas las capacidades**, un coste asimetrico frente al de mantenerlo inerte. Se conserva **a la espera
+    de evidencia arquitectonica** que justifique darle un consumidor. Este ADR **no le atribuye ninguna
+    funcion futura**; si tal evidencia apareciera, exigira su propia decision.
+
+**Campos eliminados en v1.1.0:** *prerequisitos* (antiguo 2) y *mecanismo de deteccion* (antiguo 3). Ver §0.
 
 ### 2. Capability Manager agnostico
-El **Capability Manager no conoce ninguna capacidad concreta**. En instalacion/arranque/reconfiguracion:
-(a) determina la **capacidad efectiva** del entorno (D44: specs + pruebas reales + prerequisitos minimos);
-(b) recorre el registro; (c) **promueve** las capacidades cuyo criterio de promocion (campo 5) se cumple y
-cuyas dependencias (8) y garantias de seguridad (9) estan satisfechas, y **degrada** las que cumplen su
-criterio de degradacion (campo 6); (d) fija **hasta donde** puede actuar cada una segun su nivel de
-autonomia permitido (campo 10), nunca por encima de sus garantias de seguridad. Anadir una capacidad nueva
-es **registrar un modulo**, no tocar el Manager ni el nucleo.
+El **Capability Manager no conoce ninguna capacidad concreta**. Recibe el `ActivationContext` —unico
+contrato de entrada (INV-2)— y, recorriendo el registro: (a) **activa** las capacidades cuyo criterio de
+promocion (campo 5) se cumple; (b) las deja **operando en modo reducido** cuando no se cumple el 5 pero si
+el criterio de viabilidad reducida (campo 6); (c) las deja **latentes** en cualquier otro caso, incluidas
+las de grado *prevista* (campo 7) y aquellas cuyas dependencias (campo 8) no operan. Anadir una capacidad
+nueva es **registrar un modulo**, no tocar el Manager ni el nucleo.
+
+**Lo que el Manager NO hace** *(precision de v1.1.0)*: no ejecuta deteccion (INV-1, INV-3), no verifica
+las garantias de seguridad del campo 9 —eso corresponde al gate de permisos, §4— y no gobierna la
+ejecucion (INV-7).
 
 ### 3. Dos grados de latencia (ninguna capacidad es "pendiente")
 
@@ -95,13 +183,26 @@ necesita ni puede validarse): "preparada para todas" significa que **todas tiene
 en el registro**, no que todas esten construidas y solo apagadas.
 
 ### 4. Invariante de seguridad (D33) — innegociable
-Activar mas capacidades **nunca** relaja la seguridad. Cada capacidad declara (campo 9) las garantias que
-debe preservar; el Manager **no activa** una capacidad si sus garantias no pueden mantenerse. **La utilidad
-escala con el hardware; la seguridad, jamas** (ADR-0016 / D33). Encender Home Assistant no salta el gate
-HITL; encender vision no elude ADR-0001/minimizacion. **El nivel de autonomia (campo 10) esta subordinado
-a este invariante y al gate HITL (P-ARQ-1 / ADR-0003 / Bible 5.3):** por mucha capacidad efectiva que
-tenga el hardware, una accion de lista roja **siempre** requiere confirmacion humana. La autonomia escala
-con los recursos y el contexto **dentro** de la seguridad, nunca por encima de ella.
+Activar mas capacidades **nunca** relaja la seguridad. **La utilidad escala con el hardware; la seguridad,
+jamas** (ADR-0016 / D33). Encender Home Assistant no salta el gate HITL; encender vision no elude
+ADR-0001/minimizacion. Por mucha capacidad efectiva que tenga el hardware, una accion de lista roja
+**siempre** requiere confirmacion humana (P-ARQ-1 / ADR-0003 / Bible 5.3).
+
+**Quien hace cumplir esta garantia** *(correccion de v1.1.0)*. La version 1.0.0 afirmaba que *"el Manager
+no activa una capacidad si sus garantias no pueden mantenerse"*. **Esa afirmacion queda derogada**: es
+incompatible con **INV-1** (el Manager es una funcion pura, sin E/S, y no puede comprobar el estado del
+sistema) y con **INV-7** (la ejecucion se gobierna **exclusivamente** por permisos, HITL y kill switch,
+nunca por el plan).
+
+La seguridad **no depende del Registry ni del plan, y esa independencia es deliberada**: el gate de
+permisos actua sobre **toda** accion, con independencia de que la capacidad este activa, degradada o de
+que exista siquiera en el registro. Un Registry mal declarado **no puede** relajar la seguridad, porque no
+participa en ella. El campo 9 declara **que debe preservarse** —informacion auditable y exigible en
+revision—, no un mecanismo de verificacion automatica.
+
+El campo 10 **no participa en esta garantia**: carece de consumidor y no gobierna nada (§1). Con
+independencia de lo que declare, la autonomia efectiva de cualquier accion la determina el gate de
+permisos.
 
 ### 5. Alcance — todo el sistema
 Aplica a **toda** capacidad, no solo a la memoria: **IA local, memoria, modelos de inferencia, voz,
@@ -128,22 +229,48 @@ historial y preservando el contrato de datos (ADR-0020). La reversibilidad es un
 clase**, no un caso excepcional: un portatil modesto → un equipo potente → de vuelta al modesto debe
 recorrer ese camino sin que el usuario pierda nada ni intervenga.
 
+### 8. Relacion con los invariantes INV-1…INV-11 *(v1.1.0)*
+
+Los invariantes se congelaron **despues** de la v1.0.0 de este ADR y son la **referencia normativa
+vigente** del modelo de activacion. Esta seccion fija como se relaciona cada uno con el modelo declarativo,
+para que ninguna declaracion futura vuelva a atribuir a un campo una funcion que un invariante asigno a
+otro componente.
+
+| Invariante | Efecto sobre el modelo declarativo |
+|---|---|
+| **INV-1** Manager puro | El Manager **solo interpreta reglas declarativas** (campos 5, 6, 7, 8). No ejecuta sondas ni verifica garantias: por eso el antiguo campo 3 se elimina y el campo 9 es documental. |
+| **INV-2** Contexto, unico contrato de entrada | Las reglas de los campos 5 y 6 **solo pueden consultar** metricas verificadas y nombres de capacidades soportadas. Ninguna puede referirse a tecnologia. |
+| **INV-3** Detectores por ambito | La deteccion pertenece **integramente** a los detectores. El Registry no la describe ni la nombra (eliminacion del campo 3). |
+| **INV-4** Builder ensambla, no decide | El Builder **no puede leer el Registry**: ningun campo puede estar destinado a ser consumido por el (razon estructural de la eliminacion del campo 3). |
+| **INV-5** Registry declarativo, fuente unica | Todos los campos son **datos pasivos y serializables**. Ninguno contiene funciones ni logica; ninguno duplica informacion que ya posea otro artefacto. |
+| **INV-6** Dominio ≠ realizacion | La capacidad **no enumera acciones ni implementaciones**; el campo 8 relaciona **capacidades entre si**, nunca servicios (correccion de v1.1.0). |
+| **INV-7** Punto unico de interpretacion | La salida del Manager se consume **una sola vez**, en la composicion. Por eso el consumidor del campo 1 es la composicion, y por eso el campo 10 **no puede** gobernar la ejecucion. |
+| **INV-8** La autonomia nunca escala | Ningun campo del Registry puede elevar la autonomia. El campo 10 es un **valor declarado sin consumidor** (§1); la autoridad es el gate HITL. |
+| **INV-9** Una prevista no se enciende | El campo 7 tiene **precedencia sobre los campos 5 y 6**: una capacidad `prevista` permanece latente aunque su criterio de promocion se cumpla. |
+| **INV-10** Dependencias en cascada | El campo 8 se resuelve hasta punto fijo: una capacidad no opera si alguna de sus dependencias no opera. |
+| **INV-11** Reversibilidad sin perdida | La transicion entre los estados que producen los campos 5 y 6 es **reversible y sin perdida** de memoria, configuracion, historial ni compatibilidad. |
+
+**Regla de precedencia ante conflicto:** si este ADR y los invariantes discrepasen, **prevalecen los
+invariantes**; esta revision existe precisamente para eliminar las discrepancias detectadas.
+
 ## Consecuencias
 
 **Positivas:** un solo proyecto/codigo/arquitectura para todo el rango de hardware; el nucleo no crece al
 anadir capacidades (registro + Manager agnostico); la evolucion es aditiva y **simetrica** (crece y
-retrocede sin perdida); la seguridad y la autonomia quedan **autocontenidas** en cada capacidad y
-verificadas por el Manager. **Negativas:** hay que mantener y probar el registro y el Manager, y cada
-capacidad debe declarar sus **diez campos** con rigor; los **criterios de promocion/degradacion por
-capacidad** deben definirse con pruebas reales (dependiente de hardware, fase posterior). **Riesgos
-aceptados:** la calibracion de los umbrales D44 por capacidad es la incognita hardware-sensible, a medir
-al reanudar; el registro debe ser la **fuente unica** de la clasificacion de capacidades (D41).
+retrocede sin perdida); la seguridad y la autonomia quedan **declaradas de forma auditable** en cada
+capacidad, y su **cumplimiento** corresponde al gate de permisos, con independencia del Registry (§4).
+**Negativas:** hay que mantener y probar el registro y el Manager, y cada capacidad debe declarar sus
+**ocho campos** con rigor; los **criterios de promocion y de viabilidad reducida por capacidad** deben
+definirse con pruebas reales (dependiente de hardware, fase posterior). **Riesgos aceptados:** la
+calibracion de los umbrales D44 por capacidad es la incognita hardware-sensible, a medir al reanudar; el
+registro debe ser la **fuente unica de la declaracion** de capacidades (D41); y el campo 10 permanece
+**sin consumidor** hasta que una capacidad real demuestre su necesidad (§1).
 
 ## Impacto (acta D11 — obligatorio)
 
 | Dimensión | Impacto |
 |---|---|
-| Seguridad | Neutro/invariante: la seguridad no escala con el hardware (D33); cada capacidad declara y el Manager exige sus garantias (campo 9); el nivel de autonomia (campo 10) queda subordinado al gate HITL (P-ARQ-1/ADR-0003). |
+| Seguridad | Neutro/invariante: la seguridad no escala con el hardware (D33). Cada capacidad **declara** sus garantias (campo 9, documental); **quien las hace cumplir es el gate de permisos**, con independencia del Registry y del plan (§4, INV-7). El campo 10 no gobierna nada (§1). |
 | Privacidad | Neutro/positivo: capacidades locales (ADR-0001); activar mas no crea canales de fuga; conectores externos siguen ADR-0019. |
 | Modularidad | Muy positivo: capacidades como modulos autonomos tras contrato (P-ARQ-4); Manager agnostico; nucleo estable (D40). |
 | Costo | Positivo: un solo codigo, sin ramas/ediciones; se activa solo lo que el hardware justifica (D26, regla 13). |
@@ -156,7 +283,7 @@ al reanudar; el registro debe ser la **fuente unica** de la clasificacion de cap
 fundamentales de la arquitectura de AURA** (ya no es un ADR de memoria ni de hardware). Convierte
 **ADR-0018** y **ADR-0019** en instancias del patron. Se apoya en **ADR-0004** (evolucion sin rediseno,
 interfaces estables), **P-ARQ-4** (sustituibilidad), **ADR-0016 / D33** (seguridad invariante, utilidad
-escalable), **P-ARQ-1 / ADR-0003 / Bible 5.3** (HITL: acota el nivel de autonomia del campo 10), **D27**
+escalable), **P-ARQ-1 / ADR-0003 / Bible 5.3** (HITL: unica autoridad sobre la autonomia efectiva), **D27**
 (hardware verificado), **D43** (evolucion por capacidades), **D44** (capacidad efectiva por pruebas),
 **D41** (fuente unica: el registro) y **regla 13 / D3 / D34 / D38** (no construir/especular de mas: de
 ahi los dos grados de latencia). Registra los principios permanentes **D45** y **D46**. La **Bible** quedo

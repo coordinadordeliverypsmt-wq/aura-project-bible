@@ -7,6 +7,14 @@ y no ejecuta codigo. Por eso los criterios de promocion/degradacion **no** son f
 exportarse, inspeccionarse, versionarse y compararse** sin depender de objetos Python ni de funciones en
 memoria — el catalogo completo podria vivir como JSON/YAML sin cambiar la arquitectura.
 
+**Independencia del catalogo (principio permanente, CEO 2026-07-26).** `Capacidad` es el **modelo canonico
+del dominio**. JSON, YAML, base de datos o repositorios remotos son solo mecanismos de
+**persistencia/transporte**; los **Loaders** (p. ej. `JsonCapabilityLoader`, `YamlCapabilityLoader`,
+`DatabaseCapabilityLoader`, `RemoteCapabilityLoader`) seran los UNICOS responsables de transformar un
+formato externo en una coleccion de `Capacidad`. Ni el `CapabilityRegistry` ni el `CapabilityManager`
+conocen formatos: podra anadirse cualquier Loader nuevo sin tocar una sola linea de ellos. Patron
+permanente para todo catalogo futuro de AURA.
+
 La INTELIGENCIA (interpretar las reglas contra un `PerfilEfectivo` y decidir el estado) pertenece
 EXCLUSIVAMENTE al `CapabilityManager` (regla permanente del CEO), no a esta declaracion.
 """

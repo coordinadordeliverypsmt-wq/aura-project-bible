@@ -42,7 +42,7 @@ INV-6 endurecio la frontera dominio↔realizacion.
 | **9** `garantias_seguridad` | Pasa a **DOCUMENTAL**; §4 corregido | La promesa de v1.0.0 §4 (el Manager no activa si no puede mantenerlas) es **incompatible con INV-1 e INV-7**: el Manager es puro y sin E/S, y la verificacion en ejecucion pertenece a permisos/HITL/kill switch. |
 | **4** `comportamiento_degradado` | Pasa a **DOCUMENTAL** | Texto libre: no puede gobernar materializacion. Su valor es descriptivo y auditable. |
 | **10** `autonomia_maxima` | **Se conserva provisionalmente** | Sin consumidor definido hoy. Se mantiene por **asimetria de reversibilidad**: eliminarlo y reintroducirlo obligaria a redeclarar todas las capacidades. Se revisara cuando una capacidad real demuestre necesidad. |
-| **1** `contrato` | Sin cambio de definicion | Su consumidor previsto es la **composicion**; su cableado pertenece a la linea de infraestructura, no a este ADR. |
+| **1** `contrato` | Sin cambio de definicion | Sigue siendo OPERATIVO; **hoy no tiene consumidor implementado**. Este ADR no designa ninguno: hacerlo exigiria una decision arquitectonica propia. |
 
 **Numeracion:** los campos supervivientes **conservan su numero original** (1, 4, 5, 6, 7, 8, 9, 10). No
 se renumera: toda la documentacion, el codigo y las pruebas citan estos numeros, y renumerar produciria
@@ -98,7 +98,7 @@ de el:
 
 | # | Campo | Clase | Consumidor |
 |---|---|---|---|
-| 1 | Contrato funcional | OPERATIVO | Composicion |
+| 1 | Contrato funcional | OPERATIVO | **Sin consumidor implementado** |
 | 4 | Comportamiento degradado | **DOCUMENTAL** | — (auditoria humana) |
 | 5 | Criterio de promocion | OPERATIVO | Manager |
 | 6 | Criterio de viabilidad reducida | OPERATIVO | Manager |
@@ -110,7 +110,8 @@ de el:
 **Definiciones:**
 
 1. **Contrato funcional** *(OPERATIVO)* — la interfaz estable que ofrece cuando esta activa (P-ARQ-4).
-   Identifica **que** materializar; su consumidor previsto es la composicion.
+   Identifica **que** materializar. **Estado actual: no existe consumidor implementado.** Cualquier
+   consumidor exigira **su propia decision arquitectonica**; este ADR no lo designa.
 
 4. **Comportamiento degradado** *(DOCUMENTAL)* — descripcion de que ofrece cuando no puede activarse
    plenamente. Su valor es **auditable, no ejecutable**: ningun componente deriva comportamiento de este
@@ -244,7 +245,7 @@ otro componente.
 | **INV-4** Builder ensambla, no decide | El Builder **no puede leer el Registry**: ningun campo puede estar destinado a ser consumido por el (razon estructural de la eliminacion del campo 3). |
 | **INV-5** Registry declarativo, fuente unica | Todos los campos son **datos pasivos y serializables**. Ninguno contiene funciones ni logica; ninguno duplica informacion que ya posea otro artefacto. |
 | **INV-6** Dominio ≠ realizacion | La capacidad **no enumera acciones ni implementaciones**; el campo 8 relaciona **capacidades entre si**, nunca servicios (correccion de v1.1.0). |
-| **INV-7** Punto unico de interpretacion | La salida del Manager se consume **una sola vez**, en la composicion. Por eso el consumidor del campo 1 es la composicion, y por eso el campo 10 **no puede** gobernar la ejecucion. |
+| **INV-7** Punto unico de interpretacion | La salida del Manager se consume **una sola vez**, en la composicion. Por eso ningun campo puede ser consumido en ejecucion: el campo 10 **no puede** gobernarla. |
 | **INV-8** La autonomia nunca escala | Ningun campo del Registry puede elevar la autonomia. El campo 10 es un **valor declarado sin consumidor** (§1); la autoridad es el gate HITL. |
 | **INV-9** Una prevista no se enciende | El campo 7 tiene **precedencia sobre los campos 5 y 6**: una capacidad `prevista` permanece latente aunque su criterio de promocion se cumpla. |
 | **INV-10** Dependencias en cascada | El campo 8 se resuelve hasta punto fijo: una capacidad no opera si alguna de sus dependencias no opera. |

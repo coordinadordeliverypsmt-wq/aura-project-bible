@@ -161,7 +161,7 @@ class Capacidad:
 
     nombre: str  # identidad unica en el registro
     # --- OPERATIVOS: gobiernan una decision o una materializacion ---
-    contrato: str  # (1) id/version del Protocol que expone; consumidor previsto: la composicion
+    contrato: str  # (1) id/version del Protocol que expone. Hoy sin consumidor implementado.
     promocion: Regla | None = None  # (5) criterio de promocion -> ACTIVA. Consumidor: Manager
     # (6) Criterio de VIABILIDAD REDUCIDA: **PISO, no techo**. Si se cumple (5) -> ACTIVA; si no y se
     # cumple (6) -> DEGRADADA; si ninguno -> LATENTE. El identificador conserva el nombre historico

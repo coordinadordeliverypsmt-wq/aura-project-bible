@@ -10,9 +10,10 @@ la composicion devolvia el mismo objeto en ambas ramas del plan (delta observabl
 para todo el almacenamiento y la persistencia (JSONL atomico, backups, recuperacion): no reimplementa nada
 de eso —menor riesgo—; solo anade la capa de embeddings y sustituye el criterio de recall.
 
-**Dependencias:** `onnxruntime`, `tokenizers`, `numpy` (ya en el entorno; ADR-0020 aprueba el indice
-embebido). Se importan de forma **perezosa**: importar este modulo no las exige; solo se necesitan al
-instanciar N2, que la composicion hace unicamente cuando el plan promueve memoria y el modelo esta presente.
+**Dependencias:** `onnxruntime` y `tokenizers` (ya en el entorno; ADR-0020 aprueba el indice embebido).
+Se importan de forma **perezosa**: importar este modulo no las exige; solo se necesitan al instanciar N2,
+que la composicion hace unicamente cuando el plan promueve memoria y el modelo esta presente. El pooling y
+el coseno se calculan en Python puro, **sin numpy** en el codigo.
 
 **Calidad del embedder:** fuera del alcance de este trabajo (Decision Package). El modelo disponible tiene
 calidad limitada en espanol; mejorarlo (embedder multilingue) es seguimiento de PRODUCTO, no de esta

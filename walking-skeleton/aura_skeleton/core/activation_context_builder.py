@@ -16,9 +16,19 @@ una responsabilidad de este componente: consultar el Registry para filtrar nombr
 mas que un ensamblador y rompería I-A3. El Builder **preserva exactamente** lo que producen los
 detectores; el incumplimiento de I-AC1 se detecta por pruebas arquitectonicas y revision de codigo.
 
-**Aislamiento de fallos.** Un detector que falla no contribuye, **no interrumpe a los demas** y no aborta
-el arranque: el incidente se **registra** (nunca descarte silencioso) y la ausencia de esa informacion la
-resuelve despues el Manager por sus reglas —clasificando latente—, no el Builder.
+**Aislamiento de fallos (INV-4).** Un detector que falla no contribuye, **no interrumpe a los demas** y no
+aborta el arranque: el incidente se **registra** (nunca descarte silencioso) y la ausencia de esa
+informacion la resuelve despues el Manager por sus reglas, no el Builder.
+
+La garantia es **simetrica para toda familia de detector**, sin excepcion: un fallo de entorno aporta el
+conjunto vacio de capacidades soportadas y un fallo de hardware aporta el `PerfilHardware` vacio —el
+**elemento neutro** de cada normalizacion, nunca un valor inventado—. Entregar "no hay metricas" es
+normalizar; interpretar esa ausencia es decidir, y decidir es del Manager. La simetria no queda en prosa:
+la hace cumplir por AST `test_aislamiento_detectores.py`, que **descubre las familias de los Protocol** y
+por tanto cubre tambien las que aun no existen (B1 / Gate A-0, 2026-07-27).
+
+El aislamiento es una garantia del Builder, **no un permiso** para que un detector falle: los contratos de
+`detectores.py` no cambian por esto.
 """
 
 from __future__ import annotations
@@ -26,7 +36,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from .. import observability as obs
-from .capacidades import ActivationContext
+from .capacidades import ActivationContext, PerfilHardware
 from .detectores import DetectorEntorno, DetectorHardware
 
 
@@ -43,7 +53,17 @@ class ActivationContextBuilder:
                 soportadas |= set(detector.capacidades_soportadas())
             except Exception as e:  # el fallo se aisla en su detector: los demas siguen ejecutandose
                 obs.log("WARN", "capability-builder", f"detector de entorno sin respuesta: {e}", "-")
-        return ActivationContext(
-            hardware=self._hardware.detectar(),
-            capacidades_soportadas=frozenset(soportadas),
-        )
+        # La deteccion de hardware va DESPUES del bucle: asi un fallo tardio no puede descartar los hechos
+        # ya reunidos. `Exception` y no `BaseException`: KeyboardInterrupt/SystemExit deben seguir
+        # terminando el proceso —un fallo del entorno se aisla; una orden del usuario, no—.
+        try:
+            hardware = self._hardware.detectar()
+        except Exception as e:
+            obs.log(
+                "WARN",
+                "capability-builder",
+                f"detector de hardware sin respuesta: {e}; se continua SIN metricas verificadas",
+                "-",
+            )
+            hardware = PerfilHardware()  # ausencia de metricas: elemento neutro, nunca un valor inventado
+        return ActivationContext(hardware=hardware, capacidades_soportadas=frozenset(soportadas))

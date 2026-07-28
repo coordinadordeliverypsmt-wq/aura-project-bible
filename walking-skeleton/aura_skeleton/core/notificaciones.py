@@ -20,6 +20,7 @@ solo lugar. Tres restricciones lo gobiernan:
 from __future__ import annotations
 
 import hashlib
+import os
 import time
 
 from .. import observability as obs
@@ -130,3 +131,86 @@ class _EventoSintetico:
         self.event_id = event_id
         self.type = "notificacion"
         self.payload: dict = {}
+
+
+# --- Productor de notificaciones de acciones (MVP): resultado tecnico -> mensaje COMUNICABLE -----------
+#
+# Regla de arquitectura (CEO, 2026-07-28): el Centro almacena EVENTOS COMUNICABLES, no eventos tecnicos.
+# El titulo de la notificacion es LO QUE AURA LE DIRIA AL USUARIO —nada de `estado=`/`accion=`—, de modo
+# que cualquier interfaz (voz, avatar, movil, consola, correo, panel) reutiliza el mismo mensaje sin
+# reinterpretar estados internos. Los detalles tecnicos ya viven en la auditoria (observability).
+
+# Verbo en pasado (exito) y verbo en infinitivo (fallo) por accion. Fallback generico si la accion no figura.
+_VERBOS: dict[str, tuple[str, str]] = {
+    "mover_archivo": ("Moví", "mover"),
+    "renombrar_archivo": ("Renombré", "renombrar"),
+    "escribir_archivo": ("Escribí", "escribir"),
+    "borrar_archivo": ("Eliminé", "eliminar"),
+    "leer_archivo": ("Leí", "leer"),
+    "abrir_archivo": ("Abrí", "abrir"),
+    "listar_directorio": ("Listé", "listar"),
+    "buscar_archivo": ("Busqué", "buscar"),
+    "encender_dispositivo": ("Encendí", "encender"),
+    "apagar_dispositivo": ("Apagué", "apagar"),
+}
+
+
+def _objeto(accion: str, args: dict) -> str:
+    """Nombre legible del recurso sobre el que actua la accion (solo el nombre, no la ruta completa)."""
+    for clave in ("origen", "ruta", "device", "patron", "raiz"):
+        if args.get(clave):
+            valor = str(args[clave])
+            return os.path.basename(valor.rstrip("/")) or valor
+    return "la solicitud"
+
+
+def _razon_humana(motivo: str) -> str:
+    """Traduce el motivo tecnico del motor a una razon en lenguaje natural."""
+    m = motivo.lower()
+    if any(t in m for t in ("permission", "denied", "protegid", "solo lectura", "read-only", "eacces")):
+        return "estaba protegida"
+    if any(t in m for t in ("no existe", "not found", "no such", "enoent")):
+        return "no la encontré"
+    if "ambito" in m or "fuera del" in m:
+        return "estaba fuera de lo que puedo tocar"
+    return "hubo un problema"
+
+
+def _requiere_confirmacion(motivo: str) -> bool:
+    m = motivo.lower()
+    # "denegada por el usuario" = se pidio confirmacion y el usuario no la dio (HITL rechazado).
+    return any(t in m for t in ("confirmac", "lista roja", "hitl", "por el usuario"))
+
+
+def notificacion_de_accion(accion: str, args: dict, resultado: dict) -> Notificacion:
+    """Traduce el resultado del motor en una notificacion COMUNICABLE (lo que AURA le diria al usuario).
+
+    Fuente siempre `aura`. El titulo es el mensaje natural; nunca contiene jerga tecnica.
+    """
+    estado = resultado.get("estado")
+    pasado, infinitivo = _VERBOS.get(accion, ("Realicé", "realizar"))
+
+    if estado == "ejecutada":
+        obj = _objeto(accion, args)
+        destino = str(args.get("destino", "")).rstrip("/")
+        if accion == "mover_archivo" and destino:
+            # Se comunica la CARPETA de destino (lo que el usuario entiende), no la ruta final del fichero.
+            carpeta = os.path.basename(os.path.dirname(destino)) or os.path.basename(destino)
+            titulo = f"Moví {obj} a {carpeta}."
+        elif accion == "renombrar_archivo" and destino:
+            titulo = f"Renombré {obj} a {os.path.basename(destino)}."
+        else:
+            titulo = f"{pasado} {obj}."
+        return Notificacion("aura", titulo, prioridad="normal")
+
+    motivo = str(resultado.get("motivo", ""))
+    if estado == "detenida":
+        if _requiere_confirmacion(motivo):
+            titulo = "No ejecuté una solicitud porque requería tu confirmación."
+        else:
+            titulo = f"No ejecuté {_objeto(accion, args)} porque no tenía permiso."
+        return Notificacion("aura", titulo, prioridad="alta")
+
+    # error
+    titulo = f"No pude {infinitivo} {_objeto(accion, args)} porque {_razon_humana(motivo)}."
+    return Notificacion("aura", titulo, prioridad="alta")

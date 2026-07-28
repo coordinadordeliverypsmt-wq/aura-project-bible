@@ -11,6 +11,7 @@ from ..contracts import Event
 from ..observability import Timer
 from .almacen_senales import AlmacenSenales
 from .automatizacion import MotorAutomatizacion
+from .notificaciones import notificacion_de_accion
 from .registro import RegistroAdaptadores
 
 
@@ -75,6 +76,25 @@ def _es_consulta_de_memoria(texto: str) -> bool:
     return any(p in t for p in _PATRONES_CONSULTA_MEMORIA)
 
 
+# El usuario pregunta por lo que AURA hizo: "¿que ha pasado?", "¿tengo algun aviso?", "novedades".
+_PATRONES_CONSULTA_NOTIF = (
+    "que ha pasado",
+    "que paso",
+    "mientras no estaba",
+    "algun aviso",
+    "algun aviso?",
+    "tengo avisos",
+    "notificacion",
+    "novedad",
+)
+
+
+def _es_consulta_de_notificaciones(texto: str) -> bool:
+    """True si el usuario pregunta por lo que AURA ha hecho/avisado."""
+    t = _normalizar(texto)
+    return any(p in t for p in _PATRONES_CONSULTA_NOTIF)
+
+
 class Orchestrator:
     """Coordina el turno conversacional. NO ejecuta acciones por su cuenta (M2.5, ALERTA-005).
 
@@ -83,9 +103,12 @@ class Orchestrator:
     camino de ejecucion del sistema: el orquestador no tiene acceso directo a ningun adaptador.
     """
 
-    def __init__(self, bus, memory, router, permissions, voice, adaptadores, motor=None, contexto=None):
+    def __init__(
+        self, bus, memory, router, permissions, voice, adaptadores, motor=None, contexto=None, notificaciones=None
+    ):
         self.bus, self.memory, self.router = bus, memory, router
         self.perm, self.voice = permissions, voice
+        self.notificaciones = notificaciones  # Centro de Notificaciones (MVP): registra lo que AURA hace
         # M3.0 — captura de senales. OPCIONAL y PASIVA: si no hay registro de contexto, el sistema
         # se comporta exactamente igual que en M2. La captura observa el turno; no participa en
         # ninguna decision (restriccion 2 del gate del CEO).
@@ -123,6 +146,11 @@ class Orchestrator:
         uid = ev.user_id
         text = ev.payload["text"]
         t = self._timers.get(tid) or Timer()
+        # Superficie del Centro de Notificaciones: "¿que ha pasado mientras no estaba?" se responde con
+        # lo que AURA hizo, sin consultar memoria ni LLM (es un hecho del sistema, no una inferencia).
+        if self.notificaciones is not None and _es_consulta_de_notificaciones(text):
+            await self._finalizar_turno(uid, tid, text, self._resumen_notificaciones(), "core", t)
+            return
         hits = await self.memory.recall(uid, text)
         t.mark("memory")
         # ADR-0014: la ausencia de memoria es un HECHO, no una inferencia. Si el usuario
@@ -149,7 +177,23 @@ class Orchestrator:
             cmd_ev = Event("action.command", tid, uid, {"action": action, "args": args}, causation_id=ev.event_id)
             res = await self.motor.ejecutar(action, args, tid, cmd_ev.event_id, origen="conversacion")
             say = self._redactar(action, say, res)
+            # Productor del Centro (MVP): AURA registra, en lenguaje natural, lo que acaba de hacer, para
+            # poder contarselo despues al usuario ("¿que ha pasado mientras no estaba?").
+            if self.notificaciones is not None:
+                self.notificaciones.recibir(notificacion_de_accion(action, args, res))
         await self._finalizar_turno(uid, tid, text, say, prov, t)
+
+    def _resumen_notificaciones(self) -> str:
+        """Lo que AURA hizo desde la ultima vez, en lenguaje natural (comunicable, no un log).
+
+        Orden CRONOLOGICO: "¿que ha pasado?" se narra en el orden en que ocurrio, no por criticidad
+        (la priorizacion de `listar()` es para una bandeja, no para contar una secuencia de hechos).
+        """
+        items = sorted(self.notificaciones.listar(), key=lambda n: n.ts)
+        if not items:
+            return "No ha pasado nada relevante mientras no estabas."
+        lineas = "\n".join(f"• {n.titulo}" for n in items)
+        return f"Desde la última vez:\n{lineas}"
 
     def _redactar(self, action: str, say_llm: str, res: dict) -> str:
         """Construye la respuesta sobre el RESULTADO REAL, no sobre lo que el modelo dijo.

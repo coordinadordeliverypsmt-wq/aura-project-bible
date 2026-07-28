@@ -30,7 +30,7 @@ from .bus import InProcessEventBus
 from .conectores.computador import ConectorComputador
 from .conectores.conversacion import ConectorConversacion
 from .conectores.hogar import ConectorHogar
-from .contracts import Adapter, ModelProvider, VoiceAdapter
+from .contracts import Adapter, MemoryStore, ModelProvider, VoiceAdapter
 from .core.activation_context_builder import ActivationContextBuilder
 from .core.automatizacion import MotorAutomatizacion
 from .core.capability_manager import CapabilityManager
@@ -44,6 +44,7 @@ from .core.orchestrator import Orchestrator
 from .core.permissions import PermissionManager
 from .core.registro import RegistroAdaptadores
 from .modules.memory import PersistentMemory
+from .modules.memory_semantic import SemanticMemory, modelo_disponible
 from .modules.router import ModelRouter
 
 
@@ -62,23 +63,32 @@ class _PerfilInyectado:
         return self._perfil
 
 
-def _memoria_por_nivel(estado: Estado, ruta: str) -> tuple[PersistentMemory, str]:
-    """Selecciona la implementacion de memoria segun el nivel que el plan permite (C2.3, ADR-0020).
+# Ruta por defecto del modelo de embeddings de N2: una ubicacion estandar de AURA (hoy normalmente
+# ausente -> N2 latente, se materializa N1). Configurable por AURA_EMBED_MODEL_DIR sin editar codigo (D24).
+_MODELO_EMBED_DEFECTO = "~/.aura/models/all-MiniLM-L6-v2"
 
-    HOY solo **N1** (almacen minimo, `PersistentMemory`, MA.2) esta implementado; **N2** (indice embebido)
-    y **N3** (motor especializado) son **latente-prevista** (requieren librerias/servicios ausentes). Por
-    eso el nivel efectivo es N1 aunque el plan promueva memoria a motor avanzado —degradacion transparente
-    sin perdida (ADR-0020)—. Cuando N2/N3 existan, se anaden aqui sin tocar el resto de la composicion.
 
-    **Matiz (registro para evitar interpretaciones futuras).** Aunque el `PlanActivacion` clasifique memoria
-    como ACTIVA en perfiles altos, la implementacion efectiva **sigue siendo N1** porque N2/N3 aun no
-    existen. **NO hay seleccion dinamica entre implementaciones inexistentes**: esta funcion es unicamente
-    el **punto de extension** preparado para incorporar N2/N3 cuando se implementen. El sistema degrada de
-    forma transparente al nivel disponible.
+def _memoria_por_nivel(estado: Estado, ruta: str) -> tuple[MemoryStore, str]:
+    """Selecciona la implementacion de memoria segun el nivel que decide el plan (C2.3, ADR-0020).
+
+    - **ACTIVA** + modelo de embeddings presente -> **N2** (`SemanticMemory`, indice semantico).
+    - En cualquier otro caso -> **N1** (`PersistentMemory`, almacen minimo lexico), sin perdida.
+
+    Esta funcion es el UNICO punto donde el estado del plan se traduce en una materializacion distinta
+    (D40/INV-7: la composicion ENSAMBLA, no decide; el estado ya lo decidio el Manager). La disponibilidad
+    del modelo es **cableado**, no decision: si el artefacto no esta o no puede cargarse, se materializa N1
+    y el arranque no se interrumpe (degradacion transparente, ADR-0020). N3 sigue **latente-prevista**.
+
+    La ruta del modelo se resuelve en el ARRANQUE (no al importar el modulo): asi es configuracion, no un
+    valor congelado en tiempo de import.
     """
-    ruta_avanzado = "N1 (almacen minimo); N2/N3 previstos"
-    nivel = ruta_avanzado if estado is Estado.ACTIVA else "N1 (almacen minimo)"
-    return PersistentMemory(ruta), nivel
+    modelo_dir = os.path.expanduser(os.environ.get("AURA_EMBED_MODEL_DIR", _MODELO_EMBED_DEFECTO))
+    if estado is Estado.ACTIVA and modelo_disponible(modelo_dir):
+        try:
+            return SemanticMemory(ruta, modelo_dir), "N2 (indice semantico)"
+        except Exception as e:  # deps/artefacto del embedder no operativos: se materializa N1, sin romper
+            obs.log("MEM", "composicion", f"N2 no disponible ({e}); se materializa N1", "-")
+    return PersistentMemory(ruta), "N1 (almacen minimo)"
 
 
 @dataclass
@@ -118,7 +128,7 @@ class Sistema:
     kill_switch: KillSwitch
     registro_adaptadores: RegistroAdaptadores
     registro_contexto: RegistroContexto
-    memoria: PersistentMemory
+    memoria: MemoryStore  # N1 (PersistentMemory) o N2 (SemanticMemory) segun el plan
     plan: PlanActivacion
     ruta_memoria: str
     ruta_audit: str

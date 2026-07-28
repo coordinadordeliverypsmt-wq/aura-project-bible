@@ -41,6 +41,7 @@ from .core.catalogo_capacidades import catalogo
 from .core.conectores_externos import habilitar
 from .core.contexto import RegistroContexto
 from .core.kill_switch import KillSwitch
+from .core.notificaciones import CentroNotificaciones
 from .core.orchestrator import Orchestrator
 from .core.permissions import PermissionManager
 from .core.registro import RegistroAdaptadores
@@ -134,6 +135,7 @@ class Sistema:
     registro_adaptadores: RegistroAdaptadores
     registro_contexto: RegistroContexto
     memoria: MemoryStore  # N1 (PersistentMemory) o N2 (SemanticMemory) segun el plan
+    notificaciones: CentroNotificaciones
     plan: PlanActivacion
     ruta_memoria: str
     ruta_audit: str
@@ -218,6 +220,10 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
         audit=True,
     )
 
+    # Centro de Notificaciones (MVP): AURA registra en lenguaje natural lo que hace, para poder contarselo
+    # al usuario ("¿que ha pasado mientras no estaba?"). Reutiliza el motor para el dry-run de `actuar`.
+    centro_notificaciones = CentroNotificaciones(permisos=permisos, motor=motor)
+
     orquestador = Orchestrator(
         InProcessEventBus(),
         memoria,
@@ -227,6 +233,7 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
         registro_adaptadores,
         motor=motor,
         contexto=registro_contexto,  # captura de senales ENCENDIDA (M3.0)
+        notificaciones=centro_notificaciones,
     )
 
     obs.log(
@@ -247,6 +254,7 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
         registro_adaptadores=registro_adaptadores,
         registro_contexto=registro_contexto,
         memoria=memoria,
+        notificaciones=centro_notificaciones,
         plan=plan,
         ruta_memoria=ruta_memoria,
         ruta_audit=ruta_audit,

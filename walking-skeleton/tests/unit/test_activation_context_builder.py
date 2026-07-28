@@ -20,13 +20,24 @@ from aura_skeleton.core.capacidades import ActivationContext, PerfilHardware
 PERFIL = PerfilHardware(recursos={"ram_mb": 8000}, pruebas={"embed_ms": 40.0})
 
 
-class _HardwareDoble:
-    """Doble del DetectorHardware: produce SOLO metricas verificadas (I-A2)."""
+class _Averia(Exception):
+    """Excepcion PROPIA: prueba que la captura es amplia (`Exception`) y no un tipo concreto."""
 
-    def __init__(self, perfil: PerfilHardware = PERFIL) -> None:
+
+class _HardwareDoble:
+    """Doble del DetectorHardware: produce SOLO metricas verificadas (I-A2).
+
+    El detector REAL (D44) mide con pruebas sobre el equipo: hace E/S y **puede fallar**. El doble
+    reproduce esa posibilidad, que hasta B1 ninguna prueba ejercitaba.
+    """
+
+    def __init__(self, perfil: PerfilHardware = PERFIL, *, falla: bool = False) -> None:
         self._perfil = perfil
+        self._falla = falla
 
     def detectar(self) -> PerfilHardware:
+        if self._falla:
+            raise _Averia("sonda de hardware no disponible")
         return self._perfil
 
 
@@ -123,6 +134,41 @@ def test_el_fallo_de_un_detector_queda_AISLADO_en_ese_detector():
     assert any("detector" in str(r.get("msg", "")).lower() for r in nuevos), (
         "el Builder debe registrar el incidente del detector que fallo"
     )
+
+
+# --- B1: el aislamiento vale para TODA familia de detector, tambien la de hardware (INV-4) ---
+def test_el_fallo_del_detector_de_hardware_no_aborta_el_arranque():
+    """INV-4. Hasta B1 la excepcion se propagaba hasta `main()` y AURA no arrancaba.
+
+    Se lanza una excepcion PROPIA (`_Averia`): si el codigo capturase un tipo concreto en vez de
+    `Exception`, esta prueba lo detectaria.
+    """
+    ctx = _builder(_EntornoDoble("voz"), hardware=_HardwareDoble(falla=True)).construir()
+    assert isinstance(ctx, ActivationContext)
+
+
+def test_el_fallo_del_hardware_no_descarta_los_hechos_de_entorno():
+    """El trabajo ya realizado por los detectores de entorno no puede perderse por un fallo posterior."""
+    ctx = _builder(_EntornoDoble("voz"), _EntornoDoble("hogar"), hardware=_HardwareDoble(falla=True)).construir()
+    assert ctx.capacidades_soportadas == frozenset({"voz", "hogar"})
+
+
+def test_el_fallo_del_detector_de_hardware_queda_registrado():
+    """INV-4 exige REGISTRAR: aislar en silencio seria ocultar por que AURA opera degradada."""
+    from aura_skeleton import observability as obs
+
+    previos = len(obs._records)
+    _builder(hardware=_HardwareDoble(falla=True)).construir()
+    nuevos = obs._records[previos:]
+    assert any("hardware" in str(r.get("msg", "")).lower() for r in nuevos), (
+        "el Builder debe registrar el incidente del detector de hardware"
+    )
+
+
+def test_sin_metricas_el_perfil_es_vacio_no_inventado():
+    """El Builder normaliza la AUSENCIA; no fabrica metricas. Inventar un valor seria decidir (INV-1)."""
+    ctx = _builder(hardware=_HardwareDoble(falla=True)).construir()
+    assert ctx.hardware.recursos == {} and ctx.hardware.pruebas == {}
 
 
 # --- P5: incapaz de emitir decisiones (responsabilidad, no numero de metodos) ---

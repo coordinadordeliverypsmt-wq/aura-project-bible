@@ -26,6 +26,7 @@ from . import observability as obs
 from .adapters.hitl_consola import confirmar_por_consola
 from .adapters.home_assistant import HomeAssistantMock
 from .adapters.voice import VoiceAdapterMock
+from .artefactos import ModelResolver
 from .bus import InProcessEventBus
 from .conectores.computador import ConectorComputador
 from .conectores.conversacion import ConectorConversacion
@@ -44,7 +45,7 @@ from .core.orchestrator import Orchestrator
 from .core.permissions import PermissionManager
 from .core.registro import RegistroAdaptadores
 from .modules.memory import PersistentMemory
-from .modules.memory_semantic import SemanticMemory, modelo_disponible
+from .modules.memory_semantic import SemanticMemory
 from .modules.router import ModelRouter
 
 
@@ -63,9 +64,11 @@ class _PerfilInyectado:
         return self._perfil
 
 
-# Ruta por defecto del modelo de embeddings de N2: una ubicacion estandar de AURA (hoy normalmente
-# ausente -> N2 latente, se materializa N1). Configurable por AURA_EMBED_MODEL_DIR sin editar codigo (D24).
-_MODELO_EMBED_DEFECTO = "~/.aura/models/all-MiniLM-L6-v2"
+# Directorio por defecto del artefacto de embeddings de N2: una ubicacion estandar de AURA que contiene
+# el modelo + su `manifiesto.json` (ADR-0022). Hoy normalmente ausente -> N2 se materializa como N1.
+# Configurable por AURA_EMBED_MODEL_DIR sin editar codigo (D24); cambiar de modelo = apuntar a otro
+# directorio con su propio manifiesto (sin tocar codigo).
+_MODELO_EMBED_DEFECTO = "~/.aura/models/paraphrase-multilingual-MiniLM-L12-v2"
 
 
 def _memoria_por_nivel(estado: Estado, ruta: str) -> tuple[MemoryStore, str]:
@@ -79,14 +82,16 @@ def _memoria_por_nivel(estado: Estado, ruta: str) -> tuple[MemoryStore, str]:
     del modelo es **cableado**, no decision: si el artefacto no esta o no puede cargarse, se materializa N1
     y el arranque no se interrumpe (degradacion transparente, ADR-0020). N3 sigue **latente-prevista**.
 
-    La ruta del modelo se resuelve en el ARRANQUE (no al importar el modulo): asi es configuracion, no un
-    valor congelado en tiempo de import.
+    El artefacto se resuelve por **manifiesto** (ADR-0022): el `ModelResolver` localiza el modelo, verifica
+    su integridad (SHA-256) y su formato antes de entregar la ruta. La ruta se resuelve en el ARRANQUE, no
+    al importar: asi es configuracion, no un valor congelado.
     """
     modelo_dir = os.path.expanduser(os.environ.get("AURA_EMBED_MODEL_DIR", _MODELO_EMBED_DEFECTO))
-    if estado is Estado.ACTIVA and modelo_disponible(modelo_dir):
+    if estado is Estado.ACTIVA:
         try:
-            return SemanticMemory(ruta, modelo_dir), "N2 (indice semantico)"
-        except Exception as e:  # deps/artefacto del embedder no operativos: se materializa N1, sin romper
+            ruta_validada = ModelResolver().resolver(modelo_dir)  # ADR-0022: localiza + integridad + formato
+            return SemanticMemory(ruta, ruta_validada), "N2 (indice semantico)"
+        except Exception as e:  # artefacto ausente/invalido o carga fallida: se materializa N1, sin romper
             obs.log("MEM", "composicion", f"N2 no disponible ({e}); se materializa N1", "-")
     return PersistentMemory(ruta), "N1 (almacen minimo)"
 

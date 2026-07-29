@@ -56,6 +56,24 @@ referencia informal a "memoria".
   inventan grados de certeza ("creo", "inferí") sin un mecanismo real que los respalde. Cuando exista una
   capacidad de inferencia real (M3.2b), entonces aparecerá en la conversación, no antes.
 
+## Tres planos y foco de los informes (CEO, 2026-07-28)
+
+Se distinguen siempre tres planos, y **los informes finales se centran ÚNICAMENTE en el primero**:
+
+1. **Proyecto (auditable):** documentos, ADR, backlog, código, pruebas, commits y Quality Gate. Es la
+   única evidencia del proyecto.
+2. **Proceso de ejecución:** cómo se organiza el trabajo para llegar al resultado. No es evidencia del
+   proyecto; no aparece en los informes.
+3. **Estado interno de la herramienta:** memoria, índices o cualquier mecanismo propio del agente. No es
+   evidencia del proyecto; no aparece en los informes.
+
+Los mecanismos internos pueden usarse para trabajar mejor, pero **no forman parte de la evidencia**. Un
+auditor debe poder reconstruir la historia completa **solo con el plano 1**, sin depender del agente que
+hizo el trabajo.
+
+**Formato de cierre para una decisión permanente:** basta indicar (a) el **artefacto** donde quedó
+registrada, (b) el **commit** que la introdujo y (c) si aplica, el **ADR o backlog** relacionado.
+
 ## Trazabilidad de los tres incrementos cerrados
 
 | # | Capacidad | Comportamiento nuevo | Artefactos verificables |

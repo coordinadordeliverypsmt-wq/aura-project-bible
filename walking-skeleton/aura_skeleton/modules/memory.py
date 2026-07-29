@@ -29,7 +29,21 @@ class SimpleMemory:
         scored.sort(key=lambda x: -x[0])
         hits = [it for _, it in scored[:k]]
         obs.log("MEM", "memory", f"recall '{query[:30]}' -> {len(hits)} hit(s)")
-        return hits  # con procedencia; si vacio, el orquestador NO fabrica (2.4 2 / 4.1 4)
+        return hits
+
+    def olvidar(self, predicado) -> int:
+        """Elimina en RAM las entradas que cumplen `predicado`. Devuelve cuantas. (No persiste: en memoria.)"""
+        antes = len(self._items)
+        self._items = [i for i in self._items if not predicado(i)]
+        return antes - len(self._items)
+
+    def marcar(self, predicado, campos: dict) -> int:
+        n = 0
+        for i in self._items:
+            if predicado(i):
+                i.setdefault("provenance", {}).update(campos)
+                n += 1
+        return n  # con procedencia; si vacio, el orquestador NO fabrica (2.4 2 / 4.1 4)
 
 
 class PersistentMemory:
@@ -82,6 +96,36 @@ class PersistentMemory:
         hits = [self._items[idx] for idx, _ in mejores]
         obs.log("MEM", "memory", f"recall '{query[:30]}' -> {len(hits)} hit(s)")
         return hits
+
+    def olvidar(self, predicado) -> int:
+        """Elimina las entradas que cumplen `predicado`, reconstruye el indice y PERSISTE el borrado.
+
+        Soberania del usuario (ADR-0017): un "olvida esto" debe sobrevivir al reinicio. Antes, borrar solo
+        mutaba la lista en memoria y el dato reaparecia al releer el JSONL; aqui se reescribe el fichero.
+        """
+        antes = len(self._items)
+        self._items = [i for i in self._items if not predicado(i)]
+        borrados = antes - len(self._items)
+        if borrados:
+            self._reconstruir_indice()  # el indice guarda posiciones: hay que rehacerlo tras eliminar
+            self._persist()  # reescritura atomica del JSONL: el olvido sobrevive al reinicio
+            obs.log("MEM", "memory", f"olvidadas {borrados} entrada(s) del modelo del usuario", "-", audit=True)
+        return borrados
+
+    def marcar(self, predicado, campos: dict) -> int:
+        """Anota `campos` en la procedencia de las entradas que cumplen `predicado`, y PERSISTE el cambio.
+
+        Lo usa la refutacion del usuario ("eso ya no es cierto"): marcar `refutada` debe sobrevivir al
+        reinicio, igual que el olvido — si no, AURA volveria a darlo por cierto al arrancar.
+        """
+        n = 0
+        for i in self._items:
+            if predicado(i):
+                i.setdefault("provenance", {}).update(campos)
+                n += 1
+        if n:
+            self._persist()
+        return n
 
     # --- indice invertido (MA.2a) ---
     def _indexar(self, idx: int, item: dict) -> None:

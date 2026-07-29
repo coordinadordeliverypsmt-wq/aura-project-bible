@@ -11,6 +11,7 @@ from ..contracts import Event
 from ..observability import Timer
 from .almacen_senales import AlmacenSenales
 from .automatizacion import MotorAutomatizacion
+from .modelo_usuario import describir_conocimiento, explicar_entrada
 from .notificaciones import notificacion_de_accion
 from .registro import RegistroAdaptadores
 
@@ -95,6 +96,17 @@ def _es_consulta_de_notificaciones(texto: str) -> bool:
     return any(p in t for p in _PATRONES_CONSULTA_NOTIF)
 
 
+# Soberania del modelo del usuario: inspeccionar, entender, corregir y olvidar lo que AURA sabe de el.
+_PAT_MODELO_VER = ("que sabes de mi", "que sabes sobre mi", "que sabes acerca de mi", "que informacion tienes de mi")
+_PAT_MODELO_PORQUE = ("por que dices", "por que sabes", "como lo sabes", "como sabes eso", "por que piensas")
+_PAT_MODELO_REFUTA = ("ya no es cierto", "no es cierto", "eso esta mal", "eso es falso", "ya no es verdad")
+_PAT_MODELO_OLVIDA = ("olvida", "olvidate")
+
+
+def _cae_en(t: str, pats: tuple) -> bool:
+    return any(p in t for p in pats)
+
+
 class Orchestrator:
     """Coordina el turno conversacional. NO ejecuta acciones por su cuenta (M2.5, ALERTA-005).
 
@@ -104,11 +116,23 @@ class Orchestrator:
     """
 
     def __init__(
-        self, bus, memory, router, permissions, voice, adaptadores, motor=None, contexto=None, notificaciones=None
+        self,
+        bus,
+        memory,
+        router,
+        permissions,
+        voice,
+        adaptadores,
+        motor=None,
+        contexto=None,
+        notificaciones=None,
+        modelo_usuario=None,
     ):
         self.bus, self.memory, self.router = bus, memory, router
         self.perm, self.voice = permissions, voice
         self.notificaciones = notificaciones  # Centro de Notificaciones (MVP): registra lo que AURA hace
+        self.modelo_usuario = modelo_usuario  # Soberania (MVP): ver/entender/corregir/olvidar lo que sabe de ti
+        self._foco_modelo: dict[str, dict] = {}  # a que afirmacion se refiere "eso" por usuario
         # M3.0 — captura de senales. OPCIONAL y PASIVA: si no hay registro de contexto, el sistema
         # se comporta exactamente igual que en M2. La captura observa el turno; no participa en
         # ninguna decision (restriccion 2 del gate del CEO).
@@ -146,6 +170,12 @@ class Orchestrator:
         uid = ev.user_id
         text = ev.payload["text"]
         t = self._timers.get(tid) or Timer()
+        # Soberania del modelo del usuario: inspeccionar/entender/corregir/olvidar lo que AURA sabe de ti.
+        if self.modelo_usuario is not None:
+            resp = await self._atender_modelo_usuario(uid, text)
+            if resp is not None:
+                await self._finalizar_turno(uid, tid, text, resp, "core", t)
+                return
         # Superficie del Centro de Notificaciones: "¿que ha pasado mientras no estaba?" se responde con
         # lo que AURA hizo, sin consultar memoria ni LLM (es un hecho del sistema, no una inferencia).
         if self.notificaciones is not None and _es_consulta_de_notificaciones(text):
@@ -182,6 +212,52 @@ class Orchestrator:
             if self.notificaciones is not None:
                 self.notificaciones.recibir(notificacion_de_accion(action, args, res))
         await self._finalizar_turno(uid, tid, text, say, prov, t)
+
+    async def _atender_modelo_usuario(self, uid: str, text: str) -> str | None:
+        """Atiende las cuatro conversaciones de soberania. Devuelve la respuesta, o None si no aplica.
+
+        Fiel al modelo interno (declarado/observado); no infiere ni inventa certezas. "eso" se resuelve
+        con el foco: la ultima afirmacion en discusion, o la que el texto mencione explicitamente.
+        """
+        t = _normalizar(text)
+        entradas = await self.modelo_usuario.ver(uid)
+        vivas = [e for e in entradas if not e.get("refutada")]
+
+        if _cae_en(t, _PAT_MODELO_VER):
+            # Foco por defecto para el "eso" siguiente: la primera observada (la cuestionable); si no,
+            # la primera declarada. La declarada no suele necesitar explicacion ("me lo dijiste").
+            if vivas:
+                self._foco_modelo[uid] = next((e for e in vivas if e.get("origen") != "declarada"), vivas[0])
+            return describir_conocimiento(entradas)
+
+        if _cae_en(t, _PAT_MODELO_OLVIDA):  # antes que refutar/porque: "olvida" es inequivoco
+            foco = self._foco(uid, t, vivas)
+            n = await self.modelo_usuario.borrar(uid, foco["contenido"]) if foco else 0
+            return (
+                "Hecho. Ya no lo consideraré parte de lo que sé de ti." if n else "No he encontrado eso para olvidarlo."
+            )
+
+        if _cae_en(t, _PAT_MODELO_REFUTA):
+            foco = self._foco(uid, t, vivas)
+            if foco:
+                await self.modelo_usuario.refutar(uid, foco["contenido"])
+                return "Entendido, lo corrijo. Dejo de darlo por cierto."
+            return "¿A qué te refieres? Puedes decirme «¿qué sabes de mí?» y lo revisamos."
+
+        if _cae_en(t, _PAT_MODELO_PORQUE):
+            foco = self._foco(uid, t, vivas)
+            return explicar_entrada(foco) if foco else "Ahora mismo no estoy afirmando nada sobre ti."
+
+        return None
+
+    def _foco(self, uid: str, t: str, vivas: list[dict]) -> dict | None:
+        """Resuelve "eso": la entrada que el texto menciona, o la ultima en discusion, o la primera viva."""
+        for e in vivas:
+            palabras = [w for w in _normalizar(e["contenido"]).split() if len(w) > 4]
+            if any(w in t for w in palabras):
+                self._foco_modelo[uid] = e
+                return e
+        return self._foco_modelo.get(uid) or (vivas[0] if vivas else None)
 
     def _resumen_notificaciones(self) -> str:
         """Lo que AURA hizo desde la ultima vez, en lenguaje natural (comunicable, no un log).

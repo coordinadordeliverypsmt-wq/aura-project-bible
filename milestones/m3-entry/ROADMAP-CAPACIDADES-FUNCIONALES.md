@@ -11,7 +11,38 @@ base: "main @ 1c80185b"
 
 Orden de inversión fijado por el CEO el 2026-07-28. Cada capacidad se implementa bajo la disciplina
 estándar: Decision Package aprobado → (preparación de entorno si aplica) → TDD RED→GREEN→mutación→Quality
-Gate → auditoría → cierre. Método de análisis: D47.
+Gate → auditoría → cierre. Método de análisis: D47. Estándar de trabajo:
+`decisiones/2026-07-28-estandar-de-trabajo-producto-demostrable.md`.
+
+## Dos tipos de trabajo (regla del CEO, 2026-07-28)
+
+- **Incrementos de CAPACIDAD:** añaden algo que AURA antes no podía hacer, con **conversación propia** que
+  se explica por sí sola. Es lo que se construye **primero**.
+- **Incrementos de INTEGRACIÓN:** hacen que capacidades ya existentes **colaboren** entre sí (p. ej.
+  "notificaciones que respetan el Modelo de Usuario").
+
+**Disciplina de orden:** primero se completan las capacidades base del MVP; la **fase de integración no se
+abre** hasta que todas existan. Los tres incrementos cerrados (N2, Notificaciones, Modelo de Usuario) son
+de capacidad.
+
+## Estado del MVP (evidencia: Bible 2.2 §capacidades; ROADMAP-M3-REORDENADO §1)
+
+| Cap. MVP (D2) | Estado | Bloqueo |
+|---|---|---|
+| 1 · Memoria permanente | ✅ (N1 + N2) | — |
+| 4 · Control del computador | ✅ (archivos) | — |
+| 9 · Centro de notificaciones | ✅ | — |
+| 8 · Aprendizaje — soberanía (M3.2a) | ✅ (Modelo de Usuario) | — |
+| **5 · Automatización definida por el usuario** | ⬜ **falta — única capacidad base demostrable hoy** | ninguno evidente |
+| 2 · Voz | ⬜ | hardware (TTS ≫ presupuesto) |
+| 3 · Avatar | ⬜ | plataforma de despliegue (D33) |
+| 6 · Multi-modelo (LLM) | ⬜ | Ollama caído; sin claves de terceros (D24) |
+| 7 · Hogar | ⬜ | HA ausente (D34) |
+| 8 · Aprendizaje — inferencia (M3.2b) | ⬜ | datos de uso real |
+
+**Tensión registrada:** completada la #5, las capacidades base restantes no pueden "existir" hasta que
+cambie el hardware/entorno. En ese punto habrá que decidir explícitamente entre esperar hardware o abrir
+la fase de integración.
 
 | # | Capacidad | Qué valida / aporta | Estado |
 |---|---|---|---|

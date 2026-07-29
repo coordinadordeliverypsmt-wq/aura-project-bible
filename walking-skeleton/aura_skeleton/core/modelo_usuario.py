@@ -82,18 +82,67 @@ class ModeloUsuario:
     # ---------------------------------------------------------------- borrar --
 
     async def borrar(self, user_id: str, contiene: str | None = None) -> int:
-        """Borra el modelo, entero o selectivamente.
+        """Borra el modelo, entero o selectivamente, de forma PERSISTENTE (soberania, ADR-0017).
 
         NO toca la memoria episodica: borrar lo que AURA cree saber sobre alguien no puede borrarle
-        su propia conversacion.
+        su propia conversacion. Delega en `memoria.olvidar`, que reescribe el almacen: el olvido
+        sobrevive al reinicio (antes solo se mutaba la lista en memoria y el dato reaparecia).
         """
-        objetivo = [i for i in self._entradas(user_id) if contiene is None or contiene in i["content"]]
-        for i in objetivo:
-            self._memoria._items.remove(i)
-        return len(objetivo)
+
+        def objetivo(i: dict) -> bool:
+            return i["user_id"] == user_id and i["kind"] in _TIPOS and (contiene is None or contiene in i["content"])
+
+        return self._memoria.olvidar(objetivo)
+
+    # ---------------------------------------------------------------- refutar --
+
+    async def refutar(self, user_id: str, contiene: str) -> int:
+        """El usuario dice "eso ya no es cierto": se marca `refutada` de forma PERSISTENTE.
+
+        No borra (a diferencia de `borrar`): conserva el rastro (ADR-0017), pero AURA deja de afirmarlo.
+        """
+
+        def objetivo(i: dict) -> bool:
+            return (
+                i["user_id"] == user_id
+                and i["kind"] in _TIPOS
+                and contiene in i["content"]
+                and not i.get("provenance", {}).get("refutada")
+            )
+
+        return self._memoria.marcar(objetivo, {"refutada": True, "refutada_ts": time.time()})
 
     # ----------------------------------------------------------------- util --
 
     def _entradas(self, user_id: str) -> list[dict]:
         """Aislamiento por usuario (P-ARQ-5): nadie ve ni altera el modelo de otro."""
         return [i for i in self._memoria._items if i["user_id"] == user_id and i["kind"] in _TIPOS]
+
+
+# --- Presentacion FIEL AL MODELO (precision del CEO, 2026-07-28) --------------------------------------
+#
+# El sistema hoy distingue conocimiento `declarado` (el usuario lo dijo) de `observado` (patron visto en
+# conversaciones); NO infiere. La interfaz refleja EXACTAMENTE eso: "me lo dijiste" / "lo he observado".
+# No se inventan grados de certeza ("creo") que no correspondan a algo verificable en la procedencia.
+
+
+def _marca_de_origen(entrada: dict) -> str:
+    return "me lo dijiste" if entrada.get("origen") == "declarada" else "lo he observado"
+
+
+def describir_conocimiento(entradas: list[dict]) -> str:
+    """Lo que AURA sabe del usuario, sin lo refutado, con su procedencia. Comunicable, fiel al modelo."""
+    vivas = [e for e in entradas if not e.get("refutada")]
+    if not vivas:
+        return "Todavía no sé nada sobre ti."
+    lineas = "\n".join(f"• {e['contenido']} ({_marca_de_origen(e)})" for e in vivas)
+    return f"Esto es lo que sé de ti:\n{lineas}"
+
+
+def explicar_entrada(entrada: dict) -> str:
+    """Por que AURA lo sabe, segun la procedencia (declarado vs observado). Toda afirmacion se explica."""
+    if entrada.get("origen") == "declarada":
+        return f"Lo de «{entrada['contenido']}» lo sé porque me lo dijiste tú."
+    return (
+        f"Lo de «{entrada['contenido']}» lo he observado en nuestras conversaciones; no me lo has dicho directamente."
+    )

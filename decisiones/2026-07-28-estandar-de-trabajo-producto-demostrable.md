@@ -13,6 +13,15 @@ cerrar los tres primeros incrementos con valor visible (N2 Memoria Semántica, C
 Modelo de Usuario). Este documento es el **artefacto verificable** del estándar: sustituye a cualquier
 referencia informal a "memoria".
 
+> ## Principio rector (CEO, 2026-07-28)
+>
+> **La IA es una herramienta de construcción, no una fuente de verdad del proyecto. La única fuente de
+> verdad es el repositorio y sus artefactos verificables.**
+>
+> Rige sobre todo lo demás: cualquier estado, decisión o regla que no esté en un artefacto verificable del
+> repositorio **no existe a efectos del proyecto**. Un auditor debe poder reconstruir el estado completo
+> clonando el repositorio, sin depender del agente que hizo el trabajo.
+
 ## Los cinco principios
 
 1. **Product Demo Preview antes de leer código.** Cada incremento empieza escribiendo la conversación
@@ -70,6 +79,14 @@ Se distinguen siempre tres planos, y **los informes finales se centran ÚNICAMEN
 Los mecanismos internos pueden usarse para trabajar mejor, pero **no forman parte de la evidencia**. Un
 auditor debe poder reconstruir la historia completa **solo con el plano 1**, sin depender del agente que
 hizo el trabajo.
+
+**Los informes, cierres y decisiones hablan exclusivamente del proyecto (plano 1).** El proceso (plano 2)
+solo se menciona si el CEO lo pide expresamente. La herramienta (plano 3) **nunca** se presenta como
+evidencia del proyecto.
+
+**Frases prohibidas en un informe** (son estado interno de la herramienta, no evidencia): *"lo registré en
+mi memoria"*, *"mi memoria interna recuerda…"*, *"quedó almacenado en memoria"*. En su lugar se indica
+siempre el **artefacto verificable**: documento, ADR, backlog, commit o archivo concreto.
 
 **Formato de cierre para una decisión permanente:** basta indicar (a) el **artefacto** donde quedó
 registrada, (b) el **commit** que la introdujo y (c) si aplica, el **ADR o backlog** relacionado.

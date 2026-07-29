@@ -61,8 +61,27 @@ exigió el CEO (la contradicción desapareció por completo).
   el ciclo de backup/restore. **Corrección natural:** que N2 recompute (o invalide) `_vectores` al
   restaurar, o que herede/observe los cambios de `_items` de N1.
 
+## D-N2-4 · El olvido persistente (soberanía) no está soportado sobre N2
+
+- **Qué es.** El MVP del Modelo de Usuario (2026-07-28) introdujo `memoria.olvidar(predicado)` y
+  `memoria.marcar(predicado, campos)` para que *"olvida esto"* / *"eso ya no es cierto"* **persistan** tras
+  un reinicio. Ambos existen en **N1 (`PersistentMemory`)** y en `SimpleMemory`, pero **NO en N2
+  (`SemanticMemory`)**.
+- **Consecuencia (asimetría señalada por el CEO).** Con el perfil por defecto la memoria es N1 y el olvido
+  persistente funciona (demostrado con reinicio). Con un perfil alto en el que el plan materialice **N2**,
+  `ModeloUsuario.borrar`/`refutar` invocarían `olvidar`/`marcar` sobre `SemanticMemory`, que no los tiene
+  → **`AttributeError`**: el usuario no podría gobernar (olvidar/corregir) lo que AURA sabe de él.
+- **Por qué NO bloquea el MVP.** El comportamiento demostrado corresponde al perfil actual (N1). En esta
+  máquina N2 no se materializa (`ram < 8 GB`).
+- **Condición del CEO (2026-07-28).** *"Esta deuda debe resolverse antes de considerar la memoria
+  semántica completamente gobernable."* No se considera N2 "gobernable" hasta que soporte el olvido y la
+  refutación persistentes.
+- **Corrección natural.** Añadir `olvidar`/`marcar` a `SemanticMemory` delegando en su `_store`
+  (`PersistentMemory` interno) y **reconstruyendo `_vectores`** tras el cambio (relacionado con D-N2-2 y
+  con la fragilidad de `restore`). Es simétrico al patrón ya usado por N2 para `write`.
+
 ## Regla de reevaluación (condición del CEO)
 
-Estas tres partidas **no se tocan mientras N2 permanezca como validación arquitectónica con corpus
+Estas partidas **no se tocan mientras N2 permanezca como validación arquitectónica con corpus
 pequeño**. Antes de **escalar la memoria semántica** —más recuerdos, uso sostenido, o N2 como producto por
 defecto— se **reabren y se resuelven** las que apliquen, bajo el método estándar (D47) y con gate del CEO.

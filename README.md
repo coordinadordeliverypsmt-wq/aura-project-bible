@@ -8,6 +8,9 @@ Regla de oro del proyecto: **nada se implementa sin estar diseñado y documentad
 
 ## Navegación
 
+- [**CHECKLIST-CONTINUIDAD.md**](CHECKLIST-CONTINUIDAD.md) — **empieza aquí si retomas el desarrollo.**
+  Qué verificar antes de tocar nada, dónde está el proyecto, qué está decidido y **qué parece hecho sin
+  estarlo**
 - [**INDICE.md**](INDICE.md) — índice maestro: 7 libros, 36 capítulos, prioridades y estado
 - [**decisiones/**](decisiones/) — actas de decisiones vinculantes del CEO
 - [**adr/**](adr/) — Architecture Decision Records

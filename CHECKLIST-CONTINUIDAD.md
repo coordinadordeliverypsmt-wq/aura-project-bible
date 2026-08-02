@@ -170,7 +170,9 @@ No se encendió nada. El adaptador de hogar es un mock que solo escribe una lín
 arranque lo lista entre las **12 operaciones disponibles** (10 reales sobre archivos + 2 simuladas).
 La garantía de ALERTA-005 verifica que **el adaptador respondió**, no que **el mundo cambió**.
 
-**Sigue abierto.** La corrección de consistencia del 2026-08-02 resolvió la inconsistencia en la **capa de capacidades**
+**Sigue abierto — deuda `D-ADP-1`**, registrada en
+`milestones/m3-entry/DEUDA-ADAPTADORES-SIMULADOS.md` (el CEO decidió no abrir incremento: primero
+producto). La corrección de consistencia del 2026-08-02 resolvió la inconsistencia en la **capa de capacidades**
 (plan vs materialización); esta es la misma clase de problema en la **capa de adaptadores** y todavía no
 tiene solución: un adaptador simulado responde `status: ok` igual que uno real.
 
@@ -241,6 +243,7 @@ demostrado. Nunca «lo registré en mi memoria»: cita siempre el artefacto veri
 | `milestones/m3-entry/DEUDA-N2-MEMORIA-SEMANTICA.md` | acoplamiento a `_items`, re-embebido en arranque (305 ms/recuerdo), fragilidad ante `restore()`, olvido no persistente sobre N2 |
 | `milestones/m3-entry/DEUDA-AUTOMATIZACION.md` | 8 partidas; reconocedor de un solo patrón, sin semántica transaccional |
 | `milestones/m3-entry/DEUDA-CAPTURA-DE-SENALES.md` | brecha histórica de instrumentación |
+| `milestones/m3-entry/DEUDA-ADAPTADORES-SIMULADOS.md` | `D-ADP-1`: un adaptador simulado responde `ok` igual que uno real |
 
 ---
 

@@ -22,7 +22,7 @@ referencia informal a "memoria".
 > repositorio **no existe a efectos del proyecto**. Un auditor debe poder reconstruir el estado completo
 > clonando el repositorio, sin depender del agente que hizo el trabajo.
 
-## Los seis principios
+## Los ocho principios
 
 1. **Product Demo Preview antes de leer código.** Cada incremento empieza escribiendo la conversación
    nueva que el usuario podrá tener con AURA cuando termine. Si esa conversación no aporta una capacidad
@@ -72,10 +72,36 @@ referencia informal a "memoria".
    se anotan **en el momento en que aparecen**, no al cerrar. No sustituye a la verificación por ejecución:
    el repositorio sigue siendo la fuente de verdad sobre los hechos.
 
-   Por qué es un principio y no una tarea: el proyecto ya ha sufrido **cuatro veces** el mismo patrón
-   —algo declarado en un documento y ausente en la realidad— (ALERTA-004, ALERTA-005, la captura de
-   señales y los hallazgos de la revisión estratégica del 2026-08-02). Un checklist que solo dijera lo
-   que está hecho repetiría ese patrón; el valor está en que diga **qué no es lo que aparenta**.
+   Por qué es un principio y no una tarea: el proyecto ha sufrido **al menos ocho veces** el mismo patrón
+   —algo declarado en un documento y ausente en la realidad—: ALERTA-004, los evals de T1, ALERTA-005, la
+   captura de señales, ADR-0021, plan vs materialización, `D-ADP-1` y el roadmap contradictorio (recuento
+   verificado con hashes por auditoría independiente el 2026-08-02; antes se citaban cuatro). Un checklist
+   que solo dijera lo que está hecho repetiría ese patrón; el valor está en que diga **qué no es lo que
+   aparenta**.
+
+7. **Orquestación: ningún agente hace solo lo que puede dividirse.** (CEO, 2026-08-02) Todo incremento
+   se ejecuta repartiendo el trabajo entre agentes especializados siempre que la capacidad esté
+   disponible. **El que implementa nunca audita su propio trabajo.**
+
+   **Por qué es un principio y no una preferencia.** La auditoría independiente del arnés de mutación
+   encontró tres defectos graves que habían pasado la implementación y mi propia revisión. Ninguno era un
+   error de programación: los tres eran **errores de verificación** — cosas que nadie había mirado porque
+   quien las escribió creía haberlas comprobado. Uno de ellos era el fallo histórico del proyecto repetido
+   una capa más arriba. La independencia del auditor no mejora el resultado: **detecta lo que el autor no
+   puede ver por definición**.
+
+   **Una tarea nunca se cierra porque un agente diga que terminó. Solo se cierra por evidencia.** Si un
+   agente falla, produce un resultado inconsistente, incumple los criterios de aceptación o el auditor lo
+   rechaza, la tarea sigue abierta: se identifica el motivo y se reasigna —a otro agente, o al mismo con
+   mejor contexto— hasta obtener evidencia verificable o demostrar un bloqueo real.
+
+   El reparto de responsabilidades y las herramientas concretas viven en
+   [`CLAUDE.md`](../CLAUDE.md) §Orquestación, que es lo que se carga en cada sesión.
+
+8. **Cada incremento debe reducir la dependencia de la herramienta.** (CEO, 2026-08-02) Además de
+   preguntarse qué gana AURA como producto, todo incremento se pregunta: **¿deja al proyecto más capaz de
+   evolucionar sin Claude Code?** Es criterio de decisión, no un extra: entra en la evaluación de RoT junto
+   con las horas ahorradas y la reutilización futura.
 
 ## Precisiones del CEO incorporadas (2026-07-28)
 

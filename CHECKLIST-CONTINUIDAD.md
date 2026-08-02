@@ -60,6 +60,7 @@ en rojo.
 | Alertas de arquitectura abiertas | **0** (las cinco históricas, resueltas) |
 | Trabajo en curso | **ninguno** |
 | Proceso automatizado | `CLAUDE.md` (protocolo por sesión) · 4 agentes en `.claude/agents/` · hook `pre-push` con bloqueo duro · arnés de mutación (`herramientas/mutar.py`, a demanda) |
+| Modo de trabajo | **Orquestado** (CEO, 2026-08-02): el trabajo se reparte entre agentes; una tarea solo se cierra por evidencia, nunca porque un agente diga que terminó |
 
 **Dos numeraciones distintas — no las mezcles** (fuente de confusión ya detectada por el CEO):
 
@@ -225,7 +226,8 @@ Consecuencia: **ninguna decisión de producto puede apoyarse hoy en telemetría 
 
 **El protocolo vive en [`CLAUDE.md`](CLAUDE.md), no aquí.** Allí están el ciclo de todo incremento
 (RED → GREEN → mutación → Quality Gate → auditoría → cierre), el flujo de integración con sus comandos
-exactos, los trailers obligatorios y las reglas que no se negocian.
+exactos, los trailers obligatorios, las reglas que no se negocian y el **reparto obligatorio de
+orquestación** (quién hace qué; el que implementa nunca audita su propio trabajo).
 
 **Por qué no se repite en este documento:** dos copias del mismo texto se desincronizan, y este proyecto
 ya ha pagado ocho veces el precio de que un documento afirme algo que no es cierto. Cada contenido tiene

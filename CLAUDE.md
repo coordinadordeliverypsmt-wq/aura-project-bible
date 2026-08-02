@@ -38,6 +38,37 @@ Decision Package aprobado por el CEO
 **Nada se construye sin Decision Package aprobado.** Si no hay uno, la respuesta correcta es proponerlo, no
 empezar.
 
+### Orquestación — obligatoria (CEO, 2026-08-02)
+
+**Ningún agente hace solo lo que puede dividirse.** Reparte el incremento entre agentes especializados
+siempre que la capacidad esté disponible.
+
+| Rol | Responsable de | Nunca |
+|---|---|---|
+| **Opus** (director) | Arquitectura · Bible · ADR · decisiones técnicas y estratégicas · diseño | Implementar el incremento entero por su cuenta |
+| **Sonnet** | RED · GREEN · refactor · implementación · scripts · automatización · pruebas mecánicas | Auditar lo que ha escrito |
+| **Exploradores** | Investigación · búsqueda en el repositorio · reutilización · comparación · generación de casos · análisis de impacto | Decidir prioridades |
+| **Auditores** | Revisión independiente · consistencia · mutación · Quality Gate · estándares · seguridad · evidencia | Implementar o corregir |
+
+**Regla dura: el que implementa nunca audita su propio trabajo.** Los agentes están definidos en
+[`.claude/agents/`](.claude/agents/) — úsalos por nombre.
+
+**Una tarea no se cierra porque un agente diga que terminó: se cierra por evidencia.** Si falla, produce
+algo inconsistente, incumple los criterios o el auditor lo rechaza, sigue abierta. Identifica el motivo y
+reasígnala —a otro agente, o al mismo con mejor contexto— hasta obtener evidencia verificable o demostrar
+un bloqueo real.
+
+**Coordinación.** Mantener el objetivo, repartir, detectar bloqueos y reasignar es responsabilidad del
+**director**, que despacha subagentes y no da por cerrado nada sin evidencia. Dos precisiones sobre las
+herramientas, para que nadie las confunda con lo anterior:
+
+- **`/loop`** repite un prompt en intervalos o autopautado. Sirve para **sostener el ciclo abierto hasta
+  que haya evidencia** (reintentar, esperar un resultado). **No divide trabajo ni asigna agentes**: eso lo
+  hace el director despachando subagentes.
+- **`/goal`**, cuando esté disponible, se usa **solo como validador independiente**: responde «¿el objetivo
+  se alcanzó?» y nada más — no implementa, no modifica, no corrige. **Hoy no existe en este entorno**;
+  mientras tanto, esa función la cumple un agente auditor.
+
 **La mutación no es opcional.** Degrada la implementación a propósito; cada mutante debe ser detectado por
 alguna prueba. Un mutante que sobrevive es una garantía sin red. **Muta también el cableado de
 `composicion.py`**, no solo la lógica: el mutante «la composición no enciende las automatizaciones»
@@ -76,6 +107,9 @@ demostraría un usuario —ejecutado, no descrito— · (4) qué deuda queda abi
 existentes mejoran.
 
 **Criterio de aceptación = comportamiento demostrado.** Nunca «las pruebas pasan».
+
+**Toda propuesta responde además:** ¿deja al proyecto más capaz de evolucionar **sin Claude Code**?
+Es criterio de decisión, no un extra — entra en el RoT junto a horas ahorradas y reutilización.
 
 ---
 

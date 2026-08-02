@@ -25,6 +25,9 @@ Gate → auditoría → cierre. Método de análisis: D47. Estándar de trabajo:
 abre** hasta que todas existan. Los tres incrementos cerrados (N2, Notificaciones, Modelo de Usuario) son
 de capacidad.
 
+Esa condición es **necesaria, no suficiente**: agotar las capacidades construibles no abre la integración
+por sí solo. El cambio de fase es siempre una **decisión explícita del CEO** (ver §Estado del MVP).
+
 ## Estado del MVP (evidencia: Bible 2.2 §capacidades; ROADMAP-M3-REORDENADO §1)
 
 | Cap. MVP (D2) | Estado | Bloqueo |
@@ -40,12 +43,16 @@ de capacidad.
 | 7 · Hogar | ⬜ | HA ausente (D34) |
 | 8 · Aprendizaje — inferencia (M3.2b) | ⬜ | datos de uso real |
 
-**Tensión registrada — ahora ACTIVA:** completada la #5, **ninguna capacidad base restante puede "existir"
-sin que cambie el hardware/entorno** (voz, avatar, multi-modelo, hogar, inferencia). La decisión que el
-proyecto tiene delante es explícita y corresponde al CEO: **esperar hardware o abrir la fase de
-integración** (hacer que las capacidades ya existentes colaboren entre sí). La disciplina de orden que
-mantenía cerrada esa fase —"primero todas las capacidades base"— ya no bloquea: se ha completado todo lo
-que no depende de hardware.
+**Situación tras cerrar la #5:** las capacidades base restantes (voz, avatar, multi-modelo, hogar,
+inferencia) dependen de hardware o servicios ausentes.
+
+**Decisión del CEO (2026-08-02): la fase de integración NO se abre.** Haber completado la última capacidad
+demostrable **no implica cambiar de fase automáticamente**; abrir la integración por descarte sería dejar
+que la ausencia de alternativas decida por el proyecto. El siguiente paso se resolverá en una **revisión
+del roadmap completo**, como decisión independiente y posterior al cierre de este incremento, ponderando
+hardware disponible, dependencias y valor para el producto.
+
+Hasta esa revisión, **ningún incremento de integración está autorizado**.
 
 | # | Capacidad | Qué valida / aporta | Estado |
 |---|---|---|---|

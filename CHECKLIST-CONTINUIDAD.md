@@ -12,7 +12,7 @@
 > verificar**, **en qué orden** y **qué NO es lo que parece**. Si algo de aquí contradice lo que mide un
 > comando, **manda el comando** — y entonces el documento está desactualizado y corregirlo es el trabajo.
 
-**Última actualización:** 2026-08-02 · **Estado documentado:** `main` = `origin/main` = `b0a4e33`
+**Última actualización:** 2026-08-02 · **Estado documentado:** `main` = `origin/main` = `2856331`
 (verifica el hash actual con `git log`; este documento se actualiza en cada cierre, no en cada commit)
 
 ---
@@ -27,6 +27,7 @@ cd <raíz del repositorio>
 # 1. Preflight OBLIGATORIO del entorno (D27/D31). Verifica USB montados, dónde viven los modelos,
 #    espacio y swap. Saltárselo produce conclusiones falsas — ver §4.1.
 bash entorno/scripts/preflight-check.sh          # debe terminar en ESTADO: APTO
+bash entorno/scripts/instalar-hooks.sh           # una vez por clon: activa el bloqueo del Quality Gate
 
 # 2. ¿Dónde está el código?
 git log --oneline -3 && git status --porcelain    # árbol debe estar limpio
@@ -58,6 +59,7 @@ en rojo.
 | Quality Gate | PASS **432 passed / 3 skipped** |
 | Alertas de arquitectura abiertas | **0** (las cinco históricas, resueltas) |
 | Trabajo en curso | **ninguno** |
+| Proceso automatizado | `CLAUDE.md` (protocolo por sesión) · 4 agentes en `.claude/agents/` · hook `pre-push` con bloqueo duro |
 
 **Dos numeraciones distintas — no las mezcles** (fuente de confusión ya detectada por el CEO):
 
@@ -90,15 +92,18 @@ construido?"* con la del **roadmap**. Ambas tablas están separadas en
 | **P1 · Escenario de despliegue** (¿es esta máquina el objetivo?) | 2026-07-21 | 3 de las 5 fases de M3 |
 | **Siguiente inversión del proyecto** tras la revisión estratégica | 2026-08-02 | Todo trabajo de construcción nuevo |
 | **Mover el artefacto de N2** (opciones B/C del Decision Package) | 2026-08-02 | Nada urgente: el CEO lo aplazó hasta que N2 pueda usarse; hoy P1 la bloquea. Ver §4.3 |
+| **`CHANGELOG.md` e `INDICE.md` abandonados** | 2026-08-02 | Nada técnico, pero afirman ser registro del proyecto y llevan 12-15 días desfasados. Detectado durante el incremento de proceso; no se corrigió para no desviarlo |
 | **Verificador de consistencia** (propuesta NO autorizada) | 2026-08-02 | Nada. Registrada en `decisiones/pendientes-de-evaluacion/`; se reevalúa tras la revisión estratégica |
 
 ---
 
 ## 4 · Lo que parece hecho y no lo está
 
-> Esta sección existe porque el proyecto ya ha sufrido **cuatro veces** el mismo patrón —declarado en
-> un documento, ausente en la realidad— (ALERTA-004, ALERTA-005, captura de señales, y los puntos de
-> abajo). **Léela entera antes de asumir que una capacidad "cerrada" funciona.**
+> Esta sección existe porque el proyecto ha sufrido **al menos ocho veces** el mismo patrón —declarado
+> en un documento, ausente en la realidad—: ALERTA-004, evals de T1, ALERTA-005, captura de señales,
+> ADR-0021, plan vs materialización, `D-ADP-1` y el roadmap contradictorio (recuento verificado con
+> hashes el 2026-08-02; antes se citaban cuatro). **Léela entera antes de asumir que una capacidad
+> "cerrada" funciona.**
 
 ### 4.1 · El preflight no es opcional — saltárselo ya produjo un error
 
@@ -217,29 +222,14 @@ Consecuencia: **ninguna decisión de producto puede apoyarse hoy en telemetría 
 
 ## 6 · Cómo se trabaja aquí
 
-### Protocolo invariable de todo incremento
+**El protocolo vive en [`CLAUDE.md`](CLAUDE.md), no aquí.** Allí están el ciclo de todo incremento
+(RED → GREEN → mutación → Quality Gate → auditoría → cierre), el flujo de integración con sus comandos
+exactos, los trailers obligatorios y las reglas que no se negocian.
 
-```
-RED (prueba que falla) → GREEN mínimo → VERIFICACIÓN DE MUTACIÓN → Quality Gate → integración
-```
-
-- **La mutación no es opcional.** Encontró un agujero real que 426 pruebas en verde no veían: el
-  mutante *"la composición no enciende las automatizaciones"* sobrevivió — era ALERTA-005 otra vez.
-  **Muta también el cableado de `composicion.py`, no solo la lógica.**
-- **Integración:** `main` limpio y `main == origin/main` → commit en worktree →
-  `git -C "$MAIN" merge --no-ff <rama> -F <fichero>` → **Quality Gate en main** → push → realinear
-  worktree con `git merge --ff-only main`. El heredoc a `-F` falla: escribe el mensaje a un fichero.
-- **Trailers obligatorios** en cada commit:
-  `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>` y `Claude-Session: <url>`.
-
-### Cierre de todo incremento — cinco bloques
-
-1. Qué cambió técnicamente · 2. Qué gana AURA como producto · 3. Cómo lo demostraría un usuario ·
-4. Qué deuda queda abierta · 5. Qué capacidades existentes mejoran (matriz de integración).
-
-**Criterio de aceptación = comportamiento demostrado por el usuario**, no pruebas en verde.
-Los informes hablan solo del **plano Proyecto auditable**: artefacto + commit + comportamiento
-demostrado. Nunca «lo registré en mi memoria»: cita siempre el artefacto verificable.
+**Por qué no se repite en este documento:** dos copias del mismo texto se desincronizan, y este proyecto
+ya ha pagado ocho veces el precio de que un documento afirme algo que no es cierto. Cada contenido tiene
+un solo dueño: **el protocolo es de `CLAUDE.md`; el estado del proyecto, las decisiones vigentes y las
+trampas son de este checklist.**
 
 ### Deuda registrada — leer antes de tocar lo relacionado
 
@@ -249,8 +239,6 @@ demostrado. Nunca «lo registré en mi memoria»: cita siempre el artefacto veri
 | `milestones/m3-entry/DEUDA-AUTOMATIZACION.md` | 8 partidas; reconocedor de un solo patrón, sin semántica transaccional |
 | `milestones/m3-entry/DEUDA-CAPTURA-DE-SENALES.md` | brecha histórica de instrumentación |
 | `milestones/m3-entry/DEUDA-ADAPTADORES-SIMULADOS.md` | `D-ADP-1`: un adaptador simulado responde `ok` igual que uno real |
-
----
 
 ## 7 · Cómo se mantiene este checklist
 

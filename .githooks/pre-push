@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# Quality Gate obligatorio antes de publicar (CEO, 2026-08-02: BLOQUEO DURO por defecto).
+#
+# Por que existe: `quality-gate.sh` solo corria si alguien se acordaba de invocarlo. El proyecto ha
+# sufrido al menos 8 veces el patron "declarado != real"; la unica red que atrapo varios de esos casos
+# no estaba automatizada. Esto la automatiza.
+#
+# OMISION: nunca implicita. Exige AURA_OMITIR_GATE con un motivo, y queda REGISTRADA en
+# `.githooks/omisiones.log` ademas de avisarse por pantalla. Un push sin gate y sin entrada en ese
+# registro es un bypass fuera de proceso (ver LIMITACION al final).
+
+set -u
+
+RAIZ="$(git rev-parse --show-toplevel)"
+GATE="$RAIZ/walking-skeleton/quality-gate.sh"
+REGISTRO="$RAIZ/.githooks/omisiones.log"
+
+# --- Omision explicita, excepcional y trazable -------------------------------------------------
+# Se evalua ANTES de comprobar el gate. Si se hiciera despues, un fallo trivial —el gate pierde el bit
+# ejecutable en un checkout— dejaria `--no-verify` como UNICA salida: es decir, el bypass sin rastro
+# seria forzado por un accidente en vez de elegido. La via trazable debe estar disponible siempre.
+if [ -n "${AURA_OMITIR_GATE:-}" ]; then
+    motivo="$(echo "$AURA_OMITIR_GATE" | tr -s '[:space:]' ' ' | sed 's/^ //; s/ $//')"
+    palabras="$(echo "$motivo" | wc -w)"
+    unicos="$(echo "$motivo" | tr ' ' '\n' | sort -u | wc -l)"
+    # Longitud sola no basta: "xxxxxxxxxxxxxxx" la cumple. Se exige un motivo LEGIBLE —varias palabras
+    # distintas— porque el registro solo sirve si quien lo lea manana entiende que paso.
+    if [ "${#motivo}" -lt 15 ] || [ "$palabras" -lt 3 ] || [ "$unicos" -lt 3 ]; then
+        echo "pre-push: BLOQUEADO. AURA_OMITIR_GATE exige un motivo legible:" >&2
+        echo "          >=15 caracteres y al menos 3 palabras distintas." >&2
+        echo "          Recibido: '$motivo' (${#motivo} caracteres, $palabras palabras, $unicos distintas)" >&2
+        exit 1
+    fi
+    printf '%s | %s | %s | %s\n' \
+        "$(date -Is)" "$(git rev-parse --short HEAD)" "$(git config user.email || echo '?')" "$motivo" \
+        >> "$REGISTRO"
+    echo ""
+    echo "======================================================================"
+    echo " OMISION DEL QUALITY GATE — registrada en .githooks/omisiones.log"
+    echo " motivo: $motivo"
+    echo " Esto es excepcional. Si se repite, el proceso esta roto, no el gate."
+    echo "======================================================================"
+    echo ""
+    exit 0
+fi
+
+# --- Bloqueo duro por defecto ------------------------------------------------------------------
+if [ ! -x "$GATE" ]; then
+    echo "pre-push: BLOQUEADO. No encuentro el Quality Gate ejecutable en:" >&2
+    echo "          $GATE" >&2
+    echo "          Si perdio el bit ejecutable:  chmod +x '$GATE'" >&2
+    echo "          Si el proyecto cambio de estructura, actualiza .githooks/pre-push." >&2
+    exit 1
+fi
+
+echo ""
+echo "==> pre-push: ejecutando Quality Gate (bloqueo duro)"
+if ( cd "$RAIZ/walking-skeleton" && ./quality-gate.sh ); then
+    echo "==> pre-push: Quality Gate PASS — se publica"
+    exit 0
+fi
+
+cat >&2 <<'FIN'
+
+======================================================================
+ PUSH BLOQUEADO — el Quality Gate no pasa
+======================================================================
+ Corrige lo anterior. No se publica codigo que no pasa su propia
+ puerta de calidad.
+
+ Si —excepcionalmente— debes publicar igualmente, la omision debe ser
+ EXPLICITA y queda REGISTRADA:
+
+   AURA_OMITIR_GATE="motivo real de al menos 15 caracteres" git push
+
+======================================================================
+FIN
+exit 1
+
+# LIMITACION CONOCIDA, declarada a proposito:
+# `git push --no-verify` salta cualquier hook y git no permite impedirlo desde el propio hook. Ese
+# camino NO deja entrada en omisiones.log, asi que es detectable a posteriori comparando el historial
+# publicado con el registro, pero no evitable. Se documenta en vez de fingir que el bloqueo es total.

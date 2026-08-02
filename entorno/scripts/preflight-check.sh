@@ -153,6 +153,21 @@ else
   fi
 fi
 
+# --- Hooks del proyecto ---------------------------------------------------
+# El Quality Gate solo protege si el hook esta ACTIVADO. `core.hooksPath` es configuracion local y no
+# viaja con el clon: sin esta comprobacion, no instalarlo seria un bypass implicito del gate — justo lo
+# que el CEO prohibio al aprobar el bloqueo duro (2026-08-02).
+echo ""
+echo "-- Hooks del proyecto --"
+HOOKS_PATH="$(git config --get core.hooksPath 2>/dev/null || true)"
+if [ "$HOOKS_PATH" = ".githooks" ]; then
+  echo "  [ OK ] pre-push activo (Quality Gate obligatorio antes de publicar)"
+else
+  echo "  [WARN] hooks del proyecto NO activados: el Quality Gate no bloqueara el push"
+  RIESGOS+=("Hooks no activados: el Quality Gate no protege la publicacion")
+  MANUAL+=("bash entorno/scripts/instalar-hooks.sh   # no requiere root")
+fi
+
 # --- Veredicto ------------------------------------------------------------
 echo ""; echo "======================================================"
 if [ ${#PROBLEMAS[@]} -eq 0 ]; then

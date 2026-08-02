@@ -146,6 +146,7 @@ _VERBOS: dict[str, tuple[str, str]] = {
     "renombrar_archivo": ("Renombré", "renombrar"),
     "escribir_archivo": ("Escribí", "escribir"),
     "borrar_archivo": ("Eliminé", "eliminar"),
+    "copiar_archivo": ("Guardé una copia de", "copiar"),
     "leer_archivo": ("Leí", "leer"),
     "abrir_archivo": ("Abrí", "abrir"),
     "listar_directorio": ("Listé", "listar"),

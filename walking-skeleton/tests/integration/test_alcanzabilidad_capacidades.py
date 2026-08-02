@@ -58,6 +58,8 @@ def _args_para(accion, raiz):
         "consultar_estado_sistema": {},
         "escribir_archivo": {"ruta": str(raiz / "nuevo.txt"), "contenido": "hola"},
         "borrar_archivo": {"ruta": str(raiz / "sobrante.txt")},
+        # `copiar_archivo` recibe SOLO el origen: el destino (`<ruta>.copia`) lo deriva el adaptador.
+        "copiar_archivo": {"ruta": str(raiz / "datos.txt")},
         "mover_archivo": {"origen": str(raiz / "mover.txt"), "destino": str(d / "mover.txt")},
         "renombrar_archivo": {"origen": str(raiz / "viejo.txt"), "destino": str(raiz / "nuevo2.txt")},
         "encender_dispositivo": {"device": "lampara"},

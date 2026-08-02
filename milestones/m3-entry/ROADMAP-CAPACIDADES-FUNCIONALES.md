@@ -33,16 +33,19 @@ de capacidad.
 | 4 · Control del computador | ✅ (archivos) | — |
 | 9 · Centro de notificaciones | ✅ | — |
 | 8 · Aprendizaje — soberanía (M3.2a) | ✅ (Modelo de Usuario) | — |
-| **5 · Automatización definida por el usuario** | ⬜ **falta — única capacidad base demostrable hoy** | ninguno evidente |
+| **5 · Automatización definida por el usuario** | ✅ (MVP: crear, persistir, ejecutar, inspeccionar) | — |
 | 2 · Voz | ⬜ | hardware (TTS ≫ presupuesto) |
 | 3 · Avatar | ⬜ | plataforma de despliegue (D33) |
 | 6 · Multi-modelo (LLM) | ⬜ | Ollama caído; sin claves de terceros (D24) |
 | 7 · Hogar | ⬜ | HA ausente (D34) |
 | 8 · Aprendizaje — inferencia (M3.2b) | ⬜ | datos de uso real |
 
-**Tensión registrada:** completada la #5, las capacidades base restantes no pueden "existir" hasta que
-cambie el hardware/entorno. En ese punto habrá que decidir explícitamente entre esperar hardware o abrir
-la fase de integración.
+**Tensión registrada — ahora ACTIVA:** completada la #5, **ninguna capacidad base restante puede "existir"
+sin que cambie el hardware/entorno** (voz, avatar, multi-modelo, hogar, inferencia). La decisión que el
+proyecto tiene delante es explícita y corresponde al CEO: **esperar hardware o abrir la fase de
+integración** (hacer que las capacidades ya existentes colaboren entre sí). La disciplina de orden que
+mantenía cerrada esa fase —"primero todas las capacidades base"— ya no bloquea: se ha completado todo lo
+que no depende de hardware.
 
 | # | Capacidad | Qué valida / aporta | Estado |
 |---|---|---|---|
@@ -50,7 +53,8 @@ la fase de integración.
 | **2** | **Centro de Notificaciones** | Proactividad: AURA deja de ser solo reactiva y puede avisar al usuario. Personalidad definitoria del PIOS (D2.6). Construido y probado; **no cableado**. | ⏭ **Siguiente** (pendiente de Decision Package). |
 | **3** | **Modelo de Usuario** | Soberanía y personalización: ver/corregir/borrar lo que AURA cree saber (ADR-0017). Construido y probado; **no cableado**. **Defecto de borrado conocido** a corregir antes de cablear. | Pendiente. |
 | **4** | **Voz** | Valida la mitad **SOPORTE** del modelo (detector de entorno → contexto). Rama ACTIVA no viable en el hardware actual (TTS ≫ presupuesto). | Pendiente **de hardware** que permita validar SOPORTE. |
-| **5** | **Resto del MVP** | Automatización avanzada, captura de conocimiento (4.5, ALERTA-002 resuelta), avatar, aprendizaje continuo, inferencia real. | Pendiente; varios bloqueados por hardware/servicios (ver ROADMAP-M3-REORDENADO §1). |
+| **5** | **Automatización definida por el usuario** | AURA deja de ser **turno a turno**: el usuario le enseña una conducta permanente y AURA la conserva y la aplica sola. Es la primera capacidad cuyo valor **solo existe si sobrevive al reinicio**. | ✅ **COMPLETADA Y CERRADA** (2026-08-02). Quality Gate PASS 427/3; mutación 10/10. |
+| **6** | **Resto del MVP** | Automatización avanzada, captura de conocimiento (4.5, ALERTA-002 resuelta), avatar, aprendizaje continuo, inferencia real. | Pendiente; varios bloqueados por hardware/servicios (ver ROADMAP-M3-REORDENADO §1). |
 
 ## Nota sobre N2: deuda de producto diferida (registrada, no bloqueante)
 

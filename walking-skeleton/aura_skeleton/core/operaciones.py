@@ -33,6 +33,10 @@ ESPECIFICACIONES: dict[str, dict] = {
     "renombrar_archivo": {"args": ("origen", "destino"), "rutas": ("origen", "destino"), "permite_comodin": False},
     "escribir_archivo": {"args": ("ruta", "contenido"), "rutas": ("ruta",), "permite_comodin": False},
     "borrar_archivo": {"args": ("ruta",), "rutas": ("ruta",), "permite_comodin": False},
+    # `copiar_archivo` recibe SOLO el origen; el destino (`<ruta>.copia`) lo deriva el adaptador y no
+    # sobrescribe nunca. Por eso es la unica operacion "creadora" de lista verde (permissions.py): solo
+    # crea, nunca destruye. Habilita la automatizacion "guarda una copia antes de borrar" sin fricciones.
+    "copiar_archivo": {"args": ("ruta",), "rutas": ("ruta",), "permite_comodin": False},
 }
 
 

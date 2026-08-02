@@ -44,6 +44,17 @@ CATALOGO: dict[str, dict] = {
     # --- Computador: alteran estado (M2) ---
     "mover_archivo": {"lista": "roja", "efecto": "altera", "desc": "mover (puede colisionar en destino)"},
     "renombrar_archivo": {"lista": "roja", "efecto": "altera", "desc": "renombrar"},
+    # `copiar_archivo` es VERDE por el mismo criterio de REVERSIBILIDAD: solo crea `<ruta>.copia` y el
+    # adaptador rechaza sobrescribir, de modo que nunca destruye ni pierde datos (deshacer = borrar la
+    # copia, trivial). A diferencia de mover/escribir, no puede colisionar destruyendo el destino. Por eso
+    # `efecto` es "reversible" (fuera de ALTERA_ESTADO): no exige dry-run. Es lo que permite que la
+    # automatizacion "copia antes de borrar" se ejecute sin pedir confirmacion (respeta 6.4 §4: una regla
+    # solo pide confirmacion si TOCA lista roja; copiar no la toca).
+    "copiar_archivo": {
+        "lista": "verde",
+        "efecto": "reversible",
+        "desc": "copiar a <ruta>.copia (crea, nunca sobrescribe)",
+    },
     "escribir_archivo": {"lista": "roja", "efecto": "altera", "desc": "crear o sobrescribir"},
     "borrar_archivo": {"lista": "roja", "efecto": "destruye", "desc": "eliminar del disco"},
     "modificar_configuracion": {"lista": "roja", "efecto": "altera", "desc": "cambiar configuracion del sistema"},

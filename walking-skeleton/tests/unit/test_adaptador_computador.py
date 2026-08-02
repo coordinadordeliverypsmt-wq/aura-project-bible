@@ -18,6 +18,7 @@ CASOS = [
     ("escribir_archivo", lambda p: {"ruta": str(p / "nuevo.txt"), "contenido": "x"}),
     ("borrar_archivo", lambda p: {"ruta": str(p / "a.txt")}),
     ("mover_archivo", lambda p: {"origen": str(p / "a.txt"), "destino": str(p / "b.txt")}),
+    ("copiar_archivo", lambda p: {"ruta": str(p / "a.txt")}),
 ]
 
 
@@ -199,3 +200,30 @@ async def test_idempotencia_mismo_evento_no_borra_dos_veces(entorno):
     r = await ad.execute("borrar_archivo", {"ruta": str(ruta / "a.txt")}, "t", "MISMO")
     assert r["status"] == "duplicate"
     assert (ruta / "a.txt").exists(), "el reintento borro un archivo que el usuario habia recreado"
+
+
+# ------------------------------------------------------ copiar (respaldo) ---
+
+
+@pytest.mark.asyncio
+async def test_copiar_crea_una_copia_sin_tocar_el_original(entorno):
+    """`copiar_archivo` crea `<ruta>.copia` con el mismo contenido y deja intacto el original.
+
+    Es el primitivo que sostiene la automatizacion "guarda una copia antes de borrar": el respaldo
+    debe existir en disco ANTES de que se borre el original.
+    """
+    ruta, ad = entorno
+    r = await ad.execute("copiar_archivo", {"ruta": str(ruta / "a.txt")}, "t", "cp1")
+    assert r["status"] == "ok"
+    assert (ruta / "a.txt").read_text() == "contenido original", "el original no debe cambiar"
+    assert (ruta / "a.txt.copia").read_text() == "contenido original", "la copia debe existir con el contenido"
+
+
+@pytest.mark.asyncio
+async def test_copiar_no_sobrescribe_un_destino_existente(entorno):
+    """Nunca sobrescribe: es lo que mantiene a `copiar_archivo` en lista verde (solo crea, no destruye)."""
+    ruta, ad = entorno
+    (ruta / "a.txt.copia").write_text("copia previa que NO debe perderse")
+    with pytest.raises(ErrorDeValidacion, match="ya existe"):
+        await ad.execute("copiar_archivo", {"ruta": str(ruta / "a.txt")}, "t", "cp2")
+    assert (ruta / "a.txt.copia").read_text() == "copia previa que NO debe perderse", "sobrescribio el destino"

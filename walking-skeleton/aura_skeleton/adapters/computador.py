@@ -194,6 +194,8 @@ class AdaptadorComputador:
             return self._borrar(a["ruta"])
         if command in ("mover_archivo", "renombrar_archivo"):
             return self._mover(a["origen"], a["destino"])
+        if command == "copiar_archivo":
+            return self._copiar(a["ruta"])
         raise ErrorDeValidacion(f"operacion sin implementacion: {command!r}")
 
     # --- Operaciones destructivas: siempre por descriptor de directorio -----
@@ -236,6 +238,45 @@ class AdaptadorComputador:
                     raise ErrorDeValidacion(f"el destino ya existe: {b_d!r}")
                 os.rename(b_o, b_d, src_dir_fd=fd_o, dst_dir_fd=fd_d)
                 return {"origen": origen, "destino": destino}
+            finally:
+                os.close(fd_d)
+        finally:
+            os.close(fd_o)
+
+    def _copiar(self, ruta: str) -> dict:
+        """Copia `ruta` a `<ruta>.copia` SIN sobrescribir. Habilita "guarda una copia antes de borrar".
+
+        Es la unica operacion "creadora" de lista verde y su seguridad depende de no destruir nunca: por
+        eso se abre con `O_EXCL` (falla si el destino ya existe) y con `O_NOFOLLOW` en ambos extremos. Se
+        opera sobre descriptores de directorio, igual que `_mover`, para no reinterpretar la ruta entre la
+        validacion y la accion (TOCTOU). Preservar metadatos ricos no es necesario para un respaldo.
+        """
+        destino = ruta + ".copia"
+        fd_o = _fd_directorio_seguro(ruta, self._raices)
+        try:
+            fd_d = _fd_directorio_seguro(destino, self._raices)
+            try:
+                b_o, b_d = os.path.basename(ruta), os.path.basename(destino)
+                _exigir_no_enlace(b_o, fd_o)  # no copiar A TRAVES de un enlace del origen
+                # Lectura sin seguir enlaces; escritura exclusiva: si el destino aparece ahora, falla.
+                src = os.open(b_o, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=fd_o)
+                try:
+                    try:
+                        dst = os.open(b_d, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=fd_d)
+                    except FileExistsError as e:
+                        # No sobrescribe: es exactamente lo que mantiene a copiar en lista verde.
+                        raise ErrorDeValidacion(f"el destino ya existe: {b_d!r}") from e
+                    try:
+                        while True:
+                            trozo = os.read(src, 65536)
+                            if not trozo:
+                                break
+                            os.write(dst, trozo)
+                    finally:
+                        os.close(dst)
+                finally:
+                    os.close(src)
+                return {"copiado": ruta, "destino": destino}
             finally:
                 os.close(fd_d)
         finally:

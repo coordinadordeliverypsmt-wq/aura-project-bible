@@ -46,6 +46,7 @@ from .core.notificaciones import CentroNotificaciones
 from .core.orchestrator import Orchestrator
 from .core.permissions import PermissionManager
 from .core.registro import RegistroAdaptadores
+from .core.reglas import AlmacenReglas
 from .modules.memory import PersistentMemory
 from .modules.memory_semantic import SemanticMemory
 from .modules.router import ModelRouter
@@ -138,6 +139,7 @@ class Sistema:
     memoria: MemoryStore  # N1 (PersistentMemory) o N2 (SemanticMemory) segun el plan
     notificaciones: CentroNotificaciones
     modelo_usuario: ModeloUsuario
+    automatizaciones: AlmacenReglas
     plan: PlanActivacion
     ruta_memoria: str
     ruta_audit: str
@@ -228,6 +230,10 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
     # Soberania del modelo del usuario (MVP): inspeccionar/entender/corregir/olvidar lo que AURA sabe de ti,
     # sobre la MISMA memoria del sistema (el olvido persiste; ADR-0017).
     modelo_usuario = ModeloUsuario(memoria)
+    # Automatizaciones definidas por el usuario (MVP capacidad 5, Bible 6.4). Sus reglas son DATO DEL
+    # USUARIO y viven junto al resto de su estado permanente: por eso persisten al reiniciar AURA, que es
+    # exactamente lo que distingue una automatizacion de una instruccion dada en una conversacion.
+    automatizaciones = AlmacenReglas(os.path.join(config.datos, "reglas.jsonl"))
 
     orquestador = Orchestrator(
         InProcessEventBus(),
@@ -240,6 +246,7 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
         contexto=registro_contexto,  # captura de senales ENCENDIDA (M3.0)
         notificaciones=centro_notificaciones,
         modelo_usuario=modelo_usuario,
+        automatizaciones=automatizaciones,
     )
 
     obs.log(
@@ -262,6 +269,7 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
         memoria=memoria,
         notificaciones=centro_notificaciones,
         modelo_usuario=modelo_usuario,
+        automatizaciones=automatizaciones,
         plan=plan,
         ruta_memoria=ruta_memoria,
         ruta_audit=ruta_audit,

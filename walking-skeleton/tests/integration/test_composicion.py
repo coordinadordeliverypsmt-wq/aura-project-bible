@@ -78,6 +78,21 @@ def test_arranque_usa_memoria_persistente(config, tmp_path):
     assert "tmp" not in sistema.ruta_memoria.replace(str(tmp_path), ""), "memoria en directorio volatil"
 
 
+def test_arranque_enciende_las_automatizaciones_del_usuario(config, tmp_path):
+    """MVP capacidad 5: las reglas del usuario deben quedar ENCENDIDAS y persistir junto a su estado.
+
+    Detectada por mutacion: sin esta prueba, quitar `automatizaciones=` del cableado dejaba la
+    capacidad construida, probada e INALCANZABLE desde el arranque real — exactamente ALERTA-005.
+    Se comprueba tambien que el orquestador use EL MISMO almacen que expone el sistema: dos almacenes
+    distintos harian que lo que el usuario crea y lo que el sistema ejecuta diverjan en silencio.
+    """
+    sistema = componer(config)
+
+    assert sistema.automatizaciones is not None, "las automatizaciones del usuario quedaron apagadas"
+    assert sistema.orquestador.automatizaciones is sistema.automatizaciones, "el orquestador usa otro almacen"
+    assert sistema.automatizaciones._ruta.startswith(str(tmp_path)), "las reglas no viven con el estado del usuario"
+
+
 def test_orquestador_y_motor_comparten_el_mismo_registro(config):
     """Un registro distinto en cada uno permitiria dos conjuntos de capacidades divergentes."""
     sistema = componer(config)

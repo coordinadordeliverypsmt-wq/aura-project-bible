@@ -14,6 +14,7 @@ from .automatizacion import MotorAutomatizacion
 from .modelo_usuario import describir_conocimiento, explicar_entrada
 from .notificaciones import notificacion_de_accion
 from .registro import RegistroAdaptadores
+from .reglas import ReglaUsuario, evaluar_condicion, resolver_args
 
 
 def _parse_decision(out: str, tid: str) -> tuple[str, dict, str]:
@@ -107,6 +108,42 @@ def _cae_en(t: str, pats: tuple) -> bool:
     return any(p in t for p in pats)
 
 
+# Automatizaciones definidas por el usuario (MVP capacidad 5, Bible 6.4). La deteccion es DETERMINISTA en el
+# nucleo (ADR-0014), igual que el resto de superficies: crear una regla o consultarla es un HECHO, no una
+# inferencia, y no se delega en el LLM. El MVP reconoce en lenguaje natural UNA automatizacion —"guarda una
+# copia antes de borrar"—; la generalidad (cualquier disparador/accion) vive en el MODELO de regla y en el
+# MOTOR, no en el reconocedor, que se ampliara sin rediseno (deuda registrada, no rearquitectura).
+_PAT_REGLAS_VER = ("que automatizaciones", "que automatizacion", "mis automatizaciones", "que reglas", "mis reglas")
+_PAT_REGLA_DISPARADOR = ("siempre que", "cada vez que", "cuando ")
+
+# Identificador ESTABLE de la unica automatizacion que el MVP sabe reconocer en lenguaje natural. Al ser
+# estable, repetir la frase no duplica la regla ni al reiniciar (el almacen es append-only).
+_ID_COPIA_ANTES_DE_BORRAR = "copia-antes-de-borrar"
+
+# Accion del usuario -> clausula en pasado y primera persona (habla AURA), para narrar "... y luego <esto>".
+_CLAUSULA_USUARIO = {
+    "borrar_archivo": "lo borré",
+    "mover_archivo": "lo moví",
+    "renombrar_archivo": "lo renombré",
+    "escribir_archivo": "lo escribí",
+}
+
+
+def _es_consulta_de_reglas(texto: str) -> bool:
+    """True si el usuario quiere inspeccionar sus automatizaciones ("¿que automatizaciones tengo?")."""
+    return any(p in _normalizar(texto) for p in _PAT_REGLAS_VER)
+
+
+def _es_creacion_de_regla(texto: str) -> bool:
+    """True si el usuario define la automatizacion "copia antes de borrar" en lenguaje natural.
+
+    Reconoce el patron disparador ("siempre que / cada vez que / cuando") + accion disparadora (borrar) +
+    intencion de respaldo (copia). Es el unico patron del MVP; ampliarlo es deuda, no rediseno.
+    """
+    t = _normalizar(texto)
+    return any(p in t for p in _PAT_REGLA_DISPARADOR) and ("borr" in t or "elimin" in t) and "copia" in t
+
+
 class Orchestrator:
     """Coordina el turno conversacional. NO ejecuta acciones por su cuenta (M2.5, ALERTA-005).
 
@@ -127,11 +164,13 @@ class Orchestrator:
         contexto=None,
         notificaciones=None,
         modelo_usuario=None,
+        automatizaciones=None,
     ):
         self.bus, self.memory, self.router = bus, memory, router
         self.perm, self.voice = permissions, voice
         self.notificaciones = notificaciones  # Centro de Notificaciones (MVP): registra lo que AURA hace
         self.modelo_usuario = modelo_usuario  # Soberania (MVP): ver/entender/corregir/olvidar lo que sabe de ti
+        self.automatizaciones = automatizaciones  # AlmacenReglas (MVP cap. 5): reglas del usuario, persistentes
         self._foco_modelo: dict[str, dict] = {}  # a que afirmacion se refiere "eso" por usuario
         # M3.0 — captura de senales. OPCIONAL y PASIVA: si no hay registro de contexto, el sistema
         # se comporta exactamente igual que en M2. La captura observa el turno; no participa en
@@ -181,6 +220,15 @@ class Orchestrator:
         if self.notificaciones is not None and _es_consulta_de_notificaciones(text):
             await self._finalizar_turno(uid, tid, text, self._resumen_notificaciones(), "core", t)
             return
+        # Automatizaciones del usuario (MVP capacidad 5): inspeccionar y crear reglas. Deterministas como el
+        # resto de superficies; el LLM no interviene (definir o listar una regla es un hecho, no una inferencia).
+        if self.automatizaciones is not None:
+            if _es_consulta_de_reglas(text):
+                await self._finalizar_turno(uid, tid, text, self._describir_reglas(uid), "core", t)
+                return
+            if _es_creacion_de_regla(text):
+                await self._finalizar_turno(uid, tid, text, self._crear_regla(uid, text), "core", t)
+                return
         hits = await self.memory.recall(uid, text)
         t.mark("memory")
         # ADR-0014: la ausencia de memoria es un HECHO, no una inferencia. Si el usuario
@@ -202,11 +250,16 @@ class Orchestrator:
         t.mark("llm")
         action, args, say = _parse_decision(out, tid)
         if action != "consulta":
+            evento = {"action": action, "args": args}
+            # Las automatizaciones del usuario reaccionan al evento ANTES de ejecutar la accion que lo
+            # origino: "guarda ANTES una copia" exige que la copia ocurra antes del borrado. Cada regla
+            # disparada recorre el motor (mismo camino, mismos permisos); copiar es verde -> sin confirmacion.
+            disparos = await self._disparar_reglas(uid, evento, tid)
             # M2.5 (ALERTA-005): la ejecucion se delega en el motor, unico camino del sistema. El
             # orquestador no llama a ningun adaptador: aqui no hay ruta alternativa que mantener.
-            cmd_ev = Event("action.command", tid, uid, {"action": action, "args": args}, causation_id=ev.event_id)
+            cmd_ev = Event("action.command", tid, uid, evento, causation_id=ev.event_id)
             res = await self.motor.ejecutar(action, args, tid, cmd_ev.event_id, origen="conversacion")
-            say = self._redactar(action, say, res)
+            say = self._redactar_con_reglas(action, args, say, res, disparos)
             # Productor del Centro (MVP): AURA registra, en lenguaje natural, lo que acaba de hacer, para
             # poder contarselo despues al usuario ("¿que ha pasado mientras no estaba?").
             if self.notificaciones is not None:
@@ -270,6 +323,95 @@ class Orchestrator:
             return "No ha pasado nada relevante mientras no estabas."
         lineas = "\n".join(f"• {n.titulo}" for n in items)
         return f"Desde la última vez:\n{lineas}"
+
+    # ----------------------------------------- automatizaciones del usuario --
+
+    def _describir_reglas(self, uid: str) -> str:
+        """Responde "¿que automatizaciones tengo?" con lo que hay REALMENTE en el almacen.
+
+        Fiel al estado interno: si no hay ninguna, se dice; no se describe una intencion ni un plan.
+        """
+        reglas = self.automatizaciones.listar(uid)
+        if not reglas:
+            return "No tienes ninguna automatización activa."
+        cabecera = "1 automatización activa" if len(reglas) == 1 else f"{len(reglas)} automatizaciones activas"
+        lineas = "\n".join(f"• {r.metadatos.get('descripcion') or f'{r.accion} cuando {r.evento}'}" for r in reglas)
+        return f"Tienes {cabecera}:\n{lineas}"
+
+    def _crear_regla(self, uid: str, text: str) -> str:
+        """Persiste la automatizacion que el usuario acaba de definir y lo confirma.
+
+        El MVP reconoce un unico patron ("copia antes de borrar"), pero lo que se guarda es el MODELO
+        GENERAL de regla —evento, condicion declarativa, accion y args por referencia al evento—, de modo
+        que ampliar el reconocedor no obligue a migrar los datos ya escritos. `rule_id` es estable: repetir
+        la frase no crea una regla duplicada, y AURA lo dice en lugar de fingir que aprendio algo nuevo.
+        """
+        if any(r.rule_id == _ID_COPIA_ANTES_DE_BORRAR for r in self.automatizaciones.listar(uid)):
+            return "Ya lo hago: guardo una copia antes de borrar."
+        regla = ReglaUsuario(
+            rule_id=_ID_COPIA_ANTES_DE_BORRAR,
+            user_id=uid,
+            evento="action.command",
+            condicion={"campo": "action", "op": "==", "valor": "borrar_archivo"},
+            accion="copiar_archivo",
+            args={"ruta": "$evento.ruta"},  # referencia al evento: opera sobre el archivo real de cada vez
+            metadatos={"descripcion": "Guardar una copia antes de borrar un archivo", "frase": text},
+        )
+        self.automatizaciones.crear(regla)
+        obs.log("REGLA", "automatizacion", f"automatizacion creada: {regla.rule_id}", "-", audit=True)
+        return "Entendido. Lo haré a partir de ahora."
+
+    async def _disparar_reglas(self, uid: str, evento: dict, tid: str) -> list[dict]:
+        """Ejecuta las automatizaciones del usuario que aplican a este evento. Devuelve lo ocurrido.
+
+        Cada disparo recorre el MISMO camino que cualquier otra accion —el motor— con sus permisos y su
+        dry-run: una regla no es un atajo para saltarse el gate (RN-5). El `event_id` distingue el disparo
+        del evento del usuario para que la idempotencia del adaptador no confunda ambos.
+
+        DEUDA (fuera del alcance fijado): si un disparo previo falla, la accion del usuario se ejecuta
+        igualmente; el MVP no tiene semantica transaccional. El fallo no se silencia: se comunica en la
+        respuesta y en el Centro de Notificaciones.
+        """
+        if self.automatizaciones is None:
+            return []
+        disparos: list[dict] = []
+        for regla in self.automatizaciones.aplicables(uid, "action.command"):
+            if not evaluar_condicion(regla.condicion, evento):
+                continue
+            args = resolver_args(regla.args, evento)
+            res = await self.motor.ejecutar(
+                regla.accion, args, tid, f"{tid}:regla:{regla.rule_id}", origen=f"regla:{regla.rule_id}"
+            )
+            obs.log(
+                "REGLA",
+                "automatizacion",
+                f"regla {regla.rule_id} -> {regla.accion} {res.get('estado')}",
+                tid,
+                audit=True,
+            )
+            n = notificacion_de_accion(regla.accion, args, res)
+            if self.notificaciones is not None:
+                self.notificaciones.recibir(n)
+            disparos.append({"regla": regla, "args": args, "resultado": res, "mensaje": n.titulo})
+        return disparos
+
+    def _redactar_con_reglas(self, action: str, args: dict, say_llm: str, res: dict, disparos: list[dict]) -> str:
+        """Narra el turno completo: lo que hizo la automatizacion Y lo que pidio el usuario.
+
+        Sin esto, AURA ejecutaria la regla en silencio y el usuario no sabria que ocurrio. Se reutiliza el
+        mismo texto comunicable que va al Centro de Notificaciones, para que AURA cuente lo mismo en el
+        momento y despues. Lo que no se ejecuto nunca se narra como hecho (ALERTA-005).
+        """
+        base = self._redactar(action, say_llm, res)
+        if not disparos:
+            return base
+        hechos = [d for d in disparos if d["resultado"].get("estado") == "ejecutada"]
+        avisos = [d["mensaje"] for d in disparos if d["resultado"].get("estado") != "ejecutada"]
+        clausula = _CLAUSULA_USUARIO.get(action)
+        if hechos and clausula and res.get("estado") == "ejecutada":
+            previo = ", ".join(d["mensaje"].rstrip(".") for d in hechos)
+            return " ".join([*avisos, f"{previo} y luego {clausula}. [accion {action} ejecutada]"])
+        return " ".join([*avisos, *[d["mensaje"] for d in hechos], base])
 
     def _redactar(self, action: str, say_llm: str, res: dict) -> str:
         """Construye la respuesta sobre el RESULTADO REAL, no sobre lo que el modelo dijo.

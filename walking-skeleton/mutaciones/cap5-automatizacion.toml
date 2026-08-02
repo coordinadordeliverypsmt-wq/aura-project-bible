@@ -1,0 +1,92 @@
+incremento = "MVP capacidad 5 - automatizacion definida por el usuario"
+pruebas = [
+    "tests/e2e/test_automatizacion_usuario.py",
+    "tests/unit/test_reglas.py",
+    "tests/unit/test_adaptador_computador.py",
+    "tests/integration/test_composicion.py",
+]
+
+[[mutante]]
+id = "M1"
+garantia = "la regla NO persiste (el almacen no escribe en disco)"
+fichero = "aura_skeleton/core/reglas.py"
+buscar = '''        with open(self._ruta, "a", encoding="utf-8") as f:
+            f.write(json.dumps(asdict(regla), ensure_ascii=False) + "\n")'''
+sustituir = '''        pass  # MUTANTE: solo en memoria'''
+
+[[mutante]]
+id = "M2"
+garantia = "el almacen NO relee el disco al arrancar (se pierde tras reiniciar)"
+fichero = "aura_skeleton/core/reglas.py"
+buscar = '''        self._reglas: list[ReglaUsuario] = self._cargar()'''
+sustituir = '''        self._reglas: list[ReglaUsuario] = []  # MUTANTE'''
+
+[[mutante]]
+id = "M3"
+garantia = "la condicion declarativa se ignora (la regla dispara ante cualquier accion)"
+fichero = "aura_skeleton/core/reglas.py"
+buscar = '''    if not condicion:
+        return True'''
+sustituir = '''    return True  # MUTANTE
+    if not condicion:
+        return True'''
+
+[[mutante]]
+id = "M4"
+garantia = "los args no se resuelven contra el evento ($evento.ruta queda literal)"
+fichero = "aura_skeleton/core/reglas.py"
+buscar = '''        if isinstance(valor, str) and valor.startswith("$evento."):'''
+sustituir = '''        if False:  # MUTANTE'''
+
+[[mutante]]
+id = "M5"
+garantia = "las reglas no se disparan (la automatizacion nunca se ejecuta)"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            disparos = await self._disparar_reglas(uid, evento, tid)'''
+sustituir = '''            disparos = []  # MUTANTE'''
+
+[[mutante]]
+id = "M6"
+garantia = "la regla dispara DESPUES de la accion del usuario (copia despues de borrar)"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            disparos = await self._disparar_reglas(uid, evento, tid)
+            # M2.5 (ALERTA-005): la ejecucion se delega en el motor, unico camino del sistema. El
+            # orquestador no llama a ningun adaptador: aqui no hay ruta alternativa que mantener.
+            cmd_ev = Event("action.command", tid, uid, evento, causation_id=ev.event_id)
+            res = await self.motor.ejecutar(action, args, tid, cmd_ev.event_id, origen="conversacion")'''
+sustituir = '''            cmd_ev = Event("action.command", tid, uid, evento, causation_id=ev.event_id)
+            res = await self.motor.ejecutar(action, args, tid, cmd_ev.event_id, origen="conversacion")
+            disparos = await self._disparar_reglas(uid, evento, tid)  # MUTANTE: despues'''
+
+[[mutante]]
+id = "M7"
+garantia = "la automatizacion no se narra al usuario (se ejecuta en silencio)"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            say = self._redactar_con_reglas(action, args, say, res, disparos)'''
+sustituir = '''            say = self._redactar(action, say, res)  # MUTANTE'''
+
+[[mutante]]
+id = "M8"
+garantia = "el aislamiento por usuario desaparece (las reglas se comparten)"
+fichero = "aura_skeleton/core/reglas.py"
+buscar = '''        return [r for r in self._reglas if r.user_id == user_id and r.estado == "activa"]'''
+sustituir = '''        return [r for r in self._reglas if r.estado == "activa"]  # MUTANTE'''
+
+[[mutante]]
+id = "M9"
+garantia = "la composicion no enciende las automatizaciones"
+fichero = "aura_skeleton/composicion.py"
+buscar = '''        automatizaciones=automatizaciones,
+    )
+
+    obs.log('''
+sustituir = '''    )
+
+    obs.log('''
+
+[[mutante]]
+id = "M10"
+garantia = "copiar SOBRESCRIBE el destino existente (destruye datos)"
+fichero = "aura_skeleton/adapters/computador.py"
+buscar = '''os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW'''
+sustituir = '''os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW'''

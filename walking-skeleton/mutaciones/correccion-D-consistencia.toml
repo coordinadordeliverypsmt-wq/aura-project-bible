@@ -1,0 +1,53 @@
+incremento = "Correccion D - consistencia declarado vs real"
+pruebas = [
+    "tests/integration/test_consistencia_materializacion.py",
+    "tests/unit/test_artefactos.py",
+    "tests/integration/test_composicion.py",
+]
+
+[[mutante]]
+id = "M1"
+garantia = "el estado efectivo vuelve a ser el del plan (se finge la capacidad activa)"
+fichero = "aura_skeleton/composicion.py"
+buscar = '''            estado_efectivo=Estado.DEGRADADA if degradada_memoria else estado_memoria,'''
+sustituir = '''            estado_efectivo=estado_memoria,  # MUTANTE'''
+
+[[mutante]]
+id = "M2"
+garantia = "la degradacion no se marca (motivo se pierde)"
+fichero = "aura_skeleton/composicion.py"
+buscar = '''    degradada_memoria = bool(motivo_memoria)'''
+sustituir = '''    degradada_memoria = False  # MUTANTE'''
+
+[[mutante]]
+id = "M3"
+garantia = "la discrepancia NO llega al registro forense (vuelve el fallo silencioso)"
+fichero = "aura_skeleton/composicion.py"
+buscar = '''                f"{m.nivel} ({m.motivo}); AURA la declara {m.estado_efectivo.name}",
+                "-",
+                audit=True,'''
+sustituir = '''                f"{m.nivel} ({m.motivo}); AURA la declara {m.estado_efectivo.name}",
+                "-",
+            )  # MUTANTE: sin audit
+            _descartado = ('''
+
+[[mutante]]
+id = "M4"
+garantia = "`_efectivas` ignora la materializacion y devuelve el plan crudo"
+fichero = "aura_skeleton/composicion.py"
+buscar = '''    efectivo = {m.capacidad: m.estado_efectivo for m in materializaciones}'''
+sustituir = '''    efectivo = {}  # MUTANTE'''
+
+[[mutante]]
+id = "M5"
+garantia = "el motivo de la degradacion no se propaga"
+fichero = "aura_skeleton/composicion.py"
+buscar = '''            motivo = str(e)'''
+sustituir = '''            motivo = ""  # MUTANTE'''
+
+[[mutante]]
+id = "M6"
+garantia = "`source` deja de ser obligatorio en el manifiesto"
+fichero = "aura_skeleton/artefactos.py"
+buscar = '''            source=datos["source"],'''
+sustituir = '''            source=datos.get("source", ""),  # MUTANTE'''

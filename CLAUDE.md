@@ -43,6 +43,34 @@ alguna prueba. Un mutante que sobrevive es una garantía sin red. **Muta tambié
 `composicion.py`**, no solo la lógica: el mutante «la composición no enciende las automatizaciones»
 sobrevivió con 426 pruebas en verde, y era ALERTA-005 otra vez.
 
+### Cómo se ejecuta la mutación
+
+Declara los mutantes del incremento en `walking-skeleton/mutaciones/<incremento>.toml` y ejecútalos:
+
+```bash
+cd walking-skeleton && python3 -m herramientas.mutar mutaciones/<incremento>.toml
+# exit 0 = todos detectados · 1 = la base no estaba en verde · 2 = hay supervivientes o no aplicados
+```
+
+**Cuándo:** después de GREEN y antes del Quality Gate, una vez por incremento. También al tocar código
+que un incremento anterior protegía: sus mutantes siguen siendo válidos y deben seguir muriendo.
+
+**Por qué NO forma parte del Quality Gate** (decisión del CEO, 2026-08-02): un mutante acotado cuesta
+~3 s, pero los mutantes se acumulan con cada incremento y el gate corre en **cada push**. Sin datos de
+cómo escala, integrarlo encarecería todas las publicaciones. Se reevaluará con métricas medidas. El gate
+sí ejecuta las **meta-pruebas** del arnés (`tests/unit/test_arnes_mutacion.py`): verifica la herramienta,
+no ejecuta mutación.
+
+Dos trampas del formato, ambas pagadas ya:
+
+- Usa cadenas **literales** `'''…'''` en el TOML, nunca `"""…"""`: las básicas interpretan `\n` como
+  salto de línea real y el patrón deja de coincidir. El arnés lo reporta como `NO_APLICADO` —no como
+  detectado—, pero pierdes la protección sin enterarte si no lees el informe.
+- **Si el proceso muere por SIGKILL** con un fichero mutado, queda mutado: `git checkout -- <fichero>`
+  lo recupera. Ctrl-C (SIGINT) sí restaura solo.
+- **Elegir mal las pruebas produce supervivientes falsos.** Declara las pruebas que de verdad cubren la
+  garantía; si dejas fuera la que la protege, el mutante «sobrevive» y no es culpa del código.
+
 **Cierre en cinco bloques:** (1) qué cambió técnicamente · (2) qué gana AURA como producto · (3) cómo lo
 demostraría un usuario —ejecutado, no descrito— · (4) qué deuda queda abierta · (5) qué capacidades
 existentes mejoran.

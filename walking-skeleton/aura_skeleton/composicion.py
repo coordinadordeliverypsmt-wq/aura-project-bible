@@ -74,7 +74,41 @@ class _PerfilInyectado:
 _MODELO_EMBED_DEFECTO = "~/.aura/models/paraphrase-multilingual-MiniLM-L12-v2"
 
 
-def _memoria_por_nivel(estado: Estado, ruta: str) -> tuple[MemoryStore, str]:
+@dataclass(frozen=True)
+class Materializacion:
+    """Que se consiguio ENSAMBLAR realmente para una capacidad, frente a lo que el plan permitia.
+
+    Existe porque son dos hechos distintos y hasta ahora solo se registraba el primero:
+
+    - `estado_plan`   — lo que el **hardware permite** (lo decide el `CapabilityManager`, y sigue siendo
+      cierto aunque falte un artefacto: la RAM no desaparece porque se borre un fichero);
+    - `estado_efectivo` — lo que **de verdad quedo corriendo** tras intentar ensamblarlo.
+
+    Cuando difieren —artefacto ausente, dependencia caida, integridad rota— **AURA declara el segundo**
+    (CEO, 2026-08-02: *"nunca debe declarar una capacidad activa si en realidad esta ejecutando otra"*;
+    INV-9: no se finge capacidad). El plan NO se toca ni se reinterpreta: INV-7 lo prohibe, y ademas seria
+    falsearlo en sentido contrario. Se anade un hecho nuevo, no se corrige uno viejo.
+    """
+
+    capacidad: str
+    estado_plan: Estado
+    estado_efectivo: Estado
+    nivel: str  # que corre realmente, en lenguaje del dominio ("N1 (almacen minimo)")
+    degradada: bool  # el plan permitia mas de lo que se logro ensamblar
+    motivo: str  # por que, si `degradada`; vacio si no hay discrepancia
+
+
+def _efectivas(plan: PlanActivacion, materializaciones: tuple[Materializacion, ...], estado: Estado) -> tuple[str, ...]:
+    """Capacidades en `estado` segun lo que REALMENTE corre: el plan, corregido por lo que se ensamblo.
+
+    Unica traduccion de "lo que el hardware permite" a "lo que AURA puede declarar". No modifica el plan
+    (INV-7 lo prohibe): lo lee y aplica encima el hecho de la materializacion.
+    """
+    efectivo = {m.capacidad: m.estado_efectivo for m in materializaciones}
+    return tuple(d.nombre for d in plan.decisiones if efectivo.get(d.nombre, d.estado) == estado)
+
+
+def _memoria_por_nivel(estado: Estado, ruta: str) -> tuple[MemoryStore, str, str]:
     """Selecciona la implementacion de memoria segun el nivel que decide el plan (C2.3, ADR-0020).
 
     - **ACTIVA** + modelo de embeddings presente -> **N2** (`SemanticMemory`, indice semantico).
@@ -90,13 +124,17 @@ def _memoria_por_nivel(estado: Estado, ruta: str) -> tuple[MemoryStore, str]:
     al importar: asi es configuracion, no un valor congelado.
     """
     modelo_dir = os.path.expanduser(os.environ.get("AURA_EMBED_MODEL_DIR", _MODELO_EMBED_DEFECTO))
+    motivo = ""
     if estado is Estado.ACTIVA:
         try:
             ruta_validada = ModelResolver().resolver(modelo_dir)  # ADR-0022: localiza + integridad + formato
-            return SemanticMemory(ruta, ruta_validada), "N2 (indice semantico)"
+            return SemanticMemory(ruta, ruta_validada), "N2 (indice semantico)", ""
         except Exception as e:  # artefacto ausente/invalido o carga fallida: se materializa N1, sin romper
-            obs.log("MEM", "composicion", f"N2 no disponible ({e}); se materializa N1", "-")
-    return PersistentMemory(ruta), "N1 (almacen minimo)"
+            # El motivo VIAJA con la materializacion en lugar de perderse en una linea de consola. Antes
+            # este log no llevaba `audit=True`: la degradacion no dejaba rastro forense y el sistema seguia
+            # anunciando la capacidad como activa. Ese era el defecto.
+            motivo = str(e)
+    return PersistentMemory(ruta), "N1 (almacen minimo)", motivo
 
 
 @dataclass
@@ -140,9 +178,23 @@ class Sistema:
     notificaciones: CentroNotificaciones
     modelo_usuario: ModeloUsuario
     automatizaciones: AlmacenReglas
-    plan: PlanActivacion
+    plan: PlanActivacion  # lo que el hardware PERMITE (decision del Manager; nunca se reinterpreta, INV-7)
+    materializaciones: tuple[Materializacion, ...]  # lo que se consiguio ENSAMBLAR
     ruta_memoria: str
     ruta_audit: str
+
+    @property
+    def capacidades_activas_efectivas(self) -> tuple[str, ...]:
+        """Lo que AURA puede declarar activo. **Usa esto, no `plan.activas`, para informar a nadie.**
+
+        `plan.activas` responde "¿lo permite el hardware?"; esta propiedad responde "¿esta corriendo?".
+        Solo la segunda puede comunicarse al usuario o al operador sin arriesgarse a afirmar algo falso.
+        """
+        return _efectivas(self.plan, self.materializaciones, Estado.ACTIVA)
+
+    @property
+    def capacidades_degradadas_efectivas(self) -> tuple[str, ...]:
+        return _efectivas(self.plan, self.materializaciones, Estado.DEGRADADA)
 
 
 def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
@@ -214,11 +266,38 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
     plan = CapabilityManager(CapabilityRegistry(catalogo())).planificar(contexto)
     dec_memoria = plan.decision("memoria")
     estado_memoria = dec_memoria.estado if dec_memoria is not None else Estado.DEGRADADA
-    memoria, nivel_memoria = _memoria_por_nivel(estado_memoria, ruta_memoria)
+    memoria, nivel_memoria, motivo_memoria = _memoria_por_nivel(estado_memoria, ruta_memoria)
+
+    # Estado EFECTIVO: si el plan permitia mas de lo que se logro ensamblar, manda lo ensamblado.
+    degradada_memoria = bool(motivo_memoria)
+    materializaciones = (
+        Materializacion(
+            capacidad="memoria",
+            estado_plan=estado_memoria,
+            estado_efectivo=Estado.DEGRADADA if degradada_memoria else estado_memoria,
+            nivel=nivel_memoria,
+            degradada=degradada_memoria,
+            motivo=motivo_memoria,
+        ),
+    )
+    for m in materializaciones:
+        if m.degradada:
+            # AUDITADO (audit=True): una capacidad que corre por debajo de lo planificado es un hecho
+            # forense, no una curiosidad de consola. Sin esta entrada, la degradacion es indetectable
+            # despues del arranque — que es justamente como paso inadvertida hasta la revision del 2026-08-02.
+            obs.log(
+                "MATZ",
+                "composicion",
+                f"materializacion degradada: '{m.capacidad}' planificada {m.estado_plan.name} pero corre "
+                f"{m.nivel} ({m.motivo}); AURA la declara {m.estado_efectivo.name}",
+                "-",
+                audit=True,
+            )
     obs.log(
         "BOOT",
         "composicion",
-        f"plan de capacidades: activas={list(plan.activas)} degradadas={list(plan.degradadas)} "
+        f"capacidades (estado EFECTIVO): activas={list(_efectivas(plan, materializaciones, Estado.ACTIVA))} "
+        f"degradadas={list(_efectivas(plan, materializaciones, Estado.DEGRADADA))} "
         f"latentes={list(plan.latentes)}; memoria -> {nivel_memoria}",
         "-",
         audit=True,
@@ -271,6 +350,7 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
         modelo_usuario=modelo_usuario,
         automatizaciones=automatizaciones,
         plan=plan,
+        materializaciones=materializaciones,
         ruta_memoria=ruta_memoria,
         ruta_audit=ruta_audit,
     )

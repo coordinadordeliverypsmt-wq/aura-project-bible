@@ -6,9 +6,13 @@ a él, y un `ModelResolver` de una sola responsabilidad lo localiza, verifica su
 formato, y entrega la ruta válida al consumidor.
 
 **Alcance (ADR-0022, estrictamente).** Manifiesto mínimo (`id`, `version` SemVer, `checksum` SHA-256,
-`licencia`, `contrato`: formato + dims) + resolución (localizar, verificar integridad, comprobar formato,
-entregar ruta). Fuera de alcance por decisión normativa: cachés multinivel, descarga inteligente, múltiples
-proveedores, descubrimiento dinámico, registro distribuido, dependencias complejas.
+`licencia`, `source`, `contrato`: formato + dims) + resolución (localizar, verificar integridad, comprobar
+formato, entregar ruta). Fuera de alcance por decisión normativa: cachés multinivel, descarga inteligente,
+múltiples proveedores, descubrimiento dinámico, registro distribuido, dependencias complejas.
+
+**`source` (CEO, 2026-08-02):** integridad y recuperación son garantías distintas. El checksum dice *"este
+binario es el que declaro"*; `source` dice *"y si se pierde, se repone desde aquí"*. Sigue siendo un dato
+declarativo del entorno: este módulo **no descarga nada** — eso queda fuera de alcance por ADR-0022.
 
 **Principio protegido (ADR-0022 / ADR-0016 / INV-6):** las capacidades nunca nombran un modelo; declaran el
 contrato; la infraestructura (este módulo) decide qué artefacto lo satisface.
@@ -46,6 +50,11 @@ class ManifiestoArtefacto:
     licencia: str
     formato: str
     dims: int  # contrato tecnico: dimension de salida esperada
+    # Procedencia del artefacto (CEO, 2026-08-02). El checksum garantiza INTEGRIDAD —"es el que digo"—
+    # pero no RECUPERACION: un artefacto perdido se puede verificar y no reponer. Lo detecto la revision
+    # estrategica al evaluar el riesgo del modelo de N2, cuyo manifiesto no permitia saber de donde salio.
+    # Es obligatorio: un campo opcional que casi nadie rellena no da trazabilidad, solo la aparenta.
+    source: str
 
 
 def cargar_manifiesto(directorio: str) -> ManifiestoArtefacto:
@@ -61,6 +70,7 @@ def cargar_manifiesto(directorio: str) -> ManifiestoArtefacto:
             licencia=datos["licencia"],
             formato=datos["formato"],
             dims=int(datos["dims"]),
+            source=datos["source"],
         )
     except (OSError, ValueError, KeyError) as e:
         raise ArtefactoNoResuelto(f"manifiesto invalido o ausente en {directorio}: {e}") from e

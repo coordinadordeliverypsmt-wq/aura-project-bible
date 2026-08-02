@@ -25,8 +25,20 @@ Cada artefacto que AURA use se describe con un manifiesto declarativo que contie
 - **`version`** — **SemVer** (política de deprecación de ADR-0004: máx. 2 versiones mayores vivas).
 - **`checksum`** — **SHA-256** del/los fichero(s) del artefacto.
 - **`licencia`** — identificador de licencia (p. ej. `Apache-2.0`, `MIT`).
+- **`source`** — **procedencia** del artefacto: de dónde se obtuvo y desde dónde puede reponerse
+  (*enmienda del CEO, 2026-08-02*).
 - **`contrato_tecnico`** — lo que el consumidor necesita para funcionar: p. ej. dimensiones de salida,
   formato (`onnx` + `tokenizer.json`), interfaz esperada. Es el **contrato**, no el binario.
+
+> **Por qué `source` es obligatorio y no opcional** (enmienda 2026-08-02). **Integridad y recuperación son
+> garantías distintas.** El `checksum` responde *"¿este binario es el que declaro?"*; `source` responde
+> *"y si desaparece, ¿de dónde vuelve?"*. La revisión estratégica del 2026-08-02 encontró el caso real: el
+> manifiesto del embedder multilingüe permitía **verificar** el artefacto pero no **reponerlo**, porque no
+> registraba su origen. Un campo opcional que casi nadie rellena no da trazabilidad, solo la aparenta: por
+> eso `cargar_manifiesto` rechaza un manifiesto sin `source`, con prueba que lo fija.
+>
+> Sigue siendo **dato declarativo**: el `ModelResolver` **no descarga nada** — la descarga automática
+> permanece fuera de alcance por decisión normativa de este ADR.
 
 El manifiesto es **datos declarativos** (serializable), coherente con el principio de independencia del
 catálogo. Vive en la **infraestructura**, nunca dentro de una `Capacidad`.

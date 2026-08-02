@@ -86,6 +86,7 @@ construido?"* con la del **roadmap**. Ambas tablas están separadas en
 | **P1 · Escenario de despliegue** (¿es esta máquina el objetivo?) | 2026-07-21 | 3 de las 5 fases de M3 |
 | **Siguiente inversión del proyecto** tras la revisión estratégica | 2026-08-02 | Todo trabajo de construcción nuevo |
 | **Mover el artefacto de N2** (opciones B/C del Decision Package) | 2026-08-02 | Nada urgente: el CEO lo aplazó hasta que N2 pueda usarse; hoy P1 la bloquea. Ver §4.3 |
+| **Verificador de consistencia** (propuesta NO autorizada) | 2026-08-02 | Nada. Registrada en `decisiones/pendientes-de-evaluacion/`; se reevalúa tras la revisión estratégica |
 
 ---
 

@@ -3,12 +3,16 @@
 > **Para quien retome el desarrollo** (persona o agente), después de horas o de semanas, con o sin
 > contexto de las conversaciones anteriores.
 >
-> **Regla que gobierna este documento:** la única fuente de verdad es el repositorio y su estado
-> verificado por ejecución. Este checklist **no sustituye** esa verificación: te dice **qué verificar**,
-> **en qué orden** y **qué NO es lo que parece**. Si algo aquí contradice lo que mide un comando, manda
-> el comando — y entonces este documento está desactualizado y hay que corregirlo.
+> **Estatus (CEO, 2026-08-02): este documento es la FUENTE DE VERDAD para retomar el trabajo y para
+> registrar cualquier vacío detectado durante un incremento.** Si aparece una deuda, un trabajo diferido o
+> un hueco, se anota aquí **en el momento**, no al final.
+>
+> **Y una regla que no se deroga:** fuente de verdad *para retomar* no significa fuente de verdad *sobre
+> los hechos*. Esos los tiene el repositorio y se comprueban por ejecución. Este checklist te dice **qué
+> verificar**, **en qué orden** y **qué NO es lo que parece**. Si algo de aquí contradice lo que mide un
+> comando, **manda el comando** — y entonces el documento está desactualizado y corregirlo es el trabajo.
 
-**Última actualización:** 2026-08-02 · **Estado documentado:** `main` = `origin/main` = `d802671`
+**Última actualización:** 2026-08-02 · **Estado documentado:** `main` = `origin/main` = `b0a4e33`
 (verifica el hash actual con `git log`; este documento se actualiza en cada cierre, no en cada commit)
 
 ---

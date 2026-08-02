@@ -67,6 +67,11 @@ referencia informal a "memoria".
    **"lo que parece hecho y no lo está"**: se añade toda trampa nueva descubierta y se **borra** la que
    se haya corregido de verdad, citando el commit que lo demuestra.
 
+   **Estatus elevado (CEO, 2026-08-02):** el checklist es la **fuente de verdad para retomar el trabajo y
+   para registrar los vacíos** detectados durante un incremento. Un vacío, una deuda o un trabajo diferido
+   se anotan **en el momento en que aparecen**, no al cerrar. No sustituye a la verificación por ejecución:
+   el repositorio sigue siendo la fuente de verdad sobre los hechos.
+
    Por qué es un principio y no una tarea: el proyecto ya ha sufrido **cuatro veces** el mismo patrón
    —algo declarado en un documento y ausente en la realidad— (ALERTA-004, ALERTA-005, la captura de
    señales y los hallazgos de la revisión estratégica del 2026-08-02). Un checklist que solo dijera lo

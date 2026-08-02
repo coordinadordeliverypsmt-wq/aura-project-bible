@@ -1,8 +1,27 @@
 # Deuda registrada — Automatización definida por el usuario (MVP capacidad 5)
 
-**Estado:** registrada, **no bloqueante**. El MVP está cerrado y demostrado (2026-08-02).
+**Estado:** registrada, **no bloqueante**. Capacidad **APROBADA POR EL CEO el 2026-08-02** tras verificar la
+evidencia de persistencia.
 **Alcance del cierre:** el usuario crea una automatización en lenguaje natural, esta **persiste**, se
 **ejecuta sola** cuando ocurre el evento, **sobrevive al reinicio** de AURA y puede **inspeccionarse**.
+
+**Evidencia que sustentó la aprobación** (verificación exigida por el CEO antes de aprobar):
+
+1. **Artefacto físico:** `~/.aura/reglas.jsonl` (JSONL append-only, junto al estado permanente del
+   usuario). Una única ruta de escritura en todo el código: `AlmacenReglas.crear`, modo append.
+2. **Modelo persistido = modelo aprobado:** `rule_id`, `evento`, `condicion` declarativa, `accion`, `args`
+   por referencia (`$evento.ruta`), `estado`, `metadatos` — más `user_id` (aislamiento, P-ARQ-5).
+3. **Carga desde el artefacto, sin recreación:** tras reiniciar con `AlmacenReglas.crear` **saboteado para
+   abortar el proceso**, la regla se ejecutó igual y el fichero quedó **idéntico byte a byte** (mismo
+   inode, `mtime_ns` y SHA-256; 1 línea). Las reglas se leen en el **constructor**, antes del primer turno.
+4. **Descarte de recreación implícita:** una regla **escrita a mano fuera de AURA**, con un `rule_id`
+   inexistente en el repositorio, fue descrita y ejecutada correctamente. El sistema no puede haberla
+   generado: solo leído.
+5. **Control negativo permanente:** `test_sin_regla_no_hay_copia` — sin artefacto no hay copia, lo que
+   descarta un comportamiento incondicional.
+
+`metadatos.frase` es **trazabilidad, no mecanismo**: la regla escrita a mano carece de ese campo y se
+ejecuta igual. La persistencia no es el par `{frase, acción}` que el CEO rechazó explícitamente.
 
 Este documento existe para que lo que quedó fuera **no se olvide ni se confunda con un descuido**. Todo lo
 listado fue excluido **deliberadamente** por decisión del CEO al aprobar el Decision Package, o detectado

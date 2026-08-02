@@ -22,7 +22,7 @@ referencia informal a "memoria".
 > repositorio **no existe a efectos del proyecto**. Un auditor debe poder reconstruir el estado completo
 > clonando el repositorio, sin depender del agente que hizo el trabajo.
 
-## Los cinco principios
+## Los seis principios
 
 1. **Product Demo Preview antes de leer código.** Cada incremento empieza escribiendo la conversación
    nueva que el usuario podrá tener con AURA cuando termine. Si esa conversación no aporta una capacidad
@@ -55,6 +55,22 @@ referencia informal a "memoria".
 
    Al registrar algo permanente se indica **exactamente dónde** quedó (ADR, documento, backlog, commit),
    nunca "en memoria" como si eso fuese suficiente.
+
+6. **Continuidad: ningún vacío queda oculto.** (CEO, 2026-08-02) Existe un artefacto permanente,
+   [`CHECKLIST-CONTINUIDAD.md`](../CHECKLIST-CONTINUIDAD.md) en la raíz del repositorio, cuyo objetivo es
+   que **cualquiera que retome el desarrollo —persona o agente, con o sin el contexto de las
+   conversaciones anteriores— pueda continuar exactamente donde se quedó.**
+
+   **Actualizarlo forma parte del cierre de cada incremento, igual que los cinco bloques. Un incremento
+   no está cerrado si el checklist quedó desactualizado.** En cada cierre se revisan su estado (hash,
+   Quality Gate, capacidades), sus decisiones pendientes, sus autorizaciones y —sobre todo— su sección
+   **"lo que parece hecho y no lo está"**: se añade toda trampa nueva descubierta y se **borra** la que
+   se haya corregido de verdad, citando el commit que lo demuestra.
+
+   Por qué es un principio y no una tarea: el proyecto ya ha sufrido **cuatro veces** el mismo patrón
+   —algo declarado en un documento y ausente en la realidad— (ALERTA-004, ALERTA-005, la captura de
+   señales y los hallazgos de la revisión estratégica del 2026-08-02). Un checklist que solo dijera lo
+   que está hecho repetiría ese patrón; el valor está en que diga **qué no es lo que aparenta**.
 
 ## Precisiones del CEO incorporadas (2026-07-28)
 

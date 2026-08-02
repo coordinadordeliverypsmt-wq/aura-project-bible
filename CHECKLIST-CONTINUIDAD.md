@@ -1,0 +1,245 @@
+# Checklist de Continuidad — AURA
+
+> **Para quien retome el desarrollo** (persona o agente), después de horas o de semanas, con o sin
+> contexto de las conversaciones anteriores.
+>
+> **Regla que gobierna este documento:** la única fuente de verdad es el repositorio y su estado
+> verificado por ejecución. Este checklist **no sustituye** esa verificación: te dice **qué verificar**,
+> **en qué orden** y **qué NO es lo que parece**. Si algo aquí contradice lo que mide un comando, manda
+> el comando — y entonces este documento está desactualizado y hay que corregirlo.
+
+**Última actualización:** 2026-08-02 · **Estado del repositorio en esa fecha:** `main` = `origin/main` = `b806c82`
+
+---
+
+## 1 · Arranque en frío: seis comandos antes de tocar nada
+
+Ejecútalos **en este orden**. No empieces a trabajar hasta que los seis hayan pasado.
+
+```bash
+cd <raíz del repositorio>
+
+# 1. Preflight OBLIGATORIO del entorno (D27/D31). Verifica USB montados, dónde viven los modelos,
+#    espacio y swap. Saltárselo produce conclusiones falsas — ver §4.1.
+bash entorno/scripts/preflight-check.sh          # debe terminar en ESTADO: APTO
+
+# 2. ¿Dónde está el código?
+git log --oneline -3 && git status --porcelain    # árbol debe estar limpio
+
+# 3. ¿Local y remoto coinciden?
+git fetch origin && git rev-list --left-right --count main...origin/main   # debe ser "0  0"
+
+# 4. ¿El sistema pasa su propia puerta de calidad?
+cd walking-skeleton && ./quality-gate.sh          # debe terminar en PASS
+
+# 5. ¿Qué enciende realmente el arranque de producción?
+AURA_DATOS=/tmp/aura-check python3 -m aura_skeleton   # lee el bloque BOOT; Ctrl-D para salir
+
+# 6. ¿Qué quedó pendiente y qué NO está autorizado?
+#    -> §3 y §5 de este documento
+```
+
+**Si el paso 1 o el 4 fallan, eso es el trabajo.** No se construye nada encima de un entorno o una base
+en rojo.
+
+---
+
+## 2 · Dónde está el proyecto ahora
+
+| | |
+|---|---|
+| Fase | **Construcción de producto.** La fase documental (Bible) está cerrada desde el 2026-07-18 |
+| Capacidades de producto cerradas | **4** — N2 Memoria Semántica · Centro de Notificaciones · Modelo de Usuario · Automatización definida por el usuario |
+| Quality Gate | PASS **427 passed / 3 skipped** |
+| Alertas de arquitectura abiertas | **0** (las cinco históricas, resueltas) |
+| Trabajo en curso | **ninguno** |
+
+**Dos numeraciones distintas — no las mezcles** (fuente de confusión ya detectada por el CEO):
+
+- **Incrementos del roadmap** (orden en que se construyeron): 1 N2 · 2 Notificaciones · 3 Modelo de Usuario · 4 Automatización.
+- **Capacidades del MVP (acta D2)**: 1 Memoria · 2 Voz · 3 Avatar · 4 Control del computador · 5 Automatización · 6 Multi-modelo · 7 Hogar · 8 Aprendizaje · 9 Notificaciones.
+
+La pregunta *"¿qué falta del MVP?"* solo se responde con la numeración **D2**. La pregunta *"¿qué hemos
+construido?"* con la del **roadmap**. Ambas tablas están separadas en
+`milestones/m3-entry/ROADMAP-CAPACIDADES-FUNCIONALES.md`.
+
+---
+
+## 3 · Decidido vs. pendiente
+
+### Decidido y vigente (no reabrir sin el CEO)
+
+| Decisión | Dónde consta |
+|---|---|
+| La fase de **integración NO está abierta**. Agotar las capacidades construibles es condición *necesaria, no suficiente*; el cambio de fase es decisión **explícita** del CEO | `ROADMAP-CAPACIDADES-FUNCIONALES.md` |
+| Presupuesto de hardware **cero**; prohibido fabricar entornos para aprobar hitos (D34) | acta de decisiones fundacionales |
+| Local-first, open source, **sin claves de terceros** (D24) | ADR-0001, acta |
+| El **Core** es la única fuente de verdad sobre los hechos del sistema (ADR-0014) | `adr/0014-*.md` |
+| **Producto Demostrable**: cierre en 5 bloques, demostración desde la perspectiva del usuario | `decisiones/2026-07-28-estandar-de-trabajo-producto-demostrable.md` |
+| **D47**: evidencia clasificada `[EJEC]/[LECT]/[INFER]/[HIPO]`; la autoridad viene de la evidencia, no del rango | `decisiones/2026-07-28-D47-*.md` |
+
+### Pendiente de decisión del CEO
+
+| Pendiente | Desde | Qué bloquea |
+|---|---|---|
+| **P1 · Escenario de despliegue** (¿es esta máquina el objetivo?) | 2026-07-21 | 3 de las 5 fases de M3 |
+| **Siguiente inversión del proyecto** tras la revisión estratégica | 2026-08-02 | Todo trabajo de construcción nuevo |
+| ¿Se corrige ya el artefacto de N2 alojado en un directorio temporal? | 2026-08-02 | Ver §4.3 — **riesgo activo** |
+
+---
+
+## 4 · Lo que parece hecho y no lo está
+
+> Esta sección existe porque el proyecto ya ha sufrido **cuatro veces** el mismo patrón —declarado en
+> un documento, ausente en la realidad— (ALERTA-004, ALERTA-005, captura de señales, y los puntos de
+> abajo). **Léela entera antes de asumir que una capacidad "cerrada" funciona.**
+
+### 4.1 · El preflight no es opcional — saltárselo ya produjo un error
+
+En la revisión estratégica del 2026-08-02 se concluyó que *"Ollama no tiene modelos descargados"*
+mirando `~/.ollama`. **Era falso:** el store del servicio está enlazado al USB `AURORA_EXT` y contiene
+**dos modelos íntegros** (`qwen2.5:3b` y `qwen2.5:0.5b`). El `preflight-check.sh` lo dice en su segunda
+línea. **Ejecuta el paso 1 del §1 siempre.**
+
+### 4.2 · N2 (memoria semántica) está cerrada pero NUNCA se materializa
+
+`[EJEC 2026-08-02]` El arranque real registra: `plan de capacidades: activas=[] degradadas=['memoria']; memoria -> N1`.
+
+Dos razones **independientes**, ninguna es un defecto de código:
+1. El perfil de hardware llega **siempre vacío**: el detector real **no existe** (`core/detectores.py`
+   contiene solo Protocolos; `_PerfilInyectado` devuelve lo que traiga la configuración).
+2. Aunque existiera: esta máquina tiene **3,6 GB de RAM** frente al umbral declarado de **8 GB**.
+
+**Consecuencia:** el usuario de esta máquina usa N1 (léxico). Comprobado que la arquitectura sí funciona
+—`ram_mb=16000` → `SemanticMemory`— pero **no en este hardware**.
+
+### 4.3 · RIESGO ACTIVO — el modelo de N2 vive en un directorio temporal
+
+```
+~/.aura/models/paraphrase-multilingual-MiniLM-L12-v2/
+   model.onnx     -> /home/majo1230/.claude/jobs/<job>/tmp/mlmodel/onnx/model.onnx   (470 MB)
+   tokenizer.json -> /home/majo1230/.claude/jobs/<job>/tmp/mlmodel/tokenizer.json     (17 MB)
+```
+
+Son **enlaces al directorio temporal de un job de Claude Code**, que se borra al eliminar el job. Si
+desaparecen, la composición captura la excepción y **degrada a N1 en silencio** (una línea de log).
+
+Contradice el principio del CEO —*"la IA es una herramienta de construcción, no una fuente de verdad del
+proyecto"*— y la regla D31 —*"nunca se escriben modelos de IA en el disco interno"*, pues deberían vivir
+en `AURORA_EXT`. **Mitigación de un minuto, pendiente de autorización.**
+
+### 4.4 · El motor de inferencia NO es viable en esta máquina
+
+`[EJEC 2026-08-02]` Medido con el modelo **más pequeño disponible** (`qwen2.5:0.5b`, ya descargado):
+
+| Caso | Resultado |
+|---|---|
+| Prompt «Hola», 8 tokens de salida | **25,8 s** (vs presupuesto 1200 ms → **21× por encima**) |
+| Prompt real de AURA (543 tokens) | **no completa** — error 500 tras 3 min |
+
+**No es un problema de "falta descargar un modelo pequeño".** Ya está descargado y tampoco sirve. La
+restricción es la máquina.
+
+**Por defecto, AURA arranca con `MockProvider`** (`AURA_STACK_REAL` no definida): un clasificador de
+5 reglas de palabras clave. Si lees "AURA entiende al usuario", verifica **con qué proveedor**.
+
+### 4.5 · AURA afirma acciones del hogar que no ejecuta
+
+`[EJEC 2026-08-02]` Con Home Assistant ausente:
+
+```
+Usuario: Enciende la lámpara del salón
+AURA:    Enciendo la lámpara. [accion encender_dispositivo ejecutada]
+```
+
+No se encendió nada. El adaptador de hogar es un mock que solo escribe una línea de log, pero el
+arranque lo anuncia entre las **12 capacidades activas** (10 reales sobre archivos + 2 simuladas).
+La garantía de ALERTA-005 verifica que **el adaptador respondió**, no que **el mundo cambió**.
+
+### 4.6 · Las superficies conversacionales ya interfieren entre sí
+
+`[EJEC 2026-08-02]` Hay **47 patrones literales en 8 grupos**, evaluados en cascada con precedencia
+fija en `on_turn`; el árbitro es **el orden en que se escribió el código**. Defectos verificados:
+
+| El usuario dice | AURA responde | Diagnóstico |
+|---|---|---|
+| «Mis reglas de casa son otras» | lista las automatizaciones | falso positivo |
+| «Olvida lo que ha pasado» | «No he encontrado eso para olvidarlo» | superficie equivocada |
+| «Olvida esa automatización» | «No he encontrado eso para olvidarlo» | superficie equivocada; la regla sigue activa |
+| «Elimina la automatización de copias» | pasa al LLM, sin efecto | hueco sin cubrir |
+
+**Antes de añadir una superficie determinista nueva, comprueba que no colisiona con las 8 existentes.**
+
+### 4.7 · Nadie ha usado AURA
+
+`[EJEC 2026-08-02]` El audit log de producción tiene **8 entradas, todas de arranque**. No hay memoria
+persistida ni reglas en `~/.aura`. La captura de señales **funciona** (verificado: 2 señales de 3
+turnos), pero **ningún componente las consume** y no hay materia prima acumulada.
+
+Consecuencia: **ninguna decisión de producto puede apoyarse hoy en telemetría de uso real.**
+
+---
+
+## 5 · Qué NO está autorizado
+
+1. **Abrir la fase de integración.** Decisión explícita del CEO (2026-08-02).
+2. **Iniciar cualquier incremento nuevo** sin decisión posterior a la revisión estratégica.
+3. **Abrir frentes fuera del plan** aprobado.
+4. **Fabricar entornos** para aprobar hitos (D34) ni adoptar claves de terceros (D24).
+5. **Recortar capacidades del MVP**: exige nueva acta del CEO (D2 es rango 1).
+
+---
+
+## 6 · Cómo se trabaja aquí
+
+### Protocolo invariable de todo incremento
+
+```
+RED (prueba que falla) → GREEN mínimo → VERIFICACIÓN DE MUTACIÓN → Quality Gate → integración
+```
+
+- **La mutación no es opcional.** Encontró un agujero real que 426 pruebas en verde no veían: el
+  mutante *"la composición no enciende las automatizaciones"* sobrevivió — era ALERTA-005 otra vez.
+  **Muta también el cableado de `composicion.py`, no solo la lógica.**
+- **Integración:** `main` limpio y `main == origin/main` → commit en worktree →
+  `git -C "$MAIN" merge --no-ff <rama> -F <fichero>` → **Quality Gate en main** → push → realinear
+  worktree con `git merge --ff-only main`. El heredoc a `-F` falla: escribe el mensaje a un fichero.
+- **Trailers obligatorios** en cada commit:
+  `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>` y `Claude-Session: <url>`.
+
+### Cierre de todo incremento — cinco bloques
+
+1. Qué cambió técnicamente · 2. Qué gana AURA como producto · 3. Cómo lo demostraría un usuario ·
+4. Qué deuda queda abierta · 5. Qué capacidades existentes mejoran (matriz de integración).
+
+**Criterio de aceptación = comportamiento demostrado por el usuario**, no pruebas en verde.
+Los informes hablan solo del **plano Proyecto auditable**: artefacto + commit + comportamiento
+demostrado. Nunca «lo registré en mi memoria»: cita siempre el artefacto verificable.
+
+### Deuda registrada — leer antes de tocar lo relacionado
+
+| Documento | Cubre |
+|---|---|
+| `milestones/m3-entry/DEUDA-N2-MEMORIA-SEMANTICA.md` | acoplamiento a `_items`, re-embebido en arranque (305 ms/recuerdo), fragilidad ante `restore()`, olvido no persistente sobre N2 |
+| `milestones/m3-entry/DEUDA-AUTOMATIZACION.md` | 8 partidas; reconocedor de un solo patrón, sin semántica transaccional |
+| `milestones/m3-entry/DEUDA-CAPTURA-DE-SENALES.md` | brecha histórica de instrumentación |
+
+---
+
+## 7 · Cómo se mantiene este checklist
+
+**Actualizarlo es parte del cierre de cada incremento, igual que los cinco bloques.** Un incremento no
+está cerrado si este documento quedó desactualizado.
+
+En cada cierre, revisar y corregir:
+
+1. **§2** — hash, Quality Gate, capacidades cerradas, trabajo en curso.
+2. **§3** — mover a "decidido" lo que el CEO haya decidido; añadir lo que quede pendiente.
+3. **§4** — **la sección más importante.** Añadir toda trampa nueva descubierta; **borrar** las que se
+   hayan corregido de verdad (con el commit que lo demuestra). Una trampa resuelta que sigue listada
+   hace perder tiempo; una trampa real ausente hace perder el proyecto.
+4. **§5** — actualizar autorizaciones y prohibiciones vigentes.
+5. **§6** — solo si cambió el protocolo o apareció deuda nueva registrada.
+
+Si al actualizarlo descubres que algo de §4 **ya no es cierto**, verifícalo por ejecución antes de
+borrarlo, y cita el commit en el cierre del incremento.

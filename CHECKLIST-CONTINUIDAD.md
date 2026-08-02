@@ -8,7 +8,8 @@
 > **en qué orden** y **qué NO es lo que parece**. Si algo aquí contradice lo que mide un comando, manda
 > el comando — y entonces este documento está desactualizado y hay que corregirlo.
 
-**Última actualización:** 2026-08-02 · **Estado del repositorio en esa fecha:** `main` = `origin/main` = `b806c82`
+**Última actualización:** 2026-08-02 · **Estado documentado:** `main` = `origin/main` = `d802671`
+(verifica el hash actual con `git log`; este documento se actualiza en cada cierre, no en cada commit)
 
 ---
 
@@ -50,7 +51,7 @@ en rojo.
 |---|---|
 | Fase | **Construcción de producto.** La fase documental (Bible) está cerrada desde el 2026-07-18 |
 | Capacidades de producto cerradas | **4** — N2 Memoria Semántica · Centro de Notificaciones · Modelo de Usuario · Automatización definida por el usuario |
-| Quality Gate | PASS **427 passed / 3 skipped** |
+| Quality Gate | PASS **432 passed / 3 skipped** |
 | Alertas de arquitectura abiertas | **0** (las cinco históricas, resueltas) |
 | Trabajo en curso | **ninguno** |
 
@@ -84,7 +85,7 @@ construido?"* con la del **roadmap**. Ambas tablas están separadas en
 |---|---|---|
 | **P1 · Escenario de despliegue** (¿es esta máquina el objetivo?) | 2026-07-21 | 3 de las 5 fases de M3 |
 | **Siguiente inversión del proyecto** tras la revisión estratégica | 2026-08-02 | Todo trabajo de construcción nuevo |
-| ¿Se corrige ya el artefacto de N2 alojado en un directorio temporal? | 2026-08-02 | Ver §4.3 — **riesgo activo** |
+| **Mover el artefacto de N2** (opciones B/C del Decision Package) | 2026-08-02 | Nada urgente: el CEO lo aplazó hasta que N2 pueda usarse; hoy P1 la bloquea. Ver §4.3 |
 
 ---
 
@@ -103,7 +104,7 @@ línea. **Ejecuta el paso 1 del §1 siempre.**
 
 ### 4.2 · N2 (memoria semántica) está cerrada pero NUNCA se materializa
 
-`[EJEC 2026-08-02]` El arranque real registra: `plan de capacidades: activas=[] degradadas=['memoria']; memoria -> N1`.
+`[EJEC 2026-08-02]` El arranque real registra: `capacidades (estado EFECTIVO): activas=[] degradadas=['memoria']; memoria -> N1`.
 
 Dos razones **independientes**, ninguna es un defecto de código:
 1. El perfil de hardware llega **siempre vacío**: el detector real **no existe** (`core/detectores.py`
@@ -126,7 +127,20 @@ desaparecen, la composición captura la excepción y **degrada a N1 en silencio*
 
 Contradice el principio del CEO —*"la IA es una herramienta de construcción, no una fuente de verdad del
 proyecto"*— y la regla D31 —*"nunca se escriben modelos de IA en el disco interno"*, pues deberían vivir
-en `AURORA_EXT`. **Mitigación de un minuto, pendiente de autorización.**
+en `AURORA_EXT`.
+
+**Estado (CEO, 2026-08-02):** mover el artefacto **NO está aprobado**; se revisará cuando N2 pueda usarse
+realmente (hoy P1 la bloquea). Decision Package en el historial del proyecto. Lo que **sí** se corrigió es
+que la degradación ya **no es silenciosa** (ver abajo) y que el manifiesto declara su `source`, de modo que
+un artefacto perdido puede **reponerse**, no solo verificarse.
+
+**Ya corregido — la degradación es ruidosa** (2026-08-02, `fix(consistencia)` en el historial): si el plan permite más de lo que se
+consigue ensamblar, AURA declara el **estado efectivo**, lo anuncia en el arranque con su motivo y lo
+registra en el audit log. Verifícalo así:
+
+```bash
+AURA_EMBED_MODEL_DIR=/ruta/inexistente python3 -m aura_skeleton   # debe avisar, no callar
+```
 
 ### 4.4 · El motor de inferencia NO es viable en esta máquina
 
@@ -153,8 +167,12 @@ AURA:    Enciendo la lámpara. [accion encender_dispositivo ejecutada]
 ```
 
 No se encendió nada. El adaptador de hogar es un mock que solo escribe una línea de log, pero el
-arranque lo anuncia entre las **12 capacidades activas** (10 reales sobre archivos + 2 simuladas).
+arranque lo lista entre las **12 operaciones disponibles** (10 reales sobre archivos + 2 simuladas).
 La garantía de ALERTA-005 verifica que **el adaptador respondió**, no que **el mundo cambió**.
+
+**Sigue abierto.** La corrección de consistencia del 2026-08-02 resolvió la inconsistencia en la **capa de capacidades**
+(plan vs materialización); esta es la misma clase de problema en la **capa de adaptadores** y todavía no
+tiene solución: un adaptador simulado responde `status: ok` igual que uno real.
 
 ### 4.6 · Las superficies conversacionales ya interfieren entre sí
 

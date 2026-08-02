@@ -28,6 +28,8 @@ def _artefacto(dir_, contenido_onnx=b"onnx-bytes", con_tokenizer=True, checksum=
         "licencia": "Apache-2.0",
         "formato": formato,
         "dims": 384,
+        # Procedencia obligatoria (CEO, 2026-08-02): el checksum verifica, `source` permite reponer.
+        "source": "https://ejemplo.invalido/artefactos/embedder-prueba",
     }
     (dir_ / "manifiesto.json").write_text(json.dumps(manifiesto))
     return dir_
@@ -43,6 +45,7 @@ def test_cargar_manifiesto_lee_los_campos(tmp_path):
     assert m.licencia == "Apache-2.0"
     assert m.formato == "onnx+tokenizer"
     assert m.dims == 384
+    assert m.source == "https://ejemplo.invalido/artefactos/embedder-prueba"
 
 
 def test_resolver_entrega_la_ruta_con_artefacto_valido(tmp_path):

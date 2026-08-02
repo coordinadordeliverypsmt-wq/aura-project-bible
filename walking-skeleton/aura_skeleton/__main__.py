@@ -28,13 +28,22 @@ def _informe(sistema) -> str:
         "=" * 62,
         "AURA — arranque verificado",
         "=" * 62,
-        f"  capacidades activas ({len(caps)}): {', '.join(caps)}",
+        f"  operaciones disponibles ({len(caps)}): {', '.join(caps)}",
         f"  fuentes de contexto ({len(fuentes)}): {', '.join(fuentes)}",
         f"  memoria persistente : {sistema.ruta_memoria}",
         f"  registro forense    : {sistema.ruta_audit}",
         f"  kill switch         : {'ARMADO' if sistema.kill_switch.is_engaged() else 'en reposo'}",
-        "=" * 62,
     ]
+    # Estado EFECTIVO, no planificado (CEO, 2026-08-02): lo que el operador lee al arrancar debe ser lo
+    # que de verdad esta corriendo. Una capacidad que el hardware permite pero que no se pudo ensamblar
+    # se anuncia DEGRADADA y con su motivo — nunca como activa.
+    activas = sistema.capacidades_activas_efectivas
+    lineas.append(f"  capacidades activas : {', '.join(activas) if activas else '(ninguna)'}")
+    for m in sistema.materializaciones:
+        if m.degradada:
+            lineas.append(f"  [!] '{m.capacidad}': el equipo permitía {m.estado_plan.name}, corre {m.nivel}")
+            lineas.append(f"      motivo: {m.motivo}")
+    lineas.append("=" * 62)
     return "\n".join(lineas)
 
 

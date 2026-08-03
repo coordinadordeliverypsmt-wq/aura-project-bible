@@ -149,6 +149,52 @@ soberanía?»*, no *«se relajan todos sin querer?»*.
 
 ---
 
+## 4.bis · Estado: contención IMPLEMENTADA (2026-08-03)
+
+El CEO autorizó adelantar **solo** las tres medidas de contención. Implementadas y verificadas:
+RED (4 pruebas en rojo, 2 controles en verde) → GREEN → **mutación 5/5 detectados** → Quality Gate
+**PASS**. Pruebas en `tests/unit/test_contencion_alerta006.py`, mutantes en
+`mutaciones/contencion-alerta006.toml`.
+
+| Medida | Estado |
+|---|---|
+| Guarda de dominio en el disparador de olvido | ✅ «se me olvida tomar la pastilla» ya no entra en la rama |
+| `_foco` no actúa ante ambigüedad; pide desambiguación | ✅ el borrado a ciegas desapareció |
+| `refutar` solo confirma éxito con mutación efectiva | ✅ cierra la violación de INV-9 |
+
+**Lo que la contención NO resuelve, y sigue abierto:** la mutación **sigue sin pasar por el Motor
+Único** y **el kill switch armado sigue sin detenerla**. Eso es D-M-8. Está escrito también en el
+docstring del fichero de pruebas para que un verde no se lea como más de lo que es.
+
+### Ataques ejecutados sobre la contención
+
+Ningún ataque logró destruir un dato `[EJEC]`. Resistieron: 8 frases con «olvida» como subcadena
+(«inolvidable», «olvidadizo», «no olvides comprar pan», «olvídame»…), el aislamiento entre usuarios
+(el foco de un usuario no alcanza a otro) y cuatro secuencias conversacionales encadenadas
+(refutar→olvidar→olvidar, olvidar→refutar-lo-borrado).
+
+**Resultado relevante:** varias de esas frases **sí entran** en la rama de soberanía —la guarda solo
+cubre reflexivos— pero **no destruyen nada**, porque el `_foco` que no actúa ante ambigüedad las
+contiene. La defensa en profundidad funciona: ninguna de las dos medidas basta sola.
+
+### Observaciones técnicas registradas (NO son deuda)
+
+| Observación | Por qué no es deuda | Se promueve si… |
+|---|---|---|
+| Frases con «olvida» como subcadena («eso es inolvidable», «soy muy olvidadizo») **secuestran el turno**: responden pidiendo desambiguación en vez de seguir al LLM | Molesto, **no destructivo**. Es el mismo tipo de falso positivo que D-M-7 resolverá con clasificación de intención, no con otra tabla de subcadenas | Se detecte en uso real como molestia recurrente |
+| Falso negativo de la guarda: «se me olvida lo que te dije, olvídalo tú también» **no** dispara el olvido | **Falla hacia el lado seguro** (no destruye). Conservador por diseño | El usuario se queje de no poder olvidar algo |
+
+### ⚠ Limitación del proceso, declarada
+
+**La auditoría independiente no pudo completarse:** el agente auditor terminó por límite de gasto de
+la cuenta antes de emitir informe. Los ataques de arriba **los ejecutó quien implementó el cambio**, lo
+que **incumple el estándar del proyecto** (*«el que implementa nunca audita su propio trabajo»*). No es
+equivalente a una auditoría independiente: un revisor distinto atacaría lo que yo no pensé en atacar.
+
+**Queda pendiente una revisión independiente de esta contención** cuando haya capacidad disponible.
+
+---
+
 ## 5 · No determinado
 
 - `M-10` (TTS) y `M-11` (egress a Ollama) leídos en código, **no ejecutados** — requieren el stack real.

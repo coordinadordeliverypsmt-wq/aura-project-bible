@@ -1,0 +1,56 @@
+incremento = "Contencion de ALERTA-006 - la soberania no destruye en silencio"
+pruebas = [
+    "tests/unit/test_contencion_alerta006.py",
+    "tests/e2e/test_modelo_usuario_flujo.py",
+    "tests/unit/test_modelo_usuario_mvp.py",
+]
+
+[[mutante]]
+id = "M1"
+garantia = "la guarda de dominio desaparece: 'se me olvida tomar la pastilla' vuelve a destruir un dato"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''    if any(p in t for p in _PAT_OLVIDO_REFLEXIVO):
+        return False
+    return _cae_en(t, _PAT_MODELO_OLVIDA)'''
+sustituir = '''    return _cae_en(t, _PAT_MODELO_OLVIDA)'''
+
+[[mutante]]
+id = "M2"
+garantia = "ante un referente ambiguo se vuelve a elegir la PRIMERA entrada viva y se destruye a ciegas"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        cacheado = self._foco_modelo.get(uid)
+        if cacheado is None:
+            return None'''
+sustituir = '''        cacheado = self._foco_modelo.get(uid)
+        if cacheado is None:
+            return vivas[0] if vivas else None'''
+
+[[mutante]]
+id = "M3"
+garantia = "refutar vuelve a narrar exito sin efecto real (INV-9 / ALERTA-005 punto 4)"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            n = await self.modelo_usuario.refutar(uid, foco["contenido"])
+            if n:
+                return "Entendido, lo corrijo. Dejo de darlo por cierto."
+            return "No he encontrado eso para corregirlo."'''
+sustituir = '''            await self.modelo_usuario.refutar(uid, foco["contenido"])
+            return "Entendido, lo corrijo. Dejo de darlo por cierto."'''
+
+[[mutante]]
+id = "M4"
+garantia = "la peticion de olvido ambigua deja de preguntar y pasa a actuar sobre lo que haya"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            if foco is None:
+                # ALERTA-006: antes se elegia `vivas[0]` y se confirmaba el borrado. Ante la duda se
+                # pregunta; destruir el dato equivocado no es soberania del usuario, es perdida.
+                return _DESAMBIGUAR
+            n = await self.modelo_usuario.borrar(uid, foco["contenido"])'''
+sustituir = '''            n = await self.modelo_usuario.borrar(uid, foco["contenido"]) if foco else 0'''
+
+[[mutante]]
+id = "M5"
+garantia = "el foco cacheado deja de validarse: puede apuntar a una entrada que ya no existe en el modelo"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        universo = vivas if existentes is None else existentes
+        return cacheado if any(x["contenido"] == cacheado["contenido"] for x in universo) else None'''
+sustituir = '''        return cacheado'''

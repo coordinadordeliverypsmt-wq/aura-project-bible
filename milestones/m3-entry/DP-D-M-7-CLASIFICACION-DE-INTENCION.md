@@ -174,6 +174,79 @@ tabla tiene cobertura finita, y por eso el eje 1 debe tener pruebas propias — 
 
 ---
 
+## 4.bis · Validación ampliada por dimensión (exigida por el CEO)
+
+Batería construida para este DP: **`bateria-intencion.json`, 172 casos**, 8 dimensiones adversariales
+más 4 controles, etiquetada **en los dos ejes** por separado. 86 casos aportan hecho, 86 no.
+
+### Tasa de acierto por dimensión `[EJEC]`
+
+| Dimensión | Eje 1 · acto | Eje 2 · contenido |
+|---|---|---|
+| pregunta con hecho permanente | **100,0 %** (18/18) | **61,1 %** (11/18) ⚠ |
+| orden con contenido persistente | 93,8 % | 93,8 % |
+| corrección | 93,8 % | 68,8 % ⚠ |
+| **negación** | **56,2 %** (9/16) ⚠⚠ | 75,0 % |
+| recordatorio | 92,9 % | 85,7 % |
+| condicional | 87,5 % | 62,5 % ⚠ |
+| cita de tercero | 93,8 % | **100,0 %** |
+| ironía y ambigüedad léxica | 88,9 % | 88,9 % |
+| *control* · pregunta pura | 91,7 % | 83,3 % |
+| *control* · afirmación | 100,0 % | 91,7 % |
+| *control* · social | 100,0 % | 100,0 % |
+| *control* · orden pura | 100,0 % | 100,0 % |
+| **GLOBAL** | **90,7 %** | **82,6 %** |
+
+**La media global engaña, y por eso el CEO pidió el desglose:** 90,7 % suena aceptable y esconde una
+dimensión al 56 %.
+
+### Los dos agujeros, diagnosticados
+
+**1 · Negación (56,2 %) — reparable, y reparado en el prototipo.** Todos los fallos tienen **una sola
+causa**: `no` estaba en la tabla de imperativos para capturar «no borres», y arrastraba «no soy
+alérgico», «no tengo hermanos», «no trabajo los viernes» → clasificados ORDEN. Distinguirlos exige
+saber la **persona del verbo**, que es morfología, no subcadena.
+
+Añadida una regla que mira la terminación verbal tras `no` (1.ª persona → afirmación; imperativo de
+2.ª → orden) `[EJEC]`:
+
+| | antes | después |
+|---|---|---|
+| negación | 56,2 % | **93,8 %** |
+| global eje 1 | 90,7 % | **93,0 %** |
+
+Sigue siendo determinista y sin LLM. **Demuestra que el techo del enfoque léxico es móvil** con
+morfología ligera.
+
+**2 · Contenido en preguntas (61,1 %) — límite estructural, no reparable con patrones.** Los fallos son
+preguntas donde el hecho vive en un **sintagma nominal modificado** o en una subordinada libre:
+
+```
+«¿Dónde dejé las llaves de mi coche nuevo?»        → el hecho es "tiene un coche nuevo"
+«¿Cómo llego al trabajo desde mi casa de Lisboa?»  → el hecho es "su casa está en Lisboa"
+«¿Sabes si puedo correr con mi lesión de rodilla?» → el hecho es "tiene una lesión de rodilla"
+«¿Recuerdas que mi jefa se llama Marta?»           → el hecho es "su jefa se llama Marta"
+```
+
+Extraer esas proposiciones exige **análisis sintáctico**, no coincidencia de patrones. Es el riesgo
+que este DP ya declaraba en §5.1, ahora **cuantificado: 61,1 %**.
+
+### Lectura honesta del resultado
+
+- **El eje 1 es viable hoy**: 93,0 % determinista, y sus fallos restantes son de tabla, no de modelo.
+- **El eje 2 no está listo para sostener una garantía**: 82,6 % global y 61,1 % en la dimensión que
+  motivó su existencia. Por ADR-0014 §4, *«si no se puede escribir una prueba determinista, no es una
+  garantía, es una expectativa»* — **el eje 2 es hoy una expectativa**.
+- **Consecuencia para el diseño:** el eje 1 puede sostener enrutado y ADR-0014 de inmediato. El eje 2
+  debe adoptarse en modo **conservador**: ante duda, *no* almacenar como recuperable y dejar el turno
+  en el histórico, que es el fallo seguro (pérdida de recall, nunca fabricación).
+
+**Advertencia sobre la batería.** La escribí yo, así que hereda mis sesgos sobre qué es «una pregunta
+con hecho». No hay corpus de turnos reales con el que contrastarla —nadie ha usado AURA—, de modo que
+las tasas miden **el clasificador contra mi criterio**, no contra el habla real `[HIPO]`.
+
+---
+
 ## 5 · Qué tendría que demostrarse para cambiar esta decisión
 
 1. **Que el eje 2 no puede implementarse de forma determinista.** Es el riesgo real: extraer

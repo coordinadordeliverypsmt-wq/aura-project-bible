@@ -1,0 +1,1036 @@
+{
+ "casos": [
+  {
+   "texto": "¿Sabías que soy alérgico a los frutos secos?",
+   "dimension": "pregunta_con_hecho",
+   "acto": "PREGUNTA",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "¿Te conté que trabajo en logística?",
+   "dimension": "pregunta_con_hecho",
+   "acto": "PREGUNTA",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "¿Dónde dejé las llaves de mi coche nuevo?",
+   "dimension": "pregunta_con_hecho",
+   "acto": "PREGUNTA",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "¿Recuerdas que mi jefa se llama Marta?",
+   "dimension": "pregunta_con_hecho",
+   "acto": "PREGUNTA",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "¿Sabes que me mudé a Alcalá el año pasado?",
+   "dimension": "pregunta_con_hecho",
+   "acto": "PREGUNTA",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "¿Te dije que mi hija empieza el colegio en septiembre?",
+   "dimension": "pregunta_con_hecho",
+   "acto": "PREGUNTA",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "¿Puedes tener en cuenta que soy vegetariano?",
+   "dimension": "pregunta_con_hecho",
+   "acto": "PREGUNTA",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "¿Qué me recomiendas si soy diabético?",
+   "dimension": "pregunta_con_hecho",
+   "acto": "PREGUNTA",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "¿Cómo llego al trabajo desde mi casa de Lisboa?",
+   "dimension": "pregunta_con_hecho",
+   "acto": "PREGUNTA",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "¿Sabías que dejé de fumar hace tres meses?",
+   "dimension": "pregunta_con_hecho",
+   "acto": "PREGUNTA",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "¿Te acuerdas de que mi cumpleaños es el 14 de marzo?",
+   "dimension": "pregunta_con_hecho",
+   "acto": "PREGUNTA",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "¿Conoces algún restaurante sin gluten? Soy celíaco",
+   "dimension": "pregunta_con_hecho",
+   "acto": "PREGUNTA",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "¿Sabes si puedo correr con mi lesión de rodilla?",
+   "dimension": "pregunta_con_hecho",
+   "acto": "PREGUNTA",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "¿Qué hago con el piano que acabo de comprar?",
+   "dimension": "pregunta_con_hecho",
+   "acto": "PREGUNTA",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "¿Te comenté que cambié de banco?",
+   "dimension": "pregunta_con_hecho",
+   "acto": "PREGUNTA",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "¿Me ayudas con Rust, que lo estoy aprendiendo?",
+   "dimension": "pregunta_con_hecho",
+   "acto": "PREGUNTA",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "¿Sabías que mi contrato termina en junio?",
+   "dimension": "pregunta_con_hecho",
+   "acto": "PREGUNTA",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "¿Puedes recordarme el horario ahora que trabajo de noche?",
+   "dimension": "pregunta_con_hecho",
+   "acto": "PREGUNTA",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Recuérdame llamar al médico mañana",
+   "dimension": "orden_con_contenido",
+   "acto": "ORDEN",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Apúntate que mi contraseña del wifi es azul1234",
+   "dimension": "orden_con_contenido",
+   "acto": "ORDEN",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Anota que el viernes viajo a Lisboa",
+   "dimension": "orden_con_contenido",
+   "acto": "ORDEN",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Guarda que prefiero el café sin azúcar",
+   "dimension": "orden_con_contenido",
+   "acto": "ORDEN",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Recuérdame que tengo cita con el dentista el jueves",
+   "dimension": "orden_con_contenido",
+   "acto": "ORDEN",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Ten en cuenta que soy alérgico al polen",
+   "dimension": "orden_con_contenido",
+   "acto": "ORDEN",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Avísame cuando sea la hora de mi reunión de los martes",
+   "dimension": "orden_con_contenido",
+   "acto": "ORDEN",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Apunta mi nuevo número, es el 600112233",
+   "dimension": "orden_con_contenido",
+   "acto": "ORDEN",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "No olvides que mi aniversario es en octubre",
+   "dimension": "orden_con_contenido",
+   "acto": "ORDEN",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Recuérdame comprar pan cuando salga del trabajo",
+   "dimension": "orden_con_contenido",
+   "acto": "ORDEN",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Registra que empecé a ir al gimnasio",
+   "dimension": "orden_con_contenido",
+   "acto": "ORDEN",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Programa un aviso para mi revisión médica anual",
+   "dimension": "orden_con_contenido",
+   "acto": "ORDEN",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Enciende la luz de la sala",
+   "dimension": "orden_con_contenido",
+   "acto": "ORDEN",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Apaga el salón",
+   "dimension": "orden_con_contenido",
+   "acto": "ORDEN",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Borra el archivo temporal",
+   "dimension": "orden_con_contenido",
+   "acto": "ORDEN",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Mueve el informe a documentos",
+   "dimension": "orden_con_contenido",
+   "acto": "ORDEN",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Ya no trabajo en logística",
+   "dimension": "correccion",
+   "acto": "CORRECCION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "En realidad mi color favorito es el verde",
+   "dimension": "correccion",
+   "acto": "CORRECCION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Me equivoqué, mi jefa se llama Ana",
+   "dimension": "correccion",
+   "acto": "CORRECCION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Eso es falso",
+   "dimension": "correccion",
+   "acto": "CORRECCION",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Corrige eso, ya no vivo en Madrid",
+   "dimension": "correccion",
+   "acto": "CORRECCION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "No es cierto que prefiera el té",
+   "dimension": "correccion",
+   "acto": "CORRECCION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Ya no soy vegetariano",
+   "dimension": "correccion",
+   "acto": "CORRECCION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Cambié de opinión, ahora prefiero el tren",
+   "dimension": "correccion",
+   "acto": "CORRECCION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Eso está mal, te equivocas",
+   "dimension": "correccion",
+   "acto": "CORRECCION",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Rectifico: la reunión es el miércoles",
+   "dimension": "correccion",
+   "acto": "CORRECCION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Ya no tengo coche",
+   "dimension": "correccion",
+   "acto": "CORRECCION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Mi apellido no es Pérez, es Peres",
+   "dimension": "correccion",
+   "acto": "CORRECCION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Olvida lo que te dije del café",
+   "dimension": "correccion",
+   "acto": "CORRECCION",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Ya no me interesa aprender Rust",
+   "dimension": "correccion",
+   "acto": "CORRECCION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "No, eso no es cierto",
+   "dimension": "correccion",
+   "acto": "CORRECCION",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Actualiza mi dirección, me mudé a Sevilla",
+   "dimension": "correccion",
+   "acto": "CORRECCION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "No me gusta el café",
+   "dimension": "negacion",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "No soy alérgico a nada",
+   "dimension": "negacion",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "No tengo hermanos",
+   "dimension": "negacion",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Nunca he estado en París",
+   "dimension": "negacion",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "No trabajo los viernes",
+   "dimension": "negacion",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "No quiero que me avises por la noche",
+   "dimension": "negacion",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Jamás bebo alcohol",
+   "dimension": "negacion",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "No uso redes sociales",
+   "dimension": "negacion",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Ya no fumo",
+   "dimension": "negacion",
+   "acto": "CORRECCION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "No enciendas la luz",
+   "dimension": "negacion",
+   "acto": "ORDEN",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "No borres nada",
+   "dimension": "negacion",
+   "acto": "ORDEN",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "No, gracias",
+   "dimension": "negacion",
+   "acto": "SOCIAL",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "No me interesa",
+   "dimension": "negacion",
+   "acto": "AFIRMACION",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "No tengo tiempo hoy",
+   "dimension": "negacion",
+   "acto": "AFIRMACION",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "No es mi cumpleaños",
+   "dimension": "negacion",
+   "acto": "AFIRMACION",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "No quiero que borres la copia de seguridad",
+   "dimension": "negacion",
+   "acto": "ORDEN",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Recuérdame regar las plantas los domingos",
+   "dimension": "recordatorio",
+   "acto": "ORDEN",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Avísame media hora antes de la reunión",
+   "dimension": "recordatorio",
+   "acto": "ORDEN",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "El viernes tengo que renovar el pasaporte",
+   "dimension": "recordatorio",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "La semana que viene viajo a Roma",
+   "dimension": "recordatorio",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Tengo cita con el fisio el martes a las seis",
+   "dimension": "recordatorio",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "No me dejes olvidar el regalo de mi madre",
+   "dimension": "recordatorio",
+   "acto": "ORDEN",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Mañana empiezo el curso de alemán",
+   "dimension": "recordatorio",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Acuérdate de que el lunes es festivo",
+   "dimension": "recordatorio",
+   "acto": "ORDEN",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Tengo que llamar al seguro esta semana",
+   "dimension": "recordatorio",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "El día 20 vence la factura de la luz",
+   "dimension": "recordatorio",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Recuérdamelo",
+   "dimension": "recordatorio",
+   "acto": "ORDEN",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Avísame",
+   "dimension": "recordatorio",
+   "acto": "ORDEN",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Ponme una alarma para las siete",
+   "dimension": "recordatorio",
+   "acto": "ORDEN",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Recuérdame eso que hablamos",
+   "dimension": "recordatorio",
+   "acto": "ORDEN",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Cuando llegue a casa enciende la luz",
+   "dimension": "condicional",
+   "acto": "ORDEN",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Siempre que borres un archivo guarda una copia",
+   "dimension": "condicional",
+   "acto": "ORDEN",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Si llueve avísame antes de salir",
+   "dimension": "condicional",
+   "acto": "ORDEN",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Cada vez que escriba un archivo haz una copia",
+   "dimension": "condicional",
+   "acto": "ORDEN",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Si alguien llama mientras trabajo, no me interrumpas",
+   "dimension": "condicional",
+   "acto": "ORDEN",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Cuando termine el mes hazme un resumen",
+   "dimension": "condicional",
+   "acto": "ORDEN",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Si es fin de semana no me pongas alarmas",
+   "dimension": "condicional",
+   "acto": "ORDEN",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Siempre que salga de casa apaga las luces",
+   "dimension": "condicional",
+   "acto": "ORDEN",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Si mi batería baja del veinte por ciento avísame",
+   "dimension": "condicional",
+   "acto": "ORDEN",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Cuando acabe la reunión recuérdame llamar a Marta",
+   "dimension": "condicional",
+   "acto": "ORDEN",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Si estoy en el trabajo silencia las notificaciones",
+   "dimension": "condicional",
+   "acto": "ORDEN",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Cuando llego a casa siempre me hago un té",
+   "dimension": "condicional",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Si hace frío suelo quedarme en casa",
+   "dimension": "condicional",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Cuando viajo prefiero el tren",
+   "dimension": "condicional",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Siempre desayuno café con tostadas",
+   "dimension": "condicional",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Si me preguntan digo que soy de Madrid",
+   "dimension": "condicional",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "A Ana le gusta el té verde",
+   "dimension": "cita_tercero",
+   "acto": "AFIRMACION",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Mi hermana es alérgica al marisco",
+   "dimension": "cita_tercero",
+   "acto": "AFIRMACION",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Marta dijo que la reunión se retrasa",
+   "dimension": "cita_tercero",
+   "acto": "AFIRMACION",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Mi jefe prefiere las reuniones por la mañana",
+   "dimension": "cita_tercero",
+   "acto": "AFIRMACION",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "A mi hijo no le gusta el colegio nuevo",
+   "dimension": "cita_tercero",
+   "acto": "AFIRMACION",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Mi vecino tiene un coche rojo",
+   "dimension": "cita_tercero",
+   "acto": "AFIRMACION",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Olvida que a mi hermana le gusta el café",
+   "dimension": "cita_tercero",
+   "acto": "CORRECCION",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Mi madre cumple años en abril",
+   "dimension": "cita_tercero",
+   "acto": "AFIRMACION",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "El médico me dijo que descanse más",
+   "dimension": "cita_tercero",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Mi mujer trabaja en el hospital",
+   "dimension": "cita_tercero",
+   "acto": "AFIRMACION",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "A Pedro le encanta correr",
+   "dimension": "cita_tercero",
+   "acto": "AFIRMACION",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Mi cuñado se muda a Bilbao",
+   "dimension": "cita_tercero",
+   "acto": "AFIRMACION",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Dice mi padre que vendrá el domingo",
+   "dimension": "cita_tercero",
+   "acto": "AFIRMACION",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Mi amigo Luis estudia derecho",
+   "dimension": "cita_tercero",
+   "acto": "AFIRMACION",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Me gusta mi hermana pequeña",
+   "dimension": "cita_tercero",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Mi profesora recomienda leer más",
+   "dimension": "cita_tercero",
+   "acto": "AFIRMACION",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Para el café uso siempre la cafetera italiana",
+   "dimension": "ironia_ambiguedad",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Para ya de hacer ruido",
+   "dimension": "ironia_ambiguedad",
+   "acto": "ORDEN",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Cuando quieras hablamos",
+   "dimension": "ironia_ambiguedad",
+   "acto": "SOCIAL",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Como no me lo dijiste, no lo hice",
+   "dimension": "ironia_ambiguedad",
+   "acto": "AFIRMACION",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Como pasta casi todos los días",
+   "dimension": "ironia_ambiguedad",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Qué bien, otra reunión más",
+   "dimension": "ironia_ambiguedad",
+   "acto": "SOCIAL",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Menuda maravilla este lunes",
+   "dimension": "ironia_ambiguedad",
+   "acto": "SOCIAL",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Claro, porque yo tengo todo el tiempo del mundo",
+   "dimension": "ironia_ambiguedad",
+   "acto": "SOCIAL",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Mis reglas de vida son simples",
+   "dimension": "ironia_ambiguedad",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "¿Qué reglas hay para entrar al gimnasio?",
+   "dimension": "ironia_ambiguedad",
+   "acto": "PREGUNTA",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Deja de llover, por favor",
+   "dimension": "ironia_ambiguedad",
+   "acto": "SOCIAL",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Vaya, qué sorpresa",
+   "dimension": "ironia_ambiguedad",
+   "acto": "SOCIAL",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Encantado de la vida con este tráfico",
+   "dimension": "ironia_ambiguedad",
+   "acto": "SOCIAL",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Paso de todo esto",
+   "dimension": "ironia_ambiguedad",
+   "acto": "AFIRMACION",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Sobre gustos no hay nada escrito",
+   "dimension": "ironia_ambiguedad",
+   "acto": "SOCIAL",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Nada, olvídalo",
+   "dimension": "ironia_ambiguedad",
+   "acto": "SOCIAL",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Como quieras",
+   "dimension": "ironia_ambiguedad",
+   "acto": "SOCIAL",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Vivo para trabajar, no trabajo para vivir",
+   "dimension": "ironia_ambiguedad",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "¿Cuál es el nombre de mi abuela?",
+   "dimension": "control_pregunta_pura",
+   "acto": "PREGUNTA",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "¿Dónde vivo?",
+   "dimension": "control_pregunta_pura",
+   "acto": "PREGUNTA",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "¿A qué hora ceno normalmente?",
+   "dimension": "control_pregunta_pura",
+   "acto": "PREGUNTA",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "¿Qué acordamos sobre el presupuesto?",
+   "dimension": "control_pregunta_pura",
+   "acto": "PREGUNTA",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "¿Cuál es mi comida favorita?",
+   "dimension": "control_pregunta_pura",
+   "acto": "PREGUNTA",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "¿Cómo se llama mi jefa?",
+   "dimension": "control_pregunta_pura",
+   "acto": "PREGUNTA",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "¿Qué instrumento toco?",
+   "dimension": "control_pregunta_pura",
+   "acto": "PREGUNTA",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "¿Cuándo es mi aniversario?",
+   "dimension": "control_pregunta_pura",
+   "acto": "PREGUNTA",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Dime a qué hora tengo la cita",
+   "dimension": "control_pregunta_pura",
+   "acto": "PREGUNTA",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "¿Qué sabes de mí?",
+   "dimension": "control_pregunta_pura",
+   "acto": "PREGUNTA",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "¿Qué ha pasado mientras no estaba?",
+   "dimension": "control_pregunta_pura",
+   "acto": "PREGUNTA",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "¿Qué automatizaciones tengo?",
+   "dimension": "control_pregunta_pura",
+   "acto": "PREGUNTA",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Mi color favorito es el azul",
+   "dimension": "control_afirmacion",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Trabajo en logística",
+   "dimension": "control_afirmacion",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Mi jefa se llama Marta",
+   "dimension": "control_afirmacion",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Soy alérgico a los frutos secos",
+   "dimension": "control_afirmacion",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Vivo en Alcalá desde 2019",
+   "dimension": "control_afirmacion",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Prefiero la luz tenue por la noche",
+   "dimension": "control_afirmacion",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Quiero aprender Rust este año",
+   "dimension": "control_afirmacion",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Mi cumpleaños es el 14 de marzo",
+   "dimension": "control_afirmacion",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Estudié en la Complutense",
+   "dimension": "control_afirmacion",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Suelo trabajar por las noches",
+   "dimension": "control_afirmacion",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Tengo un perro que se llama Rocky",
+   "dimension": "control_afirmacion",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Mi talla de zapato es la 43",
+   "dimension": "control_afirmacion",
+   "acto": "AFIRMACION",
+   "aporta_hecho": true
+  },
+  {
+   "texto": "Hola",
+   "dimension": "control_social",
+   "acto": "SOCIAL",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Gracias",
+   "dimension": "control_social",
+   "acto": "SOCIAL",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Adiós",
+   "dimension": "control_social",
+   "acto": "SOCIAL",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Buenos días",
+   "dimension": "control_social",
+   "acto": "SOCIAL",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Vale",
+   "dimension": "control_social",
+   "acto": "SOCIAL",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Perfecto",
+   "dimension": "control_social",
+   "acto": "SOCIAL",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Hasta luego",
+   "dimension": "control_social",
+   "acto": "SOCIAL",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "De acuerdo",
+   "dimension": "control_social",
+   "acto": "SOCIAL",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Enciende la luz del pasillo",
+   "dimension": "control_orden_pura",
+   "acto": "ORDEN",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Apaga la televisión",
+   "dimension": "control_orden_pura",
+   "acto": "ORDEN",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Abre el navegador",
+   "dimension": "control_orden_pura",
+   "acto": "ORDEN",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Cierra la ventana",
+   "dimension": "control_orden_pura",
+   "acto": "ORDEN",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Borra el archivo viejo.txt",
+   "dimension": "control_orden_pura",
+   "acto": "ORDEN",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Copia el informe a la carpeta de respaldo",
+   "dimension": "control_orden_pura",
+   "acto": "ORDEN",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Renombra ese fichero",
+   "dimension": "control_orden_pura",
+   "acto": "ORDEN",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Reproduce música",
+   "dimension": "control_orden_pura",
+   "acto": "ORDEN",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "Sube el volumen",
+   "dimension": "control_orden_pura",
+   "acto": "ORDEN",
+   "aporta_hecho": false
+  },
+  {
+   "texto": "¿Puedes encender la luz del pasillo?",
+   "dimension": "control_orden_pura",
+   "acto": "ORDEN",
+   "aporta_hecho": false
+  }
+ ]
+}

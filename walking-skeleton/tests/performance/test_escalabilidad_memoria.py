@@ -186,7 +186,13 @@ async def test_el_historial_sobrevive_al_reinicio_con_volumen(tmp_path):
 
 @pytest.mark.asyncio
 async def test_el_recall_sigue_siendo_correcto_con_volumen(tmp_path):
-    """CONTROL: una optimizacion que devolviera resultados peores no seria una mejora."""
+    """CONTROL: una optimizacion que devolviera resultados peores no seria una mejora.
+
+    ALCANCE REAL, para no leer de mas en un verde: la aguja tiene terminos EXCLUSIVOS ("luz",
+    "tenue"), asi que este control cubre que el indice no se corrompe ni pierde el orden al crecer.
+    NO cubre el caso en que un recuerdo solo comparte con la consulta terminos ubicuos: ese escenario
+    (D-M-1, milestones/m3-entry/DEUDA-N1-RECUPERADOR.md) sigue fallando con esta prueba en verde.
+    """
     mem = PersistentMemory(str(tmp_path / "m.json"))
     await _sembrar(mem, 0, 1000)
     await mem.write("u", "semantica", "prefiere la luz tenue por la noche", {"trace_id": "x"})

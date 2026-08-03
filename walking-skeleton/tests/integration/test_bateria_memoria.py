@@ -1,6 +1,6 @@
 """Integracion M3: bateria oficial de memoria (decision del CEO).
 
-Carga `tests/datos/bateria_memoria.json` (59 recuerdos, 71 consultas etiquetadas) y ejercita
+Carga `tests/datos/bateria_memoria.json` (65 recuerdos, 77 consultas etiquetadas) y ejercita
 `PersistentMemory.recall(...)` tal como la usa el orquestador real. Cuatro garantias, cada una en
 su propia prueba, para que un fallo senale con precision cual se rompio:
 
@@ -37,7 +37,7 @@ from aura_skeleton.modules.memory import PersistentMemory
 
 # Umbral de recall@3 acordado por el CEO para la variante de recuperador elegida (decision M3, ver
 # cierre de la bateria). No es un numero redondo elegido a ojo: nace de medir la variante candidata
-# contra ESTA MISMA bateria (52 de las 71 consultas tienen `esperado`) y fijar el piso que no debe
+# contra ESTA MISMA bateria (53 de las 77 consultas tienen `esperado`) y fijar el piso que no debe
 # volver a bajar -- asi una futura optimizacion (p.ej. de velocidad) no puede sacrificar calidad de
 # recuperacion sin que esta prueba lo note.
 # Falsos positivos criticos ACEPTADOS en los casos adversariales. No es un objetivo, es la frontera
@@ -106,7 +106,7 @@ async def _medir_consultas(
 
 async def _ejecutar_bateria(tmp_path: Path, bateria: dict[str, Any]) -> list[dict[str, Any]]:
     """Construye la memoria UNA vez y mide todas las consultas. Corpus y bateria son pequenos
-    (59 recuerdos, 71 consultas): no hay necesidad de nada mas elaborado para que sea rapida."""
+    (65 recuerdos, 77 consultas): no hay necesidad de nada mas elaborado para que sea rapida."""
     mem = await _memoria_con_corpus(tmp_path, bateria["corpus"])
     contenido_a_id = _contenido_a_id(bateria["corpus"])
     return await _medir_consultas(mem, bateria["consultas"], contenido_a_id)

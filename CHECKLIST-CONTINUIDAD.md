@@ -211,6 +211,22 @@ turnos), pero **ningún componente las consume** y no hay materia prima acumulad
 
 Consecuencia: **ninguna decisión de producto puede apoyarse hoy en telemetría de uso real.**
 
+### 4.8 · La equivalencia del índice de memoria estaba verificada solo a escala pequeña
+
+`[VERIF 2026-08-03]` `memory.py` afirmaba que el índice invertido daba un resultado **«idéntico»** al
+barrido completo, y que estaba **«verificado»**. Lo estaba — pero solo por debajo de
+`_UMBRAL_UBICUO = 256`, el único régimen que la batería oficial (65 recuerdos) **puede** ejercitar.
+Por encima, la equivalencia se rompe: un recuerdo con cobertura suficiente puede no llegar a
+puntuarse nunca (`D-M-1`, `milestones/m3-entry/DEUDA-N1-RECUPERADOR.md`, con contraejemplo
+reproducible).
+
+La lección no es el defecto —heredado de MA.2a, no introducido por el incremento de cobertura— sino
+**cómo se coló**: una prueba en verde cuyo dominio no alcanza la condición que la afirmación cubría.
+Un verde solo demuestra lo que la prueba **puede** ejercitar.
+
+`test_el_recall_sigue_siendo_correcto_con_volumen` sigue en verde con `D-M-1` activo: su recuerdo-aguja
+tiene términos exclusivos. **No es un control de este escenario**, aunque su nombre lo sugiera.
+
 ---
 
 ## 5 · Qué NO está autorizado
@@ -243,6 +259,7 @@ trampas son de este checklist.**
 | `milestones/m3-entry/DEUDA-AUTOMATIZACION.md` | 8 partidas; reconocedor de un solo patrón, sin semántica transaccional |
 | `milestones/m3-entry/DEUDA-CAPTURA-DE-SENALES.md` | brecha histórica de instrumentación |
 | `milestones/m3-entry/DEUDA-ADAPTADORES-SIMULADOS.md` | `D-ADP-1`: un adaptador simulado responde `ok` igual que uno real |
+| `milestones/m3-entry/DEUDA-N1-RECUPERADOR.md` | **`D-M-1`: con >256 recuerdos por usuario, un recuerdo válido puede volverse irrecuperable** si solo comparte términos ubicuos con la consulta. Heredado de MA.2a, no del criterio de cobertura |
 
 ## 7 · Cómo se mantiene este checklist
 

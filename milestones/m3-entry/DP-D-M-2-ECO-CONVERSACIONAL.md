@@ -1,14 +1,26 @@
 # Decision Package — D-M-2: el eco del propio turno desactiva ADR-0014
 
-**Estado:** propuesta, **pendiente de aprobación del CEO**. **No se ha modificado el repositorio ni
-implementado ninguna alternativa.** Todas las mediciones proceden de prototipos ejecutados fuera del
-árbol de código.
+**Estado (CEO, 2026-08-03):**
 
-**Origen:** el CEO (2026-08-03) supeditó la implementación de `D-M-1` a resolver antes `D-M-2`, por su
-mayor impacto operativo. Este DP responde a esa instrucción.
+- ✅ **Diagnóstico de D-M-2 APROBADO**, y la investigación con él.
+- ❌ **Implementación de Op-5 NO AUTORIZADA.**
+- ➡️ **Queda supeditada a `D-M-7`.** El CEO dictaminó que D-M-2 y D-M-7 comparten el mismo núcleo
+  arquitectónico, y que el DP de D-M-7 debe definir **primero el modelo general de clasificación de
+  intención**. Una vez aprobado ese marco, se retoma este DP para decidir cuál es la solución correcta
+  **dentro** de él.
 
-**Recomendación en una línea:** adoptar **Op-5 — no almacenar como recuerdo recuperable las entradas
-interrogativas**, detectadas por signo de interrogación o palabra interrogativa inicial.
+**Razón de la reserva, en palabras del CEO:** la investigación demuestra que el autoeco existe, pero no
+demuestra que la regla correcta sea «las preguntas no deben almacenarse». Antes hay que responder cómo
+clasifica AURA la intención de una interacción y qué información debe convertirse en memoria
+recuperable. **Comparto el razonamiento:** Op-5 es una heurística local para un problema de nivel
+superior, y adoptarla ahora arriesgaba construir un segundo detector que después habría que unificar.
+
+**No se ha modificado el repositorio ni implementado ninguna alternativa.** Todas las mediciones
+proceden de prototipos ejecutados fuera del árbol de código.
+
+**Recomendación original (en suspenso hasta el marco de D-M-7):** **Op-5 — no almacenar como recuerdo
+recuperable las entradas interrogativas**, detectadas por signo de interrogación o palabra
+interrogativa inicial.
 
 **Clasificación de evidencia** (D47): `[EJEC]` salvo marca explícita.
 
@@ -250,3 +262,7 @@ significar escribir dos detectores para unificarlos después.
 
 **Mi recomendación —no una decisión— es decidir D-M-7 antes de implementar este DP**, o al menos
 decidir si se aborda, para poder diseñar un único detector de intención en lugar de dos.
+
+> **Resuelto (CEO, 2026-08-03).** Esa es exactamente la decisión tomada: D-M-7 se abre como Decision
+> Package independiente y debe definir el modelo general de clasificación de intención **antes** de
+> que este DP se retome. Ver `DP-D-M-7-CLASIFICACION-DE-INTENCION.md`.

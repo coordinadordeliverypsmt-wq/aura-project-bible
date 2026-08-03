@@ -72,6 +72,21 @@ referencia informal a "memoria".
    se anotan **en el momento en que aparecen**, no al cerrar. No sustituye a la verificación por ejecución:
    el repositorio sigue siendo la fuente de verdad sobre los hechos.
 
+   **Umbral de deuda (CEO, 2026-08-02).** Anotar no es lo mismo que abrir backlog. **Solo se registra como
+   DEUDA lo que cumple al menos uno de estos cuatro criterios:**
+
+   | Criterio |
+   |---|
+   | **Bloquea** un incremento |
+   | Compromete la **arquitectura** |
+   | Compromete la **seguridad** |
+   | Puede producir **pérdida de información** |
+
+   Todo lo demás queda como **observación técnica**, con la condición explícita que la promovería a deuda.
+   **El backlog debe permanecer pequeño y accionable**: una lista larga de deuda menor no informa, entierra
+   lo importante. Aplicado retroactivamente el 2026-08-02, el backlog de la capacidad 5 pasó de diez
+   partidas a **dos**.
+
    Por qué es un principio y no una tarea: el proyecto ha sufrido **al menos ocho veces** el mismo patrón
    —algo declarado en un documento y ausente en la realidad—: ALERTA-004, los evals de T1, ALERTA-005, la
    captura de señales, ADR-0021, plan vs materialización, `D-ADP-1` y el roadmap contradictorio (recuento

@@ -1,0 +1,68 @@
+incremento = "Capacidad 5 ampliada - varias automatizaciones reconocidas"
+pruebas = [
+    "tests/e2e/test_automatizacion_usuario.py",
+]
+
+[[mutante]]
+id = "M1"
+garantia = "el reconocedor deja de distinguir que accion dispara la regla (todo vuelve a ser borrar)"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''    for palabras, accion, sufijo in _PATRONES_ACCION_DISPARADORA:
+        if any(p in t for p in palabras):
+            return accion, sufijo
+    return None'''
+sustituir = '''    return ("borrar_archivo", "borrar")'''
+
+# NOTA sobre la defensa en profundidad: mutar la comprobacion de `_es_creacion_de_regla`
+# (quitarle `_detectar_accion_disparadora(t) is not None`) resulta ser un mutante EQUIVALENTE: la guarda
+# de `_crear_regla` rechaza igualmente la frase y no inventa ninguna regla, asi que el comportamiento
+# observable no cambia. Por eso M2 ataca la guarda REAL —la ultima linea de defensa de INV-9— en vez de
+# la comprobacion previa: es donde una degradacion si produciria una automatizacion fingida.
+[[mutante]]
+id = "M2"
+garantia = "la ultima defensa cede e inventa una accion cuando no reconoce ninguna (INV-9)"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        if match is None:'''
+sustituir = '''        match = match or ("borrar_archivo", "borrar")  # MUTANTE: inventa
+        if False:'''
+
+[[mutante]]
+id = "M3"
+garantia = "mover/renombrar leen la clave equivocada del evento (copiarian None)"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''    "mover_archivo": "origen",
+    "renombrar_archivo": "origen",'''
+sustituir = '''    "mover_archivo": "ruta",
+    "renombrar_archivo": "ruta",'''
+
+[[mutante]]
+id = "M4"
+garantia = "se silencian TODOS los fallos de respaldo, no solo 'no habia nada que respaldar'"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''    if any(m in motivo for m in _MOTIVOS_QUE_NUNCA_SE_CALLAN):
+        return False
+    return _MOTIVO_ORIGEN_AUSENTE in motivo'''
+sustituir = '''    return True'''
+
+[[mutante]]
+id = "M6"
+garantia = "una negacion crea la automatizacion que el usuario rechaza (hace lo contrario de lo pedido)"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''    if _es_cancelacion_de_regla(texto):
+        return False  # rechazar no es crear'''
+sustituir = '''    if False:
+        return False'''
+
+[[mutante]]
+id = "M7"
+garantia = "el filtro de silencio vuelve a mirar frases del dominio y traga el nombre del fichero"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''_MOTIVO_ORIGEN_AUSENTE = "no such file or directory"'''
+sustituir = '''_MOTIVO_ORIGEN_AUSENTE = "no existe"'''
+
+[[mutante]]
+id = "M5"
+garantia = "se pierde la compatibilidad con identificadores historicos (duplica la automatizacion)"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        equivalentes = {rule_id, *_IDS_HISTORICOS.get(rule_id, ())}'''
+sustituir = '''        equivalentes = {rule_id}'''

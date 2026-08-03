@@ -12,7 +12,7 @@
 > verificar**, **en qué orden** y **qué NO es lo que parece**. Si algo de aquí contradice lo que mide un
 > comando, **manda el comando** — y entonces el documento está desactualizado y corregirlo es el trabajo.
 
-**Última actualización:** 2026-08-02 · **Estado documentado:** `main` = `origin/main` = `5c91b39`
+**Última actualización:** 2026-08-02 · **Estado documentado:** `main` = `origin/main` = `5aa2d20`
 (verifica el hash actual con `git log`; este documento se actualiza en cada cierre, no en cada commit)
 
 ---
@@ -56,7 +56,7 @@ en rojo.
 |---|---|
 | Fase | **Construcción de producto.** La fase documental (Bible) está cerrada desde el 2026-07-18 |
 | Capacidades de producto cerradas | **4** — N2 Memoria Semántica · Centro de Notificaciones · Modelo de Usuario · Automatización definida por el usuario |
-| Quality Gate | PASS **432 passed / 3 skipped** |
+| Quality Gate | PASS **445 passed / 3 skipped** |
 | Alertas de arquitectura abiertas | **0** (las cinco históricas, resueltas) |
 | Trabajo en curso | **ninguno** |
 | Proceso automatizado | `CLAUDE.md` (protocolo por sesión) · 4 agentes en `.claude/agents/` · hook `pre-push` con bloqueo duro · arnés de mutación (`herramientas/mutar.py`, a demanda) |
@@ -95,6 +95,7 @@ construido?"* con la del **roadmap**. Ambas tablas están separadas en
 | **Mover el artefacto de N2** (opciones B/C del Decision Package) | 2026-08-02 | Nada urgente: el CEO lo aplazó hasta que N2 pueda usarse; hoy P1 la bloquea. Ver §4.3 |
 | **`CHANGELOG.md` e `INDICE.md` abandonados** | 2026-08-02 | Nada técnico, pero afirman ser registro del proyecto y llevan 12-15 días desfasados. Detectado durante el incremento de proceso; no se corrigió para no desviarlo |
 | **SIGKILL durante una mutación** deja el fichero mutado | 2026-08-02 | Nada: inevitable en Python (SIGKILL no es interceptable). Recuperación: `git checkout -- <fichero>`. SIGINT sí restaura correctamente |
+| **Desactivar automatizaciones** (`D-A-1`) requiere decidir la proyección del log | 2026-08-02 | Bloquea `D-A-1`: escribir `estado:inactiva` NO desactiva hoy (`D-A-9` en `DEUDA-AUTOMATIZACION.md`). Decisión de persistencia, no de conversación |
 | **Verificador de consistencia** (propuesta NO autorizada) | 2026-08-02 | Nada. Registrada en `decisiones/pendientes-de-evaluacion/`; se reevalúa tras la revisión estratégica |
 
 ---

@@ -53,6 +53,18 @@ siempre que la capacidad esté disponible.
 **Regla dura: el que implementa nunca audita su propio trabajo.** Los agentes están definidos en
 [`.claude/agents/`](.claude/agents/) — úsalos por nombre.
 
+**Cómo repartir en un incremento grande** (CEO, 2026-08-02):
+
+- **Investiga en paralelo.** Varios ángulos a la vez, no uno detrás de otro.
+- **Implementa en paralelo cuando los módulos sean independientes.** Si dos partes no se tocan, no hay
+  razón para hacerlas en serie.
+- **Audita siempre de forma independiente.** No es opcional ni depende del tamaño.
+- **La mutación es un revisor más, no una prueba más.** Trátala como un agente que busca garantías sin
+  red: si un mutante sobrevive, falta una prueba — no "ya está cubierto de otra forma".
+
+**El director debe implementar cada vez menos y coordinar cada vez más.** Ese es el rol que AURORA
+asumirá; cuanto más se practique ahora, menos habrá que inventar después.
+
 **Una tarea no se cierra porque un agente diga que terminó: se cierra por evidencia.** Si falla, produce
 algo inconsistente, incumple los criterios o el auditor lo rechaza, sigue abierta. Identifica el motivo y
 reasígnala —a otro agente, o al mismo con mejor contexto— hasta obtener evidencia verificable o demostrar
@@ -211,5 +223,10 @@ Corolarios prácticos:
 
 ## 7 · Si aparece un vacío a mitad de un incremento
 
-Regístralo **en el momento** en el Checklist de Continuidad y **continúa**. No interrumpas el incremento
-salvo que comprometa la **arquitectura**, la **seguridad** o la **veracidad** del sistema.
+Anótalo **en el momento** y **continúa**. No interrumpas el incremento salvo que comprometa la
+**arquitectura**, la **seguridad** o la **veracidad** del sistema.
+
+**Pero anotar no es abrir backlog.** Solo es **deuda** lo que **bloquea** un incremento, compromete la
+**arquitectura** o la **seguridad**, o puede producir **pérdida de información**. Lo demás es una
+**observación técnica**, y se registra junto a la condición que la promovería a deuda. El backlog debe
+seguir siendo **pequeño y accionable**: una lista larga de deuda menor entierra lo importante.

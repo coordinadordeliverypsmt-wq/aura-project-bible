@@ -38,16 +38,32 @@ durante la construcción y acotado aquí.
 | D-A-4 | **Disparadores externos** (hora, sensores, correo, hogar) | Hoy el bus solo produce `action.command` y `perception.turn_end`; no hay más eventos que ofrecer. | Productores de eventos + su gate de habilitación (ADR-0019). |
 | D-A-5 | **Sugerencia automática de reglas por aprendizaje** | Requiere datos de uso real (misma dependencia que M3.2b). | Capacidad 8 · inferencia. |
 
-## 2 · Detectado durante la construcción (acotado, no excluido por el CEO)
+## 2 · Deuda accionable
 
 | # | Deuda | Riesgo real hoy | Qué haría falta |
 |---|---|---|---|
-| D-A-6 | **El reconocedor de lenguaje natural cubre UN solo patrón** ("guarda una copia antes de borrar"). Si el usuario define otra automatización, AURA no la reconoce. | Producto: la capacidad se demuestra pero no generaliza. **No es deuda arquitectónica**: la generalidad ya vive en el modelo de regla (`evento → condición → acción`, args por referencia) y en el motor; ampliar el reconocedor **no obliga a migrar** ninguna regla ya escrita en disco. | Ampliar el reconocedor (o delegar el *parseo* en el LLM manteniendo la **decisión** en el núcleo, ADR-0014). |
 | D-A-7 | **Sin semántica transaccional**: si la acción de una regla previa falla, la acción del usuario se ejecuta igualmente. | Acotado: el fallo **no se silencia** (se narra al usuario y va al Centro de Notificaciones), y la acción del usuario que hoy dispara reglas —borrar— es de lista roja, o sea que el usuario está presente y la confirma. Aun así, "guarda **antes** una copia" es una promesa que un fallo silencioso de la copia debilitaría. | Decidir política explícita: ¿un disparo previo fallido **aborta** la acción? No es trivial —la copia falla legítimamente si el respaldo ya existe—, así que requiere su propio Decision Package. |
-| **D-A-10** | **El reconocedor confunde órdenes puntuales con automatizaciones**, y acierta por subcadena | Auditoría independiente 2026-08-02. El patrón `"cuando "` es muy general: *«Cuando llegue a casa, borra el temporal y guarda una copia»* crea una automatización **permanente** y además **no ejecuta** el borrado pedido. La coincidencia por raíz produce falsos disparadores: *"describir"* contiene `escrib`; *"móvil"*, *"promuevas"* contienen `mov`/`muev`. Y hay falsos negativos: *«Antes de borrar cualquier archivo, guarda una copia»* —paráfrasis natural— **no** se reconoce. | Distinguir orden puntual de regla permanente exige análisis sintáctico, no listas de subcadenas. Es el mismo límite de fondo que `§4.6` del checklist (47 patrones, coste cuadrático). **No se corrige con más patrones**: requiere su propio Decision Package. |
-| D-A-8 | **La respuesta al usuario arrastra un sufijo técnico** (`[accion borrar_archivo ejecutada]`). | Es la marca de evidencia de ejecución real de ALERTA-005, presente en **todo** el sistema desde M2.5, no algo introducido aquí. Choca con el principio que el CEO fijó para el Centro de Notificaciones: *"eventos comunicables, no eventos técnicos"*. | Incremento propio: mover la evidencia de ejecución a la auditoría y dejar el canal conversacional limpio, sin perder la garantía de ALERTA-005. Afecta a pruebas e2e existentes. |
 
-## 3 · Lo que este incremento **sí** dejó cerrado (para no reabrirlo por error)
+
+## 3 · Observaciones técnicas (NO son backlog)
+
+**Criterio del CEO (2026-08-02): solo se registra como DEUDA lo que bloquea un incremento, compromete la
+arquitectura, compromete la seguridad o puede producir pérdida de información.** Todo lo demás vive aquí
+como observación hasta que merezca convertirse en trabajo. El backlog debe permanecer **pequeño y
+accionable**; una lista larga de deuda menor no informa, entierra lo importante.
+
+| Observación | Por qué NO es deuda hoy | Se promueve a deuda si… |
+|---|---|---|
+| **El reconocedor confunde órdenes puntuales con automatizaciones.** *«Cuando llegue a casa, borra el temporal y guarda una copia»* crea una regla permanente **y no ejecuta el borrado**. Acierta por subcadena (*«describir»* contiene `escrib`; *«promuevas»* contiene `muev`). Falso negativo: *«Antes de borrar cualquier archivo, guarda una copia»* no se reconoce. | Molesto, no peligroso: no destruye datos ni compromete la arquitectura. La regla creada de más solo produce copias, que son reversibles. | Un falso positivo llegue a disparar una acción **destructiva**, o el usuario se queje del comportamiento en uso real. |
+| **La respuesta arrastra un sufijo técnico** (`[accion borrar_archivo ejecutada]`). | Cosmético. Es la marca de evidencia de ejecución de ALERTA-005, presente en todo el sistema desde M2.5. | Se aborde la limpieza del canal conversacional como incremento propio. |
+| **Al mover un archivo, el mensaje expone la ruta absoluta del sistema.** | UX confusa, sin implicación de seguridad (es la ruta del propio usuario). | Aparezcan rutas de terceros o de sistema en mensajes al usuario. |
+
+## 4 · Cerrado
+
+- **`D-A-6` — el reconocedor cubría un solo patrón** → **RESUELTO** (2026-08-02, `98e3352`): reconoce
+  cuatro disparadores (borrar, escribir, mover, renombrar), cada uno con su regla independiente.
+
+## 5 · Lo que este incremento **sí** dejó cerrado (para no reabrirlo por error)
 
 - El **modelo de regla persistido es el definitivo** (`rule_id`, `evento`, `condicion` declarativa, `accion`,
   `args` por referencia al evento, `estado`, `metadatos`). Ampliar el reconocedor o añadir disparadores no

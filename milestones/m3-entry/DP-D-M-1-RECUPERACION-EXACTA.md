@@ -1,6 +1,15 @@
 # Decision Package — D-M-1: recuperación exacta de memoria
 
-**Estado:** propuesta cerrada, **pendiente de aprobación del CEO**.
+**Estado: APROBADO COMO DOCUMENTO DE DECISIÓN** por el CEO (2026-08-03), con dos observaciones, ambas
+ya incorporadas:
+
+1. La cota de A′ queda etiquetada como **elección de diseño «suficiente y conservadora»**, no como la
+   única cota correcta — ver el apartado dedicado dentro de A′.
+2. **La implementación NO está autorizada todavía.** Queda **supeditada a resolver antes `D-M-2`**, por
+   su mayor impacto operativo. Decisión del CEO, coherente con lo que este mismo análisis demostró:
+   D-M-2 se dispara en el segundo turno de conversación, D-M-1 exige un régimen que aún no se ha
+   observado en uso real.
+
 **No se ha modificado el repositorio ni implementado ninguna alternativa.** Todas las mediciones
 proceden de prototipos ejecutados fuera del árbol de código, en `$CLAUDE_JOB_DIR/tmp/`.
 
@@ -168,16 +177,48 @@ espíritu de MA.2a.**
 ### A′ — Filtro por prefijo **con cota de seguridad** *(recomendada)*
 
 **Algoritmo.** Igual que A, más una guarda previa: si la suma de los posteos que el prefijo visitaría
-**supera el número de recuerdos del usuario**, hacer barrido completo.
+**supera α·N**, hacer barrido completo. Se propone **α = 1** (es decir, «más posteos que recuerdos
+tiene el usuario»).
 
 ```
 listas ← las (n − m + 1) de posteo más corto
-si  Σ|listas| > N :  barrido completo        # nunca peor que mirarlo todo
-si no             :  unir listas             # poda exacta
+si  Σ|listas| > α·N :  barrido completo        # nunca mucho peor que mirarlo todo
+si no               :  unir listas             # poda exacta
 ```
 
 **Exactitud.** Inmediata: **ambas ramas son exactas** —A por el palomar, el barrido completo por
 definición—, luego A′ lo es sea cual sea la rama tomada. No introduce una tercera vía que auditar.
+
+### La cota es una ELECCIÓN DE DISEÑO, no la única cota correcta
+
+**Esto es una decisión de ingeniería, no un resultado.** `α = 1` es **suficiente y conservadora**, no
+óptima ni única. La exactitud **no depende de α en absoluto**: al ser exactas las dos ramas, cualquier
+valor produce el resultado correcto. `α` solo decide **dónde se prefiere una rama sobre la otra**, es
+decir, es un parámetro de **coste**.
+
+Medido `[EJEC]` — peor caso con `n=6`, y activaciones sobre las 400 consultas del banco realista:
+
+| α | Peor caso | ¿Protege el peor caso? | Activaciones (realista) | ¿Exacta? |
+|---|---|---|---|---|
+| 0,5 | 5,08 ms | Sí | **8 / 400** — se activa sin necesidad | Sí |
+| **1,0 (propuesta)** | **4,89 ms** | **Sí** | **0 / 400** | Sí |
+| 1,5 | 4,95 ms | Sí | 0 / 400 | Sí |
+| 2,0 | 4,91 ms | Sí | 0 / 400 | Sí |
+| 4,0 | 8,61 ms | **No** | 0 / 400 | Sí |
+| ∞ (= A puro) | 8,09 ms | **No** | 0 / 400 | Sí |
+
+*(referencia: fuerza bruta en el mismo peor caso = 4,86 ms)*
+
+**Lectura.** El rango útil es **α ∈ [1, 2]**: protege el peor caso sin activarse nunca en el normal.
+Por debajo (0,5) la cota se dispara innecesariamente 8 veces de 400 y renuncia a poda que era válida;
+por encima (≥4) deja de proteger. **`α = 1` es el extremo conservador del rango útil**, elegido porque
+es el más fácil de razonar y de explicar en una prueba: *«nunca visites más posteos que recuerdos
+tienes»*. Cualquier valor en `[1, 2]` sería igualmente defendible.
+
+**Qué NO es esta cota.** No es una frontera teórica ni un óptimo demostrado. Es una **regla de parada
+conservadora** que convierte un peor caso ilimitado en uno acotado. Si la medición futura mostrara que
+el coste por posteo y el coste por recuerdo difieren mucho, `α` debería ponderarse — la forma de la
+cota sobreviviría, su valor no.
 
 **Coste asintótico `[INFER]`.** `O(n log n + min(V, N) + min(|C|,N)·n)`. **Acotado por la fuerza
 bruta:** por construcción A′ nunca visita más que el barrido completo.
@@ -332,9 +373,10 @@ Condiciones concretas y falsables. Si alguna se cumple, la recomendación decae:
 5. **Que `_COBERTURA_MINIMA` baje mucho.** `[EJEC]` con `c = 0,20` el prefijo une el 100 % de las
    listas y degenera en B. Por debajo de `c ≈ 0,4` la poda deja de compensar y habría que revisar la
    elección.
-6. **Que la cota resulte mal calibrada.** Está fijada en «posteos a visitar > recuerdos del usuario».
-   Si se midiera que el coste por posteo y por recuerdo difieren mucho, el punto de corte debería
-   ponderarse.
+6. **Que la cota resulte mal calibrada.** `α = 1` es una elección conservadora dentro de un rango útil
+   medido de `[1, 2]`, no un óptimo. Recalibrarla **no cambiaría la decisión** —A′ seguiría siendo la
+   alternativa recomendada— solo su parámetro. Disparador: que la cota se active en más del 5 % de las
+   consultas reales, o que el coste por posteo y por recuerdo resulten muy distintos.
 
 ---
 
@@ -362,7 +404,8 @@ batería.
 
 - **No cambia** `_COBERTURA_MINIMA`, la tokenización, las palabras vacías ni el criterio de aceptación.
 - **No resuelve D-M-2…D-M-6.** Son independientes de la generación de candidatos y necesitan sus
-  propias decisiones. **D-M-2 es más urgente que D-M-1** y se dispara en el segundo turno.
+  propias decisiones. **D-M-2 es más urgente que D-M-1** y se dispara en el segundo turno: el CEO fijó
+  que se resuelve **antes** que este DP (ver encabezado). Su Decision Package es trabajo aparte.
 - **No toca** `SemanticMemory` ni `D-N2-5`.
 - **No propone** ampliar el alcance funcional del MVP (D23).
 - **No implementa** las pruebas de la ampliación del benchmark, que acompañarían a la implementación.

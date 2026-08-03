@@ -260,7 +260,7 @@ trampas son de este checklist.**
 | `milestones/m3-entry/DEUDA-CAPTURA-DE-SENALES.md` | brecha histórica de instrumentación |
 | `milestones/m3-entry/DEUDA-ADAPTADORES-SIMULADOS.md` | `D-ADP-1`: un adaptador simulado responde `ok` igual que uno real |
 | `milestones/m3-entry/DEUDA-N1-RECUPERADOR.md` | 6 partidas. **`D-M-2` es CRÍTICA: el eco `usuario dijo:` del propio turno desactiva ADR-0014 al repetir una pregunta.** Además: recall a 0,000 con coletillas de cortesía, recuerdo largo como atractor de FP, refutados que siguen llegando al LLM, y `D-M-1` (régimen ubicuo) |
-| `milestones/m3-entry/DP-D-M-1-RECUPERACION-EXACTA.md` | Decision Package **pendiente de aprobación**: 4 alternativas para `D-M-1`, recomendación fundamentada y ampliación del benchmark |
+| `milestones/m3-entry/DP-D-M-1-RECUPERACION-EXACTA.md` | Decision Package **APROBADO como documento** (CEO, 2026-08-03). Recomienda `A′` (prefijo con cota, α=1 como elección de diseño). **La implementación NO está autorizada: el CEO la supeditó a resolver antes `D-M-2`** |
 
 ## 7 · Cómo se mantiene este checklist
 

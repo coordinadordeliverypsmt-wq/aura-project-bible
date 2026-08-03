@@ -1,0 +1,70 @@
+incremento = "Capacidad 5 - el usuario desactiva una automatizacion hablando"
+pruebas = [
+    "tests/unit/test_reglas.py",
+    "tests/e2e/test_automatizacion_usuario.py",
+]
+
+[[mutante]]
+id = "M1"
+garantia = "la proyeccion ignora el usuario: A puede desactivar la regla de B (rompe P-ARQ-5)"
+fichero = "aura_skeleton/core/reglas.py"
+buscar = '''                    proyeccion[(regla.user_id, regla.rule_id)] = regla'''
+sustituir = '''                    proyeccion[("", regla.rule_id)] = regla'''
+
+[[mutante]]
+id = "M2"
+garantia = "la proyeccion deja de aplicarse: la desactivacion no sobrevive al reinicio"
+fichero = "aura_skeleton/core/reglas.py"
+buscar = '''                    proyeccion[(regla.user_id, regla.rule_id)] = regla
+        return list(proyeccion.values())'''
+sustituir = '''                    proyeccion[(regla.user_id, str(len(proyeccion)))] = regla
+        return list(proyeccion.values())'''
+
+[[mutante]]
+id = "M3"
+garantia = "desactivar REESCRIBE el fichero y destruye el historial append-only"
+fichero = "aura_skeleton/core/reglas.py"
+buscar = '''        with open(self._ruta, "a", encoding="utf-8") as f:
+            f.write(json.dumps(asdict(inactiva), ensure_ascii=False) + "\n")'''
+sustituir = '''        with open(self._ruta, "w", encoding="utf-8") as f:
+            f.write(json.dumps(asdict(inactiva), ensure_ascii=False) + "\n")'''
+
+[[mutante]]
+id = "M4"
+garantia = "desactivar dice haber desactivado algo que no existia o ya estaba inactivo"
+fichero = "aura_skeleton/core/reglas.py"
+buscar = '''        if vigente is None or vigente.estado != "activa":'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "M5"
+garantia = "una regla desactivada sigue disparandose (solo desaparece del listado)"
+fichero = "aura_skeleton/core/reglas.py"
+buscar = '''        return [r for r in self.listar(user_id) if tipo_evento.startswith(r.evento)]'''
+sustituir = '''        return [r for r in self._reglas if r.user_id == user_id and tipo_evento.startswith(r.evento)]'''
+
+# La auditoria independiente senalo que los mutantes solo cubrian `reglas.py`: la superficie
+# conversacional quedaba sin revisar. Estos tres atacan los defectos GRAVES que encontro.
+
+[[mutante]]
+id = "M6"
+garantia = "la cancelacion desactiva la automatizacion EQUIVOCADA (el verbo de cancelar se lee como disparador)"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''    return _detectar_accion_disparadora(resto)'''
+sustituir = '''    return _detectar_accion_disparadora(t)'''
+
+[[mutante]]
+id = "M7"
+garantia = "cualquier frase con 'ya no' secuestra el turno aunque no hable de automatizaciones"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''    return any(p in t for p in _PAT_CANCELACION) and any(p in t for p in _PAT_DOMINIO_AUTOMATIZACION)'''
+sustituir = '''    return any(p in t for p in _PAT_CANCELACION)'''
+
+[[mutante]]
+id = "M8"
+garantia = "crear una regla acumula duplicados en memoria y rompe la desactivacion posterior"
+fichero = "aura_skeleton/core/reglas.py"
+buscar = '''    def crear(self, regla: ReglaUsuario) -> None:
+        self._proyectar(regla)'''
+sustituir = '''    def crear(self, regla: ReglaUsuario) -> None:
+        self._reglas.append(regla)'''

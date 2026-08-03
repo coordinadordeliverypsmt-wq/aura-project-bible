@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 
 
 @dataclass
@@ -87,17 +87,41 @@ class AlmacenReglas:
         self._reglas: list[ReglaUsuario] = self._cargar()
 
     def _cargar(self) -> list[ReglaUsuario]:
+        """Proyecta el log append-only: por cada clave (user_id, rule_id) gana la ULTIMA linea.
+
+        El fichero conserva TODAS las lineas (nunca se compacta), pero para decidir el estado
+        vigente solo importa la escritura mas reciente de esa clave. La clave incluye user_id ademas
+        de rule_id porque dos usuarios pueden reutilizar el mismo rule_id: si se proyectase solo por
+        rule_id, la desactivacion de un usuario podria pisar la regla de otro (rompe P-ARQ-5).
+        """
         if not os.path.exists(self._ruta):
             return []
-        reglas: list[ReglaUsuario] = []
+        proyeccion: dict[tuple[str, str], ReglaUsuario] = {}
         with open(self._ruta, encoding="utf-8") as f:
             for linea in f:
                 if linea.strip():
-                    reglas.append(ReglaUsuario(**json.loads(linea)))
-        return reglas
+                    regla = ReglaUsuario(**json.loads(linea))
+                    proyeccion[(regla.user_id, regla.rule_id)] = regla
+        return list(proyeccion.values())
+
+    def _proyectar(self, regla: ReglaUsuario) -> None:
+        """Actualiza self._reglas para la clave (user_id, rule_id): reemplaza, nunca acumula.
+
+        Hallazgo de auditoria independiente (2026-08-02): crear() hacia un append() simple sin
+        proyectar, mientras que desactivar() si actualizaba la proyeccion en memoria. Tras
+        crear -> desactivar -> crear la MISMA regla en la MISMA sesion, self._reglas quedaba con
+        DOS entradas para la misma clave (primero la inactiva, luego la activa). desactivar()
+        busca con next(...), que devuelve la PRIMERA coincidencia: encontraba siempre la vieja
+        inactiva y devolvia False para siempre (hasta reiniciar el proceso), y la automatizacion
+        seguia disparando sin que el usuario pudiera apagarla. La proyeccion por (user_id, rule_id)
+        debe ser la UNICA responsable del estado vigente (restriccion explicita): por eso crear y
+        desactivar comparten esta misma semantica de reemplazo.
+        """
+        self._reglas = [r for r in self._reglas if not (r.user_id == regla.user_id and r.rule_id == regla.rule_id)]
+        self._reglas.append(regla)
 
     def crear(self, regla: ReglaUsuario) -> None:
-        self._reglas.append(regla)
+        self._proyectar(regla)
         with open(self._ruta, "a", encoding="utf-8") as f:
             f.write(json.dumps(asdict(regla), ensure_ascii=False) + "\n")
 
@@ -108,3 +132,26 @@ class AlmacenReglas:
     def aplicables(self, user_id: str, tipo_evento: str) -> list[ReglaUsuario]:
         """Reglas activas del usuario cuyo `evento` coincide con el tipo dado."""
         return [r for r in self.listar(user_id) if tipo_evento.startswith(r.evento)]
+
+    def desactivar(self, user_id: str, rule_id: str) -> bool:
+        """Desactiva una regla del usuario. True si estaba activa y se desactivo; False si no existia
+        o ya estaba inactiva.
+        """
+        # se busca la version vigente en memoria (ya proyectada por (user_id, rule_id) desde _cargar,
+        # o actualizada en memoria por una desactivacion previa en esta misma sesion)
+        vigente = next((r for r in self._reglas if r.user_id == user_id and r.rule_id == rule_id), None)
+        if vigente is None or vigente.estado != "activa":
+            # nada que hacer: no se escribe en el fichero para no dejar ruido de operaciones sin efecto
+            return False
+
+        inactiva = replace(vigente, estado="inactiva")
+
+        # PROHIBIDO reescribir o truncar: se aniade una linea nueva; el historial completo queda
+        # intacto en disco (evidencia de aceptacion del CEO: el fichero no se toca byte a byte)
+        with open(self._ruta, "a", encoding="utf-8") as f:
+            f.write(json.dumps(asdict(inactiva), ensure_ascii=False) + "\n")
+
+        # misma semantica de proyeccion que crear(): reemplaza la entrada de esta clave, nunca
+        # acumula, para que listar/aplicables lo reflejen de inmediato sin reiniciar el proceso
+        self._proyectar(inactiva)
+        return True

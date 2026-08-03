@@ -449,8 +449,8 @@ async def test_una_negacion_no_crea_la_automatizacion_que_el_usuario_rechaza(ent
     guardes una copia» creaba la regla, y «Deja de guardar copia cuando borres» respondía
     «Entendido. Lo haré a partir de ahora». AURA hacía exactamente lo opuesto a lo solicitado.
 
-    Desactivar todavía no es posible (`D-A-1`/`D-A-9`), así que lo correcto es decirlo con
-    honestidad, nunca fingir que se ha hecho ni crear la regla rechazada.
+    Ninguna de las frases identifica una automatización EXISTENTE que desactivar (el usuario no
+    tiene ninguna todavía), así que la respuesta correcta es la verdad: no tiene ninguna activa.
     """
     archivos, estado = entorno
     aura = _arrancar_aura(archivos, estado)
@@ -464,3 +464,149 @@ async def test_una_negacion_no_crea_la_automatizacion_que_el_usuario_rechaza(ent
         assert "lo haré a partir de ahora" not in say.lower(), f"{frase!r} -> creó lo que se rechazaba: {say!r}"
 
     assert await _decir(aura, "¿Qué automatizaciones tengo?") == "No tienes ninguna automatización activa."
+
+
+# --- M3 entry: desactivar una automatizacion hablando -------------------------------------------------
+#
+# Hasta ahora rechazar una automatizacion solo evitaba crear la que no se queria (test anterior). Ahora
+# el usuario puede desactivar de verdad una automatizacion YA CREADA: no basta con que desaparezca del
+# listado, tiene que dejar de dispararse, y la desactivacion debe sobrevivir al reinicio igual que la
+# creacion (mismo almacen, mismo disco).
+
+
+@pytest.mark.asyncio
+async def test_el_usuario_puede_desactivar_una_automatizacion_hablando(entorno):
+    """Ciclo completo: crear dos automatizaciones, desactivar una hablando, listar solo la otra."""
+    archivos, estado = entorno
+    aura = _arrancar_aura(archivos, estado, proveedor=_GuionArchivos(str(archivos)))
+
+    await _decir(aura, "Siempre que borres un archivo, guarda antes una copia.")
+    await _decir(aura, "Cada vez que escriba un archivo, guarda una copia.")
+
+    say = await _decir(aura, "Ya no quiero que guardes copia cuando escriba un archivo.")
+    assert say == "Hecho. He desactivado esa automatización."
+
+    say_listar = await _decir(aura, "¿Qué automatizaciones tengo?")
+    assert "1 automatización activa" in say_listar
+    assert "borrar" in say_listar.lower()
+    assert "escrib" not in say_listar.lower(), f"la desactivada seguia en el listado: {say_listar!r}"
+
+
+@pytest.mark.asyncio
+async def test_la_automatizacion_desactivada_deja_de_dispararse_de_verdad(entorno):
+    """Lo que de verdad importa: tras desactivar, escribir un archivo YA NO genera copia.
+
+    No basta con que la regla desaparezca del listado (eso lo verifica la prueba anterior): si
+    siguiera disparandose, la desactivacion seria solo cosmetica.
+    """
+    archivos, estado = entorno
+    aura = _arrancar_aura(archivos, estado, proveedor=_GuionArchivos(str(archivos)))
+    await _decir(aura, "Cada vez que escriba un archivo, guarda una copia.")
+
+    await _decir(aura, "Ya no quiero que guardes copia cuando escriba un archivo.")
+    say = await _decir(aura, "Escribe 'version nueva' en notas.txt")
+
+    assert (archivos / "notas.txt").read_text() == "version nueva", "la escritura del usuario debe ejecutarse"
+    assert not (archivos / "notas.txt.copia").exists(), "la automatizacion desactivada siguio disparando"
+    assert "copia" not in say.lower(), f"narro una copia que ya no debia hacer: {say!r}"
+
+
+@pytest.mark.asyncio
+async def test_la_desactivacion_sobrevive_al_reinicio(entorno):
+    """Tras reiniciar AURA, la desactivada sigue desactivada y la otra sigue funcionando.
+
+    Mismo criterio que la creacion (ver test de arriba): si la desactivacion viviera solo en
+    memoria de proceso, un reinicio la resucitaria sin que el usuario lo pidiera.
+    """
+    archivos, estado = entorno
+    aura = _arrancar_aura(archivos, estado, proveedor=_GuionArchivos(str(archivos)))
+    await _decir(aura, "Siempre que borres un archivo, guarda antes una copia.")
+    await _decir(aura, "Cada vez que escriba un archivo, guarda una copia.")
+    await _decir(aura, "Ya no quiero que guardes copia cuando escriba un archivo.")
+
+    # --- reinicio de AURA: proceso nuevo; solo persiste el disco ---
+    aura = _arrancar_aura(archivos, estado, proveedor=_GuionArchivos(str(archivos)))
+
+    say_listar = await _decir(aura, "¿Qué automatizaciones tengo?")
+    assert "1 automatización activa" in say_listar
+    assert "borrar" in say_listar.lower()
+
+    await _decir(aura, "Escribe 'version 2' en notas.txt")
+    assert not (archivos / "notas.txt.copia").exists(), "la desactivada volvio a activarse tras reiniciar"
+
+    say_borrar = await _decir(aura, "Borra informe.pdf")
+    assert "Guardé una copia de informe.pdf y luego lo borré." in say_borrar
+    assert (archivos / "informe.pdf.copia").read_text() == "informe de julio", "la activa siguio funcionando"
+
+
+@pytest.mark.asyncio
+async def test_eliminar_automatizacion_de_escribir_no_desactiva_la_de_borrar(entorno):
+    """Auditoria independiente (2026-08-02): "elimin" es sinonimo de "borrar" en
+    _PATRONES_ACCION_DISPARADORA, y tambien es el verbo de esta misma frase de cancelacion.
+    _detectar_accion_disparadora devolvia la PRIMERA fila que coincidia en la tabla (borrar va
+    antes que escribir), asi que "Elimina la automatización de escribir archivos." desactivaba
+    la automatizacion de BORRAR -la equivocada- y encima respondia "Hecho." sobre ella.
+    """
+    archivos, estado = entorno
+    aura = _arrancar_aura(archivos, estado, proveedor=_GuionArchivos(str(archivos)))
+    await _decir(aura, "Siempre que borres un archivo, guarda antes una copia.")
+    await _decir(aura, "Cada vez que escriba un archivo, guarda una copia.")
+
+    say = await _decir(aura, "Elimina la automatización de escribir archivos.")
+    assert say == "Hecho. He desactivado esa automatización."
+
+    say_listar = await _decir(aura, "¿Qué automatizaciones tengo?")
+    assert "1 automatización activa" in say_listar
+    assert "borrar" in say_listar.lower(), f"desactivo la automatizacion equivocada: {say_listar!r}"
+    assert "escrib" not in say_listar.lower(), f"la de escribir seguia activa: {say_listar!r}"
+
+
+@pytest.mark.asyncio
+async def test_frases_mundanas_con_marcador_de_cancelacion_no_secuestran_el_turno(entorno):
+    """Auditoria independiente (2026-08-02): un marcador de cancelacion aislado ("ya no ", "no
+    quiero", "deja de") bastaba para entrar en la rama de cancelacion de automatizaciones, aunque
+    la frase no tuviera nada que ver con ellas. "Ya no tengo hambre, gracias." respondia "No tienes
+    ninguna automatización activa.", secuestrando un turno que debia resolver el proveedor.
+    """
+    archivos, estado = entorno
+    aura = _arrancar_aura(archivos, estado, proveedor=_GuionArchivos(str(archivos)))
+
+    for frase in (
+        "Ya no tengo hambre, gracias.",
+        "No quiero salir hoy.",
+        "Deja de llover.",
+    ):
+        say = await _decir(aura, frase)
+        assert say == "Entendido.", f"{frase!r} fue secuestrada por el nucleo de automatizaciones: {say!r}"
+
+
+@pytest.mark.asyncio
+async def test_cancelacion_real_sigue_funcionando_sin_automatizaciones_activas(entorno):
+    """CONTROL del anterior: exigir mencion de dominio no debe romper la cancelacion real cuando el
+    usuario no tiene ninguna automatizacion activa (debe seguir diciendo la verdad, no "hecho").
+    """
+    archivos, estado = entorno
+    aura = _arrancar_aura(archivos, estado, proveedor=_GuionArchivos(str(archivos)))
+
+    say = await _decir(aura, "Ya no quiero que guardes copia cuando escriba un archivo.")
+
+    assert "hecho" not in say.lower()
+    assert say == "No tienes ninguna automatización activa."
+
+
+@pytest.mark.asyncio
+async def test_desactivar_una_automatizacion_inexistente_no_miente(entorno):
+    """Pedir desactivar una automatización que no tiene NO responde "hecho": dice la verdad.
+
+    El usuario solo tiene la de "borrar"; pide desactivar la de "escribir", que no existe. AURA
+    nunca debe afirmar un exito que no ocurrio (INV-9): debe ayudar contando lo que si tiene.
+    """
+    archivos, estado = entorno
+    aura = _arrancar_aura(archivos, estado, proveedor=_GuionArchivos(str(archivos)))
+    await _decir(aura, "Siempre que borres un archivo, guarda antes una copia.")
+
+    say = await _decir(aura, "Ya no quiero que guardes copia cuando escriba un archivo.")
+
+    assert "hecho" not in say.lower(), f"afirmo haber desactivado algo que no existia: {say!r}"
+    assert "1 automatización activa" in say
+    assert "borrar" in say.lower()

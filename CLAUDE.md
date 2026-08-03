@@ -58,16 +58,33 @@ algo inconsistente, incumple los criterios o el auditor lo rechaza, sigue abiert
 reasígnala —a otro agente, o al mismo con mejor contexto— hasta obtener evidencia verificable o demostrar
 un bloqueo real.
 
-**Coordinación.** Mantener el objetivo, repartir, detectar bloqueos y reasignar es responsabilidad del
-**director**, que despacha subagentes y no da por cerrado nada sin evidencia. Dos precisiones sobre las
-herramientas, para que nadie las confunda con lo anterior:
+### Cuándo es obligatorio repartir
 
-- **`/loop`** repite un prompt en intervalos o autopautado. Sirve para **sostener el ciclo abierto hasta
-  que haya evidencia** (reintentar, esperar un resultado). **No divide trabajo ni asigna agentes**: eso lo
-  hace el director despachando subagentes.
-- **`/goal`**, cuando esté disponible, se usa **solo como validador independiente**: responde «¿el objetivo
-  se alcanzó?» y nada más — no implementa, no modifica, no corrige. **Hoy no existe en este entorno**;
-  mientras tanto, esa función la cumple un agente auditor.
+| Tamaño | Regla |
+|---|---|
+| **Pequeña** — un fichero, sin diseño nuevo ni decisiones | Puede hacerla un solo agente |
+| **Mediana** — varios ficheros, o hay que investigar antes de decidir | **Valora paralelizar**; si lo descartas, dilo y por qué |
+| **Grande** — toca contratos o arquitectura, o encadena investigación + implementación + verificación | **Orquestación obligatoria** |
+
+**Si decides NO usar agentes, justifícalo en el informe.** Trabajar en solitario dejó de ser la opción por
+defecto. Un incremento grande ejecutado entero por un único agente, existiendo capacidad de dividirlo, no
+cumple el estándar.
+
+### Coordinación — comportamiento, no herramienta
+
+Repartir, seleccionar agentes, coordinar resultados, reasignar y **mantener el objetivo hasta obtener
+evidencia** es responsabilidad del **director**. **El estándar no depende de ninguna herramienta
+concreta:** se usa siempre la mejor capacidad de orquestación disponible; si mañana aparece otra mejor,
+cambia el mecanismo y el estándar permanece.
+
+Estado hoy de las herramientas, para no confundir el principio con su implementación:
+
+- **El director despacha subagentes.** Es el mecanismo de orquestación vigente.
+- **`/loop`** repite un prompt en intervalos o autopautado: sirve para **sostener el ciclo abierto hasta
+  que haya evidencia**. **No divide trabajo ni asigna agentes.**
+- **`/goal`** **no existe en este entorno**. Cuando exista una herramienta de validación independiente se
+  usará solo para responder «¿el objetivo se alcanzó?» —sin implementar, modificar ni corregir—. Mientras
+  tanto esa función la cumple un **agente auditor distinto del implementador**.
 
 **La mutación no es opcional.** Degrada la implementación a propósito; cada mutante debe ser detectado por
 alguna prueba. Un mutante que sobrevive es una garantía sin red. **Muta también el cableado de
@@ -108,8 +125,10 @@ existentes mejoran.
 
 **Criterio de aceptación = comportamiento demostrado.** Nunca «las pruebas pasan».
 
-**Toda propuesta responde además:** ¿deja al proyecto más capaz de evolucionar **sin Claude Code**?
-Es criterio de decisión, no un extra — entra en el RoT junto a horas ahorradas y reutilización.
+**Toda propuesta responde además:** ¿deja al proyecto más capaz de evolucionar **con menos intervención
+humana y menor consumo de contexto y tokens**? Va en el apartado de **Retorno sobre Tokens** de todo
+Decision Package, junto a horas ahorradas y reutilización. El fin de la orquestación no es ir más rápido:
+es dejar el terreno preparado para que AURORA continúe por sí misma.
 
 ---
 

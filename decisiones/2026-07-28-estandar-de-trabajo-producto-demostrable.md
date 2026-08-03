@@ -95,13 +95,39 @@ referencia informal a "memoria".
    rechaza, la tarea sigue abierta: se identifica el motivo y se reasigna —a otro agente, o al mismo con
    mejor contexto— hasta obtener evidencia verificable o demostrar un bloqueo real.
 
-   El reparto de responsabilidades y las herramientas concretas viven en
-   [`CLAUDE.md`](../CLAUDE.md) §Orquestación, que es lo que se carga en cada sesión.
+   **El estándar no depende de ninguna herramienta** (CEO, 2026-08-02). No exige `/loop`, ni ningún
+   nombre concreto: exige que **exista un director** que distribuya el trabajo, seleccione agentes
+   especializados, coordine resultados, reasigne tareas y **mantenga el objetivo hasta obtener
+   evidencia**. Se usa siempre la mejor capacidad de orquestación disponible en cada momento; si mañana
+   aparece otra mejor, cambia el mecanismo y **el estándar permanece**. Lo mismo vale para la validación
+   independiente: cuando exista una herramienta equivalente se usará, y mientras no exista la auditoría
+   la hace un agente especializado **distinto del implementador**.
+
+   **La escala decide, y el director debe justificarse.** Trabajar en solitario deja de ser la opción
+   por defecto:
+
+   | Tamaño | Regla |
+   |---|---|
+   | **Pequeña** — un fichero, sin diseño nuevo ni decisiones | Puede hacerla un solo agente |
+   | **Mediana** — varios ficheros, o requiere investigar antes de decidir | **Debe valorarse** paralelizar, y decir por qué se descarta |
+   | **Grande** — toca contratos o arquitectura, o encadena investigación + implementación + verificación | **Orquestación obligatoria** |
+
+   **Cuando el director decide NO usar agentes, lo justifica explícitamente en el informe.** No se
+   admiten incrementos grandes ejecutados enteros por un único agente existiendo capacidad de dividirlos.
+
+   El reparto operativo por rol vive en [`CLAUDE.md`](../CLAUDE.md) §Orquestación, que es lo que se carga
+   en cada sesión.
 
 8. **Cada incremento debe reducir la dependencia de la herramienta.** (CEO, 2026-08-02) Además de
    preguntarse qué gana AURA como producto, todo incremento se pregunta: **¿deja al proyecto más capaz de
-   evolucionar sin Claude Code?** Es criterio de decisión, no un extra: entra en la evaluación de RoT junto
-   con las horas ahorradas y la reutilización futura.
+   evolucionar con menos intervención humana y con menor consumo de contexto y tokens?**
+
+   **Es objetivo estratégico permanente y debe figurar en TODOS los Decision Package futuros**, dentro del
+   apartado de Retorno sobre Tokens, junto a las horas ahorradas y la reutilización.
+
+   El propósito de la orquestación (principio 7) no es terminar antes un incremento: es **dejar el terreno
+   preparado** para que AURORA pueda continuar desarrollándose por sí misma. Un incremento que va rápido
+   pero deja al proyecto igual de dependiente no cumple este principio.
 
 ## Precisiones del CEO incorporadas (2026-07-28)
 

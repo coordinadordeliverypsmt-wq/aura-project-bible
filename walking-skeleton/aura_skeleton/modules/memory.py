@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import unicodedata
 
 from .. import observability as obs
 
@@ -46,6 +48,64 @@ class SimpleMemory:
         return n  # con procedencia; si vacio, el orquestador NO fabrica (2.4 2 / 4.1 4)
 
 
+# --- Recuperacion lexica de N1 (V4) --------------------------------------------------------------
+#
+# COBERTURA MINIMA DE LA CONSULTA: un recuerdo se acepta solo si contiene al menos esta fraccion de
+# los terminos informativos de la pregunta.
+#
+# POR QUE 0.60. Es el punto optimo MEDIDO sobre la bateria oficial (`tests/datos/bateria_memoria.json`,
+# 59 recuerdos y 71 consultas), con el orden de prioridad fijado por el CEO: primero cero falsos
+# positivos PUROS, luego cero falsos positivos CRITICOS, despues recall y por ultimo coste. 0.60 es el
+# umbral MAS BAJO que logra ambos ceros, y por tanto el que conserva mas recall (0.654) y mas contexto
+# util. Subir a 0.67 no elimina ningun error y pierde recuerdos legitimos; bajar a 0.50 reintroduce
+# 3 falsos positivos criticos.
+#
+# POR QUE NO SE ANADIO "o solape >= 2 terminos" (variante V7, descartada). Subia el recall a 0.692
+# (+3.8 puntos) pero una validacion adversarial dirigida la rompio en 6 de 6 casos disenados —frente
+# a 2 de 6 de esta variante—: aceptar por numero absoluto de terminos, sin mirar la proporcion, deja
+# pasar consultas largas sobre OTRA entidad ("la marca y el modelo del coche DE MI VECINO" contra "mi
+# coche es de marca Ford"). Cuadruplicaba los falsos positivos criticos para ganar 2 aciertos de 52.
+# Con el orden de prioridad vigente es el intercambio equivocado. No reintroducir sin superar antes
+# `tests/datos/bateria_memoria.json`, casos adversariales incluidos.
+#
+# NO es un numero magico: si aparece una bateria mejor, se cambia AQUI y la bateria vuelve a decidir.
+_COBERTURA_MINIMA = 0.60
+
+# Palabras sin contenido discriminante: no se indexan ni se consultan.
+#
+# Emparejar por "mi", "es" o "el" devolvia recuerdos irrelevantes en ~78% de las consultas sin
+# respuesta, lo que vaciaba de contenido la garantia de ADR-0014: el Core solo responde "no tengo
+# ningun recuerdo" cuando la busqueda da CERO, y si casi nunca da cero, la garantia no se activa.
+#
+# Incluye tres familias, todas funcionales:
+#   - articulos, preposiciones, pronombres y auxiliares;
+#   - INTERROGATIVOS ("cual", "donde", "como"): sin ellos, "¿cual es mi cumpleanos?" solo cubria 1 de
+#     2 terminos y no encontraba "mi cumpleanos es el 14 de marzo";
+#   - VERBOS DE EVOCACION ("acordamos", "dijimos", "hablamos"): piden un recuerdo, no describen su
+#     contenido. Sin ellos, "¿que acordamos sobre la sala?" no recuperaba "usuario dijo: enciende la
+#     luz de la sala en modo tenue", porque el usuario nunca dijo la palabra "acordamos".
+_VACIAS = frozenset(
+    """a al ante con contra de del desde durante e el ella ellas ellos en entre era eran eres es esa esas
+    ese eso esos esta estan estas este esto estos fue fueron ha han hasta hay la las le les lo los mas me
+    mi mia mias mio mios mis mucho muy nos o para pero por porque que quien quienes se segun ser si sin
+    sobre son su sus tambien te tengo tiene tienen todo todos tu tus un una unas uno unos y ya
+    cual cuales cuando cuanto cuanta cuantos cuantas como donde cuyo cuya dime dice cuentame recuerdas
+    sabes acordamos acordaste dijimos dijiste hablamos comentamos comente mencione quedamos""".split()
+)
+
+
+def _terminos(texto: str) -> set[str]:
+    """Terminos informativos de un texto: sin acentos, sin puntuacion y sin palabras vacias.
+
+    Se usa EXACTAMENTE la misma funcion al indexar y al consultar. Si divergieran, un recuerdo
+    quedaria guardado bajo claves que la consulta nunca produce — que era el defecto de
+    `.lower().split()`: dejaba la puntuacion pegada, de modo que "aura?" no encontraba "aura".
+    """
+    plano = unicodedata.normalize("NFD", texto.lower())
+    plano = "".join(c for c in plano if unicodedata.category(c) != "Mn")
+    return {t for t in re.findall(r"\w+", plano) if t not in _VACIAS}
+
+
 class PersistentMemory:
     """Memoria persistente con backups y recuperacion (Bible 4.1 / 3.5 §6; prioridad M1).
     Cumple el contrato MemoryStore. Escrituras atomicas + integridad sha256 + copias 3-2-1.
@@ -56,7 +116,8 @@ class PersistentMemory:
         self._path = path
         self._bdir = backups_dir or (path + ".backups")
         self._items: list[dict] = []
-        self._indice: dict[tuple[str, str], list[int]] = {}  # termino -> posiciones (MA.2a)
+        self._indice: dict[tuple[str, str], list[int]] = {}
+        self._cache_terminos: dict[int, set[str]] = {}  # termino -> posiciones (MA.2a)
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         os.makedirs(self._bdir, exist_ok=True)
         self._load()
@@ -78,21 +139,34 @@ class PersistentMemory:
         3.000. El resultado es identico —mismo criterio de solapamiento de terminos—, cambia lo que
         cuesta obtenerlo.
         """
-        listas = sorted(
-            (self._indice.get((user_id, t), ()) for t in set(query.lower().split())),
-            key=len,
-        )
-        # Los terminos MAS SELECTIVOS primero. Un termino ubicuo ("tema", "usuario") no discrimina:
-        # su lista cubre casi todo el corpus y recorrerla devuelve el recall a coste lineal. Se trata
-        # como palabra vacia y se SALTA en cuanto ya hay candidatos de terminos mas informativos.
-        # Es el mismo criterio por el que un buscador ignora los stopwords.
-        candidatos: dict[int, int] = {}
-        for posteo in listas:
+        consulta = _terminos(query)
+        if not consulta:
+            # Sin terminos informativos no hay nada que discriminar: devolver algo seria emparejar por
+            # palabras vacias, que es justo lo que vaciaba de contenido la garantia de ADR-0014.
+            obs.log("MEM", "memory", f"recall '{query[:30]}' -> 0 hit(s)", "-")
+            return []
+
+        # CANDIDATOS solo desde los terminos SELECTIVOS: se conserva intacto el salto de terminos
+        # ubicuos de MA.2a. Es posible porque la cobertura necesita la RESPUESTA a "¿contiene R el
+        # termino T?", no el METODO: en vez de recorrer la lista larga de T (coste lineal en el
+        # corpus), se mira el conjunto de terminos del propio candidato (coste constante). Verificado:
+        # resultados identicos en las 71 consultas de la bateria visitando un 35% menos de posteos.
+        candidatos: set[int] = set()
+        for termino in sorted(consulta, key=lambda t: len(self._indice.get((user_id, t), ()))):
+            posteo = self._indice.get((user_id, termino), ())
             if candidatos and len(posteo) > self._UMBRAL_UBICUO:
-                break  # los selectivos ya aportaron candidatos; este solo anadiria ruido caro
-            for idx in posteo:
-                candidatos[idx] = candidatos.get(idx, 0) + 1
-        mejores = sorted(candidatos.items(), key=lambda par: -par[1])[:k]
+                continue  # los selectivos ya aportaron candidatos; este solo anadiria coste
+            candidatos |= set(posteo)
+
+        minimo = _COBERTURA_MINIMA * len(consulta)
+        # Desempate por posicion en el almacen: dos recuerdos con la misma cobertura salen SIEMPRE en
+        # el mismo orden. Antes dependia del orden de iteracion de un `set`, que varia con el hash del
+        # proceso: la misma consulta podia devolver recuerdos distintos en dos arranques (comprobado).
+        puntuados = [(idx, len(consulta & self._terminos_item(idx))) for idx in sorted(candidatos)]
+        mejores = sorted(
+            ((idx, n) for idx, n in puntuados if n >= minimo),
+            key=lambda par: (-par[1], par[0]),
+        )[:k]
         hits = [self._items[idx] for idx, _ in mejores]
         obs.log("MEM", "memory", f"recall '{query[:30]}' -> {len(hits)} hit(s)")
         return hits
@@ -128,13 +202,25 @@ class PersistentMemory:
         return n
 
     # --- indice invertido (MA.2a) ---
+    def _terminos_item(self, idx: int) -> set[str]:
+        """Terminos informativos del recuerdo `idx`, cacheados.
+
+        Permite completar la cobertura sin recorrer las listas de posteo ubicuas (MA.2a): responder
+        "¿contiene este recuerdo el termino T?" pasa a costar O(1) en vez de O(longitud de la lista).
+        """
+        cache = self._cache_terminos
+        if idx not in cache:
+            cache[idx] = _terminos(self._items[idx]["content"])
+        return cache[idx]
+
     def _indexar(self, idx: int, item: dict) -> None:
         clave_usuario = item["user_id"]
-        for termino in set(item["content"].lower().split()):
+        for termino in _terminos(item["content"]):
             self._indice.setdefault((clave_usuario, termino), []).append(idx)
 
     def _reconstruir_indice(self) -> None:
         self._indice = {}
+        self._cache_terminos = {}
         for idx, item in enumerate(self._items):
             self._indexar(idx, item)
 

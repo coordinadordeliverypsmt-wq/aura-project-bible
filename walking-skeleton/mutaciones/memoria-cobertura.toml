@@ -1,0 +1,52 @@
+incremento = "N1 V4 - cobertura de consulta que restaura la garantia de ADR-0014"
+pruebas = [
+    "tests/integration/test_bateria_memoria.py",
+    "tests/e2e/test_capacidad_m1.py",
+    "tests/performance/test_escalabilidad_memoria.py",
+]
+
+[[mutante]]
+id = "M1"
+garantia = "vuelve el criterio viejo: basta UN termino compartido (reaparecen los falsos positivos)"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''        minimo = _COBERTURA_MINIMA * len(consulta)'''
+sustituir = '''        minimo = 1'''
+
+[[mutante]]
+id = "M2"
+garantia = "la tokenizacion deja de filtrar palabras vacias (emparejar por 'mi', 'es', 'el')"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''    return {t for t in re.findall(r"\w+", plano) if t not in _VACIAS}'''
+sustituir = '''    return set(re.findall(r"\w+", plano))'''
+
+[[mutante]]
+id = "M3"
+garantia = "indexar y consultar dejan de usar el MISMO tokenizador (claves que la consulta nunca produce)"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''        for termino in _terminos(item["content"]):'''
+sustituir = '''        for termino in set(item["content"].lower().split()):'''
+
+# NOTA sobre mutantes EQUIVALENTES (verificado 2026-08-03). Dos degradaciones evidentes NO cambian el
+# comportamiento y por eso no figuran aqui:
+#   - quitar `par[0]` del desempate: `puntuados` se construye desde `sorted(candidatos)` y el sort de
+#     Python es estable, asi que el orden ya era determinista antes de la clave.
+#   - `if not consulta` -> `if False`: sin terminos informativos el bucle no itera, candidatos queda
+#     vacio y el resultado es el mismo. La guarda es una optimizacion, no una decision.
+# El no-determinismo ORIGINAL venia de iterar un `set` de CADENAS (cuyo hash depende de PYTHONHASHSEED);
+# aqui se itera `sorted(consulta)` y enteros, cuyo hash no varia. Redundante a proposito.
+
+[[mutante]]
+id = "M4"
+garantia = "se pierde el salto de terminos ubicuos: el recall vuelve a coste lineal (rompe MA.2a)"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''            if candidatos and len(posteo) > self._UMBRAL_UBICUO:
+                continue'''
+sustituir = '''            if False:
+                continue'''
+
+[[mutante]]
+id = "M5"
+garantia = "la cache de terminos por item devuelve vacio: ninguna consulta encuentra nada"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''            cache[idx] = _terminos(self._items[idx]["content"])'''
+sustituir = '''            cache[idx] = set()'''

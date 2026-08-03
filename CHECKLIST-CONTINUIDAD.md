@@ -12,7 +12,7 @@
 > verificar**, **en qué orden** y **qué NO es lo que parece**. Si algo de aquí contradice lo que mide un
 > comando, **manda el comando** — y entonces el documento está desactualizado y corregirlo es el trabajo.
 
-**Última actualización:** 2026-08-02 · **Estado documentado:** `main` = `origin/main` = `af965a3`
+**Última actualización:** 2026-08-02 · **Estado documentado:** `main` = `origin/main` = `dc58695`
 (verifica el hash actual con `git log`; este documento se actualiza en cada cierre, no en cada commit)
 
 ---
@@ -56,7 +56,8 @@ en rojo.
 |---|---|
 | Fase | **Construcción de producto.** La fase documental (Bible) está cerrada desde el 2026-07-18 |
 | Capacidades de producto cerradas | **4** — N2 Memoria Semántica · Centro de Notificaciones · Modelo de Usuario · Automatización definida por el usuario |
-| Quality Gate | PASS **445 passed / 3 skipped** |
+| Quality Gate | PASS **472 passed / 3 skipped** |
+| Benchmark permanente | `tests/datos/bateria_memoria.json` — 65 recuerdos, 77 consultas. Cualquier cambio del recuperador debe superarla. Decisión razonada en `milestones/m3-entry/DECISION-RECUPERADOR-N1.md` |
 | Alertas de arquitectura abiertas | **0** (las cinco históricas, resueltas) |
 | Trabajo en curso | **ninguno** |
 | Proceso automatizado | `CLAUDE.md` (protocolo por sesión) · 4 agentes en `.claude/agents/` · hook `pre-push` con bloqueo duro · arnés de mutación (`herramientas/mutar.py`, a demanda) |
@@ -238,7 +239,7 @@ trampas son de este checklist.**
 
 | Documento | Cubre |
 |---|---|
-| `milestones/m3-entry/DEUDA-N2-MEMORIA-SEMANTICA.md` | acoplamiento a `_items`, re-embebido en arranque (305 ms/recuerdo), fragilidad ante `restore()`, olvido no persistente sobre N2 |
+| `milestones/m3-entry/DEUDA-N2-MEMORIA-SEMANTICA.md` | acoplamiento a `_items`, re-embebido en arranque (305 ms/recuerdo), fragilidad ante `restore()`, y **`D-N2-5`: con N2 activa, «olvida esto» lanza `AttributeError`** |
 | `milestones/m3-entry/DEUDA-AUTOMATIZACION.md` | 8 partidas; reconocedor de un solo patrón, sin semántica transaccional |
 | `milestones/m3-entry/DEUDA-CAPTURA-DE-SENALES.md` | brecha histórica de instrumentación |
 | `milestones/m3-entry/DEUDA-ADAPTADORES-SIMULADOS.md` | `D-ADP-1`: un adaptador simulado responde `ok` igual que uno real |

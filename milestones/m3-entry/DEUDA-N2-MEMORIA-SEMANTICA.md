@@ -45,6 +45,35 @@ exigió el CEO (la contradicción desapareció por completo).
   defecto. **Corrección natural:** persistir los embeddings junto a los items (o en un sidecar) e
   incrementalmente; a mayor escala, un índice ANN (hnswlib/faiss/Qdrant, ADR-0007/0011).
 
+## D-N2-5 · `SemanticMemory` no implementa `olvidar` ni `marcar`: la soberanía se rompe con N2 activa
+
+**Registrada el 2026-08-03 como deuda INDEPENDIENTE** por decisión del CEO, deliberadamente separada
+del incremento que restaura la garantía de ADR-0014: son problemas distintos y no deben mezclarse.
+
+- **Qué es.** `ModeloUsuario` invoca `olvidar`, `marcar` y `_items` sobre el objeto de memoria que le
+  entrega la composición. `PersistentMemory` (N1) los define; **`SemanticMemory` (N2) no**.
+- **Evidencia `[EJEC 2026-08-03]`.** Con N2 instanciada sobre el artefacto real:
+
+  ```
+  olvidar sobre N2 -> AttributeError: 'SemanticMemory' object has no attribute 'olvidar'
+  ```
+
+- **Por qué NO afecta al usuario hoy.** N2 **nunca se materializa** en este equipo (RAM 3,6 GB frente
+  al umbral de 8 GB, y no existe detector de hardware real). La composición entrega siempre N1, que sí
+  los implementa.
+- **Por qué hay que registrarla igualmente.** Se activaría **el día exacto** en que se resuelva el
+  hardware y N2 empiece a materializarse: justo cuando nadie esté mirando esta parte. La capacidad 3
+  (Modelo de Usuario) se cerró demostrando el olvido persistente **sobre N1**; esa demostración no
+  cubre N2. Es el patrón «declarado ≠ real» esperando a que cambien las condiciones.
+- **Cumple el criterio de deuda** (CEO, 2026-08-02): compromete una **garantía de soberanía del
+  usuario** —poder olvidar lo que AURA sabe de él— y produciría un fallo en ejecución, no una molestia.
+- **Reevaluar cuando:** N2 pase a materializarse en algún entorno, o antes de promover N2 a
+  implementación por defecto. **Corrección natural:** que `SemanticMemory` delegue `olvidar`/`marcar` en
+  el `PersistentMemory` que ya envuelve, reindexando sus vectores en consecuencia.
+
+  Relacionado con **D-N2-2** (acoplamiento a `_items`): ambas nacen de que la delegación de N2 sobre N1
+  es parcial y no está fijada por contrato.
+
 ## Fragilidad latente ante `restore()`
 
 - **Qué es.** `self._vectores` se mantiene alineado por índice con `self._store._items` **solo** vía

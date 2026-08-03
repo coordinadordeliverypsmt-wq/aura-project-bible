@@ -164,6 +164,48 @@ medirse objetivamente en cada etapa.**
 **Criterio rector:** no se busca avanzar mas rapido, sino una arquitectura que sostenga el crecimiento
 de AURORA **durante años**.
 
+### Directriz final del CEO (2026-08-03, tercer mensaje) — el PROPOSITO y el IMA
+
+**Correccion del proposito.** Reducir la dependencia de Claude es un **RESULTADO, no el proposito**.
+El proposito es un ecosistema donde AURORA **comprenda** el estado del proyecto, **planifique** su
+evolucion, **ejecute** trabajo, **valide** resultados, **aprenda** de ellos y **proponga mejoras** de
+forma continua — siempre dentro de los limites de la arquitectura y **bajo supervision humana para las
+decisiones estrategicas**.
+
+**Indice de Madurez de Autoevolucion (IMA)** — a proponer en el roadmap como **indicador principal del
+proyecto**. Nueve dimensiones minimas:
+
+1. Comprension del proyecto
+2. Capacidad de planificacion
+3. Capacidad de implementacion
+4. Capacidad de validacion
+5. Capacidad de auditoria
+6. Capacidad de recuperacion ante fallos
+7. Capacidad de aprendizaje
+8. Capacidad de coordinacion entre agentes
+9. Dependencia de asistencia externa
+
+**Cada indicador exige tres cosas:** (a) definicion objetiva · (b) forma de medicion · (c) criterio
+claro de fase completada.
+
+**Requisito duro:** el IMA debe **actualizarse automaticamente con evidencia obtenida del propio
+sistema**, NO por valoracion subjetiva. Un indice que se rellena a mano es una opinion, no una metrica.
+
+**Filtro obligatorio para TODA capacidad propuesta** — responder explicitamente:
+1. ¿Esta capacidad hace mas inteligente a AURORA **como producto**?
+2. ¿Esta capacidad hace mas capaz a AURORA de **desarrollar la siguiente version de si misma**?
+
+Si ambas respuestas no son positivas, **probablemente no es prioridad de esta etapa**.
+
+**Estatus:** con esto la vision estrategica queda definida. El roadmap pasa a ser **la guia de evolucion
+del proyecto durante los proximos hitos**, y todas las decisiones futuras deben poder alinearse con el.
+
+### Observacion tecnica ya detectada (no re-analizar, verificar al construir el roadmap)
+El IMA —y en particular la dimension 9— **exige instrumentar el proceso de desarrollo, no el producto**.
+Hoy **no existe ninguna instrumentacion para eso**: el audit log mide lo que AURORA hace como producto,
+no lo que el equipo hace al construirla. Sin resolver esa brecha, los porcentajes de cada fase serian
+estimaciones y no datos — el patron "declarado != real" otra vez. **Es lo primero que hay que examinar.**
+
 ## Modo de trabajo vigente (CEO, 2026-08-03)
 
 1. **No abrir nuevos Decision Packages ni alertas**, salvo bloqueo crítico para la implementación.

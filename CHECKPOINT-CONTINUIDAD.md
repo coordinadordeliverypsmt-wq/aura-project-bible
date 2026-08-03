@@ -55,7 +55,8 @@ según el orden fijado por el CEO.
 
 ## Próximo primer paso al reanudar
 
-> **Preguntar al CEO si autoriza implementar D-M-8 y el renombrado de operaciones mutantes.** Sin esas
+> **1) Construir el ROADMAP del Sistema Operativo Interno** (ver seccion "ENCARGO EN COLA").
+> **2) Dentro de el, pedir las dos autorizaciones pendientes: implementar D-M-8 y renombrar las operaciones mutantes.** Sin esas
 > dos autorizaciones no puede avanzarse: el orden aprobado sitúa D-M-8 antes que todo lo demás, y G-1
 > no es viable sin nombres inequívocos.
 
@@ -82,6 +83,53 @@ Antes de tocar nada: `bash entorno/scripts/preflight-check.sh` y `./quality-gate
   la especificación). Necesita la prueba dinámica complementaria G-2b.
 - Deuda previa viva: `D-N2-5`, `D-A-11`, `D-M-1`…`D-M-7`, `ModeloUsuario.corregir` construido y **no
   cableado**, `CentroNotificaciones.cerrar_sesion` sin llamador.
+
+---
+
+## ENCARGO EN COLA — Roadmap del Sistema Operativo Interno de AURORA (CEO, 2026-08-03)
+
+**No iniciado.** Recibido por debajo del umbral de parada del Protocolo de Continuidad; empezarlo
+habria sido hacerlo "a la carrera". **Es el primer trabajo de la proxima sesion.**
+
+### Cambio de objetivo principal
+El objetivo deja de ser cerrar deuda tecnica: pasa a ser que **AURORA evolucione hacia una arquitectura
+capaz de administrarse, verificarse y mejorarse a si misma en local**, sin depender de Claude para el
+trabajo operativo. La pregunta rectora ya no es *"como implementamos esto"* sino
+**"como hacemos que AURORA pueda implementarlo ella misma"**.
+
+### Los 7 principios de trabajo (obligatorios)
+1. Ningun cambio deja vacios arquitectonicos. Si aparece uno: documentarlo y proponer su cierre
+   **antes** de continuar.
+2. Toda implementacion responde a: *¿esto acerca a AURORA a ser mas autonoma y autosuficiente?*
+3. **No hay modulos nuevos** sin integracion clara en el modelo general. Se prefiere una arquitectura
+   pequeña, coherente y extensible.
+4. El siguiente nivel es el **Sistema Operativo Interno**, con 10 roles bajo un **unico orquestador**:
+   Director General · Arquitecto · Programador · QA y Mutacion · Seguridad · Documentacion ·
+   Investigacion · Planificador · Memoria · Observabilidad.
+5. **Ningun agente decide estrategia por su cuenta.** Arquitectura, Bible, ADR, protocolos y diseño
+   pasan por Decision Package aprobado.
+6. Transicion **incremental**, reutilizando lo existente. **No se rehace AURORA**: se convierten
+   gradualmente los componentes actuales en un sistema capaz de mejorarse a si mismo.
+7. **Reutilizar tiene prioridad sobre crear.** Antes de codigo nuevo: identificar que componentes
+   actuales pueden convertirse en capacidades permanentes.
+
+### Entregable pedido — roadmap tecnico, no funciones aisladas
+Debe mostrar: **estado actual · estado objetivo · fases de transicion · dependencias · riesgos ·
+que puede ejecutar AURORA por si misma en cada fase**.
+
+### Punto de partida ya disponible (NO re-investigar)
+- **Rol Orquestador:** existe `MotorAutomatizacion` como camino unico de ejecucion + `D-M-8` (Motor
+  Unico de Mutaciones, modelo aprobado) + `ESPEC G-1` (verificador AST, aprobada).
+- **Rol QA y Mutacion:** existe el arnes `herramientas/mutar.py` y el `quality-gate.sh` de 5 pasos.
+- **Rol Seguridad:** existen `PermissionManager` (catalogo de 28 acciones, listas roja/verde),
+  `KillSwitch` y HITL.
+- **Rol Observabilidad:** existe `observability.py` con audit log append-only y sellado.
+- **Rol Memoria:** existen `PersistentMemory`, `ModeloUsuario`, `AlmacenSenales`.
+- **Rol Arquitecto:** existe `architecture_manifest.toml` (fuente unica de verdad, D41) + prueba AST.
+- **Rol Documentacion:** existen `CLAUDE.md`, `CHECKLIST-CONTINUIDAD.md` y este checkpoint.
+- **Definiciones de agentes:** `.claude/agents/` (4 roles ya versionados).
+- **Vacios conocidos que el roadmap debe cubrir:** Director General, Programador, Investigacion y
+  Planificador **no tienen contraparte** en el codigo actual.
 
 ## Modo de trabajo vigente (CEO, 2026-08-03)
 

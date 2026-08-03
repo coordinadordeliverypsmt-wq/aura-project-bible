@@ -259,7 +259,8 @@ trampas son de este checklist.**
 | `milestones/m3-entry/DEUDA-AUTOMATIZACION.md` | 8 partidas; reconocedor de un solo patrón, sin semántica transaccional |
 | `milestones/m3-entry/DEUDA-CAPTURA-DE-SENALES.md` | brecha histórica de instrumentación |
 | `milestones/m3-entry/DEUDA-ADAPTADORES-SIMULADOS.md` | `D-ADP-1`: un adaptador simulado responde `ok` igual que uno real |
-| `milestones/m3-entry/DEUDA-N1-RECUPERADOR.md` | **`D-M-1`: con >256 recuerdos por usuario, un recuerdo válido puede volverse irrecuperable** si solo comparte términos ubicuos con la consulta. Heredado de MA.2a, no del criterio de cobertura |
+| `milestones/m3-entry/DEUDA-N1-RECUPERADOR.md` | 6 partidas. **`D-M-2` es CRÍTICA: el eco `usuario dijo:` del propio turno desactiva ADR-0014 al repetir una pregunta.** Además: recall a 0,000 con coletillas de cortesía, recuerdo largo como atractor de FP, refutados que siguen llegando al LLM, y `D-M-1` (régimen ubicuo) |
+| `milestones/m3-entry/DP-D-M-1-RECUPERACION-EXACTA.md` | Decision Package **pendiente de aprobación**: 4 alternativas para `D-M-1`, recomendación fundamentada y ampliación del benchmark |
 
 ## 7 · Cómo se mantiene este checklist
 

@@ -229,6 +229,42 @@ Corregir un dato es un caso de uso explícito de `ModeloUsuario`.
 
 ---
 
+## D-M-7 · ADR-0014 casi nunca llega a activarse *(defecto real, deuda crítica)*
+
+**Clasificación: DEUDA CRÍTICA** — compromete la **arquitectura**: una regla no negociable cubre una
+fracción mínima de los casos para los que fue escrita. Hallado el 2026-08-03 investigando D-M-2.
+
+`_es_consulta_de_memoria` (`orchestrator.py:75-78`) decide por **subcadena** sobre 15 literales
+(`acordamos`, `recuerdas`, `te conté`, `quedamos en`…). No tokeniza, no mira fronteras de palabra y
+**no distingue interrogación de afirmación**. Medido contra la batería oficial:
+
+> **0 de 77 consultas** reconocidas como consulta de memoria. **0 de las 24 negativas** — que son
+> justo las que ADR-0014 existe para proteger.
+
+| Entrada | ¿Activa ADR-0014? |
+|---|---|
+| «¿Cuál es el nombre de mi abuela?» | **No** |
+| «¿Cuál es la combinación de mi caja fuerte?» | **No** |
+| «¿Cuál es la fecha de mi aniversario de bodas?» | **No** |
+| «Mi preferencia es la luz tenue por la noche» *(afirmación)* | **Sí** — falso positivo |
+| «Te conté que trabajo en logística» *(afirmación)* | **Sí** — falso positivo |
+
+4 de 8 afirmaciones probadas dieron falso positivo. **La garantía se dispara donde no debe y no se
+dispara donde debe.**
+
+**Consecuencia.** Con memoria vacía, «¿cuál es el nombre de mi abuela?» **no** toma la rama
+determinista: llega al LLM con `(sin recuerdos relevantes)`, que es exactamente la situación que
+ADR-0014 fue escrito para evitar. Toda afirmación previa sobre la cobertura de ADR-0014 —incluidas las
+mías en `DECISION-RECUPERADOR-N1.md`— describe el mecanismo, **no su alcance real**.
+
+**Qué haría falta.** Sustituir la detección por subcadena por una detección de **intención
+interrogativa**. Medido `[EJEC]`: un detector por signo `¿`/`?` o palabra interrogativa inicial
+reconoce **70/77** frente a 0/77, con **0/8** falsos positivos frente a 4/8. Es la misma pieza que
+necesita `Op-5` del `DP-D-M-2-ECO-CONVERSACIONAL.md`, por lo que **conviene decidir D-M-7 antes de
+implementar D-M-2** y diseñar un solo detector en vez de dos.
+
+---
+
 ## Observaciones técnicas (NO son backlog)
 
 | Observación | Por qué NO es deuda hoy | Se promueve a deuda si… |

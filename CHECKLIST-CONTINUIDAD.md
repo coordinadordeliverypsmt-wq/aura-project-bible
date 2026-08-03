@@ -58,7 +58,7 @@ en rojo.
 | Capacidades de producto cerradas | **4** — N2 Memoria Semántica · Centro de Notificaciones · Modelo de Usuario · Automatización definida por el usuario |
 | Quality Gate | PASS **472 passed / 3 skipped** |
 | Benchmark permanente | `tests/datos/bateria_memoria.json` — 65 recuerdos, 77 consultas. Cualquier cambio del recuperador debe superarla. Decisión razonada en `milestones/m3-entry/DECISION-RECUPERADOR-N1.md` |
-| Alertas de arquitectura abiertas | **0** (las cinco históricas, resueltas) |
+| Alertas de arquitectura abiertas | **1 — `ALERTA-006`** (borrado sin motor único). Las cinco históricas siguen resueltas |
 | Trabajo en curso | **ninguno** |
 | Proceso automatizado | `CLAUDE.md` (protocolo por sesión) · 4 agentes en `.claude/agents/` · hook `pre-push` con bloqueo duro · arnés de mutación (`herramientas/mutar.py`, a demanda) |
 | Modo de trabajo | **Orquestado** (CEO, 2026-08-02): el trabajo se reparte entre agentes; una tarea solo se cierra por evidencia, nunca porque un agente diga que terminó |
@@ -259,7 +259,11 @@ trampas son de este checklist.**
 | `milestones/m3-entry/DEUDA-AUTOMATIZACION.md` | 8 partidas; reconocedor de un solo patrón, sin semántica transaccional |
 | `milestones/m3-entry/DEUDA-CAPTURA-DE-SENALES.md` | brecha histórica de instrumentación |
 | `milestones/m3-entry/DEUDA-ADAPTADORES-SIMULADOS.md` | `D-ADP-1`: un adaptador simulado responde `ok` igual que uno real |
-| `milestones/m3-entry/DEUDA-N1-RECUPERADOR.md` | 6 partidas. **`D-M-2` es CRÍTICA: el eco `usuario dijo:` del propio turno desactiva ADR-0014 al repetir una pregunta.** Además: recall a 0,000 con coletillas de cortesía, recuerdo largo como atractor de FP, refutados que siguen llegando al LLM, y `D-M-1` (régimen ubicuo) |
+| `milestones/m3-entry/DEUDA-N1-RECUPERADOR.md` | 7 partidas. **`D-M-7` es CRÍTICA: ADR-0014 casi nunca se activa — 0 de 77 consultas de la batería reconocidas.** **`D-M-2` es CRÍTICA: el eco `usuario dijo:` del propio turno desactiva ADR-0014 al repetir una pregunta.** Además: recall a 0,000 con coletillas de cortesía, recuerdo largo como atractor de FP, refutados que siguen llegando al LLM, y `D-M-1` (régimen ubicuo) |
+| `milestones/m3-entry/DP-D-M-8-MOTOR-UNICO-DE-MUTACIONES.md` | Decision Package **pendiente de aprobación**. Define el contrato del Motor Único de Mutaciones, el flujo obligatorio, la integración con kill switch/permisos/HITL, reversibilidad, 7 garantías para el Quality Gate y plan de migración en 7 fases. **De él dependen las correcciones de ALERTA-006, D-M-7 y D-M-2** |
+| `milestones/m3-entry/ALERTA-006-BORRADO-SIN-MOTOR.md` | **ALERTA ABIERTA — PRIORIDAD MÁXIMA (CEO, 2026-08-03). CONTENCIÓN YA IMPLEMENTADA** (guarda de dominio · `_foco` que no destruye ante duda · `refutar` que no narra éxito sin efecto; 5/5 mutantes). **Sigue abierto lo estructural: la mutación NO pasa por el Motor Único y el kill switch armado NO la detiene.** 3 de las 7 ramas del turno mutan estado del usuario fuera del Motor Único. **Con el kill switch ARMADO, AURA sigue borrando datos del usuario.** «Se me olvida tomar la pastilla» destruyó un dato clínico. `olvidar` reescribe el JSONL (destruye historia, sin backup). `refutar` es irreversible y narra éxito con n=0. **Ninguna prueba cubre «ruta única», y la e2e de soberanía consagra el bypass** |
+| `milestones/m3-entry/DP-D-M-7-CLASIFICACION-DE-INTENCION.md` | Decision Package **pendiente de aprobación**: 13 clasificadores léxicos dispersos, 91 patrones, ninguno distingue pregunta de afirmación. Propone taxonomía de 2 ejes |
+| `milestones/m3-entry/DP-D-M-2-ECO-CONVERSACIONAL.md` | Decision Package **pendiente de aprobación** para `D-M-2`. Recomienda `Op-5` (no almacenar como recuperable lo que es una pregunta). Advierte de solapamiento con `D-M-7` |
 | `milestones/m3-entry/DP-D-M-1-RECUPERACION-EXACTA.md` | Decision Package **APROBADO como documento** (CEO, 2026-08-03). Recomienda `A′` (prefijo con cota, α=1 como elección de diseño). **La implementación NO está autorizada: el CEO la supeditó a resolver antes `D-M-2`** |
 
 ## 7 · Cómo se mantiene este checklist

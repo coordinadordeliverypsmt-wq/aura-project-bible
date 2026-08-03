@@ -103,6 +103,31 @@ _PAT_MODELO_PORQUE = ("por que dices", "por que sabes", "como lo sabes", "como s
 _PAT_MODELO_REFUTA = ("ya no es cierto", "no es cierto", "eso esta mal", "eso es falso", "ya no es verdad")
 _PAT_MODELO_OLVIDA = ("olvida", "olvidate")
 
+# GUARDA DE DOMINIO del disparador de olvido (contencion de ALERTA-006, CEO 2026-08-03).
+#
+# "olvida" es subcadena de la construccion reflexiva "se me/te/le olvida", donde el que olvida es una
+# PERSONA, no AURA: no hay ninguna orden que obedecer. Sin esta guarda, "Se me olvida siempre tomar la
+# pastilla." destruia "tiene alergia a la penicilina" —un dato clinico declarado— y dejaba el fichero
+# en 0 lineas (verificado). Es la misma leccion que _es_cancelacion_de_regla aprendio el 2026-08-02:
+# un marcador aislado no basta, porque aparece en frases mundanas que no hablan del dominio.
+_PAT_OLVIDO_REFLEXIVO = ("se me olvid", "se te olvid", "se le olvid", "se nos olvid", "se les olvid")
+
+# Respuesta unica ante un referente ambiguo, para olvidar y para refutar: se pregunta en vez de actuar.
+_DESAMBIGUAR = "¿A qué te refieres? Puedes decirme «¿qué sabes de mí?» y lo revisamos."
+
+
+def _es_peticion_de_olvido(t: str) -> bool:
+    """True solo si el usuario ORDENA a AURA olvidar, no si describe un olvido propio.
+
+    Guarda parcial y deliberadamente conservadora: cubre la construccion reflexiva, que es el falso
+    positivo demostrado. La discriminacion completa (imperativo dirigido a AURA vs. cualquier otro
+    uso de "olvidar") corresponde al clasificador de intencion de D-M-7, no a una tabla mas de
+    subcadenas. La red de seguridad real es que un referente ambiguo ya no destruye nada: ver `_foco`.
+    """
+    if any(p in t for p in _PAT_OLVIDO_REFLEXIVO):
+        return False
+    return _cae_en(t, _PAT_MODELO_OLVIDA)
+
 
 def _cae_en(t: str, pats: tuple) -> bool:
     return any(p in t for p in pats)
@@ -414,34 +439,61 @@ class Orchestrator:
                 self._foco_modelo[uid] = next((e for e in vivas if e.get("origen") != "declarada"), vivas[0])
             return describir_conocimiento(entradas)
 
-        if _cae_en(t, _PAT_MODELO_OLVIDA):  # antes que refutar/porque: "olvida" es inequivoco
-            foco = self._foco(uid, t, vivas)
-            n = await self.modelo_usuario.borrar(uid, foco["contenido"]) if foco else 0
+        if _es_peticion_de_olvido(t):  # antes que refutar/porque: "olvida" es inequivoco
+            foco = self._foco(uid, t, vivas, entradas)
+            if foco is None:
+                # ALERTA-006: antes se elegia `vivas[0]` y se confirmaba el borrado. Ante la duda se
+                # pregunta; destruir el dato equivocado no es soberania del usuario, es perdida.
+                return _DESAMBIGUAR
+            n = await self.modelo_usuario.borrar(uid, foco["contenido"])
             return (
                 "Hecho. Ya no lo consideraré parte de lo que sé de ti." if n else "No he encontrado eso para olvidarlo."
             )
 
         if _cae_en(t, _PAT_MODELO_REFUTA):
-            foco = self._foco(uid, t, vivas)
-            if foco:
-                await self.modelo_usuario.refutar(uid, foco["contenido"])
+            foco = self._foco(uid, t, vivas, entradas)
+            if foco is None:
+                return _DESAMBIGUAR
+            # Se comprueba el retorno: `refutar` puede no mutar nada (p.ej. si ya estaba refutada), y
+            # narrar exito sin efecto viola INV-9 / ALERTA-005 punto 4. `borrar` ya lo comprobaba.
+            n = await self.modelo_usuario.refutar(uid, foco["contenido"])
+            if n:
                 return "Entendido, lo corrijo. Dejo de darlo por cierto."
-            return "¿A qué te refieres? Puedes decirme «¿qué sabes de mí?» y lo revisamos."
+            return "No he encontrado eso para corregirlo."
 
         if _cae_en(t, _PAT_MODELO_PORQUE):
-            foco = self._foco(uid, t, vivas)
+            foco = self._foco(uid, t, vivas, entradas)
             return explicar_entrada(foco) if foco else "Ahora mismo no estoy afirmando nada sobre ti."
 
         return None
 
-    def _foco(self, uid: str, t: str, vivas: list[dict]) -> dict | None:
-        """Resuelve "eso": la entrada que el texto menciona, o la ultima en discusion, o la primera viva."""
+    def _foco(self, uid: str, t: str, vivas: list[dict], existentes: list[dict] | None = None) -> dict | None:
+        """Resuelve "eso": la entrada que el texto menciona, o la ultima en discusion. None si es ambiguo.
+
+        Contencion de ALERTA-006. Antes terminaba en `vivas[0]`: si el texto no mencionaba nada
+        reconocible, se actuaba sobre la PRIMERA entrada viva, que no tiene por que guardar relacion
+        alguna con lo pedido. Verificado: "Olvida que a mi hermana le gusta el cafe" borraba una
+        preferencia propia del usuario y AURA confirmaba "Hecho".
+
+        Devolver None NO es un fallo: es la respuesta correcta a una peticion ambigua, y quien llama
+        debe pedir desambiguacion. "Ante la duda, roja" (ADR-0003) aplicado a los datos del usuario.
+
+        El foco cacheado se valida contra las entradas que EXISTEN, no contra las vivas. La
+        distincion importa y costo una regresion: tras "eso ya no es cierto" la entrada queda
+        refutada y sale de `vivas`, pero el "olvida eso" siguiente se refiere justamente a ella
+        —refutar no es borrar—. Validar contra `vivas` rompia esa secuencia legitima; validar contra
+        las existentes solo descarta el foco cuando apunta a algo que ya no esta en el modelo.
+        """
         for e in vivas:
             palabras = [w for w in _normalizar(e["contenido"]).split() if len(w) > 4]
             if any(w in t for w in palabras):
                 self._foco_modelo[uid] = e
                 return e
-        return self._foco_modelo.get(uid) or (vivas[0] if vivas else None)
+        cacheado = self._foco_modelo.get(uid)
+        if cacheado is None:
+            return None
+        universo = vivas if existentes is None else existentes
+        return cacheado if any(x["contenido"] == cacheado["contenido"] for x in universo) else None
 
     def _resumen_notificaciones(self) -> str:
         """Lo que AURA hizo desde la ultima vez, en lenguaje natural (comunicable, no un log).

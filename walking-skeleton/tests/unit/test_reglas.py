@@ -93,3 +93,122 @@ def test_solo_se_silencia_la_ausencia_del_origen_nunca_una_colision():
 
     protegido = {"motivo": "fallo del sistema de archivos: Permission denied"}
     assert not _nada_que_respaldar(protegido), "un fallo de permisos SIEMPRE debe comunicarse"
+
+
+# --- Desactivar reglas (deuda D-A-9): el log se proyecta por (user_id, rule_id) -----------------------
+
+
+def test_desactivar_hace_que_listar_y_aplicables_dejen_de_devolver_la_regla(tmp_path):
+    ruta = os.path.join(tmp_path, "reglas.jsonl")
+    alm = AlmacenReglas(ruta)
+    alm.crear(_regla())
+
+    assert alm.desactivar("mauricio", "r-copia-antes-de-borrar") is True
+    assert alm.listar("mauricio") == []
+    assert alm.aplicables("mauricio", "action.command") == []
+
+
+def test_desactivar_conserva_el_historial_en_el_fichero(tmp_path):
+    """El append-only es la garantia que el CEO aprobo: nunca se reescribe ni se trunca el fichero."""
+    ruta = os.path.join(tmp_path, "reglas.jsonl")
+    alm = AlmacenReglas(ruta)
+    alm.crear(_regla())
+    with open(ruta, encoding="utf-8") as f:
+        lineas_antes = f.readlines()
+    assert len(lineas_antes) == 1
+
+    alm.desactivar("mauricio", "r-copia-antes-de-borrar")
+
+    with open(ruta, encoding="utf-8") as f:
+        lineas_despues = f.readlines()
+    assert len(lineas_despues) == 2  # creacion + desactivacion: ninguna linea se pierde
+    assert lineas_despues[0] == lineas_antes[0]  # la linea original de creacion sigue literal
+
+
+def test_desactivar_sobrevive_al_reinicio(tmp_path):
+    """CRITERIO DEL CEO: una instancia nueva, leyendo el mismo fichero, no debe devolver la regla desactivada."""
+    ruta = os.path.join(tmp_path, "reglas.jsonl")
+    AlmacenReglas(ruta).crear(_regla())
+    alm1 = AlmacenReglas(ruta)
+    alm1.desactivar("mauricio", "r-copia-antes-de-borrar")
+
+    alm2 = AlmacenReglas(ruta)  # reinicio: nueva instancia, mismo fichero
+    assert alm2.listar("mauricio") == []
+
+
+def test_desactivar_aisla_por_usuario_no_afecta_al_mismo_rule_id_de_otro_usuario(tmp_path):
+    """Prueba de seguridad (P-ARQ-5): la clave de proyeccion es (user_id, rule_id), nunca solo rule_id.
+
+    Si dos usuarios tienen una regla con el mismo rule_id, que uno desactive la suya NO debe apagar
+    la del otro: eso romperia el aislamiento por usuario.
+    """
+    ruta = os.path.join(tmp_path, "reglas.jsonl")
+    alm = AlmacenReglas(ruta)
+    alm.crear(_regla())  # rule_id="r-copia-antes-de-borrar", user_id="mauricio"
+    regla_de_otro = ReglaUsuario(
+        rule_id="r-copia-antes-de-borrar",  # mismo rule_id, otro usuario
+        user_id="otro",
+        evento="action.command",
+        condicion={"campo": "action", "op": "==", "valor": "borrar_archivo"},
+        accion="copiar_archivo",
+        args={"ruta": "$evento.ruta"},
+        estado="activa",
+        metadatos={},
+    )
+    alm.crear(regla_de_otro)
+
+    assert alm.desactivar("mauricio", "r-copia-antes-de-borrar") is True
+
+    assert [r.rule_id for r in alm.listar("otro")] == ["r-copia-antes-de-borrar"]
+    assert alm.listar("mauricio") == []
+
+    # tambien tras reinicio, para probar que la proyeccion desde disco respeta el mismo aislamiento
+    alm2 = AlmacenReglas(ruta)
+    assert [r.rule_id for r in alm2.listar("otro")] == ["r-copia-antes-de-borrar"]
+    assert alm2.listar("mauricio") == []
+
+
+def test_desactivar_devuelve_false_si_no_existe_o_ya_esta_inactiva_y_no_escribe_nada(tmp_path):
+    ruta = os.path.join(tmp_path, "reglas.jsonl")
+    alm = AlmacenReglas(ruta)
+    alm.crear(_regla())
+
+    assert alm.desactivar("mauricio", "regla-inexistente") is False
+    with open(ruta, encoding="utf-8") as f:
+        lineas = f.readlines()
+    assert len(lineas) == 1  # no escribio nada por una regla que no existe
+
+    assert alm.desactivar("mauricio", "r-copia-antes-de-borrar") is True  # ahora si la desactiva
+    with open(ruta, encoding="utf-8") as f:
+        lineas_tras_primera_desactivacion = f.readlines()
+    assert len(lineas_tras_primera_desactivacion) == 2
+
+    assert alm.desactivar("mauricio", "r-copia-antes-de-borrar") is False  # ya estaba inactiva
+    with open(ruta, encoding="utf-8") as f:
+        lineas_finales = f.readlines()
+    assert lineas_finales == lineas_tras_primera_desactivacion  # no escribio nada de mas
+
+
+def test_crear_no_duplica_la_proyeccion_tras_desactivar_y_volver_a_crear(tmp_path):
+    """Hallazgo de auditoria independiente (2026-08-02): crear() hacia self._reglas.append(regla)
+    SIN proyectar, mientras que desactivar() si actualizaba la proyeccion en memoria. Tras
+    crear -> desactivar -> crear la MISMA regla en la MISMA sesion, self._reglas quedaba con DOS
+    entradas para la misma clave (user_id, rule_id): primero la inactiva, luego la activa.
+    `desactivar` busca con next(...), que devuelve la PRIMERA coincidencia: siempre encontraba la
+    inactiva y devolvia False para siempre (hasta reiniciar el proceso), dejando la automatizacion
+    disparando sin que el usuario pudiera apagarla. La proyeccion por (user_id, rule_id) debe ser
+    la UNICA responsable del estado vigente: nunca debe haber dos entradas con la misma clave.
+    """
+    ruta = os.path.join(tmp_path, "reglas.jsonl")
+    alm = AlmacenReglas(ruta)
+    alm.crear(_regla())
+    assert alm.desactivar("mauricio", "r-copia-antes-de-borrar") is True
+
+    alm.crear(_regla())  # el usuario vuelve a crear la MISMA regla, en la MISMA instancia
+    assert alm.listar("mauricio") != [], "deberia estar activa de nuevo tras recrearla"
+
+    assert alm.desactivar("mauricio", "r-copia-antes-de-borrar") is True, (
+        "la proyeccion en memoria tenia una entrada duplicada: desactivar encontro la vieja inactiva"
+    )
+    assert alm.listar("mauricio") == []
+    assert alm.aplicables("mauricio", "action.command") == []

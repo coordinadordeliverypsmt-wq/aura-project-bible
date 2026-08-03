@@ -133,16 +133,26 @@ _PAT_CANCELACION = (
 )
 
 
-# Lo unico honesto mientras no exista la desactivacion: reconocer la peticion y decir que no se puede.
-_RESPUESTA_SIN_DESACTIVAR = (
-    "Todavía no sé desactivar una automatización; solo puedo crearlas y mostrártelas. "
-    "Puedes ver las que tienes activas preguntándome «¿qué automatizaciones tengo?»."
-)
+# Mencion al dominio de automatizaciones: exigirla ademas del marcador de cancelacion evita que
+# cualquier frase mundana con "ya no ", "no quiero" o "deja de" secuestre el turno (auditoria
+# independiente 2026-08-02): "Ya no tengo hambre, gracias." tiene el marcador "ya no " pero no
+# habla de automatizaciones en absoluto.
+_PAT_DOMINIO_AUTOMATIZACION = ("copia", "copias", "automatiz", "regla", "reglas")
 
 
 def _es_cancelacion_de_regla(texto: str) -> bool:
-    """True si el usuario pide DEJAR de hacer algo, no empezar a hacerlo."""
-    return any(p in _normalizar(texto) for p in _PAT_CANCELACION)
+    """True si el usuario pide DEJAR de hacer algo, no empezar a hacerlo.
+
+    Hallazgo de auditoria independiente (2026-08-02): antes bastaba un marcador de cancelacion
+    aislado para entrar en esta rama, y esos marcadores aparecen en frases mundanas corrientes
+    ("Ya no tengo hambre, gracias.", "No quiero salir hoy.", "Deja de llover.") que no tienen nada
+    que ver con automatizaciones. Ahora se exigen DOS cosas: el marcador Y una mencion al dominio
+    de automatizaciones (copia/automatizacion/regla). Sin mencion de dominio, el turno sigue su
+    flujo normal (memoria/LLM) en vez de que el nucleo responda por una automatizacion que nadie
+    menciono.
+    """
+    t = _normalizar(texto)
+    return any(p in t for p in _PAT_CANCELACION) and any(p in t for p in _PAT_DOMINIO_AUTOMATIZACION)
 
 
 # Accion disparadora -> (palabras que la reconocen en el texto normalizado, sufijo ESTABLE del rule_id).
@@ -223,6 +233,27 @@ def _detectar_accion_disparadora(t: str) -> tuple[str, str] | None:
         if any(p in t for p in palabras):
             return accion, sufijo
     return None
+
+
+def _detectar_accion_en_cancelacion(t: str) -> tuple[str, str] | None:
+    """Detecta la accion disparadora en una frase de CANCELACION, quitando antes el ruido propio
+    de la frase de rechazo. Se usa SOLO en el camino de desactivar (`_desactivar_regla`), nunca en
+    la creacion: alli el texto no lleva marcador de cancelacion que limpiar.
+
+    Hallazgo de auditoria independiente (2026-08-02): "elimin" es sinonimo de "borrar" en
+    _PATRONES_ACCION_DISPARADORA, y tambien es el verbo de la propia frase de cancelacion "elimina
+    la automatizacion de escribir archivos". _detectar_accion_disparadora devuelve la PRIMERA fila
+    que coincide en la tabla (borrar va antes que escribir), asi que la deteccion caia sobre el
+    "elimin" del verbo de la orden, no sobre la accion que el usuario de verdad queria apagar. Al
+    quitar antes los marcadores de _PAT_CANCELACION y la palabra "automatizacion"/"automatizaciones",
+    el residuo de "elimina la automatizacion de escribir archivos" queda "de escribir archivos":
+    ahi "elimin" ya no existe y la deteccion encuentra la accion correcta.
+    """
+    resto = t
+    for marcador in _PAT_CANCELACION:
+        resto = resto.replace(marcador, " ")
+    resto = resto.replace("automatizaciones", " ").replace("automatizacion", " ")
+    return _detectar_accion_disparadora(resto)
 
 
 def _es_creacion_de_regla(texto: str) -> bool:
@@ -323,10 +354,11 @@ class Orchestrator:
             if _es_creacion_de_regla(text):
                 await self._finalizar_turno(uid, tid, text, self._crear_regla(uid, text), "core", t)
                 return
-            # Cancelar una automatizacion todavia no es posible (D-A-1/D-A-9). Se responde con la verdad
-            # en vez de dejar que la frase caiga en otra superficie y produzca una respuesta enganosa.
-            if _es_cancelacion_de_regla(text) and self.automatizaciones.listar(uid):
-                await self._finalizar_turno(uid, tid, text, _RESPUESTA_SIN_DESACTIVAR, "core", t)
+            # Desactivar una automatizacion (M3 entry): se responde SIEMPRE aqui, tenga o no el
+            # usuario alguna activa, para que la frase no caiga en otra superficie (memoria, LLM)
+            # y produzca una respuesta enganosa o un efecto no pedido.
+            if _es_cancelacion_de_regla(text):
+                await self._finalizar_turno(uid, tid, text, self._desactivar_regla(uid, text), "core", t)
                 return
         hits = await self.memory.recall(uid, text)
         t.mark("memory")
@@ -470,6 +502,35 @@ class Orchestrator:
         self.automatizaciones.crear(regla)
         obs.log("REGLA", "automatizacion", f"automatizacion creada: {regla.rule_id}", "-", audit=True)
         return "Entendido. Lo haré a partir de ahora."
+
+    def _desactivar_regla(self, uid: str, text: str) -> str:
+        """Desactiva la automatizacion que el usuario nombra al pedir que se deje de hacer algo.
+
+        Usa `_detectar_accion_en_cancelacion`, que limpia el texto del marcador de cancelacion
+        antes de reconocer la accion (auditoria independiente 2026-08-02: sin limpiarlo, "elimina
+        la automatizacion de escribir" detectaba "borrar" por el "elimin" del propio verbo de la
+        orden, y desactivaba la automatizacion equivocada). "cuando escriba" identifica la accion
+        disparadora "escribir_archivo", cuyo rule_id es "copia-al-escribir". Se comprueban tambien
+        los identificadores HISTORICOS (`_IDS_HISTORICOS`): la regla activa del usuario puede
+        seguir guardada con un rule_id antiguo si la creo antes de que el reconocedor cambiara de
+        nombre.
+        Si no se identifica ninguna accion, o el usuario no tiene esa automatizacion activa, la
+        unica respuesta honesta es la verdad -lo que tiene activo ahora mismo-, nunca una
+        confirmacion de un exito que no ocurrio (INV-9).
+        """
+        t = _normalizar(text)
+        match = _detectar_accion_en_cancelacion(t)
+        if match is not None:
+            _, sufijo = match
+            rule_id = f"copia-al-{sufijo}"
+            equivalentes = {rule_id, *_IDS_HISTORICOS.get(rule_id, ())}
+            activas = {r.rule_id for r in self.automatizaciones.listar(uid)}
+            existente = next((rid for rid in equivalentes if rid in activas), None)
+            if existente is not None and self.automatizaciones.desactivar(uid, existente):
+                obs.log("REGLA", "automatizacion", f"automatizacion desactivada: {existente}", "-", audit=True)
+                return "Hecho. He desactivado esa automatización."
+        # No se identifico cual (o no existe entre las activas): se cuenta la verdad, nunca "hecho".
+        return self._describir_reglas(uid)
 
     async def _disparar_reglas(self, uid: str, evento: dict, tid: str) -> list[dict]:
         """Ejecuta las automatizaciones del usuario que aplican a este evento. Devuelve lo ocurrido.

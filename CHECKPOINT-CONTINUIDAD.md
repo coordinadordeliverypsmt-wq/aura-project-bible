@@ -6,6 +6,8 @@ aprobadas.
 
 **Fecha:** 2026-08-03 · **Motivo de la parada:** límite de contexto de la sesión.
 
+**El Protocolo de Continuidad es PERMANENTE** (CEO, 2026-08-03) y vive en `CLAUDE.md` §0: parada automática por debajo del ~2 % de contexto, sin esperar a que el CEO lo pida.
+
 ---
 
 ## Identificación

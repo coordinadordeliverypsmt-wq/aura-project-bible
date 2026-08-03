@@ -7,6 +7,27 @@ Idioma de trabajo: **español**.
 
 ---
 
+## 0 · Protocolo de Continuidad — PERMANENTE (CEO, 2026-08-03)
+
+**Primera acción de toda sesión:** leer [`CHECKPOINT-CONTINUIDAD.md`](CHECKPOINT-CONTINUIDAD.md) y
+**reanudar exactamente desde ahí**. No repetir investigaciones, no rehacer análisis, no reabrir
+decisiones aprobadas — salvo que haya **evidencia nueva**.
+
+**Parada automática:** cuando el contexto disponible baje de **~2 %**, detente **sin esperar a que el
+CEO lo pida**. No termines «a la carrera» ni condenses razonamientos.
+
+1. Cierra **solo** la operación atómica en curso, si puede cerrarse con seguridad.
+2. **No inicies** ningún análisis, implementación ni investigación nueva.
+3. Actualiza `CHECKPOINT-CONTINUIDAD.md`: estado exacto · último commit · ficheros modificados ·
+   decisiones tomadas · decisiones pendientes · **siguiente paso exacto** · riesgos abiertos · todo
+   dato necesario para continuar **sin volver a analizar el problema**.
+4. Espera el siguiente mensaje del CEO.
+
+**El objetivo es que el trabajo sea interrumpible y reanudable como una transacción:** nunca perder
+contexto por agotamiento de tokens. El proyecto avanza por **continuidad**, no por reconstrucción.
+
+---
+
 ## 1 · Antes de nada
 
 **Lee [`CHECKLIST-CONTINUIDAD.md`](CHECKLIST-CONTINUIDAD.md).** Es la fuente de verdad para retomar el

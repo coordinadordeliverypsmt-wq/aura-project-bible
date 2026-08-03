@@ -238,6 +238,46 @@ retorno**. A partir de ahi se amplian capacidades, **no se rediseña el proceso*
 **Encargo concreto del roadmap:** identificar cual es esa Fase 1 y que **todo el trabajo posterior se
 construya sobre ella**. Ese es el inicio real del Sistema Operativo Interno de AURORA.
 
+### AUTORIZACION DE INICIO + NUCLEO VIVO (CEO, 2026-08-03, quinto mensaje)
+
+**Etapa de planificacion CERRADA. Comienza la construccion del Sistema Operativo Interno.**
+**El roadmap queda AUTORIZADO a iniciarse.**
+
+**Disciplina permanente (aplica a todo el proyecto):**
+- **No crear documentacion** si antes no existe una implementacion o validacion que la justifique.
+- **Cada Decision Package termina convertido en capacidad funcional o queda explicitamente descartado.**
+- **La documentacion es un artefacto del desarrollo, no el objetivo del desarrollo.**
+
+**PRIORIDAD ADICIONAL — identificar el primer "NUCLEO VIVO":** el conjunto **minimo** de componentes
+que permita a AURORA empezar a trabajar sobre si misma **de manera persistente**. No se busca todavia
+una organizacion completa de agentes: se busca **el primer ciclo autonomo persistente**.
+
+**El nucleo debe responder, como minimo:**
+1. ¿Donde vive el estado del trabajo?
+2. ¿Quien decide cual es la siguiente tarea?
+3. ¿Quien verifica que la tarea termino correctamente?
+4. ¿Quien actualiza el estado del proyecto?
+5. ¿Como se reanuda automaticamente tras cualquier interrupcion?
+6. ¿Como evita repetir trabajo ya realizado?
+
+**Debe identificarse reutilizando todo lo existente antes de proponer componentes nuevos.**
+
+**CRITERIO PRINCIPAL DE PROGRESO DEL PROYECTO:**
+> *AURORA debe construir capacidades que **permanezcan despues de cada sesion**. Cada sesion debe dejar
+> a AURORA **objetivamente mas capaz** que al comenzar.*
+
+**Sigue vigente:** todo cambio de arquitectura, Bible, ADR o modelo de gobierno se presenta como
+Decision Package **antes** de implementarse.
+
+### Hipotesis de partida a VERIFICAR con el inventario (no dar por cierta)
+De los 7 pasos del ciclo de Fase 1: los pasos **6 y 7** (Decision Package e informe ejecutivo) ya
+existen como practica establecida; los pasos **3 y 4** (asignar a agentes, consolidar) tienen
+precedente operativo en el despacho de exploradores y auditores. **Lo que no existe es la PERSISTENCIA
+del ciclo:** hoy el objetivo, su descomposicion y el estado de cada tarea viven en el contexto del
+modelo y se pierden al terminar la sesion. Las 6 preguntas del nucleo vivo apuntan todas a esa misma
+carencia. **Probable nucleo real de la Fase 1 = estado del trabajo persistente + reanudacion
+automatica.** Verificar con el inventario antes de proponerlo.
+
 ## Modo de trabajo vigente (CEO, 2026-08-03)
 
 1. **No abrir nuevos Decision Packages ni alertas**, salvo bloqueo crítico para la implementación.

@@ -55,7 +55,9 @@ según el orden fijado por el CEO.
 
 ## Próximo primer paso al reanudar
 
-> **1) Construir el ROADMAP del Sistema Operativo Interno** (ver seccion "ENCARGO EN COLA").
+> **1) Construir el ROADMAP, cuya FASE 1 es el ciclo cerrado de 7 pasos (ver seccion de cierre metodologico). Cada fase debe entregar CAPACIDAD REAL, no documentacion.**
+> **1b) Inventario total previo antes de proponer nada nuevo.**
+> **(referencia) ROADMAP del Sistema Operativo Interno** (ver seccion "ENCARGO EN COLA").
 > **2) Dentro de el, pedir las dos autorizaciones pendientes: implementar D-M-8 y renombrar las operaciones mutantes.** Sin esas
 > dos autorizaciones no puede avanzarse: el orden aprobado sitúa D-M-8 antes que todo lo demás, y G-1
 > no es viable sin nombres inequívocos.
@@ -205,6 +207,36 @@ El IMA —y en particular la dimension 9— **exige instrumentar el proceso de d
 Hoy **no existe ninguna instrumentacion para eso**: el audit log mide lo que AURORA hace como producto,
 no lo que el equipo hace al construirla. Sin resolver esa brecha, los porcentajes de cada fase serian
 estimaciones y no datos — el patron "declarado != real" otra vez. **Es lo primero que hay que examinar.**
+
+### CIERRE DE LA DEFINICION METODOLOGICA + FASE 1 (CEO, 2026-08-03, cuarto mensaje)
+
+**La fase de definicion metodologica queda CERRADA.** Se deja de diseñar como se trabaja y se empieza a
+construir la capacidad de autoevolucion. El roadmap es el documento rector, **pero no puede ser un
+ejercicio teorico**.
+
+**REGLA PERMANENTE:** *cada fase debe terminar con una **capacidad REAL de AURORA**, utilizable de
+inmediato — no solo documentacion ni decisiones de arquitectura.*
+
+**Estructura obligatoria de cada fase del roadmap:**
+Objetivo · **Capacidad nueva que AURORA obtiene** · **Evidencia objetiva de que funciona** ·
+Impacto sobre el IMA · Dependencias · Riesgos · Criterios de finalizacion.
+
+**FASE 1 — el primer ciclo cerrado.** Debe ser **lo minimo necesario para que AURORA coordine su
+propio trabajo**. NO se busca autonomia completa: se busca **cerrar el ciclo**. Siete pasos:
+
+1. Recibir un objetivo.
+2. Descomponerlo en tareas.
+3. Asignar esas tareas a sus agentes internos.
+4. Consolidar los resultados.
+5. Detectar conflictos.
+6. Preparar un **Decision Package** cuando la decision sea estrategica.
+7. Presentar un **informe ejecutivo al CEO**.
+
+**Criterio del CEO:** si ese ciclo funciona, aunque sea de forma limitada, **se cruza un punto de no
+retorno**. A partir de ahi se amplian capacidades, **no se rediseña el proceso**.
+
+**Encargo concreto del roadmap:** identificar cual es esa Fase 1 y que **todo el trabajo posterior se
+construya sobre ella**. Ese es el inicio real del Sistema Operativo Interno de AURORA.
 
 ## Modo de trabajo vigente (CEO, 2026-08-03)
 

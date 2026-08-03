@@ -110,15 +110,69 @@ def _cae_en(t: str, pats: tuple) -> bool:
 
 # Automatizaciones definidas por el usuario (MVP capacidad 5, Bible 6.4). La deteccion es DETERMINISTA en el
 # nucleo (ADR-0014), igual que el resto de superficies: crear una regla o consultarla es un HECHO, no una
-# inferencia, y no se delega en el LLM. El MVP reconoce en lenguaje natural UNA automatizacion —"guarda una
-# copia antes de borrar"—; la generalidad (cualquier disparador/accion) vive en el MODELO de regla y en el
-# MOTOR, no en el reconocedor, que se ampliara sin rediseno (deuda registrada, no rearquitectura).
+# inferencia, y no se delega en el LLM. El reconocedor extrae DEL TEXTO que accion del usuario dispara la
+# regla, entre un catalogo CERRADO de cuatro (INV-9: no se finge una capacidad no construida). La accion de
+# la regla es SIEMPRE "copiar_archivo" —la unica de lista verde, la unica sin riesgo de narrar un exito que
+# no ocurrio—; ampliar a otras acciones de regla es deuda registrada, no rearquitectura.
 _PAT_REGLAS_VER = ("que automatizaciones", "que automatizacion", "mis automatizaciones", "que reglas", "mis reglas")
 _PAT_REGLA_DISPARADOR = ("siempre que", "cada vez que", "cuando ")
 
-# Identificador ESTABLE de la unica automatizacion que el MVP sabe reconocer en lenguaje natural. Al ser
-# estable, repetir la frase no duplica la regla ni al reiniciar (el almacen es append-only).
-_ID_COPIA_ANTES_DE_BORRAR = "copia-antes-de-borrar"
+# El usuario RECHAZA una automatizacion en vez de pedirla. Sin esto, "no quiero que cuando borres un
+# archivo guardes una copia" creaba justo la regla que se estaba rechazando, y "deja de guardar copia"
+# respondia "lo hare a partir de ahora": AURA hacia lo contrario de lo pedido (auditoria 2026-08-02).
+# Desactivar aun no es posible (deuda D-A-1/D-A-9), asi que lo unico honesto es decirlo.
+_PAT_CANCELACION = (
+    "no quiero",
+    "deja de",
+    "ya no ",
+    "no guardes",
+    "no hagas",
+    "para de",
+    "quita la",
+    "elimina la automatizacion",
+)
+
+
+# Lo unico honesto mientras no exista la desactivacion: reconocer la peticion y decir que no se puede.
+_RESPUESTA_SIN_DESACTIVAR = (
+    "Todavía no sé desactivar una automatización; solo puedo crearlas y mostrártelas. "
+    "Puedes ver las que tienes activas preguntándome «¿qué automatizaciones tengo?»."
+)
+
+
+def _es_cancelacion_de_regla(texto: str) -> bool:
+    """True si el usuario pide DEJAR de hacer algo, no empezar a hacerlo."""
+    return any(p in _normalizar(texto) for p in _PAT_CANCELACION)
+
+
+# Accion disparadora -> (palabras que la reconocen en el texto normalizado, sufijo ESTABLE del rule_id).
+# Los verbos irregulares cambian de raiz en subjuntivo ("mover" -> "muevas"), de ahi las dos formas para
+# mover_archivo. Esta tabla es el UNICO lugar que decide que se reconoce: anadir un disparador nuevo es
+# anadir una fila aqui, nunca inventar una accion de regla no soportada por el motor (INV-9).
+_PATRONES_ACCION_DISPARADORA: tuple[tuple[tuple[str, ...], str, str], ...] = (
+    (("borr", "elimin"), "borrar_archivo", "borrar"),
+    (("escrib",), "escribir_archivo", "escribir"),
+    (("mov", "muev"), "mover_archivo", "mover"),
+    (("renombr",), "renombrar_archivo", "renombrar"),
+)
+
+# Identificadores HISTORICOS de reglas que hoy se generan con otro nombre. Existen porque el `rule_id`
+# es la unica defensa contra duplicar una automatizacion, y renombrarlo dejaria a quien ya la tuviera
+# creada con DOS reglas activas identicas: la segunda copia fallaria por destino existente y AURA narraria
+# un aviso de error en cada disparo. Nunca se borra una fila de aqui: es compatibilidad hacia atras.
+_IDS_HISTORICOS: dict[str, tuple[str, ...]] = {
+    "copia-al-borrar": ("copia-antes-de-borrar",),
+}
+
+
+# mover_archivo/renombrar_archivo traen el archivo en "origen", no en "ruta" (ver core/operaciones.py):
+# la regla debe leer la clave que la accion disparadora realmente publica en su evento.
+_CLAVE_EVENTO_POR_ACCION = {
+    "borrar_archivo": "ruta",
+    "escribir_archivo": "ruta",
+    "mover_archivo": "origen",
+    "renombrar_archivo": "origen",
+}
 
 # Accion del usuario -> clausula en pasado y primera persona (habla AURA), para narrar "... y luego <esto>".
 _CLAUSULA_USUARIO = {
@@ -129,19 +183,59 @@ _CLAUSULA_USUARIO = {
 }
 
 
+# El unico motivo que significa "no habia nada que respaldar". Es el mensaje literal del sistema
+# operativo (errno ENOENT), no una frase del dominio.
+#
+# ES DELIBERADAMENTE ESTRECHO, y la razon la encontro una auditoria independiente (2026-08-02): el
+# motivo de error INCLUYE el nombre del fichero, que elige el USUARIO. Con `cuaderno existente.txt`,
+# el motivo de una colision real —"el destino ya existe: 'cuaderno existente.txt.copia'"— contiene
+# "no existe" a traves de la frontera de palabras («cuader-NO EXISTE-nte». Buscar frases del dominio
+# como "no existe" hacia que AURA silenciara un respaldo que NO se hizo: el archivo se borraba y el
+# usuario no se enteraba de que habia perdido la copia. Perdida de datos en silencio.
+#
+# Por eso solo se acepta el texto del SO, que ningun nombre de fichero razonable contiene, y ademas se
+# exige que el motivo NO hable de colision. Cualquier otro fallo —permisos, ambito, colision— se
+# comunica siempre: el silencio es la excepcion, y solo para lo que no es un problema.
+_MOTIVO_ORIGEN_AUSENTE = "no such file or directory"
+_MOTIVOS_QUE_NUNCA_SE_CALLAN = ("ya existe", "permission", "denied", "protegid", "fuera del")
+
+
+def _nada_que_respaldar(resultado: dict) -> bool:
+    """True solo si el respaldo fallo porque el origen aun no existia (crear un archivo nuevo)."""
+    motivo = str(resultado.get("motivo", "")).lower()
+    if any(m in motivo for m in _MOTIVOS_QUE_NUNCA_SE_CALLAN):
+        return False
+    return _MOTIVO_ORIGEN_AUSENTE in motivo
+
+
 def _es_consulta_de_reglas(texto: str) -> bool:
     """True si el usuario quiere inspeccionar sus automatizaciones ("¿que automatizaciones tengo?")."""
     return any(p in _normalizar(texto) for p in _PAT_REGLAS_VER)
 
 
-def _es_creacion_de_regla(texto: str) -> bool:
-    """True si el usuario define la automatizacion "copia antes de borrar" en lenguaje natural.
+def _detectar_accion_disparadora(t: str) -> tuple[str, str] | None:
+    """Devuelve (accion, sufijo) para la PRIMERA accion disparadora reconocida en el texto normalizado.
 
-    Reconoce el patron disparador ("siempre que / cada vez que / cuando") + accion disparadora (borrar) +
-    intencion de respaldo (copia). Es el unico patron del MVP; ampliarlo es deuda, no rediseno.
+    None si el texto no menciona ninguna de las cuatro accion conocidas: fuera de esas cuatro no hay
+    reconocimiento posible (INV-9), y el llamador debe seguir el flujo normal hacia el LLM.
+    """
+    for palabras, accion, sufijo in _PATRONES_ACCION_DISPARADORA:
+        if any(p in t for p in palabras):
+            return accion, sufijo
+    return None
+
+
+def _es_creacion_de_regla(texto: str) -> bool:
+    """True si el usuario define una automatizacion "copia antes de <disparador>" en lenguaje natural.
+
+    Reconoce el patron disparador ("siempre que / cada vez que / cuando") + una de las cuatro acciones
+    disparadoras conocidas (borrar/escribir/mover/renombrar) + intencion de respaldo (copia). Ninguna
+    otra combinacion crea regla: sigue el flujo normal (LLM), nunca una regla "por defecto".
     """
     t = _normalizar(texto)
-    return any(p in t for p in _PAT_REGLA_DISPARADOR) and ("borr" in t or "elimin" in t) and "copia" in t
+    if _es_cancelacion_de_regla(texto):
+        return False  # rechazar no es crear
+    return any(p in t for p in _PAT_REGLA_DISPARADOR) and "copia" in t and _detectar_accion_disparadora(t) is not None
 
 
 class Orchestrator:
@@ -228,6 +322,11 @@ class Orchestrator:
                 return
             if _es_creacion_de_regla(text):
                 await self._finalizar_turno(uid, tid, text, self._crear_regla(uid, text), "core", t)
+                return
+            # Cancelar una automatizacion todavia no es posible (D-A-1/D-A-9). Se responde con la verdad
+            # en vez de dejar que la frase caiga en otra superficie y produzca una respuesta enganosa.
+            if _es_cancelacion_de_regla(text) and self.automatizaciones.listar(uid):
+                await self._finalizar_turno(uid, tid, text, _RESPUESTA_SIN_DESACTIVAR, "core", t)
                 return
         hits = await self.memory.recall(uid, text)
         t.mark("memory")
@@ -341,21 +440,32 @@ class Orchestrator:
     def _crear_regla(self, uid: str, text: str) -> str:
         """Persiste la automatizacion que el usuario acaba de definir y lo confirma.
 
-        El MVP reconoce un unico patron ("copia antes de borrar"), pero lo que se guarda es el MODELO
-        GENERAL de regla —evento, condicion declarativa, accion y args por referencia al evento—, de modo
-        que ampliar el reconocedor no obligue a migrar los datos ya escritos. `rule_id` es estable: repetir
-        la frase no crea una regla duplicada, y AURA lo dice en lugar de fingir que aprendio algo nuevo.
+        El reconocedor identifica CUAL de las cuatro acciones conocidas dispara la regla; lo que se
+        guarda es el MODELO GENERAL de regla —evento, condicion declarativa, accion y args por referencia
+        al evento—, de modo que ampliar el reconocedor no obligue a migrar los datos ya escritos.
+        `rule_id` es estable POR REGLA ("copia-al-<disparador>"): repetir la misma frase no la duplica,
+        pero dos disparadores distintos (borrar, escribir, ...) conviven como automatizaciones separadas.
         """
-        if any(r.rule_id == _ID_COPIA_ANTES_DE_BORRAR for r in self.automatizaciones.listar(uid)):
-            return "Ya lo hago: guardo una copia antes de borrar."
+        t = _normalizar(text)
+        match = _detectar_accion_disparadora(t)
+        if match is None:
+            # Defensivo: _es_creacion_de_regla ya garantizo que hay una accion reconocida antes de
+            # llamar aqui. Si algun dia dejara de hacerlo, mejor esto que una regla inventada (INV-9).
+            return "No he identificado qué acción debo vigilar; ¿puedes reformularlo?"
+        accion_disparadora, sufijo = match
+        rule_id = f"copia-al-{sufijo}"
+        equivalentes = {rule_id, *_IDS_HISTORICOS.get(rule_id, ())}
+        if any(r.rule_id in equivalentes for r in self.automatizaciones.listar(uid)):
+            return f"Ya lo hago: guardo una copia antes de {sufijo}."
+        clave_evento = _CLAVE_EVENTO_POR_ACCION[accion_disparadora]
         regla = ReglaUsuario(
-            rule_id=_ID_COPIA_ANTES_DE_BORRAR,
+            rule_id=rule_id,
             user_id=uid,
             evento="action.command",
-            condicion={"campo": "action", "op": "==", "valor": "borrar_archivo"},
+            condicion={"campo": "action", "op": "==", "valor": accion_disparadora},
             accion="copiar_archivo",
-            args={"ruta": "$evento.ruta"},  # referencia al evento: opera sobre el archivo real de cada vez
-            metadatos={"descripcion": "Guardar una copia antes de borrar un archivo", "frase": text},
+            args={"ruta": f"$evento.{clave_evento}"},  # referencia al evento real, no un valor congelado
+            metadatos={"descripcion": f"Guardar una copia antes de {sufijo} un archivo", "frase": text},
         )
         self.automatizaciones.crear(regla)
         obs.log("REGLA", "automatizacion", f"automatizacion creada: {regla.rule_id}", "-", audit=True)
@@ -406,7 +516,15 @@ class Orchestrator:
         if not disparos:
             return base
         hechos = [d for d in disparos if d["resultado"].get("estado") == "ejecutada"]
-        avisos = [d["mensaje"] for d in disparos if d["resultado"].get("estado") != "ejecutada"]
+        # "No habia nada que respaldar" NO es un fallo que comunicar. Una automatizacion de respaldo
+        # previo sobre un archivo que aun no existe —el caso normal al CREARLO— falla necesariamente,
+        # y avisarlo convertiria la automatizacion en una molestia constante por algo que no es un
+        # problema. Se silencia SOLO ese caso: cualquier otro fallo se sigue narrando.
+        avisos = [
+            d["mensaje"]
+            for d in disparos
+            if d["resultado"].get("estado") != "ejecutada" and not _nada_que_respaldar(d["resultado"])
+        ]
         clausula = _CLAUSULA_USUARIO.get(action)
         if hechos and clausula and res.get("estado") == "ejecutada":
             previo = ", ".join(d["mensaje"].rstrip(".") for d in hechos)

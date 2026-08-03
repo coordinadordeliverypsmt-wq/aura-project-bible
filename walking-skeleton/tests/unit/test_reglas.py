@@ -70,3 +70,26 @@ def test_args_se_resuelven_como_referencias_al_evento():
     resueltos = resolver_args({"ruta": "$evento.ruta", "modo": "seguro"}, evento)
     assert resueltos["ruta"] == "/home/u/informe.pdf"  # referencia resuelta
     assert resueltos["modo"] == "seguro"  # valor fijo intacto
+
+
+# --- Silencio selectivo de fallos del respaldo (auditoría independiente 2026-08-02) ----------------
+
+
+def test_solo_se_silencia_la_ausencia_del_origen_nunca_una_colision():
+    """El nombre del archivo lo elige el USUARIO y viaja dentro del motivo de error.
+
+    Con un fichero llamado `cuaderno existente.txt`, el motivo de una colisión real contiene la
+    subcadena "no existe" a través de la frontera de palabras («cuader-NO EXISTE-nte»). Si el filtro
+    comparase contra el motivo completo, silenciaría un respaldo que NO se hizo: el archivo se
+    borraría y el usuario no se enteraría de que perdió la copia. Pérdida de datos en silencio.
+    """
+    from aura_skeleton.core.orchestrator import _nada_que_respaldar
+
+    colision = {"motivo": "el destino ya existe: 'cuaderno existente.txt.copia'"}
+    assert not _nada_que_respaldar(colision), "silenció una colisión real por el nombre del archivo"
+
+    ausente = {"motivo": "fallo del sistema de archivos: No such file or directory"}
+    assert _nada_que_respaldar(ausente), "debe seguir callando cuando no había nada que respaldar"
+
+    protegido = {"motivo": "fallo del sistema de archivos: Permission denied"}
+    assert not _nada_que_respaldar(protegido), "un fallo de permisos SIEMPRE debe comunicarse"

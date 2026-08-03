@@ -27,20 +27,39 @@ La consecuencia no documentada: **si un recuerdo comparte con la consulta única
 nunca entra en el conjunto de candidatos**, aunque su cobertura supere el umbral. No es que se
 descarte por puntuación baja: es que nunca llega a puntuarse.
 
-### Contraejemplo reproducible (verificado)
+### Contraejemplo reproducible (verificado, **corregido 2026-08-03**)
 
 ```
-corpus:    300 recuerdos de relleno que contienen "trabajo" y "reunion"  → ambos posteos = 301 > 256
-           + objetivo:   "Mi trabajo tiene una reunion importante manana"
-           + distractor: "Nota xyzterm sin relacion"
+corpus:    300 recuerdos con "trabajo" pero SIN "reunion"   → posteo trabajo = 301 > 256
+           300 recuerdos con "reunion" pero SIN "trabajo"   → posteo reunion = 301 > 256
+           + objetivo:   "Mi trabajo tiene una reunion importante"  → cobertura 2/3 = 0,67 ≥ 0,60
+           + distractor: "Nota xyzterm sin relacion"                → cobertura 1/3, no cualifica
 consulta:  "trabajo reunion xyzterm"
 
-cobertura del objetivo = 2/3 = 0,67  ≥ 0,60  → DEBERÍA devolverse
-resultado real         = []                  → no se devuelve
+recuerdos que alcanzan la cobertura, por fuerza bruta: exactamente 1 (el objetivo)
+resultado real del recuperador                       : []
 ```
 
 Traza: `xyzterm` (posteo 1) entra primero y siembra `candidatos`; `trabajo` y `reunion` se saltan por
 ubicuos; el objetivo no está en `candidatos`; el distractor sí, pero su cobertura es 1/3 y no pasa.
+
+> **Por qué se corrigió este contraejemplo.** La primera versión usaba 300 rellenos que contenían
+> **ambos** términos, igual que el objetivo. Demostraba el síntoma —el objetivo no se recupera— pero
+> **no aislaba la causa**: los rellenos empataban en cobertura y el `top-k` habría enterrado el
+> objetivo aunque el conjunto de candidatos fuese correcto. Verificado: con barrido completo tampoco
+> se recuperaba. La versión de arriba deja **un solo** recuerdo cualificado, así que el fallo solo
+> puede atribuirse a la generación de candidatos.
+
+### Magnitud medida
+
+Sobre corpus sintético de **3 000 recuerdos** con vocabulario zipfiano y 400 consultas aleatorias con
+semilla fija, contrastadas contra barrido completo por fuerza bruta:
+
+> **El algoritmo vigente devuelve un resultado distinto del correcto en el 9,8 % de las consultas
+> (39 de 400).** De esos 39 fallos, **36 (92 %) ya devolvían 3 resultados**: completos y equivocados.
+
+La segunda cifra importa porque descarta la mitigación intuitiva («completar solo si faltan
+resultados»): no se activaría en la gran mayoría de los fallos.
 
 ### Por qué NO es una regresión de este incremento
 
@@ -72,9 +91,14 @@ escenario que AURA promete servir.
 
 ### Qué haría falta
 
-Completar los candidatos con los términos ubicuos **solo cuando el conjunto actual sea insuficiente**
-para alcanzar la cobertura, o sustituir el corte por uno sensible a la cobertura alcanzable. Requiere
-volver a medir MA.2a: es un intercambio rendimiento/recall, no un arreglo gratuito.
+**Propuesta analizada en `DP-D-M-1-RECUPERACION-EXACTA.md`** (pendiente de aprobación del CEO). En
+resumen: unir las `n − m + 1` listas de posteo más cortas, donde `m` es el número de términos que un
+recuerdo necesita para alcanzar la cobertura. Por el principio del palomar, todo recuerdo cualificado
+aparece forzosamente en alguna de ellas — es exacto, no heurístico. Medido: 0 discrepancias frente a
+fuerza bruta en 400 consultas, ~1 ms por consulta con 3 000 recuerdos, y MA.2a se preserva.
+
+Queda descartada la mitigación que parecía obvia (completar solo si faltan resultados): no detectaría
+el 92 % de los fallos.
 
 ### Afirmaciones corregidas a raíz de este hallazgo
 

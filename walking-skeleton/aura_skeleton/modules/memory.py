@@ -54,17 +54,20 @@ class SimpleMemory:
 # los terminos informativos de la pregunta.
 #
 # POR QUE 0.60. Es el punto optimo MEDIDO sobre la bateria oficial (`tests/datos/bateria_memoria.json`,
-# 59 recuerdos y 71 consultas), con el orden de prioridad fijado por el CEO: primero cero falsos
-# positivos PUROS, luego cero falsos positivos CRITICOS, despues recall y por ultimo coste. 0.60 es el
-# umbral MAS BAJO que logra ambos ceros, y por tanto el que conserva mas recall (0.654) y mas contexto
-# util. Subir a 0.67 no elimina ningun error y pierde recuerdos legitimos; bajar a 0.50 reintroduce
-# 3 falsos positivos criticos.
+# 65 recuerdos y 77 consultas), con el orden de prioridad fijado por el CEO: primero cero falsos
+# positivos PUROS, luego cero falsos positivos CRITICOS, despues recall y por ultimo coste. Medido
+# sobre la bateria VIGENTE (0.50 / 0.60 / 0.67): FP puros 0 / 0 / 0; FP criticos 9 / 2 / 1; recall@3
+# 0.717 / 0.660 / 0.547. Los 2 criticos que quedan en 0.60 son los adversariales de frontera ya
+# clasificados como corregibles ("de mi vecino", "de mi hermano"), con techo fijado en la prueba. Es
+# el umbral mas bajo que los deja en ese suelo: 0.50 los multiplica por 4.5. Subir a 0.67 elimina uno
+# mas, pero cuesta 6 aciertos de 53 (recall 0.660 -> 0.547); con el orden de prioridad vigente no
+# compensa cambiar un adversarial conocido por seis recuerdos legitimos perdidos.
 #
 # POR QUE NO SE ANADIO "o solape >= 2 terminos" (variante V7, descartada). Subia el recall a 0.692
 # (+3.8 puntos) pero una validacion adversarial dirigida la rompio en 6 de 6 casos disenados —frente
 # a 2 de 6 de esta variante—: aceptar por numero absoluto de terminos, sin mirar la proporcion, deja
 # pasar consultas largas sobre OTRA entidad ("la marca y el modelo del coche DE MI VECINO" contra "mi
-# coche es de marca Ford"). Cuadruplicaba los falsos positivos criticos para ganar 2 aciertos de 52.
+# coche es de marca Ford"). Cuadruplicaba los falsos positivos criticos para ganar 2 aciertos de 53.
 # Con el orden de prioridad vigente es el intercambio equivocado. No reintroducir sin superar antes
 # `tests/datos/bateria_memoria.json`, casos adversariales incluidos.
 #
@@ -136,8 +139,13 @@ class PersistentMemory:
         """MA.2a: solo visita los recuerdos que comparten algun termino con la consulta.
 
         Antes recorria TODOS los items en cada turno (R-1): 0,55 ms con 300 recuerdos, 9,22 ms con
-        3.000. El resultado es identico —mismo criterio de solapamiento de terminos—, cambia lo que
-        cuesta obtenerlo.
+        3.000.
+
+        ALCANCE VERIFICADO DE LA EQUIVALENCIA. El resultado coincide con el del barrido completo
+        MIENTRAS ningun termino de la consulta supere `_UMBRAL_UBICUO` posteos, que es el unico
+        regimen que la bateria oficial puede ejercitar (65 recuerdos < 256). Por encima de ese
+        umbral la equivalencia NO se sostiene: ver D-M-1 en DEUDA-N1-RECUPERADOR.md, con el
+        contraejemplo reproducible. Es un limite heredado de MA.2a, no de la cobertura.
         """
         consulta = _terminos(query)
         if not consulta:
@@ -150,7 +158,10 @@ class PersistentMemory:
         # ubicuos de MA.2a. Es posible porque la cobertura necesita la RESPUESTA a "¿contiene R el
         # termino T?", no el METODO: en vez de recorrer la lista larga de T (coste lineal en el
         # corpus), se mira el conjunto de terminos del propio candidato (coste constante). Verificado:
-        # resultados identicos en las 71 consultas de la bateria visitando un 35% menos de posteos.
+        # resultados identicos en las 77 consultas de la bateria visitando un 35% menos de posteos.
+        # OJO: esa verificacion vive por debajo de `_UMBRAL_UBICUO` (ver docstring y D-M-1). El
+        # `continue` de abajo puede dejar fuera un recuerdo con cobertura suficiente si su unico
+        # solape con la consulta son terminos ubicuos.
         candidatos: set[int] = set()
         for termino in sorted(consulta, key=lambda t: len(self._indice.get((user_id, t), ()))):
             posteo = self._indice.get((user_id, termino), ())

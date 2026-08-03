@@ -28,14 +28,28 @@ consultas sin respuesta. La garantía no estaba violada; estaba **vacía de cont
 
 ## Por qué cobertura ≥60%
 
-| Umbral | FP puros | FP críticos | Recall |
+Comparativa **remedida sobre la batería vigente** (65 recuerdos, 77 consultas, 53 con respuesta
+esperada), es decir con los 6 casos adversariales y sus recuerdos de apoyo ya incorporados:
+
+| Umbral | FP puros | FP críticos | Recall@3 |
 |---|---|---|---|
-| ≥50% | 0 | **3** | 0,712 |
-| **≥60%** | **0** | **0** | **0,654** |
-| ≥67% | 0 | 0 | 0,558 |
+| ≥50% | 0 | **9** | 0,717 (38/53) |
+| **≥60%** | **0** | **2** | **0,660 (35/53)** |
+| ≥67% | 0 | 1 | 0,547 (29/53) |
 
 Con el orden de prioridad fijado por el CEO —**FP puros → FP críticos → recall → coste**—, **0,60 es el
-umbral más bajo que logra ambos ceros**, y por tanto el que conserva más recall y más contexto útil.
+umbral más bajo que deja los FP críticos en el suelo de la frontera de N1**. Los 2 que quedan son los
+adversariales «de mi vecino» / «de mi hermano», clasificados *corregibles* y con techo fijado en la
+prueba (`_ADVERSARIALES_CONOCIDOS = 2`): no son ruido tolerado, son el límite medido. Bajar a 0,50 los
+multiplica por 4,5. Subir a 0,67 elimina uno más, pero cuesta **6 aciertos legítimos** — un intercambio
+que el orden de prioridad vigente no justifica.
+
+> **Corrección (verificación de cierre).** Una versión anterior de esta tabla daba «0 / 3 / 0» FP
+> críticos y recall 0,712 / 0,654 / 0,558 sobre una batería de 59 recuerdos y 71 consultas. Esas cifras
+> quedaron obsoletas al ampliar la batería y **no se habían recomputado**. Las de arriba están medidas
+> contra el fichero que hoy vive en el repositorio; el 0,660 coincide con el que reporta la prueba
+> oficial. La consulta «¿cuál es la marca de mi coche?» se reclasificó de negativa a positiva: al
+> ampliar el corpus, la respuesta pasó a existir.
 
 El valor vive en `_COBERTURA_MINIMA` (`aura_skeleton/modules/memory.py`). **No es un número mágico:** si
 aparece una batería mejor, se cambia ahí y la batería vuelve a decidir.
@@ -74,6 +88,25 @@ Cada mecanismo resuelve el contraejemplo del anterior y genera uno nuevo.
 **Es una demostración por agotamiento de las familias evaluadas, no una prueba de imposibilidad.** Si
 aparece una técnica léxica nueva, esta conclusión debe reexaminarse — pero **con el benchmark**, no con
 ejemplos aislados.
+
+## Límite descubierto en la verificación final (2026-08-03)
+
+**Consultas de UN solo término informativo.** Con un único término, *cualquier* recuerdo que lo contenga
+alcanza el 100% de cobertura, así que el criterio no discrimina:
+
+```
+Corpus  : "Mi numero de telefono es 555-2938."
+          "Perdi mi telefono en el taxi el martes por la noche."
+Consulta: "¿cual es mi telefono?"   ->  devuelve LOS DOS
+```
+
+**Clasificación: aceptable, no crítico.** Ambos recuerdos son de la **misma entidad** (mi teléfono) y el
+correcto se devuelve primero, así que el LLM dispone del dato bueno. No induce a responder un dato
+equivocado de otra entidad, que es lo que define un FP crítico.
+
+Se documenta porque es **estructural**: la cobertura es una fracción, y con denominador 1 solo puede
+valer 0 o 1. Ninguna variante léxica lo resuelve — hace falta discriminar por relevancia semántica, es
+decir, N2. Está incorporado a la batería para que no se olvide.
 
 ## Clasificación de los 6 casos adversariales
 

@@ -1,0 +1,748 @@
+{
+ "corpus": [
+  {
+   "id": 0,
+   "user_id": "u1",
+   "content": "Mi color favorito es el azul marino."
+  },
+  {
+   "id": 1,
+   "user_id": "u1",
+   "content": "Prefiero el café sin azúcar por las mañanas."
+  },
+  {
+   "id": 2,
+   "user_id": "u1",
+   "content": "Mi comida favorita es la paella de mariscos."
+  },
+  {
+   "id": 3,
+   "user_id": "u1",
+   "content": "No me gusta el cilantro en las ensaladas."
+  },
+  {
+   "id": 4,
+   "user_id": "u1",
+   "content": "Mi grupo de música favorito es Extremoduro."
+  },
+  {
+   "id": 5,
+   "user_id": "u1",
+   "content": "Suelo escuchar jazz cuando trabajo por las tardes."
+  },
+  {
+   "id": 6,
+   "user_id": "u1",
+   "content": "Mi equipo de fútbol favorito es el Real Madrid."
+  },
+  {
+   "id": 7,
+   "user_id": "u1",
+   "content": "Prefiero el té verde antes de dormir."
+  },
+  {
+   "id": 8,
+   "user_id": "u1",
+   "content": "Mi película favorita es El Padrino."
+  },
+  {
+   "id": 9,
+   "user_id": "u1",
+   "content": "Me encanta el chocolate negro con almendras."
+  },
+  {
+   "id": 10,
+   "user_id": "u1",
+   "content": "Mi cumpleaños es el 14 de marzo."
+  },
+  {
+   "id": 11,
+   "user_id": "u1",
+   "content": "Vivo en la calle Alcalá número 45, Madrid."
+  },
+  {
+   "id": 12,
+   "user_id": "u1",
+   "content": "Mi número de teléfono es 555-2938."
+  },
+  {
+   "id": 13,
+   "user_id": "u1",
+   "content": "Mi correo electrónico personal es ana.garcia@correo.com."
+  },
+  {
+   "id": 14,
+   "user_id": "u1",
+   "content": "Mi DNI termina en 4521-K."
+  },
+  {
+   "id": 15,
+   "user_id": "u1",
+   "content": "Tengo alergia a los frutos secos."
+  },
+  {
+   "id": 16,
+   "user_id": "u1",
+   "content": "Mi grupo sanguíneo es O positivo."
+  },
+  {
+   "id": 17,
+   "user_id": "u1",
+   "content": "Nací en Sevilla en 1990."
+  },
+  {
+   "id": 18,
+   "user_id": "u1",
+   "content": "Mi talla de camiseta es la M."
+  },
+  {
+   "id": 19,
+   "user_id": "u1",
+   "content": "Trabajo como ingeniera de software en una empresa de logística."
+  },
+  {
+   "id": 20,
+   "user_id": "u1",
+   "content": "Mi jefa se llama Marta Fernández."
+  },
+  {
+   "id": 21,
+   "user_id": "u1",
+   "content": "Empiezo a trabajar todos los días a las nueve de la mañana."
+  },
+  {
+   "id": 22,
+   "user_id": "u1",
+   "content": "El proyecto principal de este trimestre es la migración a la nube."
+  },
+  {
+   "id": 23,
+   "user_id": "u1",
+   "content": "Mi compañero de equipo Javier lleva tres años en la empresa."
+  },
+  {
+   "id": 24,
+   "user_id": "u1",
+   "content": "Tengo una reunión semanal los lunes a las diez."
+  },
+  {
+   "id": 25,
+   "user_id": "u1",
+   "content": "Mi salario se revisa cada mes de enero."
+  },
+  {
+   "id": 26,
+   "user_id": "u1",
+   "content": "Uso Python como lenguaje principal en el trabajo."
+  },
+  {
+   "id": 27,
+   "user_id": "u1",
+   "content": "Mi despacho está en la tercera planta del edificio B."
+  },
+  {
+   "id": 28,
+   "user_id": "u1",
+   "content": "Suelo hacer ejercicio los martes y jueves por la noche."
+  },
+  {
+   "id": 29,
+   "user_id": "u1",
+   "content": "Corro cinco kilómetros cada mañana antes de desayunar."
+  },
+  {
+   "id": 30,
+   "user_id": "u1",
+   "content": "Duermo unas siete horas cada noche entre semana."
+  },
+  {
+   "id": 31,
+   "user_id": "u1",
+   "content": "Sigo una dieta baja en carbohidratos desde hace un año."
+  },
+  {
+   "id": 32,
+   "user_id": "u1",
+   "content": "Medito diez minutos cada mañana para relajarme."
+  },
+  {
+   "id": 33,
+   "user_id": "u1",
+   "content": "Los fines de semana suelo cocinar platos nuevos."
+  },
+  {
+   "id": 34,
+   "user_id": "u1",
+   "content": "Leo un libro de ciencia ficción antes de dormir."
+  },
+  {
+   "id": 35,
+   "user_id": "u1",
+   "content": "Mi rutina de los domingos incluye ir al mercado local."
+  },
+  {
+   "id": 36,
+   "user_id": "u1",
+   "content": "Mi hermana se llama Laura y vive en Barcelona."
+  },
+  {
+   "id": 37,
+   "user_id": "u1",
+   "content": "Mi pareja se llama Carlos y trabaja como médico."
+  },
+  {
+   "id": 38,
+   "user_id": "u1",
+   "content": "Mi mejor amiga desde la infancia se llama Sofía."
+  },
+  {
+   "id": 39,
+   "user_id": "u1",
+   "content": "Tengo un perro llamado Rocky, un labrador de tres años."
+  },
+  {
+   "id": 40,
+   "user_id": "u1",
+   "content": "Mis padres viven en Valencia desde hace veinte años."
+  },
+  {
+   "id": 41,
+   "user_id": "u1",
+   "content": "Mi hijo mayor se llama Diego y tiene ocho años."
+  },
+  {
+   "id": 42,
+   "user_id": "u1",
+   "content": "Mi gato se llama Luna y es de color negro."
+  },
+  {
+   "id": 43,
+   "user_id": "u1",
+   "content": "El padrino de mi hijo es mi hermano Pablo."
+  },
+  {
+   "id": 44,
+   "user_id": "u1",
+   "content": "Decidí comprar un coche eléctrico el año pasado."
+  },
+  {
+   "id": 45,
+   "user_id": "u1",
+   "content": "Decidimos mudarnos a un piso más grande en las afueras."
+  },
+  {
+   "id": 46,
+   "user_id": "u1",
+   "content": "Cancelé mi suscripción al gimnasio la semana pasada."
+  },
+  {
+   "id": 47,
+   "user_id": "u1",
+   "content": "Elegí estudiar un máster en inteligencia artificial este año."
+  },
+  {
+   "id": 48,
+   "user_id": "u1",
+   "content": "Decidí dejar de fumar hace seis meses."
+  },
+  {
+   "id": 49,
+   "user_id": "u1",
+   "content": "Opté por invertir mis ahorros en un fondo indexado."
+  },
+  {
+   "id": 50,
+   "user_id": "u1",
+   "content": "Rechacé la oferta de trabajo en la otra empresa."
+  },
+  {
+   "id": 51,
+   "user_id": "u1",
+   "content": "Mi color de pelo natural es castaño oscuro."
+  },
+  {
+   "id": 52,
+   "user_id": "u1",
+   "content": "Prefiero las películas de terror a las comedias románticas."
+  },
+  {
+   "id": 53,
+   "user_id": "u1",
+   "content": "Mi bebida favorita en verano es la limonada con menta."
+  },
+  {
+   "id": 54,
+   "user_id": "u1",
+   "content": "Estudié ingeniería informática en la Universidad Complutense."
+  },
+  {
+   "id": 55,
+   "user_id": "u1",
+   "content": "Mi restaurante favorito de la ciudad se llama Casa Pepe."
+  },
+  {
+   "id": 56,
+   "user_id": "u1",
+   "content": "Suelo viajar a la playa cada verano con mi familia."
+  },
+  {
+   "id": 57,
+   "user_id": "u1",
+   "content": "Mi marca de zapatillas favorita es Adidas."
+  },
+  {
+   "id": 58,
+   "user_id": "u1",
+   "content": "Uso gafas para leer desde los treinta años."
+  },
+  {
+   "id": 59,
+   "user_id": "u1",
+   "content": "Mi coche es de marca Ford y modelo Focus."
+  },
+  {
+   "id": 60,
+   "user_id": "u1",
+   "content": "Mi camisa favorita es de color azul y talla M."
+  },
+  {
+   "id": 61,
+   "user_id": "u1",
+   "content": "Mi direccion es calle Alcala 45 y mi telefono el 555-2938."
+  },
+  {
+   "id": 62,
+   "user_id": "u1",
+   "content": "Mi jefa tiene 40 anos y su profesion es ingeniera."
+  },
+  {
+   "id": 63,
+   "user_id": "u1",
+   "content": "Estudie la carrera de informatica en la universidad Complutense."
+  },
+  {
+   "id": 64,
+   "user_id": "u1",
+   "content": "Mi numero de socio es 8821 y la fecha de alta fue en marzo."
+  }
+ ],
+ "consultas": [
+  {
+   "texto": "¿Cuál es mi comida favorita?",
+   "esperado": 2,
+   "categoria": "literal"
+  },
+  {
+   "texto": "¿Cuál es mi cumpleaños?",
+   "esperado": 10,
+   "categoria": "literal"
+  },
+  {
+   "texto": "¿Dónde vivo?",
+   "esperado": 11,
+   "categoria": "literal"
+  },
+  {
+   "texto": "¿Cuál es mi número de teléfono?",
+   "esperado": 12,
+   "categoria": "literal"
+  },
+  {
+   "texto": "¿Cuál es mi correo electrónico?",
+   "esperado": 13,
+   "categoria": "literal"
+  },
+  {
+   "texto": "¿Cómo se llama mi jefa?",
+   "esperado": 20,
+   "categoria": "literal"
+  },
+  {
+   "texto": "¿Cuántas horas duermo?",
+   "esperado": 30,
+   "categoria": "literal"
+  },
+  {
+   "texto": "¿Cómo se llama mi perro?",
+   "esperado": 39,
+   "categoria": "literal"
+  },
+  {
+   "texto": "¿Cuál es mi color favorito?",
+   "esperado": 0,
+   "categoria": "puntuacion"
+  },
+  {
+   "texto": "Mi cumpleaños es el 14 de marzo, ¿verdad?",
+   "esperado": 10,
+   "categoria": "puntuacion"
+  },
+  {
+   "texto": "¿Tengo alergia a los frutos secos?",
+   "esperado": 15,
+   "categoria": "puntuacion"
+  },
+  {
+   "texto": "Mi teléfono, ¿cuál es?",
+   "esperado": 12,
+   "categoria": "puntuacion"
+  },
+  {
+   "texto": "¿Duermo siete horas?",
+   "esperado": 30,
+   "categoria": "puntuacion"
+  },
+  {
+   "texto": "¿Hago ejercicio los martes?",
+   "esperado": 28,
+   "categoria": "puntuacion"
+  },
+  {
+   "texto": "Uso Python, ¿verdad?",
+   "esperado": 26,
+   "categoria": "puntuacion"
+  },
+  {
+   "texto": "¿Donde naci?",
+   "esperado": 17,
+   "categoria": "acentos"
+  },
+  {
+   "texto": "¿Que estudie en la universidad?",
+   "esperado": 54,
+   "categoria": "acentos"
+  },
+  {
+   "texto": "¿Mi pareja es medico?",
+   "esperado": 37,
+   "categoria": "acentos"
+  },
+  {
+   "texto": "¿En que trabajo, en que empresa de logistica?",
+   "esperado": 19,
+   "categoria": "acentos"
+  },
+  {
+   "texto": "¿Cual es mi equipo de futbol favorito?",
+   "esperado": 6,
+   "categoria": "acentos"
+  },
+  {
+   "texto": "¿Cuando decidi dejar de fumar?",
+   "esperado": 48,
+   "categoria": "acentos"
+  },
+  {
+   "texto": "¿Cuanto tiempo medito cada manana?",
+   "esperado": 32,
+   "categoria": "acentos"
+  },
+  {
+   "texto": "¿Qué club de fútbol prefiero?",
+   "esperado": 6,
+   "categoria": "sinonimo"
+  },
+  {
+   "texto": "¿Qué plato me gusta más?",
+   "esperado": 2,
+   "categoria": "sinonimo"
+  },
+  {
+   "texto": "¿En qué compañía laboro?",
+   "esperado": 19,
+   "categoria": "sinonimo"
+  },
+  {
+   "texto": "¿Cuántas horas descanso por la noche?",
+   "esperado": 30,
+   "categoria": "sinonimo"
+  },
+  {
+   "texto": "¿Qué vehículo adquirí recientemente?",
+   "esperado": 44,
+   "categoria": "sinonimo"
+  },
+  {
+   "texto": "¿Cómo se llama mi mejor colega de toda la vida?",
+   "esperado": 38,
+   "categoria": "sinonimo"
+  },
+  {
+   "texto": "¿Qué dulce me fascina?",
+   "esperado": 9,
+   "categoria": "sinonimo"
+  },
+  {
+   "texto": "¿Di de baja mi membresía deportiva?",
+   "esperado": 46,
+   "categoria": "sinonimo"
+  },
+  {
+   "texto": "¿A qué hora entro a trabajar cada día?",
+   "esperado": 21,
+   "categoria": "parafrasis"
+  },
+  {
+   "texto": "¿Qué día y hora es mi reunión de cada semana?",
+   "esperado": 24,
+   "categoria": "parafrasis"
+  },
+  {
+   "texto": "¿Desde cuándo llevo una dieta baja en carbohidratos?",
+   "esperado": 31,
+   "categoria": "parafrasis"
+  },
+  {
+   "texto": "¿A dónde decidimos irnos a vivir, a un piso más grande?",
+   "esperado": 45,
+   "categoria": "parafrasis"
+  },
+  {
+   "texto": "¿En qué invertí finalmente mis ahorros?",
+   "esperado": 49,
+   "categoria": "parafrasis"
+  },
+  {
+   "texto": "¿Qué oferta de trabajo terminé rechazando?",
+   "esperado": 50,
+   "categoria": "parafrasis"
+  },
+  {
+   "texto": "¿Cuál es el proyecto más importante que tengo este trimestre?",
+   "esperado": 22,
+   "categoria": "parafrasis"
+  },
+  {
+   "texto": "¿Qué máster elegí cursar este año?",
+   "esperado": 47,
+   "categoria": "parafrasis"
+  },
+  {
+   "texto": "¿Tengo alergias a algún fruto seco?",
+   "esperado": 15,
+   "categoria": "plural_genero"
+  },
+  {
+   "texto": "¿Cómo se llaman mis hermanas?",
+   "esperado": 36,
+   "categoria": "plural_genero"
+  },
+  {
+   "texto": "¿Cómo se llaman mis perros?",
+   "esperado": 39,
+   "categoria": "plural_genero"
+  },
+  {
+   "texto": "¿Quiénes son mis compañeros de equipo?",
+   "esperado": 23,
+   "categoria": "plural_genero"
+  },
+  {
+   "texto": "¿Cuáles son mis zapatillas favoritas?",
+   "esperado": 57,
+   "categoria": "plural_genero"
+  },
+  {
+   "texto": "¿Dónde vive mi padre?",
+   "esperado": 40,
+   "categoria": "plural_genero"
+  },
+  {
+   "texto": "¿Qué ensalada no me gusta?",
+   "esperado": 3,
+   "categoria": "plural_genero"
+  },
+  {
+   "texto": "¿Cuál es el nombre de mi abuela?",
+   "esperado": null,
+   "categoria": "negativo_puro",
+   "gravedad": "puro"
+  },
+  {
+   "texto": "¿A qué hora ceno normalmente?",
+   "esperado": null,
+   "categoria": "negativo_puro",
+   "gravedad": "puro"
+  },
+  {
+   "texto": "¿Cuál es la combinación de mi caja fuerte?",
+   "esperado": null,
+   "categoria": "negativo_puro",
+   "gravedad": "puro"
+  },
+  {
+   "texto": "¿Qué instrumento musical toco yo mismo?",
+   "esperado": null,
+   "categoria": "negativo_puro",
+   "gravedad": "puro"
+  },
+  {
+   "texto": "¿Cuál es la fecha de mi aniversario de bodas?",
+   "esperado": null,
+   "categoria": "negativo_puro",
+   "gravedad": "puro"
+  },
+  {
+   "texto": "¿Qué idioma extranjero hablo además del español?",
+   "esperado": null,
+   "categoria": "negativo_puro",
+   "gravedad": "puro"
+  },
+  {
+   "texto": "¿Qué postre preparo en Navidad?",
+   "esperado": null,
+   "categoria": "negativo_puro",
+   "gravedad": "puro"
+  },
+  {
+   "texto": "¿Cuál es mi altura en centímetros?",
+   "esperado": null,
+   "categoria": "negativo_puro",
+   "gravedad": "puro"
+  },
+  {
+   "texto": "¿Qué marca de teléfono tengo?",
+   "esperado": null,
+   "categoria": "negativo_tematico",
+   "gravedad": "critico"
+  },
+  {
+   "texto": "¿Cuál es la marca de mi coche?",
+   "esperado": 59,
+   "categoria": "literal",
+   "gravedad": null,
+   "nota": "reclasificada 2026-08-03: al ampliar el corpus con los casos adversariales, el corpus pasa a contener la respuesta. Deja de ser negativa."
+  },
+  {
+   "texto": "¿Cuánto gana mi jefa Marta?",
+   "esperado": null,
+   "categoria": "negativo_tematico",
+   "gravedad": "aceptable"
+  },
+  {
+   "texto": "¿De qué color es el coche eléctrico que compré?",
+   "esperado": null,
+   "categoria": "negativo_tematico",
+   "gravedad": "aceptable"
+  },
+  {
+   "texto": "¿Cuántos años tiene mi gato?",
+   "esperado": null,
+   "categoria": "negativo_tematico",
+   "gravedad": "critico"
+  },
+  {
+   "texto": "¿En qué universidad estudió mi hermana?",
+   "esperado": null,
+   "categoria": "negativo_tematico",
+   "gravedad": "aceptable"
+  },
+  {
+   "texto": "¿Cuál es el apellido de mi mejor amiga Sofía?",
+   "esperado": null,
+   "categoria": "negativo_tematico",
+   "gravedad": "aceptable"
+  },
+  {
+   "texto": "¿Qué instrumento toca mi grupo de música favorito?",
+   "esperado": null,
+   "categoria": "negativo_tematico",
+   "gravedad": "aceptable"
+  },
+  {
+   "texto": "¿De qué color son mis ojos?",
+   "esperado": null,
+   "categoria": "negativo_tematico",
+   "gravedad": "critico"
+  },
+  {
+   "texto": "¿Quién es el profesor de mi universidad?",
+   "esperado": null,
+   "categoria": "negativo_tematico",
+   "gravedad": "aceptable"
+  },
+  {
+   "texto": "¿Cuál es mi número de la seguridad social?",
+   "esperado": null,
+   "categoria": "negativo_tematico",
+   "gravedad": "critico"
+  },
+  {
+   "texto": "Rocky",
+   "esperado": 39,
+   "categoria": "termino_unico"
+  },
+  {
+   "texto": "Extremoduro",
+   "esperado": 4,
+   "categoria": "termino_unico"
+  },
+  {
+   "texto": "Alcalá",
+   "esperado": 11,
+   "categoria": "termino_unico"
+  },
+  {
+   "texto": "Sofía",
+   "esperado": 38,
+   "categoria": "termino_unico"
+  },
+  {
+   "texto": "Diego",
+   "esperado": 41,
+   "categoria": "termino_unico"
+  },
+  {
+   "texto": "Complutense",
+   "esperado": 54,
+   "categoria": "termino_unico"
+  },
+  {
+   "texto": "Adidas",
+   "esperado": 57,
+   "categoria": "termino_unico"
+  },
+  {
+   "texto": "¿Cuál es la marca y el modelo del coche de mi vecino?",
+   "esperado": null,
+   "categoria": "adversarial",
+   "gravedad": "critico",
+   "clase": "corregible"
+  },
+  {
+   "texto": "¿Qué color y qué talla usa la camisa de mi hermano?",
+   "esperado": null,
+   "categoria": "adversarial",
+   "gravedad": "critico",
+   "clase": "corregible"
+  },
+  {
+   "texto": "¿Cuál es la dirección y el teléfono de la oficina nueva?",
+   "esperado": null,
+   "categoria": "adversarial",
+   "gravedad": "critico",
+   "clase": "frontera_n1"
+  },
+  {
+   "texto": "¿Qué edad y profesión tiene el marido de mi jefa?",
+   "esperado": null,
+   "categoria": "adversarial",
+   "gravedad": "critico",
+   "clase": "frontera_n1"
+  },
+  {
+   "texto": "¿En qué universidad y qué carrera estudió mi primo?",
+   "esperado": null,
+   "categoria": "adversarial",
+   "gravedad": "critico",
+   "clase": "frontera_n1"
+  },
+  {
+   "texto": "¿Cuál es el número y la fecha de la factura del taller?",
+   "esperado": null,
+   "categoria": "adversarial",
+   "gravedad": "critico",
+   "clase": "frontera_n1"
+  }
+ ]
+}

@@ -279,7 +279,71 @@ vale:
 
 ---
 
-## 7 · Retorno sobre Tokens
+## 7 · Ampliación del benchmark — y una advertencia sobre el orden de prioridades
+
+El CEO pidió revisar qué otros regímenes no ejercita la batería **antes** de tocar el algoritmo. El
+barrido encontró **cinco defectos, y cuatro de ellos son más urgentes que D-M-1**. Todos verificados
+por ejecución y registrados en `DEUDA-N1-RECUPERADOR.md`.
+
+### Perfil medido de la batería: por qué no podía ver nada de esto
+
+| Dimensión | Batería | Uso real |
+|---|---|---|
+| `user_id` distintos | **1** (65/65 `u1`) | ≥1, sin guardia |
+| Términos por recuerdo | 3–7 | turnos episódicos íntegros (36+ medidos) |
+| Términos por consulta | 1–5 | crudo del usuario, con cortesía |
+| Posteo máximo | **7** | `dijo`/`usuario` cruzan 256 en el turno 257 |
+| Recuerdos con forma de pregunta | **0 de 65** | uno por turno |
+| Contenidos duplicados | **prohibidos por aserción** | correcciones y repeticiones |
+
+La batería está calibrada **justo en el borde del régimen donde el algoritmo funciona**. No es mala
+fe: es que se construyó para el problema que teníamos delante y nadie comprobó qué quedaba fuera.
+
+### Los hallazgos, por urgencia
+
+| # | Defecto | Se dispara | Gravedad |
+|---|---|---|---|
+| **D-M-2** | El eco `usuario dijo:` del propio turno **desactiva ADR-0014** | **repetir una pregunta 2 veces** | **Crítica — regla no negociable** |
+| **D-M-3** | «oye AURA por favor dime» lleva el recall de 0,660 a **0,000** | hablar con naturalidad | Alta |
+| **D-M-4** | Un recuerdo largo se vuelve atractor universal de FP críticos | dictar un turno largo | Alta |
+| **D-M-5** | Un recuerdo **refutado** sigue entrando en el prompt del LLM | decir «eso ya no es cierto» | Alta — soberanía |
+| **D-M-6** | Al corregir un dato, `recall` devuelve el **más antiguo** | corregir cualquier hecho | Media |
+| D-M-1 | Recuerdo irrecuperable en régimen ubicuo | >256 recuerdos con un término de contenido | Media |
+
+**Consecuencia para este DP, dicha sin adornos: D-M-1 ya no es el problema más urgente del
+recuperador.** El análisis y la recomendación de las secciones 1–6 siguen siendo válidos y la solución
+sigue siendo correcta — pero sería un error de prioridad implementarla antes que D-M-2, que se dispara
+en el segundo turno de conversación y apaga la garantía que impide fabricar.
+
+### Casos que la batería debe incorporar
+
+Ordenados por el defecto que destapan. **Se añaden antes de tocar el algoritmo**, para que cada
+corrección tenga su caso de control ya en rojo:
+
+1. **Auto-eco (D-M-2):** recuerdos `usuario dijo: <pregunta>` en el corpus, y una consulta idéntica al
+   texto de uno de ellos con `esperado: null` y `gravedad: "puro"`.
+2. **Consultas largas (D-M-3):** duplicar un subconjunto de consultas literales con preámbulo
+   conversacional (6–10 términos informativos) y el mismo `esperado`.
+3. **Recuerdo largo (D-M-4):** 2–3 recuerdos de 30–60 términos informativos, con consultas `critico`
+   sobre entidades que solo mencionan de pasada.
+4. **Refutados (D-M-5):** exige un campo nuevo por recuerdo (`provenance`) para poder expresar
+   `refutada: true`, más una consulta que lo cubriría con `esperado: null`.
+5. **Contradicción (D-M-6):** par viejo/nuevo del mismo hecho con `esperado` = el nuevo. **Obliga a
+   levantar la aserción que prohíbe duplicados**, que es justo lo que impedía ver este caso.
+6. **Régimen de volumen (D-M-1):** no cabe en un fichero de 65 recuerdos. Necesita **relleno
+   paramétrico** (>256 recuerdos generados) o una batería aparte de volumen.
+7. **Multiusuario:** 5–8 recuerdos `user_id: "u2"` colindantes con los de `u1`, y que el arnés use el
+   `user_id` de la consulta en vez del `"u1"` cableado.
+
+### Descartados explícitamente, para no inflar el trabajo
+
+`k` fuera de {1,3,5} (producción usa siempre 3); migración del formato antiguo en `_load` (ruta muerta,
+merece una unitaria de 4 líneas, no un caso de batería); recuerdos de 0 términos informativos (su único
+efecto es engordar posteos, que ya es D-M-1); y el campo `kind`, que `recall` no lee en ningún punto.
+
+---
+
+## 8 · Retorno sobre Tokens
 
 - **Menos intervención humana:** hoy la única forma de descubrir este tipo de defecto es que alguien
   sospeche y construya el corpus a mano. Las pruebas 1 y 6 lo convierten en algo que el Quality Gate
@@ -293,7 +357,7 @@ vale:
 
 ---
 
-## 8 · Lo que este DP NO incluye
+## 9 · Lo que este DP NO incluye
 
 - **No cambia** `_COBERTURA_MINIMA`, la tokenización, las palabras vacías ni el criterio de aceptación.
 - **No aborda** los límites de N1 ya documentados (posesivos «de mi vecino», consultas de un solo

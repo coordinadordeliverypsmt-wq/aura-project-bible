@@ -81,13 +81,25 @@ El CEO acotó el incremento a *«estrictamente restauración de una garantía, n
 Tocar el salto de ubicuos es modificar el algoritmo de recuperación **y** una garantía de rendimiento
 ya aprobada (MA.2a). Corresponde a su propio Decision Package.
 
-### Condición de disparo y riesgo hoy
+### Condición de disparo y riesgo hoy — **corregido a la baja el 2026-08-03**
 
-Requiere **más de 256 recuerdos de un mismo usuario compartiendo un término**. Hoy es inalcanzable en
-la práctica y la batería oficial **no puede** ejercitarlo (65 recuerdos). Se vuelve alcanzable con
-historial real acumulado: términos como «trabajo», «casa» o «hijo» superarían 256 apariciones en un
-usuario activo durante meses. **El riesgo crece con el tiempo de uso**, que es exactamente el
-escenario que AURA promete servir.
+Requiere **más de 256 recuerdos de un mismo usuario compartiendo un término**. Una versión anterior de
+este documento decía que eso tardaría **meses**. Es falso, y por un motivo que no había mirado:
+
+`orchestrator.py:636` escribe `usuario dijo: {text}` en **cada turno**, y `_terminos("usuario dijo:
+…")` produce `{usuario, dijo}` — **ninguno de los dos está en la lista de palabras vacías**. Medido:
+tras 300 turnos, `posteo('dijo') = 300` y `posteo('usuario') = 300`. **El umbral se cruza en el turno
+257**, es decir en unos **5 días** con las ~50 vueltas/día que asume la prueba de escalabilidad.
+
+**Matiz honesto, para no exagerar el riesgo:** entrar en el régimen **no basta** para perder un
+recuerdo. Hace falta además que el solape con la consulta sea *solo* de términos ubicuos, y nadie
+escribe «usuario dijo» en una pregunta. Verificado: con 301 recuerdos con ese prefijo y la consulta
+«¿qué me dijo el médico del colesterol?», el recuerdo objetivo **sí** se recupera — lo salvan `medico`
+y `colesterol`. La pérdida sigue exigiendo una **palabra de contenido** por encima de 256 apariciones.
+Lo que cambia no es la probabilidad del fallo, sino **la fecha en que el régimen deja de ser
+hipotético**.
+
+La batería oficial **no puede** ejercitarlo por construcción (65 recuerdos, posteo máximo medido: 7).
 
 ### Qué haría falta
 
@@ -108,10 +120,121 @@ estaba **«verificado»**. La verificación existía, pero solo cubría el régi
 
 ---
 
+---
+
+## D-M-2 · El eco del propio turno desactiva ADR-0014 *(más grave que D-M-1)*
+
+**Clasificación: DEUDA CRÍTICA** — compromete la **arquitectura** (viola una regla no negociable) y la
+**veracidad**. Hallada por el barrido de regímenes no cubiertos del 2026-08-03.
+
+`orchestrator.py:636` (`_finalizar_turno`) escribe `usuario dijo: {text}` en **todas** las rutas del
+turno — **incluida la propia rama de ADR-0014**, que lo llama justo antes de retornar (línea 373).
+Consecuencia: la pregunta del usuario queda almacenada como recuerdo, y **cubre su propia repetición
+con cobertura 1,00**.
+
+Verificado:
+
+```
+turno 1 · "¿Recuerdas cual es el nombre de mi abuela?"  → hits=0 → ADR-0014 ACTIVA
+          (y sin embargo se escribe: "usuario dijo: ¿Recuerdas cual es el nombre de mi abuela?")
+turno 2 · misma pregunta                                → hits=1 → ADR-0014 DESACTIVADA
+          recuperado, cobertura 1.00: "usuario dijo: ¿Recuerdas cual es el nombre de mi abuela?"
+```
+
+**Lo que el LLM recibe como «contexto de memoria» es la propia pregunta del usuario.** La garantía que
+existe para impedir que el modelo fabrique lo inexistente se apaga sola, y lo hace justo en el caso
+que ADR-0014 fue escrito para cubrir: preguntar por algo que no existe.
+
+**Condición de disparo: repetir cualquier pregunta una segunda vez.** No requiere volumen, ni tiempo,
+ni corpus grande. Es el fallo más alcanzable de esta lista y el único que toca una regla no negociable.
+
+Ninguna prueba lo detecta: la batería tiene **0 de 65** recuerdos con forma de pregunta y **0** con el
+prefijo `usuario dijo:`, y ninguna prueba repite una consulta dos veces.
+
+---
+
+## D-M-3 · Una coletilla de cortesía derrumba el recall
+
+**Clasificación: DEUDA** — «puede producir pérdida de información»: el recuerdo existe y se vuelve
+inalcanzable por hablar con naturalidad.
+
+La cobertura se normaliza por el número de términos de **la consulta**, así que cada palabra de más
+sube el listón. Medido sobre la batería oficial, añadiendo un prefijo a las mismas 53 consultas:
+
+| Prefijo | Términos extra | recall@3 |
+|---|---|---|
+| *(ninguno)* | 0 | **0,660** |
+| «por favor» | 1 | **0,340** |
+| «oye AURA por favor dime» | 3 | **0,000** |
+| «oye AURA una cosa que quería preguntarte» | 5 | **0,000** |
+
+No es ruido estadístico, es aritmética: `⌈0,6·n⌉` salta de 1→2, 2→3, 3→4 al añadir un término, y el
+solape máximo observado en el corpus es 3. **Ninguna consulta de ≥6 términos informativos puede
+alcanzar el umbral contra este corpus.** El orquestador pasa el texto **crudo** a `recall`, y «oye»,
+«por favor» o «una cosa» no están en la lista de palabras vacías.
+
+La batería no lo detecta porque su consulta más larga tiene **5** términos informativos: está
+calibrada justo en el borde del régimen donde el algoritmo funciona.
+
+---
+
+## D-M-4 · Un recuerdo largo se convierte en atractor universal de falsos positivos críticos
+
+**Clasificación: DEUDA** — compromete la **veracidad**: induce al LLM a responder un dato concreto y
+equivocado, que es la definición de FP crítico que usa la propia batería.
+
+La cobertura normaliza **solo por la longitud de la consulta**, nunca por la del recuerdo. Un recuerdo
+largo contiene muchos términos, así que cubre casi cualquier consulta corta. Verificado con un turno
+episódico real de 36 términos: consultas sobre entidades que el recuerdo solo menciona de pasada
+(«¿qué coche tiene mi madre?», «¿cuál es el teléfono de la oficina?») lo recuperan como respuesta.
+
+Alcanzable en cuanto el usuario dicte un turno largo: el orquestador lo almacena íntegro y verbatim.
+El corpus de la batería tiene un máximo de **7 términos informativos** por recuerdo, así que este
+régimen no existe en las pruebas.
+
+---
+
+## D-M-5 · Un recuerdo refutado sigue entrando en el prompt del LLM
+
+**Clasificación: DEUDA** — compromete la **veracidad** y la **soberanía del usuario** (ADR-0017).
+
+`recall` no consulta `provenance` en ningún punto. El filtro de refutados vive **solo en la capa de
+presentación** (`modelo_usuario.py:135`, `orchestrator.py:408`). Verificado:
+
+```
+antes de refutar  → 1 hit
+marcar(refutada)  → 1 marcado
+después           → sigue devolviendo 'suele pagar las facturas por la app'  {'refutada': True}
+```
+
+El usuario ve su modelo limpio con `ver()` y cree que AURA dejó de afirmarlo, mientras el dato
+refutado sigue alimentando el prompt en el turno siguiente. Es exactamente la promesa que
+`modelo_usuario.py:15` declara cumplir.
+
+---
+
+## D-M-6 · Al corregir un dato, gana el más antiguo
+
+**Clasificación: DEUDA** — «puede producir pérdida de información»: la corrección se vuelve
+inalcanzable.
+
+El desempate a igual cobertura es `(-cobertura, índice)`, y el índice menor es el recuerdo **más
+antiguo**. Verificado con `k=1`: entre «Mi color favorito es el azul» y «Ahora mi color favorito es el
+verde», devuelve **el azul**. Con repeticiones episódicas del dato viejo, la corrección cae fuera del
+top-3.
+
+La batería **no puede** contener este caso: `test_bateria_memoria.py` **prohíbe** contenidos duplicados
+(`assert len(mapa) == len(corpus)`), de modo que el corpus no admite versiones sucesivas de un hecho.
+Corregir un dato es un caso de uso explícito de `ModeloUsuario`.
+
+---
+
 ## Observaciones técnicas (NO son backlog)
 
 | Observación | Por qué NO es deuda hoy | Se promueve a deuda si… |
 |---|---|---|
-| **`recall(..., k=-1)` devuelve casi todos los recuerdos** en vez de fallar o no limitar (el slice `[:k]` con `k` negativo recorta por la cola). Preexistente, ya en `SimpleMemory`. | Ningún llamador pasa `k` negativo: el orquestador usa el valor por defecto. No hay ruta que lo alcance. | Se exponga `k` a entrada del usuario o a configuración externa. |
+| **`recall(..., k=-1)` devuelve casi todos los recuerdos** en vez de fallar o no limitar (el slice `[:k]` con `k` negativo recorta por la cola). Preexistente, ya en `SimpleMemory`. | Verificado que producción usa **siempre** el `k=3` por defecto (`orchestrator.py:363`, sin argumento). No hay ruta que lo alcance. | Se exponga `k` a entrada del usuario o a configuración externa. |
+| **`PersistentMemory` no tiene ninguna prueba de aislamiento entre `user_id`.** La que existe (`test_memory.py:28`) cubre solo `SimpleMemory`; el corpus de la batería es 65/65 `u1`. | Verificado que **hoy funciona**: el índice se clava en `(user_id, término)` y `recall("u2", …)` devuelve `[]`. Es una ruta correcta, pero sin red. | Nunca: conviene añadir la guardia igualmente al ampliar la batería (coste bajo, protege un límite de privacidad). |
+| **Formatos numéricos divergentes**: `_terminos` usa `\w+`, así que `600123456`, `600 12 34 56` y `600-123-456` producen tokens distintos. Solo 1 de 77 consultas de la batería lleva dígitos. | Falla **hacia el silencio** (pérdida de recall), no hacia la fabricación. Con ADR-0014 el sistema declara ausencia en vez de inventar. | Se detecte en uso real, o se decida normalizar números como parte de un incremento de tokenización. |
 | **`SemanticMemory` construye el índice léxico de `PersistentMemory` en cada escritura y nunca lo usa** (su `recall` barre por coseno). | Ineficiencia, no defecto: no altera resultados. Con N2 inactiva no se ejecuta. | N2 se active y el coste de indexado resulte medible. |
 | **`test_el_recall_sigue_siendo_correcto_con_volumen` no ejercita el escenario que su nombre sugiere**: su recuerdo-aguja tiene términos exclusivos, así que pasa incluso con D-M-1 activo. | No es decorativa —sí detecta rotura del índice y del orden—, pero **no** es un control de D-M-1. | Se pretenda usarla como evidencia de corrección a volumen. |

@@ -131,6 +131,39 @@ que puede ejecutar AURORA por si misma en cada fase**.
 - **Vacios conocidos que el roadmap debe cubrir:** Director General, Programador, Investigacion y
   Planificador **no tienen contraparte** en el codigo actual.
 
+### Directrices adicionales del CEO (2026-08-03, segundo mensaje)
+
+**El roadmap es el PLAN MAESTRO DE EVOLUCION de AURORA, no una organizacion de tareas.**
+
+**Paso previo obligatorio — INVENTARIO TOTAL antes de proponer nada nuevo.** Inventariar todo lo que
+AURORA ya posee y decidir que se reutiliza, para no duplicar: motores · modulos · agentes · pruebas ·
+herramientas · protocolos · ADR · Bible · infraestructura · automatizaciones · capacidades.
+**El roadmap no puede crear un sistema paralelo:** debe transformar gradualmente el sistema actual en
+una organizacion capaz de desarrollar AURORA desde dentro.
+
+**Cada fase debe responder las 7 preguntas, explicitamente:**
+1. ¿Que existe hoy?
+2. ¿Que falta realmente?
+3. ¿Que puede reutilizarse?
+4. ¿Que debe evolucionar?
+5. ¿Que debe desaparecer?
+6. ¿Que nuevas capacidades obtiene AURORA al terminar la fase?
+7. ¿Que PORCENTAJE del trabajo puede hacer sin intervencion de Claude?
+
+**Reduccion de dependencia externa — es un objetivo explicito del roadmap.**
+Definir como se reduce la dependencia de modelos externos **sin comprometer la calidad**. No se trata
+de sustituir a Claude, sino de que **Claude pase de desarrollador principal a consultor especializado**,
+invocado solo cuando AURORA detecte que alcanzo un limite tecnico o cuando el CEO pida revision
+estrategica. **Ese descenso de dependencia es UNO DE LOS INDICADORES PRINCIPALES del proyecto y debe
+medirse objetivamente en cada etapa.**
+
+**Vacios arquitectonicos: priorizados por IMPACTO, no por facilidad de implementacion.**
+**Regla de parada:** si durante el analisis aparece un vacio mas critico que los ya conocidos,
+**detenerse, justificarlo con evidencia y presentarlo antes de continuar**.
+
+**Criterio rector:** no se busca avanzar mas rapido, sino una arquitectura que sostenga el crecimiento
+de AURORA **durante años**.
+
 ## Modo de trabajo vigente (CEO, 2026-08-03)
 
 1. **No abrir nuevos Decision Packages ni alertas**, salvo bloqueo crítico para la implementación.

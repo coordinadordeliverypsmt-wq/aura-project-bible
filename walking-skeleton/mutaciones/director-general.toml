@@ -66,5 +66,5 @@ sustituir = '''    director = DirectorGeneral(estado_operativo, MotorAutomatizac
 id = "M9"
 garantia = "el estado del trabajo deja de vivir en el directorio de datos: no sobrevive al reinicio"
 fichero = "aura_skeleton/composicion.py"
-buscar = '''    estado_operativo = AlmacenEstadoOperativo(os.path.join(config.datos, "estado_operativo.jsonl"))'''
-sustituir = '''    import tempfile as _t; estado_operativo = AlmacenEstadoOperativo(os.path.join(_t.mkdtemp(), "e.jsonl"))'''
+buscar = '''        os.path.join(config.datos, "estado_operativo.jsonl"), kill_switch=kill_switch'''
+sustituir = '''        os.path.join(__import__("tempfile").mkdtemp(), "e.jsonl"), kill_switch=kill_switch'''

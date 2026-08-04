@@ -343,7 +343,9 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
     # estado permanente: eso es lo que le permite reanudar tras apagarse sin depender de una
     # conversacion. El Director es el UNICO coordinador y no ejecuta nada por su cuenta: despacha por
     # el `motor`, de modo que hereda permisos, dry-run y kill switch (ALERTA-005, RN-5).
-    estado_operativo = AlmacenEstadoOperativo(os.path.join(config.datos, "estado_operativo.jsonl"))
+    estado_operativo = AlmacenEstadoOperativo(
+        os.path.join(config.datos, "estado_operativo.jsonl"), kill_switch=kill_switch
+    )
     # Cierra el bucle: el protocolo avisa de cada transicion y la planificacion decide si nace trabajo.
     estado_operativo.observar(oyente_de_transiciones(estado_operativo))
     director = DirectorGeneral(estado_operativo, motor, RegistroEjecutores(_EJECUTORES))

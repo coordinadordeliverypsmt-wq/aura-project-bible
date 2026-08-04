@@ -1,0 +1,48 @@
+incremento = "Director General - AURORA coordina su propio backlog"
+pruebas = ["tests/integration/test_director_general.py"]
+
+[[mutante]]
+id = "M1"
+garantia = "el Director ejecuta por su cuenta en vez de pasar por el Motor Unico (segunda ruta = ALERTA-005)"
+fichero = "aura_skeleton/core/director.py"
+buscar = '''        res = await self.motor.ejecutar(accion, dict(tarea.args), trace_id, f"{trace_id}:{tarea.tarea_id}",
+                                        origen=f"director:{tarea.responsable}")'''
+sustituir = '''        res = {"accion": accion, "estado": "ejecutada"}'''
+
+[[mutante]]
+id = "M2"
+garantia = "una accion DETENIDA por el gobierno cierra la tarea igualmente (narrar exito sin efecto)"
+fichero = "aura_skeleton/core/director.py"
+buscar = '''        if res.get("estado") == "ejecutada":'''
+sustituir = '''        if res.get("estado") in ("ejecutada", "detenida", "error"):'''
+
+[[mutante]]
+id = "M3"
+garantia = "una tarea sin ejecutor se despacha igual en vez de declararse bloqueada"
+fichero = "aura_skeleton/core/director.py"
+buscar = '''        if accion is None:'''
+sustituir = '''        if accion is None and False:'''
+
+[[mutante]]
+id = "M4"
+garantia = "deja de preparar la siguiente accion: el proximo arranque tiene que deducirla"
+fichero = "aura_skeleton/core/director.py"
+buscar = '''                proxima_accion=siguiente,'''
+sustituir = '''                proxima_accion="",'''
+
+[[mutante]]
+id = "M5"
+garantia = "un responsable puede tener dos ejecutores: la ambiguedad se resuelve por orden de insercion"
+fichero = "aura_skeleton/core/director.py"
+buscar = '''        if responsable in self._por_responsable:
+            raise ResponsableDuplicado(f"'{responsable}' ya tiene ejecutor: {self._por_responsable[responsable]}")'''
+sustituir = '''        pass'''
+
+[[mutante]]
+id = "M6"
+garantia = "el estado no se persiste tras el ciclo: el proceso siguiente repite el mismo trabajo"
+fichero = "aura_skeleton/core/director.py"
+buscar = '''            return self.estado.actualizar(
+                objetivo_id, tarea.tarea_id, estado="terminada",'''
+sustituir = '''            return self.estado.actualizar(
+                objetivo_id, tarea.tarea_id, estado="abierta",'''

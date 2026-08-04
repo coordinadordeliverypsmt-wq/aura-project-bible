@@ -22,6 +22,17 @@ aprobadas.
 
 ---
 
+## ESTADO AL 2026-08-03 (fin de sesion)
+
+Entregadas DOS capacidades del SO Interno: **EstadoOperativo** (bcc0922) y **DirectorGeneral**
+(Incremento 1). Ambas con mutacion 5/5 y 6/6 y Quality Gate PASS.
+
+**Siguiente incremento:** bucle continuo del Director (repetir mientras haya tareas y detenerse solo)
+y cableado en `composicion.py` -- hoy ambos componentes existen y funcionan pero NADIE los usa en
+produccion. Ese es el cuello de botella real.
+
+**Pendiente:** auditoria independiente de ambos incrementos.
+
 ## Objetivo que se estaba ejecutando
 
 Cerrar la cadena **ALERTA-006 → D-M-8 → G-1**, entregando diseño revisable **sin implementar código**,

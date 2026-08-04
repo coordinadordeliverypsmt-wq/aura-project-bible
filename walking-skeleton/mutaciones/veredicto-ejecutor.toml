@@ -1,0 +1,23 @@
+incremento = "El ciclo reacciona al veredicto del ejecutor, no solo a que se ejecutara"
+pruebas = ["tests/integration/test_veredicto_del_ejecutor.py"]
+
+[[mutante]]
+id = "M1"
+garantia = "el veredicto del ejecutor se ignora: una verificacion en rojo cierra la tarea como terminada"
+fichero = "aura_skeleton/core/director.py"
+buscar = '''        ok_ejecutor = veredicto.get("ok", True) if isinstance(veredicto, dict) else True'''
+sustituir = '''        ok_ejecutor = True'''
+
+[[mutante]]
+id = "M2"
+garantia = "un ejecutor sin veredicto deja de poder cerrar tareas (rompe la compatibilidad)"
+fichero = "aura_skeleton/core/director.py"
+buscar = '''        ok_ejecutor = veredicto.get("ok", True) if isinstance(veredicto, dict) else True'''
+sustituir = '''        ok_ejecutor = veredicto.get("ok", False) if isinstance(veredicto, dict) else False'''
+
+[[mutante]]
+id = "M3"
+garantia = "el bloqueo por veredicto pierde el motivo real del ejecutor"
+fichero = "aura_skeleton/core/director.py"
+buscar = '''            else f"veredicto negativo: {(veredicto or {}).get('resumen', 'el ejecutor no lo respalda')}"'''
+sustituir = '''            else "veredicto negativo"'''

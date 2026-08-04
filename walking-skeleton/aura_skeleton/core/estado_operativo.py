@@ -57,6 +57,7 @@ class Tarea:
     bloqueos: list[str] = field(default_factory=list)
     proxima_accion: str = ""
     punto_reanudacion: str = ""  # donde retomar EXACTAMENTE: fichero, funcion, comando
+    args: dict = field(default_factory=dict)  # argumentos con los que el Director despacha la tarea
 
     def __post_init__(self) -> None:
         if self.estado not in ESTADOS:

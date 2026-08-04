@@ -119,3 +119,37 @@ def desde_verificacion(estado: AlmacenEstadoOperativo, causa: Tarea, resultado: 
         origen=DERIVADO,
         causa=causa,
     )
+
+
+def oyente_de_transiciones(estado: AlmacenEstadoOperativo):
+    """Oyente que convierte transiciones a `bloqueada` en trabajo de correccion.
+
+    CIERRA EL BUCLE DE REALIMENTACION sin acoplar componentes: el Director informa el resultado de una
+    transicion (llamando a `transitar`), el PROTOCOLO notifica que ocurrio, y este oyente decide si
+    procede admitir trabajo. El Director no conoce la planificacion ni la planificacion al Director.
+
+    Solo reacciona a `bloqueada`: una tarea terminada no necesita correccion, y reaccionar a todo
+    convertiria cada avance en trabajo nuevo.
+    """
+
+    def reaccionar(anterior: Tarea, actual: Tarea) -> None:
+        if actual.estado != "bloqueada" or actual.origen != HUMANO:
+            # El corte estructural sigue vigente: el trabajo derivado no engendra mas trabajo.
+            return
+        motivo = actual.bloqueos[-1] if actual.bloqueos else "bloqueo sin motivo declarado"
+        try:
+            admitir(
+                estado,
+                objetivo_id=actual.objetivo_id,
+                descripcion=f"desbloquear: {motivo}",
+                responsable="programador",
+                evidencia=f"{actual.tarea_id}:bloqueada:{motivo}",
+                prioridad=1,
+                origen=DERIVADO,
+                causa=actual,
+            )
+        except AdmisionRechazada:
+            # Que la admision rechace es una decision legitima, no un fallo del ciclo.
+            return
+
+    return reaccionar

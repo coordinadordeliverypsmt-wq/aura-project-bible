@@ -1,0 +1,30 @@
+incremento = "Cierre del bucle de realimentacion - el ciclo completo de auto-mejora"
+pruebas = ["tests/integration/test_ciclo_completo.py"]
+
+[[mutante]]
+id = "M1"
+garantia = "el protocolo deja de notificar las transiciones: el bucle vuelve a estar desconectado"
+fichero = "aura_skeleton/core/estado_operativo.py"
+buscar = '''        for observar in self._observadores:'''
+sustituir = '''        for observar in []:'''
+
+[[mutante]]
+id = "M2"
+garantia = "el oyente reacciona a TODA transicion: cada avance generaria trabajo nuevo"
+fichero = "aura_skeleton/core/planificacion.py"
+buscar = '''        if actual.estado != "bloqueada" or actual.origen != HUMANO:'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "M3"
+garantia = "el oyente deja de cablearse: el ciclo no se realimenta en el sistema real"
+fichero = "aura_skeleton/composicion.py"
+buscar = '''    estado_operativo.observar(oyente_de_transiciones(estado_operativo))'''
+sustituir = '''    pass'''
+
+[[mutante]]
+id = "M4"
+garantia = "el Programador vuelve a ser un marcador de posicion en vez del ejecutor real"
+fichero = "aura_skeleton/composicion.py"
+buscar = '''_EJECUTORES = {"programador": "proponer_cambio", "qa": "verificar_calidad"}'''
+sustituir = '''_EJECUTORES = {"programador": "copiar_archivo", "qa": "verificar_calidad"}'''

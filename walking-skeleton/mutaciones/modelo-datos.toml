@@ -1,0 +1,32 @@
+incremento = "Verificador del modelo de datos fundamental"
+pruebas = ["tests/integration/test_modelo_datos.py"]
+
+[[mutante]]
+id = "M1"
+garantia = "deja de detectarse que el historial DECRECE: la violacion de Memoria pasaria inadvertida"
+fichero = "aura_skeleton/core/modelo_datos.py"
+buscar = '''    c["nada vive solo en la proyeccion"] = lineas_tras_retirar >= lineas_tras_operar'''
+sustituir = '''    c["nada vive solo en la proyeccion"] = True'''
+
+[[mutante]]
+id = "M2"
+garantia = "un componente sin historial persistente se da por bueno"
+fichero = "aura_skeleton/core/modelo_datos.py"
+buscar = '''    c["fuente de verdad persistente"] = p.exists()'''
+sustituir = '''    c["fuente de verdad persistente"] = True'''
+
+[[mutante]]
+id = "M3"
+garantia = "no se comprueba que el comportamiento reconstruido sea indistinguible"
+fichero = "aura_skeleton/core/modelo_datos.py"
+buscar = '''    c["comportamiento indistinguible"] = obtenido == esperado'''
+sustituir = '''    c["comportamiento indistinguible"] = True'''
+
+[[mutante]]
+id = "M4"
+garantia = "un incumplimiento se clasifica como CUMPLE en vez de VIOLA"
+fichero = "aura_skeleton/core/modelo_datos.py"
+buscar = '''    if all(c.values()):
+        return Veredicto(comp.nombre, CUMPLE, c, detalle)'''
+sustituir = '''    if True:
+        return Veredicto(comp.nombre, CUMPLE, c, detalle)'''

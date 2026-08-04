@@ -93,7 +93,9 @@ _VACIAS = frozenset(
     mi mia mias mio mios mis mucho muy nos o para pero por porque que quien quienes se segun ser si sin
     sobre son su sus tambien te tengo tiene tienen todo todos tu tus un una unas uno unos y ya
     cual cuales cuando cuanto cuanta cuantos cuantas como donde cuyo cuya dime dice cuentame recuerdas
-    sabes acordamos acordaste dijimos dijiste hablamos comentamos comente mencione quedamos""".split()
+    sabes acordamos acordaste dijimos dijiste hablamos comentamos comente mencione quedamos
+    oye porfa favor gracias perdona disculpa hola cosa queria quiero preguntarte decirte saber
+    podrias puedes ayudame necesito oiga mira escucha bueno pues entonces vale aura""".split()
 )
 
 

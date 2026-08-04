@@ -58,6 +58,8 @@ class Tarea:
     proxima_accion: str = ""
     punto_reanudacion: str = ""  # donde retomar EXACTAMENTE: fichero, funcion, comando
     args: dict = field(default_factory=dict)  # argumentos con los que el Director despacha la tarea
+    prioridad: int = 5  # menor = mas urgente. Desempata antes que el identificador.
+    origen: str = "humano"  # quien la origino. Ver ORIGENES: el corte estructural de ciclos vive aqui.
 
     def __post_init__(self) -> None:
         if self.estado not in ESTADOS:
@@ -138,8 +140,8 @@ class AlmacenEstadoOperativo:
     def reanudar(self, objetivo_id: str) -> Tarea | None:
         """LA operacion que justifica este modulo: ¿por donde sigo?
 
-        Devuelve la siguiente tarea accionable, o None si no queda ninguna. El desempate es por
-        `tarea_id` para que dos arranques del mismo estado elijan SIEMPRE lo mismo: sin determinismo,
-        reanudar seria una decision distinta en cada reinicio y nada de esto seria auditable.
+        Ordena por PRIORIDAD y desempata por `tarea_id`, de modo que dos arranques del mismo estado
+        elijan SIEMPRE lo mismo: sin determinismo, reanudar seria una decision distinta en cada
+        reinicio y nada de esto seria auditable.
         """
-        return min(self.abiertas(objetivo_id), key=lambda t: t.tarea_id, default=None)
+        return min(self.abiertas(objetivo_id), key=lambda t: (t.prioridad, t.tarea_id), default=None)

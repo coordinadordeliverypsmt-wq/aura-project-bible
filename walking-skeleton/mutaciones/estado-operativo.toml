@@ -1,0 +1,44 @@
+incremento = "Estado Operativo - AURORA reanuda tras apagarse, sin intervencion humana"
+pruebas = ["tests/integration/test_estado_operativo_reinicio.py"]
+
+[[mutante]]
+id = "M1"
+garantia = "la proyeccion deja de reemplazar: gana la version ANTIGUA de la tarea (trampa de AlmacenReglas)"
+fichero = "aura_skeleton/core/estado_operativo.py"
+buscar = '''        self._tareas = [x for x in self._tareas if (x.objetivo_id, x.tarea_id) != (t.objetivo_id, t.tarea_id)]
+        self._tareas.append(t)'''
+sustituir = '''        self._tareas.append(t)'''
+
+[[mutante]]
+id = "M2"
+garantia = "una tarea BLOQUEADA vuelve a proponerse como siguiente accion: AURORA elige trabajo imposible"
+fichero = "aura_skeleton/core/estado_operativo.py"
+buscar = '''_ABIERTOS = ("abierta", "en_curso")'''
+sustituir = '''_ABIERTOS = ("abierta", "en_curso", "bloqueada")'''
+
+[[mutante]]
+id = "M3"
+garantia = "la reanudacion pierde el determinismo: dos arranques del mismo estado eligen tareas distintas"
+fichero = "aura_skeleton/core/estado_operativo.py"
+buscar = '''        return min(self.abiertas(objetivo_id), key=lambda t: t.tarea_id, default=None)'''
+sustituir = '''        ab = self.abiertas(objetivo_id)
+        return ab[-1] if ab else None'''
+
+[[mutante]]
+id = "M4"
+garantia = "una linea corrupta vuelve a impedir el arranque completo (leccion de D-A-11)"
+fichero = "aura_skeleton/core/estado_operativo.py"
+buscar = '''                try:
+                    t = Tarea(**json.loads(linea))
+                except (ValueError, TypeError) as e:'''
+sustituir = '''                if True:
+                    t = Tarea(**json.loads(linea))
+                for e in ():'''
+
+[[mutante]]
+id = "M5"
+garantia = "el estado deja de persistirse en disco: solo vive en memoria y muere con el proceso"
+fichero = "aura_skeleton/core/estado_operativo.py"
+buscar = '''        with open(self._ruta, "a", encoding="utf-8") as f:
+            f.write(json.dumps(asdict(tarea), ensure_ascii=False) + "\n")'''
+sustituir = '''        pass'''

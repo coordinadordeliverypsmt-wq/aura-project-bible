@@ -1,0 +1,30 @@
+incremento = "El informe de estado, como capacidad del ciclo"
+pruebas = ["tests/integration/test_diagnostico_en_el_ciclo.py"]
+
+[[mutante]]
+id = "M1"
+garantia = "el diagnostico siempre dice ok: el informe vuelve a ser algo que el ciclo descarta"
+fichero = "aura_skeleton/adapters/diagnostico.py"
+buscar = '''        hay_problema = dominante is not None or (garantias is not None and not garantias.get("ok", True))'''
+sustituir = '''        hay_problema = False'''
+
+[[mutante]]
+id = "M2"
+garantia = "la ausencia de datos se trata como incidencia: generaria trabajo sobre nada"
+fichero = "aura_skeleton/adapters/diagnostico.py"
+buscar = '''        dominante = diag.incidencia_dominante'''
+sustituir = '''        dominante = diag.incidencia_dominante or ("sin datos", 1)'''
+
+[[mutante]]
+id = "M3"
+garantia = "el resumen deja de ser accionable: no dice cual es la incidencia dominante"
+fichero = "aura_skeleton/adapters/diagnostico.py"
+buscar = '''        return f"incidencia dominante: {dominante[0]} ({dominante[1]}x)"'''
+sustituir = '''        return "hay incidencias"'''
+
+[[mutante]]
+id = "M4"
+garantia = "deja de cablearse en el arranque: vuelve a ser codigo inalcanzable"
+fichero = "aura_skeleton/composicion.py"
+buscar = '''    "diagnostico": "diagnosticar_estado",'''
+sustituir = '''    "diagnostico": "copiar_archivo",'''

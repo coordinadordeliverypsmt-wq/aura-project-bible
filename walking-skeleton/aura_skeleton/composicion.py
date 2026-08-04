@@ -208,7 +208,12 @@ class Sistema:
 # Responsable -> accion del catalogo que lo atiende. Es el equivalente, para los agentes del SO
 # Interno, de lo que `RegistroAdaptadores` hace con las capacidades: un responsable, un dueno. Hoy solo
 # se declara el que existe de verdad; declarar agentes no construidos seria fingir capacidad (INV-9).
-_EJECUTORES = {"programador": "proponer_cambio", "qa": "verificar_calidad", "auditor": "auditar_garantias"}
+_EJECUTORES = {
+    "programador": "proponer_cambio",
+    "qa": "verificar_calidad",
+    "auditor": "auditar_garantias",
+    "diagnostico": "diagnosticar_estado",
+}
 
 
 def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
@@ -234,6 +239,7 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
     # --- Adaptadores: todo lo que AURA puede hacer -------------------------
     from .adapters.auditor import EjecutorAuditor
     from .adapters.computador import AdaptadorComputador
+    from .adapters.diagnostico import EjecutorDiagnostico
     from .adapters.programador import EjecutorProgramador
     from .adapters.qa import EjecutorQA
 
@@ -248,7 +254,10 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
         # verificacion del sistema lo respalda, no una propia.
         EjecutorProgramador(raiz=str(Path(__file__).resolve().parents[1]), verificador=_qa),
         # Revision independiente: el protocolo exige que quien implementa no audite su propio trabajo.
-        EjecutorAuditor(raiz=str(Path(__file__).resolve().parents[1])),
+        _aud := EjecutorAuditor(raiz=str(Path(__file__).resolve().parents[1])),
+        # El informe de estado, como capacidad del ciclo: el Director puede pedirlo y su veredicto
+        # vuelve a la planificacion.
+        EjecutorDiagnostico(ruta_audit=ruta_audit, auditor=_aud),
     ]
     registro_adaptadores = RegistroAdaptadores(adaptadores)
 

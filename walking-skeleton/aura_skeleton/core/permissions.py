@@ -61,6 +61,10 @@ CATALOGO: dict[str, dict] = {
         "desc": "copiar a <ruta>.copia (crea, nunca sobrescribe)",
     },
     "escribir_archivo": {"lista": "roja", "efecto": "altera", "desc": "crear o sobrescribir"},
+    # SO Interno: AURORA propone cambios sobre su propio codigo. ROJA aunque el cambio se revierta
+    # solo si la verificacion falla: que sea reversible reduce el daño, no la necesidad de
+    # consentimiento (ADR-0003, "ante la duda, roja").
+    "proponer_cambio": {"lista": "roja", "efecto": "altera", "desc": "proponer un cambio verificado en el codigo"},
     "borrar_archivo": {"lista": "roja", "efecto": "destruye", "desc": "eliminar del disco"},
     "modificar_configuracion": {"lista": "roja", "efecto": "altera", "desc": "cambiar configuracion del sistema"},
     "terminar_proceso": {"lista": "roja", "efecto": "altera", "desc": "matar un proceso"},

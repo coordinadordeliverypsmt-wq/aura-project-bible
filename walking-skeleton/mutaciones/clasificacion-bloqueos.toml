@@ -1,0 +1,16 @@
+incremento = "AURORA explica por que no pudo continuar, sin cambiar el contrato"
+pruebas = ["tests/integration/test_clasificacion_bloqueos.py"]
+
+[[mutante]]
+id = "M1"
+garantia = "lo no reconocido se fuerza a una categoria en vez de declararse sin clasificar"
+fichero = "aura_skeleton/core/autodiagnostico.py"
+buscar = '''    return SIN_CLASIFICAR'''
+sustituir = '''    return INFRAESTRUCTURA'''
+
+[[mutante]]
+id = "M2"
+garantia = "el orden de los patrones deja de importar: un motivo cae en la categoria equivocada"
+fichero = "aura_skeleton/core/autodiagnostico.py"
+buscar = '''    ("ningun ejecutor atiende", CAPACIDAD_INEXISTENTE),'''
+sustituir = '''    ("ningun ejecutor atiende", INFRAESTRUCTURA),'''

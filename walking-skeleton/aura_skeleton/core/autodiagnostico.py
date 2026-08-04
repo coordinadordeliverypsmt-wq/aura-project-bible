@@ -80,6 +80,47 @@ def diagnosticar(ruta_audit: str) -> Diagnostico:
     return Diagnostico(eventos=total, por_tipo=dict(tipos.most_common()), incidencias=dict(incidencias.most_common()))
 
 
+# Categorias con las que AURORA explica POR QUE no pudo continuar (CEO, 2026-08-04). Se derivan del
+# texto que el propio sistema ya escribe en `Tarea.bloqueos`: NO se cambio el contrato, porque el CEO
+# exigio evidencia de que el modelo actual impedia avanzar antes de complejizarlo. Resulto que no lo
+# impide — los motivos que produce el ciclo son distinguibles entre si.
+INFRAESTRUCTURA = "infraestructura (bug del sistema)"
+CAPACIDAD_INEXISTENTE = "capacidad inexistente"
+CRITERIO_CEO = "necesita criterio del CEO"
+HARDWARE = "bloqueo por hardware"
+DEPENDENCIA_EXTERNA = "bloqueo por dependencia externa"
+SIN_CLASIFICAR = "sin clasificar"
+
+# Orden importa: se evalua de mas especifico a mas general.
+_PATRONES = (
+    ("ningun ejecutor atiende", CAPACIDAD_INEXISTENTE),
+    ("no soporta dry-run", INFRAESTRUCTURA),
+    ("necesita fichero y patron", CAPACIDAD_INEXISTENTE),
+    ("garantia", INFRAESTRUCTURA),
+    ("no protegen nada", INFRAESTRUCTURA),
+    ("kill switch", CRITERIO_CEO),
+    ("confirmacion", CRITERIO_CEO),
+    ("permisos", CRITERIO_CEO),
+    ("modelo local", HARDWARE),
+    ("tiempo agotado", HARDWARE),
+    ("no disponible", DEPENDENCIA_EXTERNA),
+)
+
+
+def clasificar_bloqueo(motivo: str) -> str:
+    """Traduce el motivo que el ciclo ya registra a una de las categorias del Centro de Gobierno.
+
+    Deriva del texto existente en vez de exigir un campo nuevo. Si un motivo no encaja, se declara
+    SIN_CLASIFICAR en vez de forzarlo: un bloqueo mal clasificado es peor que uno sin clasificar,
+    porque dirige el trabajo hacia el sitio equivocado.
+    """
+    t = (motivo or "").lower()
+    for patron, categoria in _PATRONES:
+        if patron in t:
+            return categoria
+    return SIN_CLASIFICAR
+
+
 def informe_ejecutivo(diag: Diagnostico, ima=None, dependencia=None, garantias=None) -> str:
     """Responde "¿como estoy?" en una sola lectura, juntando lo que hoy vive disperso.
 

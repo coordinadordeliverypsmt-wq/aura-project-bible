@@ -1,0 +1,41 @@
+incremento = "Autodiagnostico: AURORA lee su historial y dice como esta"
+pruebas = ["tests/integration/test_autodiagnostico.py"]
+
+[[mutante]]
+id = "M1"
+garantia = "sin datos se produce un informe igualmente: una prioridad inventada sobre cero evidencia"
+fichero = "aura_skeleton/core/autodiagnostico.py"
+buscar = '''    if total == 0:
+        return Diagnostico(sin_datos=True, motivo="el registro esta vacio: no hay uso que analizar")'''
+sustituir = '''    if False:
+        return Diagnostico(sin_datos=True, motivo="")'''
+
+[[mutante]]
+id = "M2"
+garantia = "la actividad normal se cuenta como incidencia: el diagnostico pierde sentido"
+fichero = "aura_skeleton/core/autodiagnostico.py"
+buscar = '''        if tipo in _INCIDENCIAS:'''
+sustituir = '''        if True:'''
+
+[[mutante]]
+id = "M3"
+garantia = "deja de señalarse la incidencia dominante: el informe enumera en vez de priorizar"
+fichero = "aura_skeleton/core/autodiagnostico.py"
+buscar = '''        return max(self.incidencias.items(), key=lambda kv: (kv[1], kv[0]))'''
+sustituir = '''        return min(self.incidencias.items(), key=lambda kv: (kv[1], kv[0]))'''
+
+[[mutante]]
+id = "M4"
+garantia = "los bloques ausentes se omiten en silencio en vez de declararse"
+fichero = "aura_skeleton/core/autodiagnostico.py"
+buscar = '''        lineas.append("CAPACIDADES (IMA): no evaluadas en este informe")'''
+sustituir = '''        pass'''
+
+[[mutante]]
+id = "M5"
+garantia = "una linea ilegible aborta el diagnostico completo"
+fichero = "aura_skeleton/core/autodiagnostico.py"
+buscar = '''        except ValueError:
+            continue  # una linea ilegible no puede impedir el diagnostico del resto'''
+sustituir = '''        except ValueError:
+            raise'''

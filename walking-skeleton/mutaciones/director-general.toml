@@ -1,12 +1,13 @@
 incremento = "Director General - AURORA coordina su propio backlog"
-pruebas = ["tests/integration/test_director_general.py"]
+pruebas = ["tests/integration/test_director_general.py", "tests/integration/test_director_cableado.py"]
 
 [[mutante]]
 id = "M1"
 garantia = "el Director ejecuta por su cuenta en vez de pasar por el Motor Unico (segunda ruta = ALERTA-005)"
 fichero = "aura_skeleton/core/director.py"
-buscar = '''        res = await self.motor.ejecutar(accion, dict(tarea.args), trace_id, f"{trace_id}:{tarea.tarea_id}",
-                                        origen=f"director:{tarea.responsable}")'''
+buscar = '''        res = await self.motor.ejecutar(
+            accion, dict(tarea.args), trace_id, f"{trace_id}:{tarea.tarea_id}", origen=f"director:{tarea.responsable}"
+        )'''
 sustituir = '''        res = {"accion": accion, "estado": "ejecutada"}'''
 
 [[mutante]]
@@ -42,7 +43,28 @@ sustituir = '''        pass'''
 id = "M6"
 garantia = "el estado no se persiste tras el ciclo: el proceso siguiente repite el mismo trabajo"
 fichero = "aura_skeleton/core/director.py"
-buscar = '''            return self.estado.actualizar(
-                objetivo_id, tarea.tarea_id, estado="terminada",'''
-sustituir = '''            return self.estado.actualizar(
-                objetivo_id, tarea.tarea_id, estado="abierta",'''
+buscar = '''                estado="terminada",
+                evidencias=[*tarea.evidencias, f"motor:{accion}:ejecutada"],'''
+sustituir = '''                estado="abierta",
+                evidencias=[*tarea.evidencias, f"motor:{accion}:ejecutada"],'''
+
+[[mutante]]
+id = "M7"
+garantia = "el Director deja de cablearse en el arranque: vuelve a ser codigo inalcanzable (ALERTA-004/005)"
+fichero = "aura_skeleton/composicion.py"
+buscar = '''    director = DirectorGeneral(estado_operativo, motor, RegistroEjecutores(_EJECUTORES))'''
+sustituir = '''    director = None'''
+
+[[mutante]]
+id = "M8"
+garantia = "el Director recibe un motor propio en vez del del sistema (segunda ruta de ejecucion)"
+fichero = "aura_skeleton/composicion.py"
+buscar = '''    director = DirectorGeneral(estado_operativo, motor, RegistroEjecutores(_EJECUTORES))'''
+sustituir = '''    director = DirectorGeneral(estado_operativo, MotorAutomatizacion(registro_adaptadores, permisos), RegistroEjecutores(_EJECUTORES))'''
+
+[[mutante]]
+id = "M9"
+garantia = "el estado del trabajo deja de vivir en el directorio de datos: no sobrevive al reinicio"
+fichero = "aura_skeleton/composicion.py"
+buscar = '''    estado_operativo = AlmacenEstadoOperativo(os.path.join(config.datos, "estado_operativo.jsonl"))'''
+sustituir = '''    import tempfile as _t; estado_operativo = AlmacenEstadoOperativo(os.path.join(_t.mkdtemp(), "e.jsonl"))'''

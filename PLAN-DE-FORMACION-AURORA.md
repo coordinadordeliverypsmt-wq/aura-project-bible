@@ -33,18 +33,26 @@ Capacidades que AURORA ejerce hoy sin intervención externa, demostradas por eje
 | # | Capacidad | Evidencia | Enseñada por |
 |---|---|---|---|
 | 001 | **Coordinar su propio backlog** | 14/16 secciones del Centro de Gobierno resueltas sola (18 vueltas) | Claude Code |
-| 002 | **Sobrevivir al reinicio y reanudar** | 3 procesos consecutivos continúan el ciclo sin contexto externo | Claude Code |
+| 002 | **Sobrevivir al reinicio y reanudar** | 3 procesos consecutivos reanudan el ciclo desde el historial, sin contexto externo — **los procesos los lanzó una sesión externa** | Claude Code |
 | 003 | **Verificarse a sí misma** | ejecuta pruebas y Quality Gate como capacidad del ciclo | Claude Code |
 | 004 | **Auditar sus propias garantías** | detectó 4 garantías rotas de 104 en su primera ejecución | Claude Code |
 | 005 | **Generar trabajo desde evidencia** | un bloqueo produce su tarea de corrección; converge por construcción | Claude Code |
 | 006 | **Reaccionar al veredicto, no solo a la ejecución** | un resultado negativo bloquea la tarea en vez de cerrarla | Claude Code |
 | 007 | **Clasificar sus propios bloqueos** | 6 motivos reales clasificados sin cambiar el contrato | Claude Code |
 | 008 | **Negarse a avanzar sobre una plataforma rota** | bloqueó un objetivo entero al detectar 2 garantías caídas | — *(emergente)* |
-| 009 | **Explicar su estado sin intervención** | Centro de Gobierno con trazabilidad de origen | Claude Code |
 
 **008 no la enseñó nadie.** Emergió de combinar 004 y 006: al auditar detectó garantías rotas, el
 veredicto negativo bloqueó la tarea, y el objetivo se detuvo solo. Es el primer comportamiento del
 sistema que no fue diseñado explícitamente.
+
+**Corrección (2026-08-04).** Esta tabla incluía una capacidad 009, «explicar su estado sin
+intervención», acreditada al Centro de Gobierno. **Era falsa** y la publicó APUS-5: el módulo se
+autodescribe como «la interfaz oficial entre el CEO y AURORA», pero su único importador en todo el
+repositorio es su propia prueba (`tests/integration/test_centro_gobierno.py:11`). La función existe;
+**la ruta que la entrega al CEO no**. Retirada de ✅ y reabierta como 🔴 018. Es el patrón
+«declarado ≠ real» número 9 del proyecto, y el primero cuyo autor fue la asistencia externa.
+La capacidad 002 se ha matizado por el mismo motivo: la persistencia es real y está medida, pero
+los procesos que la demostraron los lanzó una sesión externa.
 
 ---
 
@@ -75,9 +83,15 @@ No se desarrollan. La evidencia demuestra que no dependen de más arquitectura.
 | 015 | **Interpretar una necesidad en lenguaje** | formulación | Único paso del Traductor no determinista, en las 2 necesidades traducidas |
 | 016 | **Proponer backlog y cambios sugeridos** | formulación | Las 2 únicas secciones del Centro de Gobierno que AURORA no pudo construir |
 | 017 | **Usar su historial para decidir** | requiere juicio | `NO_MEDIBLE` en el IMA: registra `intentos` y nadie los lee para cambiar una decisión |
+| 018 | **Hablar con el CEO sin sesión externa** | **sin construir** | No hay proceso propio (`servir()` solo lo invoca una prueba) ni superficie de salida. Desatendida, se autodeniega toda acción roja (`hitl_consola.py:35-38`) |
 
 **014, 015 y 016 son la misma limitación vista desde tres ángulos.** Todos los análisis independientes
 de dependencia externa han convergido en ella.
+
+**018 es de otra naturaleza: no la bloquea el hardware, sino que nunca se cableó.** Es la única
+🔴 que depende solo de decidir hacerla. Propuesta en
+[`DP-CANAL-PERMANENTE-CEO-AURORA.md`](milestones/m3-entry/DP-CANAL-PERMANENTE-CEO-AURORA.md),
+pendiente de aprobación del CEO.
 
 ---
 

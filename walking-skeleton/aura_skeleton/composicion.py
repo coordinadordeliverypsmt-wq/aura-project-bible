@@ -40,6 +40,8 @@ from .core.capacidades import Estado, PerfilHardware, PlanActivacion
 from .core.catalogo_capacidades import catalogo
 from .core.conectores_externos import habilitar
 from .core.contexto import RegistroContexto
+from .core.director import DirectorGeneral, RegistroEjecutores
+from .core.estado_operativo import AlmacenEstadoOperativo
 from .core.kill_switch import KillSwitch
 from .core.modelo_usuario import ModeloUsuario
 from .core.notificaciones import CentroNotificaciones
@@ -178,6 +180,8 @@ class Sistema:
     notificaciones: CentroNotificaciones
     modelo_usuario: ModeloUsuario
     automatizaciones: AlmacenReglas
+    estado_operativo: AlmacenEstadoOperativo
+    director: DirectorGeneral
     plan: PlanActivacion  # lo que el hardware PERMITE (decision del Manager; nunca se reinterpreta, INV-7)
     materializaciones: tuple[Materializacion, ...]  # lo que se consiguio ENSAMBLAR
     ruta_memoria: str
@@ -195,6 +199,12 @@ class Sistema:
     @property
     def capacidades_degradadas_efectivas(self) -> tuple[str, ...]:
         return _efectivas(self.plan, self.materializaciones, Estado.DEGRADADA)
+
+
+# Responsable -> accion del catalogo que lo atiende. Es el equivalente, para los agentes del SO
+# Interno, de lo que `RegistroAdaptadores` hace con las capacidades: un responsable, un dueno. Hoy solo
+# se declara el que existe de verdad; declarar agentes no construidos seria fingir capacidad (INV-9).
+_EJECUTORES = {"programador": "copiar_archivo"}
 
 
 def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
@@ -314,6 +324,13 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
     # exactamente lo que distingue una automatizacion de una instruccion dada en una conversacion.
     automatizaciones = AlmacenReglas(os.path.join(config.datos, "reglas.jsonl"))
 
+    # SISTEMA OPERATIVO INTERNO. El estado del trabajo de AURORA vive en disco junto al resto de su
+    # estado permanente: eso es lo que le permite reanudar tras apagarse sin depender de una
+    # conversacion. El Director es el UNICO coordinador y no ejecuta nada por su cuenta: despacha por
+    # el `motor`, de modo que hereda permisos, dry-run y kill switch (ALERTA-005, RN-5).
+    estado_operativo = AlmacenEstadoOperativo(os.path.join(config.datos, "estado_operativo.jsonl"))
+    director = DirectorGeneral(estado_operativo, motor, RegistroEjecutores(_EJECUTORES))
+
     orquestador = Orchestrator(
         InProcessEventBus(),
         memoria,
@@ -349,6 +366,8 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
         notificaciones=centro_notificaciones,
         modelo_usuario=modelo_usuario,
         automatizaciones=automatizaciones,
+        estado_operativo=estado_operativo,
+        director=director,
         plan=plan,
         materializaciones=materializaciones,
         ruta_memoria=ruta_memoria,

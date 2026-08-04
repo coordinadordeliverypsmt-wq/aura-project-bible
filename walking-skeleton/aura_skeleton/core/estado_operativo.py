@@ -40,6 +40,26 @@ from .. import observability as obs
 ESTADOS = ("abierta", "en_curso", "bloqueada", "terminada", "descartada")
 _ABIERTOS = ("abierta", "en_curso")
 
+# PROTOCOLO DE TRANSICIONES (CEO, 2026-08-03). Un unico protocolo valido para TODOS los agentes
+# —Director, QA, y los futuros Programador, Arquitecto, Investigador, Seguridad, Documentacion—: no hay
+# reglas distintas por agente. Es el mismo principio que el Motor Unico aplica a la ejecucion y la
+# politica de admision al nacimiento, ahora extendido al resto de la vida de la tarea.
+#
+# `terminada` y `descartada` son ESTADOS FINALES: no figuran como origen. Antes de esto cualquier
+# componente podia reabrir una tarea cerrada sin declarar por que, porque `actualizar` hacia
+# `replace(...)` sin validar nada. El log append-only dejaba rastro, pero auditar no es impedir.
+TRANSICIONES: dict[str, tuple[str, ...]] = {
+    "abierta": ("en_curso", "bloqueada", "terminada", "descartada"),
+    "en_curso": ("bloqueada", "terminada", "descartada"),
+    "bloqueada": ("abierta", "en_curso", "descartada"),
+    "terminada": (),
+    "descartada": (),
+}
+
+
+class TransicionInvalida(Exception):
+    """La transicion no esta permitida, o no declara autoridad y causa."""
+
 
 @dataclass(frozen=True)
 class Tarea:
@@ -60,6 +80,7 @@ class Tarea:
     args: dict = field(default_factory=dict)  # argumentos con los que el Director despacha la tarea
     prioridad: int = 5  # menor = mas urgente. Desempata antes que el identificador.
     origen: str = "humano"  # quien la origino. Ver ORIGENES: el corte estructural de ciclos vive aqui.
+    intentos: int = 0  # cuantas veces se ha trabajado. Material para que AURORA aprenda de su historial.
 
     def __post_init__(self) -> None:
         if self.estado not in ESTADOS:
@@ -118,6 +139,29 @@ class AlmacenEstadoOperativo:
         if vigente is None:
             return None
         return self.registrar(replace(vigente, **campos))
+
+    def transitar(self, objetivo_id: str, tarea_id: str, nuevo: str, *, autoridad: str, causa: str, **campos) -> Tarea:
+        """UNICA ruta de cambio de estado. Exige transicion valida, autoridad y causa verificable.
+
+        Simetria con el nacimiento: si crear trabajo exige causa, cerrarlo o reabrirlo tambien. Sin
+        esto, la parte gobernada del ciclo de vida era solo la primera.
+        """
+        if not autoridad or not causa:
+            raise TransicionInvalida("toda transicion debe declarar autoridad y causa verificable")
+        vigente = self.tarea(objetivo_id, tarea_id)
+        if vigente is None:
+            raise TransicionInvalida(f"no existe la tarea {objetivo_id}/{tarea_id}")
+        permitidas = TRANSICIONES.get(vigente.estado, ())
+        if nuevo not in permitidas:
+            final = "" if permitidas else " (es un estado FINAL: no admite salida)"
+            raise TransicionInvalida(f"transicion no permitida: {vigente.estado} -> {nuevo}{final}")
+        campos.setdefault("evidencias", [*vigente.evidencias, f"{autoridad}:{vigente.estado}->{nuevo}:{causa}"])
+        # `intentos` es material de aprendizaje: cuantas veces se ha trabajado esta tarea. Sin el,
+        # AURORA puede repetir trabajo pero no mejorar en el.
+        campos.setdefault("intentos", vigente.intentos + (1 if nuevo in ("terminada", "bloqueada") else 0))
+        actualizada = self.actualizar(objetivo_id, tarea_id, estado=nuevo, **campos)
+        assert actualizada is not None  # existe: se comprobo arriba
+        return actualizada
 
     def tarea(self, objetivo_id: str, tarea_id: str) -> Tarea | None:
         return next((t for t in self._tareas if (t.objetivo_id, t.tarea_id) == (objetivo_id, tarea_id)), None)

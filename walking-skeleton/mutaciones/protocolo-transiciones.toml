@@ -1,0 +1,39 @@
+incremento = "Protocolo de Transiciones - la vida completa de una tarea queda gobernada"
+pruebas = ["tests/integration/test_protocolo_transiciones.py", "tests/integration/test_director_general.py"]
+
+[[mutante]]
+id = "M1"
+garantia = "los estados finales dejan de serlo: una tarea terminada puede reabrirse sin control"
+fichero = "aura_skeleton/core/estado_operativo.py"
+buscar = '''    "terminada": (),
+    "descartada": (),'''
+sustituir = '''    "terminada": ("abierta", "en_curso"),
+    "descartada": ("abierta",),'''
+
+[[mutante]]
+id = "M2"
+garantia = "la transicion deja de exigir autoridad y causa: vuelve la asimetria del ciclo de vida"
+fichero = "aura_skeleton/core/estado_operativo.py"
+buscar = '''        if not autoridad or not causa:'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "M3"
+garantia = "no se valida que la transicion este permitida: cualquier salto es posible"
+fichero = "aura_skeleton/core/estado_operativo.py"
+buscar = '''        if nuevo not in permitidas:'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "M4"
+garantia = "la transicion deja de dejar evidencia: quien la hizo y por que se pierde"
+fichero = "aura_skeleton/core/estado_operativo.py"
+buscar = '''        campos.setdefault("evidencias", [*vigente.evidencias, f"{autoridad}:{vigente.estado}->{nuevo}:{causa}"])'''
+sustituir = '''        pass'''
+
+[[mutante]]
+id = "M5"
+garantia = "deja de contarse el historial de intentos: AURORA no puede aprender de su propio trabajo"
+fichero = "aura_skeleton/core/estado_operativo.py"
+buscar = '''        campos.setdefault("intentos", vigente.intentos + (1 if nuevo in ("terminada", "bloqueada") else 0))'''
+sustituir = '''        pass'''

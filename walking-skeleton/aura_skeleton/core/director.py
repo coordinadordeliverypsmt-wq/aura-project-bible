@@ -73,10 +73,12 @@ class DirectorGeneral:
         if accion is None:
             # Sin dueno no hay ejecucion Y EL HECHO SE DECLARA: la tarea se bloquea con el motivo,
             # no se descarta ni se reintenta en bucle. Es la leccion de ALERTA-005.
-            return self.estado.actualizar(
+            return self.estado.transitar(
                 objetivo_id,
                 tarea.tarea_id,
-                estado="bloqueada",
+                "bloqueada",
+                autoridad="director",
+                causa=f"ningun ejecutor atiende al responsable '{tarea.responsable}'",
                 bloqueos=[*tarea.bloqueos, f"ningun ejecutor atiende al responsable '{tarea.responsable}'"],
             )
 
@@ -88,17 +90,21 @@ class DirectorGeneral:
         # cierra la tarea; "detenida" (el gobierno funciono) y "error" la bloquean con el motivo.
         if res.get("estado") == "ejecutada":
             siguiente = self._siguiente_distinta(objetivo_id, tarea.tarea_id)
-            return self.estado.actualizar(
+            return self.estado.transitar(
                 objetivo_id,
                 tarea.tarea_id,
-                estado="terminada",
+                "terminada",
+                autoridad="director",
+                causa=f"motor:{accion}:ejecutada",
                 evidencias=[*tarea.evidencias, f"motor:{accion}:ejecutada"],
                 proxima_accion=siguiente,
             )
-        return self.estado.actualizar(
+        return self.estado.transitar(
             objetivo_id,
             tarea.tarea_id,
-            estado="bloqueada",
+            "bloqueada",
+            autoridad="director",
+            causa=f"{res.get('estado')}: {res.get('motivo', 'sin motivo')}",
             bloqueos=[*tarea.bloqueos, f"{res.get('estado')}: {res.get('motivo', 'sin motivo')}"],
         )
 

@@ -207,6 +207,7 @@ Claude-Session: <url de la sesión>
 | No se **finge** capacidad no construida | INV-9 |
 | El alcance funcional del MVP está **cerrado**: añadir capacidades exige acta del CEO | D23 |
 | **Prohibido fabricar entornos** para aprobar hitos | D34 |
+| Toda capacidad importante **sobrevive al reinicio de sesion**. Si desaparece al terminar la conversacion, **no pertenece a AURORA**: solo pertenece lo que el sistema puede recuperar, comprender y continuar por si mismo | CEO 2026-08-03 |
 
 ---
 

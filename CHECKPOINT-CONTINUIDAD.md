@@ -278,6 +278,39 @@ modelo y se pierden al terminar la sesion. Las 6 preguntas del nucleo vivo apunt
 carencia. **Probable nucleo real de la Fase 1 = estado del trabajo persistente + reanudacion
 automatica.** Verificar con el inventario antes de proponerlo.
 
+### PUNTO DE INFLEXION — PERSISTENCIA OPERATIVA (CEO, 2026-08-03, sexto mensaje)
+
+El CEO eleva a **mayor vacio arquitectonico de AURORA** el hecho de que **hoy el ciclo de trabajo solo
+sobrevive porque un humano y un modelo escriben un checkpoint a mano**.
+
+**El roadmap NO empieza preguntandose como organizar agentes.** Empieza por:
+> **¿Que necesita existir para que AURORA nunca vuelva a depender de la memoria de una sesion?**
+
+**El inventario tiene como objetivo descubrir ese nucleo.** Si confirma la hipotesis, **la Fase 1 no es
+"crear agentes": es construir la PERSISTENCIA OPERATIVA de AURORA.**
+
+**Persistencia Operativa = que AURORA pueda, por si misma:**
+1. Saber exactamente donde quedo su trabajo.
+2. Saber cual era el objetivo activo.
+3. Saber que tareas estaban abiertas.
+4. Saber quien era responsable de cada una.
+5. Saber que decisiones estaban pendientes.
+6. Saber que evidencias ya existen.
+7. Saber que falta por validar.
+8. **Reanudar automaticamente sin depender del contexto de un modelo.**
+
+**Instruccion:** investigar si esa capacidad puede construirse **reutilizando los componentes
+actuales**. Si puede reutilizarse, **esa es la prioridad**. Si NO puede, entregar un **Decision Package**
+que explique exactamente **que componente falta y por que**.
+
+**PRINCIPIO PERMANENTE (registrado tambien en `CLAUDE.md` §4, reglas no negociables):**
+> *Toda capacidad importante de AURORA debera sobrevivir al reinicio de una sesion. Si una capacidad
+> desaparece cuando termina la conversacion, todavia no pertenece realmente a AURORA. Solo pertenece
+> aquello que el propio sistema puede recuperar, comprender y continuar por si mismo.*
+
+Es, en palabras del CEO, **la verdadera diferencia entre un asistente conversacional y un sistema
+operativo de inteligencia**.
+
 ## Modo de trabajo vigente (CEO, 2026-08-03)
 
 1. **No abrir nuevos Decision Packages ni alertas**, salvo bloqueo crítico para la implementación.

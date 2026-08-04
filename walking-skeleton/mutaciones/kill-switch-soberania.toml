@@ -1,0 +1,23 @@
+incremento = "El kill switch alcanza la soberania del modelo de usuario (ALERTA-006)"
+pruebas = ["tests/unit/test_kill_switch_soberania.py", "tests/unit/test_contencion_alerta006.py"]
+
+[[mutante]]
+id = "M1"
+garantia = "el kill switch deja de comprobarse: vuelve a borrarse con la parada armada"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        if self._sistema_detenido() and (_es_peticion_de_olvido(t) or _cae_en(t, _PAT_MODELO_REFUTA)):'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "M2"
+garantia = "la deteccion del kill switch siempre dice que esta libre"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        return kill is not None and kill.is_engaged()'''
+sustituir = '''        return False'''
+
+[[mutante]]
+id = "M3"
+garantia = "la parada bloquea tambien CONSULTAR: leer no muta y no debe impedirse"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        if self._sistema_detenido() and (_es_peticion_de_olvido(t) or _cae_en(t, _PAT_MODELO_REFUTA)):'''
+sustituir = '''        if self._sistema_detenido():'''

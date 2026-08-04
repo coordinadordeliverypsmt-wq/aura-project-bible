@@ -95,8 +95,18 @@ class AlmacenEstadoOperativo:
     nadie haya guardado un resumen.
     """
 
-    def __init__(self, ruta: str, observadores=()) -> None:
+    def __init__(self, ruta: str, observadores=(), kill_switch=None) -> None:
         self._ruta = Path(ruta)
+        # GOBIERNO EN LA PUERTA UNICA (D-M-8). El estado del ciclo era la ultima mutacion persistente
+        # que escapaba al control: el Director transitaba tareas sin que el kill switch las alcanzara,
+        # de modo que el sistema con el que AURORA evoluciona era el unico fuera de su propio gobierno.
+        #
+        # Se aplica AQUI y no enrutando por el Motor Unico —que gobierna acciones sobre adaptadores—
+        # porque `registrar` ya era la unica puerta de escritura: poner el control en la puerta cubre a
+        # TODOS los llamadores, presentes y futuros, sin crear una segunda ruta que mantener. Enrutar
+        # por el motor habria exigido un adaptador y una capacidad nuevos para gobernar algo que ya
+        # tenia un solo punto de paso.
+        self._kill = kill_switch
         self._tareas: list[Tarea] = []
         # Observadores del PROTOCOLO, no del almacen: se les notifica cada transicion consumada. El
         # almacen no sabe quien escucha ni que haran; solo que la transicion ocurrio. Asi el Director
@@ -156,6 +166,10 @@ class AlmacenEstadoOperativo:
         """
         if not autoridad or not causa:
             raise TransicionInvalida("toda transicion debe declarar autoridad y causa verificable")
+        if self._kill is not None and self._kill.is_engaged():
+            # Bible 5.3 §5 / RN-3: con la parada armada NINGUNA accion se ejecuta, tampoco las del
+            # propio ciclo de trabajo. Sin esto, AURORA seguiria avanzando tareas con el switch echado.
+            raise TransicionInvalida("sistema detenido: el kill switch impide mutar el estado del trabajo")
         vigente = self.tarea(objetivo_id, tarea_id)
         if vigente is None:
             raise TransicionInvalida(f"no existe la tarea {objetivo_id}/{tarea_id}")

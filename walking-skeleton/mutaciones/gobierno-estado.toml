@@ -1,0 +1,16 @@
+incremento = "D-M-8: el estado del ciclo tambien esta gobernado"
+pruebas = ["tests/integration/test_gobierno_del_estado.py"]
+
+[[mutante]]
+id = "M1"
+garantia = "el kill switch deja de alcanzar al estado del trabajo: AURORA avanza con la parada armada"
+fichero = "aura_skeleton/core/estado_operativo.py"
+buscar = '''        if self._kill is not None and self._kill.is_engaged():'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "M2"
+garantia = "el arranque real deja de cablear la parada al estado: la garantia no llega a produccion"
+fichero = "aura_skeleton/composicion.py"
+buscar = '''        os.path.join(config.datos, "estado_operativo.jsonl"), kill_switch=kill_switch'''
+sustituir = '''        os.path.join(config.datos, "estado_operativo.jsonl"), kill_switch=None'''

@@ -47,6 +47,7 @@ CATALOGO: dict[str, dict] = {
     "ejecutar_pruebas": {"lista": "verde", "efecto": "lectura", "desc": "ejecutar la bateria de pruebas"},
     "verificar_calidad": {"lista": "verde", "efecto": "lectura", "desc": "verificar la calidad del codigo"},
     "auditar_garantias": {"lista": "verde", "efecto": "lectura", "desc": "revisar que las garantias siguen vigentes"},
+    "diagnosticar_estado": {"lista": "verde", "efecto": "lectura", "desc": "informe del propio estado"},
     # --- Computador: alteran estado (M2) ---
     "mover_archivo": {"lista": "roja", "efecto": "altera", "desc": "mover (puede colisionar en destino)"},
     "renombrar_archivo": {"lista": "roja", "efecto": "altera", "desc": "renombrar"},

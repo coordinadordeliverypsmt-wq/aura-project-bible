@@ -28,6 +28,18 @@ contexto por agotamiento de tokens. El proyecto avanza por **continuidad**, no p
 
 ---
 
+## 0.bis · Ritmos del proyecto (CEO, 2026-08-04)
+
+**AURORA trabaja en continuo; la asistencia externa es episodica.** El estado de AURORA persiste y su
+ciclo se reanuda solo; ninguna sesion de Claude Code sobrevive a su conversacion. Por eso la operacion
+continua **pertenece a AURORA**, no a APUS-5, y el trabajo de asistencia es un episodio de formacion.
+
+Lee [`PLAN-DE-FORMACION-AURORA.md`](PLAN-DE-FORMACION-AURORA.md): registra que capacidades ha aprendido,
+cuales estan en observacion y cuales siguen bloqueadas. Ninguna capacidad se desarrolla sin evidencia
+repetida del uso real.
+
+---
+
 ## 1 · Antes de nada
 
 **Lee [`CHECKLIST-CONTINUIDAD.md`](CHECKLIST-CONTINUIDAD.md).** Es la fuente de verdad para retomar el

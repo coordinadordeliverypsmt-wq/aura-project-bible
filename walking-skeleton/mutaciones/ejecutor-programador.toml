@@ -1,0 +1,40 @@
+incremento = "Ejecutor Programador - AURORA cambia su propio codigo con red"
+pruebas = ["tests/integration/test_ejecutor_programador.py"]
+
+[[mutante]]
+id = "M1"
+garantia = "un cambio NO verificado se conserva: AURORA escribiria a ciegas sobre su propio codigo"
+fichero = "aura_skeleton/adapters/programador.py"
+buscar = '''        ruta.write_bytes(original)
+        obs.log("PROG", "ejecutor-programador", f"cambio REVERTIDO en {relativa}: verificacion en rojo", trace_id,
+                audit=True)'''
+sustituir = '''        obs.log("PROG", "ejecutor-programador", f"cambio REVERTIDO en {relativa}: verificacion en rojo", trace_id,
+                audit=True)'''
+
+[[mutante]]
+id = "M2"
+garantia = "un patron ambiguo se aplica a la primera aparicion en vez de rechazarse"
+fichero = "aura_skeleton/adapters/programador.py"
+buscar = '''        if apariciones != 1:'''
+sustituir = '''        if apariciones == 0:'''
+
+[[mutante]]
+id = "M3"
+garantia = "el cambio puede escapar del arbol de trabajo declarado"
+fichero = "aura_skeleton/adapters/programador.py"
+buscar = '''        if not str(ruta).startswith(str(self._raiz.resolve())):'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "M4"
+garantia = "la capacidad deja de ser lista roja: alterar el codigo dejaria de exigir confirmacion"
+fichero = "aura_skeleton/core/permissions.py"
+buscar = '''    "proponer_cambio": {"lista": "roja", "efecto": "altera", "desc": "proponer un cambio verificado en el codigo"},'''
+sustituir = '''    "proponer_cambio": {"lista": "verde", "efecto": "altera", "desc": "proponer un cambio verificado en el codigo"},'''
+
+[[mutante]]
+id = "M5"
+garantia = "un cambio degenerado consume una verificacion en vez de rechazarse"
+fichero = "aura_skeleton/adapters/programador.py"
+buscar = '''        if buscar == sustituir:'''
+sustituir = '''        if False:'''

@@ -64,5 +64,9 @@ sustituir = '''_MOTIVO_ORIGEN_AUSENTE = "no existe"'''
 id = "M5"
 garantia = "se pierde la compatibilidad con identificadores historicos (duplica la automatizacion)"
 fichero = "aura_skeleton/core/orchestrator.py"
-buscar = '''        equivalentes = {rule_id, *_IDS_HISTORICOS.get(rule_id, ())}'''
-sustituir = '''        equivalentes = {rule_id}'''
+# Patron AMPLIADO (2026-08-04): la linea sola aparece DOS veces —al crear y al desactivar—, asi que el
+# arnes habria mutado la primera y el mutante no habria probado lo que dice. Lo detecto el Auditor.
+buscar = '''        equivalentes = {rule_id, *_IDS_HISTORICOS.get(rule_id, ())}
+        if any(r.rule_id in equivalentes for r in self.automatizaciones.listar(uid)):'''
+sustituir = '''        equivalentes = {rule_id}
+        if any(r.rule_id in equivalentes for r in self.automatizaciones.listar(uid)):'''

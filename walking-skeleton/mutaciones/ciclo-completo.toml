@@ -26,5 +26,5 @@ sustituir = '''    pass'''
 id = "M4"
 garantia = "el Programador vuelve a ser un marcador de posicion en vez del ejecutor real"
 fichero = "aura_skeleton/composicion.py"
-buscar = '''_EJECUTORES = {"programador": "proponer_cambio", "qa": "verificar_calidad"}'''
-sustituir = '''_EJECUTORES = {"programador": "copiar_archivo", "qa": "verificar_calidad"}'''
+buscar = '''{"programador": "proponer_cambio"'''
+sustituir = '''{"programador": "copiar_archivo"'''

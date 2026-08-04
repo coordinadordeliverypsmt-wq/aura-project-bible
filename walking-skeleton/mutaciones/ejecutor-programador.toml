@@ -1,5 +1,5 @@
 incremento = "Ejecutor Programador - AURORA cambia su propio codigo con red"
-pruebas = ["tests/integration/test_ejecutor_programador.py"]
+pruebas = ["tests/integration/test_ejecutor_programador.py", "tests/integration/test_programador_alcanzable.py"]
 
 [[mutante]]
 id = "M1"
@@ -13,15 +13,17 @@ sustituir = '''        # La verificacion no respalda el cambio: se revierte byte
 id = "M2"
 garantia = "un patron ambiguo se aplica a la primera aparicion en vez de rechazarse"
 fichero = "aura_skeleton/adapters/programador.py"
-buscar = '''        if apariciones != 1:'''
-sustituir = '''        if apariciones == 0:'''
+buscar = '''        if apariciones != 1:
+            # Misma regla que el arnes de mutacion'''
+sustituir = '''        if apariciones == 0:
+            # Misma regla que el arnes de mutacion'''
 
 [[mutante]]
 id = "M3"
 garantia = "el cambio puede escapar del arbol de trabajo declarado"
 fichero = "aura_skeleton/adapters/programador.py"
-buscar = '''        if not str(ruta).startswith(str(self._raiz.resolve())):'''
-sustituir = '''        if False:'''
+buscar = '''        return ruta, not str(ruta).startswith(str(self._raiz.resolve()))'''
+sustituir = '''        return ruta, False'''
 
 [[mutante]]
 id = "M4"
@@ -36,3 +38,17 @@ garantia = "un cambio degenerado consume una verificacion en vez de rechazarse"
 fichero = "aura_skeleton/adapters/programador.py"
 buscar = '''        if buscar == sustituir:'''
 sustituir = '''        if False:'''
+
+[[mutante]]
+id = "M6"
+garantia = "el Programador vuelve a ser inalcanzable desde el motor: sin dry-run, toda accion se detiene"
+fichero = "aura_skeleton/adapters/programador.py"
+buscar = '''    async def simular(self, command: str, args: dict, trace_id: str) -> dict:'''
+sustituir = '''    async def _simular_desactivado(self, command: str, args: dict, trace_id: str) -> dict:'''
+
+[[mutante]]
+id = "M7"
+garantia = "el dry-run y la ejecucion dejan de leer los mismos argumentos: aprobaria un cambio y aplicaria otro"
+fichero = "aura_skeleton/adapters/programador.py"
+buscar = '''    return str(args.get("fichero", "")), str(args.get("buscar", "")), str(args.get("sustituir", ""))'''
+sustituir = '''    return str(args.get("fichero", "")), str(args.get("patron", "")), str(args.get("sustituir", ""))'''

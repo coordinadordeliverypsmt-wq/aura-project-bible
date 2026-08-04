@@ -39,20 +39,46 @@ class EjecutorProgramador:
         self._verificador = verificador
         self._capacidad = capacidad_verificacion
 
+    async def simular(self, command: str, args: dict, trace_id: str) -> dict:
+        """Dry-run OBLIGATORIO: el motor lo exige para toda accion que altera el estado.
+
+        Sin este metodo el motor detenia la accion con "el adaptador no soporta dry-run", asi que el
+        Programador era INALCANZABLE desde el ciclo pese a estar cableado y probado —las pruebas lo
+        ejercitaban directamente, nunca a traves del motor—. Es el patron ALERTA-004/005: capacidad
+        construida que nadie puede invocar.
+
+        No aplica nada: comprueba las mismas precondiciones que `execute` y describe el efecto para
+        que la confirmacion humana sea informada (lista roja, ADR-0003).
+        """
+        relativa, buscar, sustituir = _campos(args)
+        rechazo = self._rechazo_previo(relativa, buscar, sustituir)
+        if rechazo:
+            return {"viable": False, "motivo": rechazo}
+        ruta, fuera = self._resolver(relativa)
+        if fuera:
+            return {"viable": False, "motivo": "ruta fuera del arbol"}
+        apariciones = ruta.read_text(encoding="utf-8").count(buscar)
+        if apariciones != 1:
+            motivo = "el patron no aparece" if apariciones == 0 else f"el patron aparece {apariciones} veces"
+            return {"viable": False, "motivo": motivo}
+        return {"viable": True, "efecto": f"sustituir 1 aparicion en {relativa} y verificar; se revierte si falla"}
+
+    def _resolver(self, relativa: str):
+        ruta = (self._raiz / relativa).resolve()
+        return ruta, not str(ruta).startswith(str(self._raiz.resolve()))
+
     async def execute(self, command: str, args: dict, trace_id: str, event_id: str) -> dict:
         if command != "proponer_cambio":
             raise ValueError(f"capacidad no ofrecida por el ejecutor Programador: {command!r}")
 
-        relativa = str(args.get("fichero", ""))
-        buscar = str(args.get("buscar", ""))
-        sustituir = str(args.get("sustituir", ""))
+        relativa, buscar, sustituir = _campos(args)
 
         rechazo = self._rechazo_previo(relativa, buscar, sustituir)
         if rechazo:
             return {"capacidad": command, "aplicado": False, "verificado": False, "motivo": rechazo}
 
-        ruta = (self._raiz / relativa).resolve()
-        if not str(ruta).startswith(str(self._raiz.resolve())):
+        ruta, fuera = self._resolver(relativa)
+        if fuera:
             # Contencion de ruta: un cambio no puede escapar del arbol de trabajo declarado.
             return {"capacidad": command, "aplicado": False, "verificado": False, "motivo": "ruta fuera del arbol"}
 
@@ -107,3 +133,12 @@ class EjecutorProgramador:
         if not (self._raiz / relativa).is_file():
             return f"el fichero no existe: {relativa}"
         return ""
+
+
+def _campos(args: dict) -> tuple[str, str, str]:
+    """Lectura unica de los argumentos: `simular` y `execute` deben ver EXACTAMENTE lo mismo.
+
+    Si divergieran, el dry-run aprobaria un cambio y la ejecucion aplicaria otro — que es la clase de
+    defecto que el dry-run existe para impedir.
+    """
+    return str(args.get("fichero", "")), str(args.get("buscar", "")), str(args.get("sustituir", ""))

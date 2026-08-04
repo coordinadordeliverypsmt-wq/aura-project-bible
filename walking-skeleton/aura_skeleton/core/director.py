@@ -86,9 +86,13 @@ class DirectorGeneral:
             accion, dict(tarea.args), trace_id, f"{trace_id}:{tarea.tarea_id}", origen=f"director:{tarea.responsable}"
         )
 
-        # VALIDACION: se propaga el contrato del motor, no se inventa uno nuevo. Solo "ejecutada"
-        # cierra la tarea; "detenida" (el gobierno funciono) y "error" la bloquean con el motivo.
-        if res.get("estado") == "ejecutada":
+        # VALIDACION EN DOS NIVELES. El motor dice si la accion PUDO ejecutarse; el ejecutor dice si
+        # el resultado es BUENO. Antes solo se miraba el primero, asi que una verificacion en rojo
+        # cerraba la tarea como "terminada" con evidencia "ejecutada" —literalmente cierta y
+        # completamente engañosa—: AURORA podia auditar y no reaccionar a lo que descubria.
+        veredicto = res.get("resultado")
+        ok_ejecutor = veredicto.get("ok", True) if isinstance(veredicto, dict) else True
+        if res.get("estado") == "ejecutada" and ok_ejecutor:
             siguiente = self._siguiente_distinta(objetivo_id, tarea.tarea_id)
             return self.estado.transitar(
                 objetivo_id,
@@ -99,13 +103,20 @@ class DirectorGeneral:
                 evidencias=[*tarea.evidencias, f"motor:{accion}:ejecutada"],
                 proxima_accion=siguiente,
             )
+        # Un resultado negativo del ejecutor se declara con SU motivo, no con el del motor: "ejecutada"
+        # no explicaria por que la tarea no puede darse por hecha.
+        motivo = (
+            f"{res.get('estado')}: {res.get('motivo', 'sin motivo')}"
+            if not (res.get("estado") == "ejecutada")
+            else f"veredicto negativo: {(veredicto or {}).get('resumen', 'el ejecutor no lo respalda')}"
+        )
         return self.estado.transitar(
             objetivo_id,
             tarea.tarea_id,
             "bloqueada",
             autoridad="director",
-            causa=f"{res.get('estado')}: {res.get('motivo', 'sin motivo')}",
-            bloqueos=[*tarea.bloqueos, f"{res.get('estado')}: {res.get('motivo', 'sin motivo')}"],
+            causa=motivo,
+            bloqueos=[*tarea.bloqueos, motivo],
         )
 
     def _siguiente_distinta(self, objetivo_id: str, actual: str) -> str:

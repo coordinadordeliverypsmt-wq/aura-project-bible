@@ -14,7 +14,7 @@ sustituir = '''        res = {"accion": accion, "estado": "ejecutada"}'''
 id = "M2"
 garantia = "una accion DETENIDA por el gobierno cierra la tarea igualmente (narrar exito sin efecto)"
 fichero = "aura_skeleton/core/director.py"
-buscar = '''        if res.get("estado") == "ejecutada":'''
+buscar = '''        if res.get("estado") == "ejecutada" and ok_ejecutor:'''
 sustituir = '''        if res.get("estado") in ("ejecutada", "detenida", "error"):'''
 
 [[mutante]]

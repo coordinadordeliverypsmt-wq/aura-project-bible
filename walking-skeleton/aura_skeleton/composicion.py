@@ -45,6 +45,7 @@ from .core.director import DirectorGeneral, RegistroEjecutores
 from .core.estado_operativo import AlmacenEstadoOperativo
 from .core.kill_switch import KillSwitch
 from .core.modelo_usuario import ModeloUsuario
+from .core.motor_ciclo import MotorDelCiclo
 from .core.notificaciones import CentroNotificaciones
 from .core.orchestrator import Orchestrator
 from .core.permissions import PermissionManager
@@ -183,6 +184,7 @@ class Sistema:
     automatizaciones: AlmacenReglas
     estado_operativo: AlmacenEstadoOperativo
     director: DirectorGeneral
+    motor_ciclo: MotorDelCiclo
     plan: PlanActivacion  # lo que el hardware PERMITE (decision del Manager; nunca se reinterpreta, INV-7)
     materializaciones: tuple[Materializacion, ...]  # lo que se consiguio ENSAMBLAR
     ruta_memoria: str
@@ -335,6 +337,9 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
     # el `motor`, de modo que hereda permisos, dry-run y kill switch (ALERTA-005, RN-5).
     estado_operativo = AlmacenEstadoOperativo(os.path.join(config.datos, "estado_operativo.jsonl"))
     director = DirectorGeneral(estado_operativo, motor, RegistroEjecutores(_EJECUTORES))
+    # EL LATIDO. Sin esto el Director solo existe cuando alguien pide una vuelta, y AURORA depende de
+    # un modelo externo para funcionar. El kill switch se comprueba ANTES de cada latido (RN-3).
+    motor_ciclo = MotorDelCiclo(director, kill_switch=kill_switch)
 
     orquestador = Orchestrator(
         InProcessEventBus(),
@@ -373,6 +378,7 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
         automatizaciones=automatizaciones,
         estado_operativo=estado_operativo,
         director=director,
+        motor_ciclo=motor_ciclo,
         plan=plan,
         materializaciones=materializaciones,
         ruta_memoria=ruta_memoria,

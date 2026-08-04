@@ -1,0 +1,37 @@
+incremento = "Motor del Ciclo - el latido propio de AURORA"
+pruebas = ["tests/integration/test_motor_ciclo.py", "tests/integration/test_director_cableado.py"]
+
+[[mutante]]
+id = "M1"
+garantia = "el kill switch armado deja de impedir el latido: AURORA arranca trabajo con la parada echada"
+fichero = "aura_skeleton/core/motor_ciclo.py"
+buscar = '''        return self.kill_switch is not None and self.kill_switch.is_engaged()'''
+sustituir = '''        return False'''
+
+# MUTANTE M2 RETIRADO, y el motivo importa (2026-08-03). Degradar la condicion de parada del bucle
+# produce un BUCLE INFINITO: el arnes se cuelga en vez de reportar SOBREVIVE, porque no impone timeout
+# por mutante. Se intento con dos formulaciones distintas y ambas colgaron el proceso, dejando el
+# fichero mutado -la trampa que CLAUDE.md documenta- hasta restaurarlo a mano.
+#
+# La garantia "el bucle sabe parar sin trabajo" SI la cubre
+# test_se_detiene_solo_cuando_no_queda_trabajo, pero queda SIN MUTANTE: es una garantia sin red y se
+# declara como tal en vez de fingir cobertura. Es deuda del ARNES, no del Motor del Ciclo: mientras
+# `herramientas.mutar` no acote cada mutante con un timeout, ninguna garantia de TERMINACION podra
+# verificarse por mutacion.
+
+# M3 RETIRADO por el MISMO motivo que M2: quitar la espera del bucle permanente impide que la prueba
+# llegue a cancelarlo, y el arnes se cuelga. Mismo limite del arnes, misma deuda declarada.
+
+[[mutante]]
+id = "M4"
+garantia = "max_latidos deja de acotar la corrida"
+fichero = "aura_skeleton/core/motor_ciclo.py"
+buscar = '''        while max_latidos is None or atendidas < max_latidos:'''
+sustituir = '''        while True:'''
+
+[[mutante]]
+id = "M5"
+garantia = "el latido deja de cablearse en el arranque: AURORA vuelve a depender de una llamada externa"
+fichero = "aura_skeleton/composicion.py"
+buscar = '''    motor_ciclo = MotorDelCiclo(director, kill_switch=kill_switch)'''
+sustituir = '''    motor_ciclo = MotorDelCiclo(director, kill_switch=None)'''

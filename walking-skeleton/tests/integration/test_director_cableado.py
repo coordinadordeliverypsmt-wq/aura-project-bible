@@ -94,3 +94,11 @@ def test_control_un_responsable_no_declarado_no_se_finge(tmp_path):
 
     assert hecha.estado == "bloqueada", "un responsable sin ejecutor no puede darse por hecho"
     assert any("ningun ejecutor" in b for b in hecha.bloqueos)
+
+
+def test_el_latido_esta_cableado_y_respeta_el_kill_switch(tmp_path):
+    """El Motor del Ciclo debe existir en el arranque real y compartir el kill switch del sistema."""
+    s = _sistema(tmp_path)
+    assert s.motor_ciclo is not None, "sin latido cableado, AURORA sigue dependiendo de una llamada externa"
+    assert s.motor_ciclo.director is s.director, "debe latir sobre el Director del sistema, no sobre otro"
+    assert s.motor_ciclo.kill_switch is s.kill_switch, "la parada de emergencia debe alcanzar al latido"

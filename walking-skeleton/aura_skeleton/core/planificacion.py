@@ -14,7 +14,8 @@ trabajo, es una ocurrencia.
 EL CORTE DE CICLOS ES ESTRUCTURAL, NO UN CONTADOR (decision del CEO). Se reutiliza el patron que ya
 resolvio D-A-3: alli las acciones disparadas por una regla **no republican eventos**, asi que encadenar
 es imposible por construccion y no hace falta detectar bucles. Aqui el equivalente es el campo `origen`:
-solo el trabajo de origen HUMANO puede engendrar trabajo derivado; una tarea DERIVADA no puede engendrar
+solo el trabajo originado por una decision (CEO o asistencia externa) puede engendrar trabajo derivado;
+una tarea DERIVADA no puede engendrar
 otra. La profundidad maxima es 1 **por construccion**, y eso se demuestra, no se vigila.
 """
 
@@ -24,9 +25,25 @@ import hashlib
 
 from .estado_operativo import AlmacenEstadoOperativo, Tarea
 
-HUMANO = "humano"  # lo pidio una persona: puede engendrar trabajo derivado
-DERIVADO = "derivado"  # nacio de la evidencia de otra tarea: NO puede engendrar mas
-ORIGENES = (HUMANO, DERIVADO)
+# ORIGENES clasifica el ORIGEN DE UNA DECISION, nunca a una persona ni a una herramienta concreta
+# (CEO, 2026-08-04). Con el tiempo habra mas herramientas externas, y la metrica no puede depender del
+# nombre de ningun modelo: lo que se registra es DE DONDE VINO la decision de que ese trabajo exista.
+#
+#   CEO ................. decision estrategica humana. Es el proposito del sistema, no algo a reducir.
+#   ASISTENCIA_EXTERNA .. propuesta o cambio formulado por un modelo externo, sea cual sea.
+#   DERIVADO ............ lo creo una politica interna de AURORA a partir de evidencia propia.
+#
+# Por que desaparecio "humano": englobaba al CEO y a la asistencia externa en la misma etiqueta, y por
+# tanto BORRABA la unica distincion que la metrica de dependencia externa necesita medir. Un valor que
+# destruye la informacion que se quiere observar no es un valor por defecto comodo: es un punto ciego.
+CEO = "ceo"
+ASISTENCIA_EXTERNA = "asistencia_externa"
+DERIVADO = "derivado"
+ORIGENES = (CEO, ASISTENCIA_EXTERNA, DERIVADO)
+
+# Origenes que PUEDEN engendrar trabajo derivado. El corte estructural de ciclos (D-A-3) sigue vigente:
+# lo derivado no deriva mas, asi que la profundidad maxima es 1 por construccion.
+_PUEDEN_DERIVAR = (CEO, ASISTENCIA_EXTERNA)
 
 
 class AdmisionRechazada(Exception):
@@ -51,7 +68,7 @@ def admitir(
     responsable: str,
     evidencia: str,
     prioridad: int = 5,
-    origen: str = HUMANO,
+    origen: str = CEO,
     causa: Tarea | None = None,
     args: dict | None = None,
 ) -> Tarea:
@@ -61,7 +78,9 @@ def admitir(
     causa no hay forma de comprobar el corte de ciclos.
     """
     if origen not in ORIGENES:
-        raise AdmisionRechazada(f"origen no valido: {origen!r}; esperado uno de {ORIGENES}")
+        # No hay origen implicito, desconocido ni vacio: toda tarea pertenece EXACTAMENTE a uno. Un
+        # origen generico devolveria el punto ciego que este desdoble vino a eliminar.
+        raise AdmisionRechazada(f"origen no valido: {origen!r}; esperado exactamente uno de {ORIGENES}")
     if not evidencia:
         raise AdmisionRechazada("toda tarea necesita una causa verificable: falta evidencia")
     if not objetivo_id or not responsable or not descripcion:
@@ -72,7 +91,7 @@ def admitir(
         # trabajo derivado no puede derivar mas trabajo. La cadena mide como maximo 1, siempre.
         if causa is None:
             raise AdmisionRechazada("una tarea derivada debe declarar la tarea que la causo")
-        if causa.origen != HUMANO:
+        if causa.origen not in _PUEDEN_DERIVAR:
             raise AdmisionRechazada(
                 f"el trabajo derivado no puede engendrar mas trabajo (causa '{causa.tarea_id}' "
                 f"ya es de origen '{causa.origen}'): asi no puede existir generacion infinita"
@@ -133,7 +152,7 @@ def oyente_de_transiciones(estado: AlmacenEstadoOperativo):
     """
 
     def reaccionar(anterior: Tarea, actual: Tarea) -> None:
-        if actual.estado != "bloqueada" or actual.origen != HUMANO:
+        if actual.estado != "bloqueada" or actual.origen not in _PUEDEN_DERIVAR:
             # El corte estructural sigue vigente: el trabajo derivado no engendra mas trabajo.
             return
         motivo = actual.bloqueos[-1] if actual.bloqueos else "bloqueo sin motivo declarado"

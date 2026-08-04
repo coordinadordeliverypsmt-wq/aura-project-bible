@@ -5,7 +5,7 @@ pruebas = ["tests/integration/test_planificacion.py"]
 id = "M1"
 garantia = "el corte estructural desaparece: el trabajo derivado puede engendrar mas trabajo (generacion infinita)"
 fichero = "aura_skeleton/core/planificacion.py"
-buscar = '''        if causa.origen != HUMANO:'''
+buscar = '''        if causa.origen not in _PUEDEN_DERIVAR:'''
 sustituir = '''        if False:'''
 
 [[mutante]]
@@ -46,3 +46,17 @@ garantia = "una derivada deja de necesitar causa: el corte de ciclos queda sin p
 fichero = "aura_skeleton/core/planificacion.py"
 buscar = '''        if causa is None:'''
 sustituir = '''        if causa is None and False:'''
+
+[[mutante]]
+id = "M7"
+garantia = "vuelve un origen generico: se pierde la distincion entre CEO y asistencia externa"
+fichero = "aura_skeleton/core/planificacion.py"
+buscar = '''ORIGENES = (CEO, ASISTENCIA_EXTERNA, DERIVADO)'''
+sustituir = '''ORIGENES = (CEO, ASISTENCIA_EXTERNA, DERIVADO, "humano")'''
+
+[[mutante]]
+id = "M8"
+garantia = "el origen deja de ser obligatorio: entra trabajo sin clasificar"
+fichero = "aura_skeleton/core/planificacion.py"
+buscar = '''    if origen not in ORIGENES:'''
+sustituir = '''    if False:'''

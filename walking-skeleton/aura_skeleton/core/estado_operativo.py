@@ -79,7 +79,7 @@ class Tarea:
     punto_reanudacion: str = ""  # donde retomar EXACTAMENTE: fichero, funcion, comando
     args: dict = field(default_factory=dict)  # argumentos con los que el Director despacha la tarea
     prioridad: int = 5  # menor = mas urgente. Desempata antes que el identificador.
-    origen: str = "humano"  # quien la origino. Ver ORIGENES: el corte estructural de ciclos vive aqui.
+    origen: str = "ceo"  # ORIGEN DE LA DECISION, no de la persona. Ver ORIGENES en planificacion.py.
     intentos: int = 0  # cuantas veces se ha trabajado. Material para que AURORA aprenda de su historial.
 
     def __post_init__(self) -> None:

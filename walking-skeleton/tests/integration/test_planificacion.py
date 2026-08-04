@@ -9,8 +9,8 @@ import pytest
 
 from aura_skeleton.core.estado_operativo import AlmacenEstadoOperativo, Tarea
 from aura_skeleton.core.planificacion import (
+    CEO,
     DERIVADO,
-    HUMANO,
     AdmisionRechazada,
     admitir,
     desde_verificacion,
@@ -23,7 +23,7 @@ def _almacen(tmp_path):
 
 
 def _tarea_humana(alm, tid="t-01"):
-    return alm.registrar(Tarea(objetivo_id="obj", tarea_id=tid, estado="en_curso", responsable="qa", origen=HUMANO))
+    return alm.registrar(Tarea(objetivo_id="obj", tarea_id=tid, estado="en_curso", responsable="qa", origen=CEO))
 
 
 def test_una_verificacion_fallida_PRODUCE_una_tarea_sin_intervencion_humana(tmp_path):
@@ -111,3 +111,39 @@ def test_el_identificador_es_estable_entre_procesos():
     """Determinista: la misma evidencia produce la misma clave siempre, en cualquier arranque."""
     assert id_desde_evidencia("misma causa") == id_desde_evidencia("misma causa")
     assert id_desde_evidencia("a") != id_desde_evidencia("b")
+
+
+def test_el_origen_generico_HUMANO_ya_no_existe(tmp_path):
+    """Debe fallar si alguien reintroduce un origen generico.
+
+    "humano" englobaba al CEO y a la asistencia externa en la misma etiqueta, y por tanto BORRABA la
+    unica distincion que la metrica de dependencia externa necesita medir. Un valor que destruye la
+    informacion que se quiere observar no es un valor por defecto comodo: es un punto ciego.
+    """
+    from aura_skeleton.core.planificacion import ORIGENES
+
+    assert "humano" not in ORIGENES, "el origen generico no puede volver: elimina lo que se quiere medir"
+    assert set(ORIGENES) == {"ceo", "asistencia_externa", "derivado"}
+
+    with pytest.raises(AdmisionRechazada, match="exactamente uno"):
+        admitir(_almacen(tmp_path), objetivo_id="o", descripcion="x", responsable="qa", evidencia="e", origen="humano")
+
+
+def test_no_existe_origen_implicito_desconocido_ni_vacio(tmp_path):
+    """Toda tarea pertenece EXACTAMENTE a uno de los tres origenes."""
+    alm = _almacen(tmp_path)
+    for invalido in ("", "desconocido", "otro", None):
+        with pytest.raises(AdmisionRechazada, match="origen no valido"):
+            admitir(alm, objetivo_id="o", descripcion="x", responsable="qa", evidencia="e", origen=invalido)
+
+
+def test_la_asistencia_externa_SI_puede_engendrar_trabajo_derivado(tmp_path):
+    """Un cambio propuesto por un modelo externo es trabajo legitimo: puede generar correccion."""
+    from aura_skeleton.core.planificacion import ASISTENCIA_EXTERNA
+
+    alm = _almacen(tmp_path)
+    causa = alm.registrar(
+        Tarea(objetivo_id="obj", tarea_id="t-ext", estado="en_curso", responsable="qa", origen=ASISTENCIA_EXTERNA)
+    )
+    nueva = desde_verificacion(alm, causa, {"ok": False, "capacidad": "verificar_calidad", "resumen": "falla"})
+    assert nueva is not None and nueva.origen == DERIVADO

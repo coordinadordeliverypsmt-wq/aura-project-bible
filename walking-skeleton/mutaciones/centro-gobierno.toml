@@ -1,0 +1,30 @@
+incremento = "Centro de Gobierno: cada seccion declara su origen y sus limites"
+pruebas = ["tests/integration/test_centro_gobierno.py"]
+
+[[mutante]]
+id = "M1"
+garantia = "una capacidad inexistente puede no declarar motivo: el limite no entraria al backlog"
+fichero = "aura_skeleton/core/centro_gobierno.py"
+buscar = '''        if self.origen == INEXISTENTE and not self.motivo:'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "M2"
+garantia = "una seccion declara AURORA sin traer contenido: capacidad simulada por omision"
+fichero = "aura_skeleton/core/centro_gobierno.py"
+buscar = '''        if self.origen != INEXISTENTE and not self.contenido:'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "M3"
+garantia = "las recomendaciones dejan de declarar la evidencia: pasan a ser opiniones"
+fichero = "aura_skeleton/core/centro_gobierno.py"
+buscar = '''        f"— evidencia: {n} tarea(s) bloqueadas con ese responsable en el historial"'''
+sustituir = '''        ""'''
+
+[[mutante]]
+id = "M4"
+garantia = "el panel deja de señalar al responsable que mas trabajo detiene"
+fichero = "aura_skeleton/core/centro_gobierno.py"
+buscar = '''    resp, n = max(por_resp.items(), key=lambda kv: (kv[1], kv[0]))'''
+sustituir = '''    resp, n = min(por_resp.items(), key=lambda kv: (kv[1], kv[0]))'''

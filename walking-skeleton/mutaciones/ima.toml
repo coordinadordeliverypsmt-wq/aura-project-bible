@@ -1,0 +1,32 @@
+incremento = "IMA - AURORA se evalua a si misma con evidencia propia"
+pruebas = ["tests/integration/test_ima.py"]
+
+[[mutante]]
+id = "M1"
+garantia = "una dimension no medible recibe puntuacion estimada en vez de declarar el hueco (dato inventado)"
+fichero = "aura_skeleton/core/ima.py"
+buscar = '''        if not self.medible or self.total == 0:
+            return None'''
+sustituir = '''        if not self.medible or self.total == 0:
+            return 50.0'''
+
+[[mutante]]
+id = "M2"
+garantia = "una capacidad ausente se cuenta como lograda: el indice mide la aspiracion, no la realidad"
+fichero = "aura_skeleton/core/ima.py"
+buscar = '''    ok = [k for k, v in comprobaciones.items() if v]'''
+sustituir = '''    ok = list(comprobaciones)'''
+
+[[mutante]]
+id = "M3"
+garantia = "los huecos dejan de declararse: el indice oculta lo que falta"
+fichero = "aura_skeleton/core/ima.py"
+buscar = '''    return Dimension(nombre, len(ok), len(comprobaciones), ok, [faltan_txt.get(k, k) for k in no])'''
+sustituir = '''    return Dimension(nombre, len(ok), len(comprobaciones), ok, [])'''
+
+[[mutante]]
+id = "M4"
+garantia = "el global diluye lo no medible en vez de excluirlo y declararlo"
+fichero = "aura_skeleton/core/ima.py"
+buscar = '''    medibles = [d for d in dimensiones if d.medible]'''
+sustituir = '''    medibles = dimensiones'''

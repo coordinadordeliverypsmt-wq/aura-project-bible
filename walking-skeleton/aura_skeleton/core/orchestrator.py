@@ -462,6 +462,17 @@ class Orchestrator:
                 self.notificaciones.recibir(notificacion_de_accion(action, args, res))
         await self._finalizar_turno(uid, tid, text, say, prov, t)
 
+    def _sistema_detenido(self) -> bool:
+        """True si la parada de emergencia esta armada.
+
+        ALERTA-006: el kill switch solo se comprobaba dentro de `PermissionManager.authorize`, asi que
+        alcanzaba unicamente a las rutas que pasan por el motor. La cascada de soberania NO pasa por
+        ahi, de modo que con la parada ECHADA AURA seguia borrando datos del usuario —verificado—.
+        Bible 5.3 §5 y RN-3 dicen que cuando esta activado NINGUNA accion se ejecuta, sin excepciones.
+        """
+        kill = getattr(self.perm, "_kill", None)
+        return kill is not None and kill.is_engaged()
+
     async def _atender_modelo_usuario(self, uid: str, text: str) -> str | None:
         """Atiende las cuatro conversaciones de soberania. Devuelve la respuesta, o None si no aplica.
 
@@ -469,6 +480,10 @@ class Orchestrator:
         con el foco: la ultima afirmacion en discusion, o la que el texto mencione explicitamente.
         """
         t = _normalizar(text)
+        if self._sistema_detenido() and (_es_peticion_de_olvido(t) or _cae_en(t, _PAT_MODELO_REFUTA)):
+            # Inspeccionar sigue permitido: leer no muta nada. Lo que la parada impide es MODIFICAR.
+            obs.log("KILL", "orchestrator", "soberania: mutacion bloqueada por kill switch", "-", audit=True)
+            return "Ahora mismo no puedo modificar lo que sé de ti: el sistema está detenido."
         entradas = await self.modelo_usuario.ver(uid)
         vivas = [e for e in entradas if not e.get("refutada")]
 

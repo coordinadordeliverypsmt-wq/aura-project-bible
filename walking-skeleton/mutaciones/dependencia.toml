@@ -1,0 +1,32 @@
+incremento = "Tablero de dependencia externa"
+pruebas = ["tests/integration/test_dependencia.py"]
+
+[[mutante]]
+id = "M1"
+garantia = "el techo vuelve a ser una constante del 50% en vez de derivarse del historial"
+fichero = "aura_skeleton/core/dependencia.py"
+buscar = '''    techo = round(100.0 * k / (1 + k), 1) if k else None'''
+sustituir = '''    techo = 50.0'''
+
+[[mutante]]
+id = "M2"
+garantia = "la autonomia de decision se calcula pese a haber una sola autoridad (100% engañoso)"
+fichero = "aura_skeleton/core/dependencia.py"
+buscar = '''    if len(autoridades) <= 1:'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "M3"
+garantia = "los puntos de rendicion pasan a ser una razon: mejorables trabajando mas"
+fichero = "aura_skeleton/core/dependencia.py"
+buscar = '''        denominador=None,  # deliberadamente sin denominador'''
+sustituir = '''        denominador=max(1, len(tareas)),'''
+
+[[mutante]]
+id = "M4"
+garantia = "sin historial se inventa una cifra en vez de declarar NO_MEDIBLE"
+fichero = "aura_skeleton/core/dependencia.py"
+buscar = '''    if not tareas:
+        return Indicador("Generacion de trabajo propio", estado=NO_MEDIBLE, motivo="no hay historial que leer")'''
+sustituir = '''    if not tareas:
+        return Indicador("Generacion de trabajo propio", numerador=0, denominador=1)'''

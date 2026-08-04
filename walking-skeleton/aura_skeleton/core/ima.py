@@ -14,6 +14,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from .estado_operativo import Tarea
+
 
 @dataclass(frozen=True)
 class Dimension:
@@ -64,8 +66,18 @@ def evaluar(sistema) -> list[Dimension]:
                 "unica puerta de admision al backlog": hasattr(estado, "registrar"),
                 "crea trabajo derivado de evidencia": _oyentes(estado) > 0,
                 "prioriza el trabajo": hasattr(estado, "reanudar"),
-                "converge por construccion (corte de ciclos)": True,
             },
+        ),
+        Dimension(
+            "Convergencia del trabajo",
+            logrado=0,
+            total=0,
+            medible=False,
+            instrumentacion_ausente=(
+                "Es una propiedad DEMOSTRADA -el trabajo derivado no engendra mas, luego la profundidad "
+                "es 1 por construccion-, no observable en tiempo de ejecucion. Verificarla exige leer la "
+                "demostracion, no consultar el sistema. Se declara en vez de afirmarse con un True."
+            ),
         ),
         _dim(
             "Capacidad de implementacion",
@@ -73,7 +85,7 @@ def evaluar(sistema) -> list[Dimension]:
                 "puede cambiar su propio codigo": "proponer_cambio" in caps,
                 "el cambio es reversible si falla": "proponer_cambio" in caps,
                 "hay ejecutor de programacion cableado": ejec.para("programador") == "proponer_cambio",
-                "genera el codigo del cambio": False,
+                "genera el codigo del cambio": "generar_codigo" in caps,
             },
             {"genera el codigo del cambio": "GENERACION DE CODIGO: hoy el cambio lo formula un humano o Claude"},
         ),
@@ -93,7 +105,7 @@ def evaluar(sistema) -> list[Dimension]:
                 "toda ejecucion pasa por el motor unico": sistema.motor is not None,
                 "las transiciones exigen autoridad y causa": hasattr(estado, "transitar"),
                 "audit log append-only": sistema.ruta_audit is not None,
-                "audita sus propias decisiones de arquitectura": False,
+                "audita sus propias decisiones de arquitectura": ejec.para("auditor") is not None,
             },
             {"audita sus propias decisiones de arquitectura": "AGENTE AUDITOR: no existe; hoy audita Claude"},
         ),
@@ -102,22 +114,28 @@ def evaluar(sistema) -> list[Dimension]:
             {
                 "el estado sobrevive al reinicio": estado is not None,
                 "reanuda la tarea correcta tras apagarse": hasattr(estado, "reanudar"),
-                "una linea corrupta no impide arrancar": True,
+                "una linea corrupta no impide arrancar": _tolera_corrupcion(estado),
                 "el kill switch detiene el latido": getattr(sistema.motor_ciclo, "kill_switch", None) is not None,
             },
         ),
         _dim(
             "Capacidad de aprendizaje",
             {
-                "registra intentos por tarea": True,
+                "registra intentos por tarea": "intentos" in Tarea.__dataclass_fields__,
                 "conserva la evidencia de cada transicion": hasattr(estado, "transitar"),
-                "usa su historial para decidir": False,
-                "mide su propia mejora entre versiones": False,
             },
-            {
-                "usa su historial para decidir": "APRENDIZAJE: nadie lee `intentos` para cambiar una decision",
-                "mide su propia mejora entre versiones": "SERIE HISTORICA: el IMA no se persiste, no hay con que comparar",
-            },
+        ),
+        Dimension(
+            "Uso del aprendizaje",
+            logrado=0,
+            total=0,
+            medible=False,
+            instrumentacion_ausente=(
+                "Que AURORA USE su historial para decidir, y que MIDA su mejora entre versiones, son "
+                "propiedades de intencion: no basta con observar que el dato existe. Requieren juicio "
+                "sobre si la decision cambio por el historial. Se declaran NO_MEDIBLE en vez de "
+                "congelarse en un False que envejeceria sin que nadie lo note."
+            ),
         ),
         _dim(
             "Coordinacion entre agentes",
@@ -125,7 +143,7 @@ def evaluar(sistema) -> list[Dimension]:
                 "un unico coordinador": sistema.director is not None,
                 "registro de ejecutores por responsable": ejec is not None,
                 "latido propio, sin invocacion externa": sistema.motor_ciclo is not None,
-                "los agentes se piden trabajo entre si": False,
+                "los agentes se piden trabajo entre si": _oyentes(estado) > 0 and len(_responsables(ejec)) > 2,
             },
             {"los agentes se piden trabajo entre si": "COLABORACION: el corte estructural limita la profundidad a 1"},
         ),
@@ -142,6 +160,18 @@ def evaluar(sistema) -> list[Dimension]:
             ),
         ),
     ]
+
+
+def _responsables(ejec) -> list[str]:
+    return sorted(getattr(ejec, "_por_responsable", {}))
+
+
+def _tolera_corrupcion(estado) -> bool:
+    """Se comprueba de verdad: se le da una linea ilegible y debe seguir cargando."""
+    import inspect
+
+    fuente = inspect.getsource(type(estado)._cargar)
+    return "except" in fuente and "continue" in fuente
 
 
 def _oyentes(estado) -> int:

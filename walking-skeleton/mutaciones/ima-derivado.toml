@@ -1,0 +1,29 @@
+incremento = "El IMA se deriva del sistema: ninguna comprobacion escrita a mano"
+pruebas = ["tests/integration/test_ima_derivado.py", "tests/integration/test_ima.py"]
+
+[[mutante]]
+id = "M1"
+garantia = "vuelve una comprobacion congelada: una capacidad existiria y el IMA diria que no"
+fichero = "aura_skeleton/core/ima.py"
+buscar = '''                "audita sus propias decisiones de arquitectura": ejec.para("auditor") is not None,'''
+sustituir = '''                "audita sus propias decisiones de arquitectura": False,'''
+
+[[mutante]]
+id = "M2"
+garantia = "lo que exige juicio vuelve a afirmarse con un True en vez de declararse NO_MEDIBLE"
+fichero = "aura_skeleton/core/ima.py"
+buscar = '''            "Convergencia del trabajo",
+            logrado=0,
+            total=0,
+            medible=False,'''
+sustituir = '''            "Convergencia del trabajo",
+            logrado=1,
+            total=1,
+            medible=True,'''
+
+[[mutante]]
+id = "M3"
+garantia = "la tolerancia a lineas corruptas se afirma sin comprobarla"
+fichero = "aura_skeleton/core/ima.py"
+buscar = '''    return "except" in fuente and "continue" in fuente'''
+sustituir = '''    return True'''

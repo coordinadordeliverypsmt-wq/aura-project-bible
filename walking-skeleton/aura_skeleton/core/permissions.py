@@ -46,6 +46,7 @@ CATALOGO: dict[str, dict] = {
     # una constante del adaptador, nunca llega por `args` (CEO 2026-08-03).
     "ejecutar_pruebas": {"lista": "verde", "efecto": "lectura", "desc": "ejecutar la bateria de pruebas"},
     "verificar_calidad": {"lista": "verde", "efecto": "lectura", "desc": "verificar la calidad del codigo"},
+    "auditar_garantias": {"lista": "verde", "efecto": "lectura", "desc": "revisar que las garantias siguen vigentes"},
     # --- Computador: alteran estado (M2) ---
     "mover_archivo": {"lista": "roja", "efecto": "altera", "desc": "mover (puede colisionar en destino)"},
     "renombrar_archivo": {"lista": "roja", "efecto": "altera", "desc": "renombrar"},

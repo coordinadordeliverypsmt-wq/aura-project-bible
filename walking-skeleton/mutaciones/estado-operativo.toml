@@ -20,7 +20,7 @@ sustituir = '''_ABIERTOS = ("abierta", "en_curso", "bloqueada")'''
 id = "M3"
 garantia = "la reanudacion pierde el determinismo: dos arranques del mismo estado eligen tareas distintas"
 fichero = "aura_skeleton/core/estado_operativo.py"
-buscar = '''        return min(self.abiertas(objetivo_id), key=lambda t: t.tarea_id, default=None)'''
+buscar = '''        return min(self.abiertas(objetivo_id), key=lambda t: (t.prioridad, t.tarea_id), default=None)'''
 sustituir = '''        ab = self.abiertas(objetivo_id)
         return ab[-1] if ab else None'''
 

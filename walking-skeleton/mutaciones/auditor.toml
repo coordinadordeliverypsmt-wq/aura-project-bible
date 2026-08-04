@@ -1,0 +1,23 @@
+incremento = "Ejecutor Auditor - detecta garantias declaradas que ya no protegen nada"
+pruebas = ["tests/integration/test_auditor.py"]
+
+[[mutante]]
+id = "M1"
+garantia = "un patron ausente deja de detectarse: la garantia figura declarada y no protege nada"
+fichero = "aura_skeleton/adapters/auditor.py"
+buscar = '''            if apariciones == 0:'''
+sustituir = '''            if False:'''
+
+[[mutante]]
+id = "M2"
+garantia = "un patron ambiguo deja de detectarse: se mutaria la primera aparicion, quiza un comentario"
+fichero = "aura_skeleton/adapters/auditor.py"
+buscar = '''            elif apariciones > 1:'''
+sustituir = '''            elif False:'''
+
+[[mutante]]
+id = "M3"
+garantia = "un mutante degenerado se da por bueno"
+fichero = "aura_skeleton/adapters/auditor.py"
+buscar = '''            elif buscar == sustituir:'''
+sustituir = '''            elif False:'''

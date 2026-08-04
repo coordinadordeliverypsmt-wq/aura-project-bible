@@ -43,10 +43,10 @@ sustituir = '''        pass'''
 id = "M6"
 garantia = "el estado no se persiste tras el ciclo: el proceso siguiente repite el mismo trabajo"
 fichero = "aura_skeleton/core/director.py"
-buscar = '''                estado="terminada",
-                evidencias=[*tarea.evidencias, f"motor:{accion}:ejecutada"],'''
-sustituir = '''                estado="abierta",
-                evidencias=[*tarea.evidencias, f"motor:{accion}:ejecutada"],'''
+buscar = '''                "terminada",
+                autoridad="director",'''
+sustituir = '''                "abierta",
+                autoridad="director",'''
 
 [[mutante]]
 id = "M7"

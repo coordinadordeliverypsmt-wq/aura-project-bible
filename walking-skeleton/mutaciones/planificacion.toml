@@ -1,0 +1,48 @@
+incremento = "Planificacion - AURORA crea su propio trabajo, sin poder generarlo infinitamente"
+pruebas = ["tests/integration/test_planificacion.py"]
+
+[[mutante]]
+id = "M1"
+garantia = "el corte estructural desaparece: el trabajo derivado puede engendrar mas trabajo (generacion infinita)"
+fichero = "aura_skeleton/core/planificacion.py"
+buscar = '''        if causa.origen != HUMANO:'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "M2"
+garantia = "una verificacion EN VERDE genera trabajo: AURORA se daria trabajo a si misma sin causa"
+fichero = "aura_skeleton/core/planificacion.py"
+buscar = '''    if resultado.get("ok", True):
+        return None'''
+sustituir = '''    if False:
+        return None'''
+
+[[mutante]]
+id = "M3"
+garantia = "el identificador deja de derivarse de la evidencia: la misma causa duplica tareas"
+fichero = "aura_skeleton/core/planificacion.py"
+buscar = '''    return "auto-" + hashlib.sha256(evidencia.encode("utf-8")).hexdigest()[:12]'''
+sustituir = '''    import uuid
+
+    return "auto-" + uuid.uuid4().hex[:12]'''
+
+[[mutante]]
+id = "M4"
+garantia = "se admite trabajo sin causa verificable: una tarea sin evidencia entra al backlog"
+fichero = "aura_skeleton/core/planificacion.py"
+buscar = '''    if not evidencia:'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "M5"
+garantia = "la prioridad deja de decidir el orden: un fallo bloqueante espera detras del trabajo ordinario"
+fichero = "aura_skeleton/core/estado_operativo.py"
+buscar = '''key=lambda t: (t.prioridad, t.tarea_id), default=None)'''
+sustituir = '''key=lambda t: t.tarea_id, default=None)'''
+
+[[mutante]]
+id = "M6"
+garantia = "una derivada deja de necesitar causa: el corte de ciclos queda sin punto de apoyo"
+fichero = "aura_skeleton/core/planificacion.py"
+buscar = '''        if causa is None:'''
+sustituir = '''        if causa is None and False:'''

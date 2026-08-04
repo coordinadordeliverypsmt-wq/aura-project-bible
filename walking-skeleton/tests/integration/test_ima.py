@@ -57,4 +57,9 @@ def test_el_global_solo_cuenta_lo_medible():
     # La CIFRA, no solo el texto: si lo no medible se colara en el global, el contador de
     # dimensiones sin instrumentar caeria a 0 y el indice pareceria completo. Lo detecto la
     # mutacion (M4 sobrevivia porque la prueba solo miraba que la frase estuviera).
-    assert "1 dimension(es) sin instrumentar" in txt, f"debe declararse cuantas quedan sin medir:\n{txt}"
+    # La CIFRA, no solo el texto: si lo no medible se colara en el global, el contador caeria a 0 y el
+    # indice pareceria completo. Se deriva del propio informe para que no envejezca al añadir
+    # dimensiones -paso al derivar el IMA: eran 1 y pasaron a 3-.
+    sin_medir = sum(1 for d in _dims() if not d.medible)
+    assert f"{sin_medir} dimension(es) sin instrumentar" in txt, f"debe declararse cuantas:\n{txt}"
+    assert sin_medir > 0, "si todo fuera medible, esta garantia no probaria nada"

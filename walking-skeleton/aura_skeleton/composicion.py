@@ -49,6 +49,7 @@ from .core.motor_ciclo import MotorDelCiclo
 from .core.notificaciones import CentroNotificaciones
 from .core.orchestrator import Orchestrator
 from .core.permissions import PermissionManager
+from .core.planificacion import oyente_de_transiciones
 from .core.registro import RegistroAdaptadores
 from .core.reglas import AlmacenReglas
 from .modules.memory import PersistentMemory
@@ -207,7 +208,7 @@ class Sistema:
 # Responsable -> accion del catalogo que lo atiende. Es el equivalente, para los agentes del SO
 # Interno, de lo que `RegistroAdaptadores` hace con las capacidades: un responsable, un dueno. Hoy solo
 # se declara el que existe de verdad; declarar agentes no construidos seria fingir capacidad (INV-9).
-_EJECUTORES = {"programador": "copiar_archivo", "qa": "verificar_calidad"}
+_EJECUTORES = {"programador": "proponer_cambio", "qa": "verificar_calidad"}
 
 
 def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
@@ -232,6 +233,7 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
 
     # --- Adaptadores: todo lo que AURA puede hacer -------------------------
     from .adapters.computador import AdaptadorComputador
+    from .adapters.programador import EjecutorProgramador
     from .adapters.qa import EjecutorQA
 
     raices = config.raices_permitidas
@@ -240,7 +242,10 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
         HomeAssistantMock(),
         # Ejecutor QA del SO Interno: AURORA puede verificarse a si misma. Su raiz es la del propio
         # arbol de trabajo y se fija AQUI, no llega por argumentos de ninguna llamada.
-        EjecutorQA(raiz=str(Path(__file__).resolve().parents[1])),
+        _qa := EjecutorQA(raiz=str(Path(__file__).resolve().parents[1])),
+        # El Programador verifica con el MISMO ejecutor QA: un cambio solo se conserva si la
+        # verificacion del sistema lo respalda, no una propia.
+        EjecutorProgramador(raiz=str(Path(__file__).resolve().parents[1]), verificador=_qa),
     ]
     registro_adaptadores = RegistroAdaptadores(adaptadores)
 
@@ -336,6 +341,8 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
     # conversacion. El Director es el UNICO coordinador y no ejecuta nada por su cuenta: despacha por
     # el `motor`, de modo que hereda permisos, dry-run y kill switch (ALERTA-005, RN-5).
     estado_operativo = AlmacenEstadoOperativo(os.path.join(config.datos, "estado_operativo.jsonl"))
+    # Cierra el bucle: el protocolo avisa de cada transicion y la planificacion decide si nace trabajo.
+    estado_operativo.observar(oyente_de_transiciones(estado_operativo))
     director = DirectorGeneral(estado_operativo, motor, RegistroEjecutores(_EJECUTORES))
     # EL LATIDO. Sin esto el Director solo existe cuando alguien pide una vuelta, y AURORA depende de
     # un modelo externo para funcionar. El kill switch se comprueba ANTES de cada latido (RN-3).

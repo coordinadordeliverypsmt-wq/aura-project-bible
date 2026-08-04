@@ -95,10 +95,18 @@ class AlmacenEstadoOperativo:
     nadie haya guardado un resumen.
     """
 
-    def __init__(self, ruta: str) -> None:
+    def __init__(self, ruta: str, observadores=()) -> None:
         self._ruta = Path(ruta)
         self._tareas: list[Tarea] = []
+        # Observadores del PROTOCOLO, no del almacen: se les notifica cada transicion consumada. El
+        # almacen no sabe quien escucha ni que haran; solo que la transicion ocurrio. Asi el Director
+        # no necesita conocer a la planificacion, ni la planificacion al Director (CEO, 2026-08-03).
+        self._observadores = list(observadores)
         self._cargar()
+
+    def observar(self, handler) -> None:
+        """Registra un oyente de transiciones. `handler(anterior, actual)`."""
+        self._observadores.append(handler)
 
     def _cargar(self) -> None:
         """Reconstruye el estado vigente leyendo el log. Es lo que hace posible reanudar tras un
@@ -161,6 +169,10 @@ class AlmacenEstadoOperativo:
         campos.setdefault("intentos", vigente.intentos + (1 if nuevo in ("terminada", "bloqueada") else 0))
         actualizada = self.actualizar(objetivo_id, tarea_id, estado=nuevo, **campos)
         assert actualizada is not None  # existe: se comprobo arriba
+        for observar in self._observadores:
+            # La transicion ya esta consumada y persistida: lo que ocurra despues no puede
+            # deshacerla. Un observador que falle no corrompe el estado, solo se pierde su reaccion.
+            observar(vigente, actualizada)
         return actualizada
 
     def tarea(self, objetivo_id: str, tarea_id: str) -> Tarea | None:

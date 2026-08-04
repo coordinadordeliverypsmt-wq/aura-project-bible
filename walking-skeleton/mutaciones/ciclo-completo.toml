@@ -12,7 +12,7 @@ sustituir = '''        for observar in []:'''
 id = "M2"
 garantia = "el oyente reacciona a TODA transicion: cada avance generaria trabajo nuevo"
 fichero = "aura_skeleton/core/planificacion.py"
-buscar = '''        if actual.estado != "bloqueada" or actual.origen != HUMANO:'''
+buscar = '''        if actual.estado != "bloqueada" or actual.origen not in _PUEDEN_DERIVAR:'''
 sustituir = '''        if False:'''
 
 [[mutante]]

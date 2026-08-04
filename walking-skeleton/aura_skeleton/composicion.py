@@ -208,7 +208,7 @@ class Sistema:
 # Responsable -> accion del catalogo que lo atiende. Es el equivalente, para los agentes del SO
 # Interno, de lo que `RegistroAdaptadores` hace con las capacidades: un responsable, un dueno. Hoy solo
 # se declara el que existe de verdad; declarar agentes no construidos seria fingir capacidad (INV-9).
-_EJECUTORES = {"programador": "proponer_cambio", "qa": "verificar_calidad"}
+_EJECUTORES = {"programador": "proponer_cambio", "qa": "verificar_calidad", "auditor": "auditar_garantias"}
 
 
 def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
@@ -232,6 +232,7 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
     permisos = PermissionManager(confirmador or confirmar_por_consola, kill_switch=kill_switch)
 
     # --- Adaptadores: todo lo que AURA puede hacer -------------------------
+    from .adapters.auditor import EjecutorAuditor
     from .adapters.computador import AdaptadorComputador
     from .adapters.programador import EjecutorProgramador
     from .adapters.qa import EjecutorQA
@@ -246,6 +247,8 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
         # El Programador verifica con el MISMO ejecutor QA: un cambio solo se conserva si la
         # verificacion del sistema lo respalda, no una propia.
         EjecutorProgramador(raiz=str(Path(__file__).resolve().parents[1]), verificador=_qa),
+        # Revision independiente: el protocolo exige que quien implementa no audite su propio trabajo.
+        EjecutorAuditor(raiz=str(Path(__file__).resolve().parents[1])),
     ]
     registro_adaptadores = RegistroAdaptadores(adaptadores)
 

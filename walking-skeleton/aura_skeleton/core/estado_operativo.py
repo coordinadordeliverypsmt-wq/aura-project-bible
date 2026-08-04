@@ -1,0 +1,144 @@
+"""Estado Operativo: la memoria de trabajo persistente de AURORA (primer bloque del SO Interno).
+
+PROBLEMA QUE RESUELVE. Hasta hoy el ciclo de trabajo del proyecto solo sobrevivia porque un humano y
+un modelo escribian un checkpoint a mano: el objetivo activo, su descomposicion en tareas y el estado
+de cada una vivian en el contexto de una conversacion y se perdian al terminarla. Eso incumple el
+principio del CEO (2026-08-03): *toda capacidad importante debe sobrevivir al reinicio de una sesion;
+si desaparece cuando termina la conversacion, no pertenece a AURORA*.
+
+QUE NO ES. No es "guardar informacion". El criterio de aceptacion es mas duro: AURORA debe poder
+**detenerse, apagarse, arrancar de nuevo y continuar exactamente donde estaba** sin depender de Claude,
+del contexto de una conversacion ni de un checkpoint escrito a mano. Por eso la prueba que lo valida
+mata el proceso de verdad y arranca otro (`tests/integration/test_estado_operativo_reinicio.py`).
+
+POR QUE NO ES UN COMPONENTE NUEVO. `AlmacenReglas` (core/reglas.py) ya resolvio este patron para las
+automatizaciones: log JSONL **append-only**, **proyeccion por clave** donde la ultima linea gana, y
+**carga desde disco en el constructor**. Aqui se generaliza ese patron cambiando la clave
+`(user_id, rule_id)` por `(objetivo_id, tarea_id)`. Reutilizar antes que crear (CEO, 2026-08-03).
+
+FUENTE UNICA DE VERDAD. Los futuros roles del SO Interno —Director General, Planificador, Programador,
+QA, Auditor, Investigador, Arquitecto, Documentacion— **comparten este almacen**. No se admiten estados
+paralelos ni almacenes alternativos: un segundo estado convertiria la coordinacion en una negociacion
+entre copias, que es la clase de defecto que ALERTA-005 y ALERTA-006 ya costaron.
+
+TRAMPA HEREDADA, YA PAGADA. `AlmacenReglas._proyectar` documenta que `crear` anexaba sin proyectar
+mientras `desactivar` si lo hacia: tras crear -> desactivar -> crear la misma clave quedaban DOS
+entradas y la busqueda encontraba siempre la vieja. Aqui la proyeccion es la UNICA responsable del
+estado vigente y se aplica en el mismo metodo que escribe, para que no puedan divergir.
+"""
+
+from __future__ import annotations
+
+import json
+from dataclasses import asdict, dataclass, field, replace
+from pathlib import Path
+
+from .. import observability as obs
+
+# Estados posibles de una tarea. `bloqueada` es distinto de `abierta`: una tarea bloqueada NO es la
+# siguiente accion, aunque no este terminada. Sin esa distincion, reanudar elegiria trabajo imposible.
+ESTADOS = ("abierta", "en_curso", "bloqueada", "terminada", "descartada")
+_ABIERTOS = ("abierta", "en_curso")
+
+
+@dataclass(frozen=True)
+class Tarea:
+    """Una unidad de trabajo del ciclo, con todo lo necesario para retomarla sin contexto externo."""
+
+    objetivo_id: str
+    tarea_id: str
+    objetivo: str = ""  # el objetivo activo al que pertenece
+    plan: str = ""  # plan actual del que forma parte
+    descripcion: str = ""
+    estado: str = "abierta"
+    responsable: str = ""  # agente del SO Interno: director, planificador, programador, qa, auditor...
+    evidencias: list[str] = field(default_factory=list)  # commits, ficheros, resultados de pruebas
+    decisiones_pendientes: list[str] = field(default_factory=list)
+    bloqueos: list[str] = field(default_factory=list)
+    proxima_accion: str = ""
+    punto_reanudacion: str = ""  # donde retomar EXACTAMENTE: fichero, funcion, comando
+
+    def __post_init__(self) -> None:
+        if self.estado not in ESTADOS:
+            raise ValueError(f"estado no valido: {self.estado!r}; esperado uno de {ESTADOS}")
+
+
+class AlmacenEstadoOperativo:
+    """Log append-only del estado del trabajo, proyectado por `(objetivo_id, tarea_id)`.
+
+    El fichero NUNCA se reescribe ni se trunca: cada cambio es una linea nueva y el estado vigente se
+    deriva del log. Asi el historial completo queda como evidencia y la reanudacion no depende de que
+    nadie haya guardado un resumen.
+    """
+
+    def __init__(self, ruta: str) -> None:
+        self._ruta = Path(ruta)
+        self._tareas: list[Tarea] = []
+        self._cargar()
+
+    def _cargar(self) -> None:
+        """Reconstruye el estado vigente leyendo el log. Es lo que hace posible reanudar tras un
+        reinicio: el constructor no necesita que nadie le pase el contexto anterior."""
+        if not self._ruta.exists():
+            return
+        proyeccion: dict[tuple[str, str], Tarea] = {}
+        with open(self._ruta, encoding="utf-8") as f:
+            for linea in f:
+                if not linea.strip():
+                    continue
+                try:
+                    t = Tarea(**json.loads(linea))
+                except (ValueError, TypeError) as e:
+                    # Una linea corrupta no puede impedir el arranque: se descarta y se deja constancia.
+                    # Es disponibilidad, no integridad: el append-only garantiza que nada mas se pierde.
+                    obs.log("WARN", "estado-operativo", f"linea ilegible descartada al cargar: {e}", "-", audit=True)
+                    continue
+                proyeccion[(t.objetivo_id, t.tarea_id)] = t
+        self._tareas = list(proyeccion.values())
+
+    def _proyectar(self, t: Tarea) -> None:
+        """Reemplaza la entrada de esta clave; nunca acumula (misma semantica para todas las escrituras)."""
+        self._tareas = [x for x in self._tareas if (x.objetivo_id, x.tarea_id) != (t.objetivo_id, t.tarea_id)]
+        self._tareas.append(t)
+
+    def registrar(self, tarea: Tarea) -> Tarea:
+        """Anexa el estado de una tarea y actualiza la proyeccion. Unica ruta de escritura."""
+        self._proyectar(tarea)
+        with open(self._ruta, "a", encoding="utf-8") as f:
+            f.write(json.dumps(asdict(tarea), ensure_ascii=False) + "\n")
+        obs.log("EST", "estado-operativo", f"{tarea.tarea_id} -> {tarea.estado}", "-", audit=True)
+        return tarea
+
+    def actualizar(self, objetivo_id: str, tarea_id: str, **campos) -> Tarea | None:
+        """Cambia campos de una tarea vigente anexando una linea nueva. None si no existe."""
+        vigente = self.tarea(objetivo_id, tarea_id)
+        if vigente is None:
+            return None
+        return self.registrar(replace(vigente, **campos))
+
+    def tarea(self, objetivo_id: str, tarea_id: str) -> Tarea | None:
+        return next((t for t in self._tareas if (t.objetivo_id, t.tarea_id) == (objetivo_id, tarea_id)), None)
+
+    def tareas(self, objetivo_id: str) -> list[Tarea]:
+        return [t for t in self._tareas if t.objetivo_id == objetivo_id]
+
+    def abiertas(self, objetivo_id: str) -> list[Tarea]:
+        """Tareas que siguen siendo trabajo pendiente. Excluye bloqueadas: no son accionables."""
+        return [t for t in self.tareas(objetivo_id) if t.estado in _ABIERTOS]
+
+    def bloqueadas(self, objetivo_id: str) -> list[Tarea]:
+        return [t for t in self.tareas(objetivo_id) if t.estado == "bloqueada"]
+
+    def objetivos_activos(self) -> list[str]:
+        """Objetivos con al menos una tarea abierta o bloqueada: lo que AURORA aun no ha cerrado."""
+        vivos = {t.objetivo_id for t in self._tareas if t.estado in _ABIERTOS or t.estado == "bloqueada"}
+        return sorted(vivos)
+
+    def reanudar(self, objetivo_id: str) -> Tarea | None:
+        """LA operacion que justifica este modulo: ¿por donde sigo?
+
+        Devuelve la siguiente tarea accionable, o None si no queda ninguna. El desempate es por
+        `tarea_id` para que dos arranques del mismo estado elijan SIEMPRE lo mismo: sin determinismo,
+        reanudar seria una decision distinta en cada reinicio y nada de esto seria auditable.
+        """
+        return min(self.abiertas(objetivo_id), key=lambda t: t.tarea_id, default=None)

@@ -41,6 +41,11 @@ CATALOGO: dict[str, dict] = {
     "leer_archivo": {"lista": "verde", "efecto": "lectura", "desc": "leer contenido"},
     "abrir_archivo": {"lista": "verde", "efecto": "lectura", "desc": "abrir en su aplicacion"},
     "consultar_estado_sistema": {"lista": "verde", "efecto": "lectura", "desc": "disco, memoria, procesos"},
+    # Sistema Operativo Interno: AURORA se verifica a si misma. VERDES porque solo EXAMINAN el arbol de
+    # trabajo, no lo modifican. La superficie ejecutable esta cerrada en adapters/qa.py: el comando es
+    # una constante del adaptador, nunca llega por `args` (CEO 2026-08-03).
+    "ejecutar_pruebas": {"lista": "verde", "efecto": "lectura", "desc": "ejecutar la bateria de pruebas"},
+    "verificar_calidad": {"lista": "verde", "efecto": "lectura", "desc": "verificar la calidad del codigo"},
     # --- Computador: alteran estado (M2) ---
     "mover_archivo": {"lista": "roja", "efecto": "altera", "desc": "mover (puede colisionar en destino)"},
     "renombrar_archivo": {"lista": "roja", "efecto": "altera", "desc": "renombrar"},

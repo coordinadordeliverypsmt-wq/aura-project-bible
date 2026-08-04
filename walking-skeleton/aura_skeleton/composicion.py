@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from . import observability as obs
 from .adapters.hitl_consola import confirmar_por_consola
@@ -204,7 +205,7 @@ class Sistema:
 # Responsable -> accion del catalogo que lo atiende. Es el equivalente, para los agentes del SO
 # Interno, de lo que `RegistroAdaptadores` hace con las capacidades: un responsable, un dueno. Hoy solo
 # se declara el que existe de verdad; declarar agentes no construidos seria fingir capacidad (INV-9).
-_EJECUTORES = {"programador": "copiar_archivo"}
+_EJECUTORES = {"programador": "copiar_archivo", "qa": "verificar_calidad"}
 
 
 def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
@@ -229,11 +230,15 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
 
     # --- Adaptadores: todo lo que AURA puede hacer -------------------------
     from .adapters.computador import AdaptadorComputador
+    from .adapters.qa import EjecutorQA
 
     raices = config.raices_permitidas
     adaptadores: list[Adapter] = [
         AdaptadorComputador(raices=raices) if raices else AdaptadorComputador(),
         HomeAssistantMock(),
+        # Ejecutor QA del SO Interno: AURORA puede verificarse a si misma. Su raiz es la del propio
+        # arbol de trabajo y se fija AQUI, no llega por argumentos de ninguna llamada.
+        EjecutorQA(raiz=str(Path(__file__).resolve().parents[1])),
     ]
     registro_adaptadores = RegistroAdaptadores(adaptadores)
 

@@ -207,6 +207,7 @@ Claude-Session: <url de la sesión>
 | No se **finge** capacidad no construida | INV-9 |
 | El alcance funcional del MVP está **cerrado**: añadir capacidades exige acta del CEO | D23 |
 | **Prohibido fabricar entornos** para aprobar hitos | D34 |
+| **AURORA nunca ejecuta instrucciones arbitrarias del sistema operativo: solo CAPACIDADES registradas**, gobernadas por el Motor Unico y auditadas. Las capacidades se nombran **por el resultado que ofrecen**, nunca por la herramienta (`ejecutar_pruebas`, no `ejecutar_pytest`) | CEO 2026-08-03 |
 | Si una implementacion no acerca a AURORA a **comprender, planificar, ejecutar, verificar, aprender y mejorarse por si misma**, no pertenece a la hoja de ruta principal | CEO 2026-08-03 |
 | Prohibido crear un componente sin demostrar antes que **no existe equivalente**, que **no puede extenderse uno existente** y que **aumenta el IMA** | CEO 2026-08-03 |
 | Toda capacidad importante **sobrevive al reinicio de sesion**. Si desaparece al terminar la conversacion, **no pertenece a AURORA**: solo pertenece lo que el sistema puede recuperar, comprender y continuar por si mismo | CEO 2026-08-03 |

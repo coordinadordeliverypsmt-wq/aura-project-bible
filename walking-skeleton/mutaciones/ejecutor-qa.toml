@@ -1,0 +1,46 @@
+incremento = "Ejecutor QA - AURORA verifica su propio trabajo mediante capacidades, no comandos"
+pruebas = ["tests/integration/test_ejecutor_qa.py"]
+
+[[mutante]]
+id = "M1"
+garantia = "la superficie ejecutable deja de ser cerrada: cualquier cadena se convierte en un comando (puerta al shell)"
+fichero = "aura_skeleton/adapters/qa.py"
+buscar = '''        cmd = _COMANDOS.get(command)
+        if cmd is None:'''
+sustituir = '''        cmd = _COMANDOS.get(command) or tuple(command.split())
+        if False:'''
+
+[[mutante]]
+id = "M2"
+garantia = "los argumentos del llamador pasan a influir en lo que se ejecuta"
+fichero = "aura_skeleton/adapters/qa.py"
+buscar = '''            *cmd, cwd=str(self._raiz), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT'''
+sustituir = '''            *cmd, *args.get("args", "").split(), cwd=args.get("cwd") or str(self._raiz),
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT'''
+
+[[mutante]]
+id = "M3"
+garantia = "una verificacion FALLIDA se reporta como correcta (INV-9: exito sin evidencia)"
+fichero = "aura_skeleton/adapters/qa.py"
+buscar = '''        ok = proc.returncode == 0'''
+sustituir = '''        ok = True'''
+
+[[mutante]]
+id = "M4"
+garantia = "la mutacion se ofrece pese a no estar autorizada por el CEO"
+fichero = "aura_skeleton/adapters/qa.py"
+buscar = '''    "verificar_calidad": ("bash", "./quality-gate.sh"),'''
+sustituir = '''    "verificar_calidad": ("bash", "./quality-gate.sh"),
+    "ejecutar_mutacion": ("python3", "-m", "herramientas.mutar"),'''
+
+[[mutante]]
+id = "M5"
+garantia = "el resultado deja de ser estructurado: el Director tendria que interpretar prosa"
+fichero = "aura_skeleton/adapters/qa.py"
+buscar = '''        return {
+            "capacidad": command,
+            "ok": ok,
+            "codigo_salida": proc.returncode,
+            "resumen": _resumen(texto),
+        }'''
+sustituir = '''        return {"capacidad": command, "ok": ok, "codigo_salida": proc.returncode, "resumen": ""}'''

@@ -1,0 +1,32 @@
+incremento = "Correcciones deterministas del recuperador que afectan al usuario"
+pruebas = ["tests/integration/test_correcciones_producto.py", "tests/integration/test_bateria_memoria.py"]
+
+[[mutante]]
+id = "M1"
+garantia = "ADR-0014 vuelve a depender solo de 15 literales: no se activa ante una pregunta real"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''    return any(p in t for p in _PATRONES_CONSULTA_MEMORIA) or _es_pregunta(texto)'''
+sustituir = '''    return any(p in t for p in _PATRONES_CONSULTA_MEMORIA)'''
+
+[[mutante]]
+id = "M2"
+garantia = "una afirmacion se clasifica como pregunta: todo activaria ADR-0014"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''    if "?" in texto or "¿" in texto:
+        return True'''
+sustituir = '''    if True:
+        return True'''
+
+[[mutante]]
+id = "M3"
+garantia = "las coletillas de cortesia vuelven a contar como contenido y derrumban el recall"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''    podrias puedes ayudame necesito oiga mira escucha bueno pues entonces vale aura"""'''
+sustituir = '''    podrias"""'''
+
+[[mutante]]
+id = "M4"
+garantia = "las preguntas vuelven a almacenarse como recuerdo: reaparece el auto-eco"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        if not _es_pregunta(text):'''
+sustituir = '''        if True:'''

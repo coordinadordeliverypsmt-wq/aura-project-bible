@@ -48,9 +48,51 @@ qué tal vas · cómo va todo · qué hay de nuevo
 
 **Sobre sus capacidades** — qué puedes hacer · qué sabes hacer · en qué me puedes ayudar
 
-**Regla de admisión:** coincidencia por **frase completa normalizada** o por prefijo declarado. **Nada
-de `any(patrón in texto)`**: esa es la construcción que produjo el defecto original. Una lista laxa
-recrearía el problema en el otro sentido.
+### Ajuste 1 del CEO — INTENCIONES, no frases
+
+La lista deja de ser plana: **cada entrada es una INTENCIÓN con sus variantes**. `saludo` agrupa
+«buenos días», «hola», «buenas tardes», «buenas noches»…; `capacidades` agrupa «qué puedes hacer»,
+«qué sabes hacer», «con qué me puedes ayudar», «cómo puedes ayudarme». Ampliar una intención = añadir
+una variante, sin tocar código.
+
+**Cómo se reconoce la intención sin caer en la trampa original:**
+
+1. **Normalizar** (minúsculas, sin tildes, sin signos, espacios colapsados).
+2. **Quitar el vocativo**: `aurora` / `aura` al principio o al final. Así «buenos días Aurora» y
+   «buenos días» son la misma entrada, sin duplicarla.
+3. **Coincidencia por frase completa** contra las variantes de cada intención. **Nunca
+   `any(patrón in texto)`**: esa construcción produjo el defecto original y lo recrearía en el otro
+   sentido.
+
+### El caso compuesto — es literalmente la frase del CEO
+
+*«buenos días Aurora, ¿qué tienes pendiente para hoy?»* **es un saludo Y una consulta.** Con
+coincidencia por frase completa **no casaría con nada** y seguiría cayendo donde hoy. Sin resolver
+esto, el incremento no arregla el caso que lo motivó — el mismo error que hundió la tabla.
+
+**Regla añadida:** si el turno **empieza** por una variante de `saludo` seguida de separador (`,` `.`
+`:` o conjunción), se **desprende el saludo** y el resto se evalúa como un turno propio. Si el resto
+queda vacío → `saludo`. Si no → sigue la cascada normal con el texto restante.
+
+Así *«buenos días Aurora, ¿qué tienes pendiente para hoy?»* → saludo desprendido → *«¿qué tienes
+pendiente para hoy?»* → intención `estado_operativo`. **Prueba obligatoria: esta frase exacta.**
+
+### Ajuste 2 del CEO — respuestas naturales
+
+Las respuestas dejan de ser técnicas. Redacción propia de AURORA, en primera persona, sin jerga ni
+nombres de módulos:
+
+> — *Buenos días Aurora.*
+> — Buenos días. Me alegra volver a hablar contigo. ¿En qué puedo ayudarte hoy?
+
+**Determinista sigue significando «no lo decide el LLM», no «suena a máquina».** Las plantillas se
+redactan con voz propia; los **hechos** (capacidades, tareas) se siguen leyendo de las fuentes reales
+y se insertan en la plantilla, nunca se inventan (ADR-0014 §1). Con 25,8 s por 8 tokens, generar por
+turno no es viable hoy — y tampoco hace falta.
+
+**Límite de honestidad (INV-9):** la plantilla de capacidades enumera lo que el registro devuelve de
+verdad. Una frase de cierre tipo *«conforme evolucione iré adquiriendo nuevas capacidades»* es
+aceptable porque no afirma ninguna capacidad concreta que no exista.
 
 **Qué responde cada grupo** — se decide en implementación, sin capacidades nuevas: los saludos y
 «quién eres» con plantilla determinista; «qué tienes pendiente» y «cómo va todo» leyendo el Estado

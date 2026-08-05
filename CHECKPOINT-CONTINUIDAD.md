@@ -15,6 +15,44 @@ aprobadas.
 
 
 
+
+## PRINCIPIO RECTOR DE "EXPERIENCIA CONVERSACIONAL v1" (CEO, 2026-08-04)
+
+> **El usuario nunca debe percibir la arquitectura interna de AURORA.**
+> Puede consultar el Centro de Gobierno, el Estado Operativo, el Plan de Formacion, el Modelo de
+> Usuario, la Memoria o cualquier componente, **pero siempre responde como UNA UNICA PERSONALIDAD**,
+> sin mencionar modulos internos salvo peticion expresa del usuario.
+> *"La conversacion debe parecer la de un companero inteligente, no la de un orquestador mostrando su
+> implementacion."*
+
+### Prueba de aceptacion del CEO
+Conversacion de 20-30 min sin que aparezca **ninguna** referencia tecnica: `EVENT`, `VOICE`, `CORE`,
+`MEM`, `LAT`, `trace`, `router`, "grounding", "memoria vacia", nombres de modulos — **salvo** con
+`--debug` o si el usuario pide informacion tecnica explicitamente.
+
+**Criterio de exito:** ya no basta con que pasen las pruebas. La arquitectura debe DESAPARECER detras
+de la conversacion.
+
+### COMO CONVERTIR ESA PRUEBA EN GARANTIA AUTOMATICA (aportacion de APUS-5)
+
+La parte objetiva del criterio **si es verificable por prueba determinista**, y conviene que lo sea:
+una revision manual de 20-30 min no se repite en cada push, y lo que no se automatiza se degrada
+(CLAUDE.md §5: *"el trabajo manual repetitivo se abandona, no se hace mal"*).
+
+Implementar como **lista negra de terminos** sobre la salida en modo usuario:
+1. Prueba que recorra un guion de preguntas variadas y **falle si CUALQUIER respuesta contiene un
+   termino de la lista**. Cubre tanto las superficies nuevas como las 8 previas.
+2. **Caso de control obligatorio** (si no, la prueba es decorativa): con `--debug` los terminos **SI**
+   deben aparecer. Sin ese caso, una prueba que nunca ve telemetria pasaria aunque el modo debug
+   estuviera roto.
+3. **Mutante:** que un termino tecnico se cuele en una respuesta de modo usuario. Debe morir.
+
+Lo que NO puede automatizarse es si la redaccion suena natural. **Ese juicio es del CEO usando el
+producto**, y es la evidencia que abre la siguiente iteracion. La lista negra protege el suelo; la
+calidez la juzga el usuario.
+
+---
+
 ## SPRINT EN COLA · "EXPERIENCIA CONVERSACIONAL v1" (CEO, 2026-08-04)
 
 Renombrado por el CEO: ya no es "Conversacion como interfaz del SO". *"Se trata de que el usuario

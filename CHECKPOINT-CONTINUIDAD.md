@@ -16,6 +16,54 @@ aprobadas.
 
 
 
+
+## ESTADO 2026-08-05 · CORRECCIONES ESCRITAS PERO **SIN VERIFICAR** — LEER ANTES DE TOCAR NADA
+
+**El incremento conversacional fue RECHAZADO por auditoria independiente. Las correcciones estan
+APLICADAS EN EL ARBOL DE TRABAJO pero NADIE HA VERIFICADO QUE FUNCIONEN.** El agente que las escribio
+murio por **limite de gasto mensual de la cuenta** justo antes de ejecutar la demo y las pruebas.
+
+**NO INTEGRAR. NO ASUMIR QUE ESTAN BIEN.** Este es exactamente el estado en el que nace
+«declarado != real»: codigo escrito que parece terminado y que nadie ejecuto.
+
+Modificado sin verificar: `aura_skeleton/core/orchestrator.py`,
+`mutaciones/conversacion-so.toml`, `tests/integration/test_conversacion_ventana_so.py`.
+Indicios de que la correccion se intento: 11 menciones de `dominio` y 2 de `UnicodeDecodeError`
+en el orquestador. **Indicio no es evidencia.**
+
+### LOS 3 DEFECTOS QUE HAY QUE COMPROBAR CERRADOS (informe completo del auditor arriba)
+
+1. **5 mutantes sobrevivian a las 684 pruebas** (A7-A11): capacidades FABRICADAS a mano en vez de las
+   17 reales, y Plan de Formacion INVENTADO, pasaban la suite entera. Aserciones decorativas que
+   cualquier constante satisface (`test_conversacion_ventana_so.py:67-68`, `:189-190`, `:159`, `:177`).
+   Las ramas de ausencia `orchestrator.py:439` y `:442` no tenian NINGUNA prueba. ALERTA-005 nº 10.
+2. **6 regresiones de conducta**: detectores sin guarda de dominio. *"que esta pasando con mi pedido de
+   Amazon"* respondia **"no hay nada bloqueado"**, y *"que has aprendido de mi"* volcaba el Plan de
+   Formacion con notas internas. Antes callaba honestamente; ahora contestaba MAL. El proyecto ya
+   arreglo esto dos veces: `orchestrator.py:210-222` y `:148-171` exigen marcador **Y** dominio.
+3. `UnicodeDecodeError` no capturado en `:437-440` (es `ValueError`, no `OSError`): el turno reventaba.
+
+### PRIMER PASO EXACTO AL RETOMAR (en este orden)
+
+1. `./quality-gate.sh` — si falla, las correcciones estan a medias.
+2. `python3 -m herramientas.mutar mutaciones/conversacion-so.toml` — deben morir TODOS.
+3. **Reconstruir los mutantes A7-A11 del auditor y comprobar que ahora MUEREN.** Vivian en
+   `/tmp/aura_audit/auditoria-conversacion-so.toml`, que **ya no existe**: hay que rehacerlos desde la
+   descripcion de arriba. Sin este paso no se sabe si el defecto 1 esta cerrado.
+4. Pruebas negativas con las 6 frases del defecto 2.
+5. Demo real con `env AURA_DATOS=/tmp/... python3 -m aura_skeleton` (NUNCA `VAR=val cmd | cmd2`).
+6. **Re-auditoria independiente.** Sigue sin poder integrarse sin ella.
+
+### BLOQUEO OPERATIVO REAL
+
+**Cuota mensual de la cuenta AGOTADA.** Han muerto por esta causa: la auditoria de la Pieza 1, la
+re-auditoria de la Pieza 3 y ahora la correccion del incremento conversacional. **No es un problema
+tecnico del proyecto y no se resuelve trabajando mas**: hasta que haya cuota, no hay auditoria
+independiente, y sin auditoria independiente no se integra nada. El trabajo pendiente esta
+completamente especificado; lo que falta es capacidad de ejecucion.
+
+---
+
 ## PRINCIPIO RECTOR DE "EXPERIENCIA CONVERSACIONAL v1" (CEO, 2026-08-04)
 
 > **El usuario nunca debe percibir la arquitectura interna de AURORA.**

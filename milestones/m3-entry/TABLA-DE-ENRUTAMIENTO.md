@@ -1,7 +1,23 @@
 # Tabla de enrutamiento de intenciones — para revisión del CEO
 
-**Estado:** propuesta, **pendiente de aprobación** · **Fecha:** 2026-08-05
-**No se modifica código hasta que el CEO apruebe esta tabla** (condición 5 del CEO).
+**Estado: APROBADA por el CEO (2026-08-05). Esta tabla es el CONTRATO del Intent Router.**
+**La fase de arquitectura queda CERRADA: no se admiten más cambios de diseño.**
+
+### Criterios definitivos fijados por el CEO al aprobar
+
+1. El enrutado es **explícito y determinista**. Esta tabla es su contrato.
+2. **Ambigüedad** = más de un dominio admite el turno y ninguno tiene precedencia objetiva ⇒ **pedir
+   aclaración**. **Sin puntuaciones ni modelos probabilísticos.**
+3. **Memoria solo se activa** ante referencia al pasado compartido o a recuerdos. **Nunca captura una
+   pregunta por defecto.**
+4. **Conversación General es el dominio de cierre, nunca Memoria.** Sin inventar hechos ni recuerdos:
+   **ADR-0014 sigue siendo obligatorio**.
+5. Las **acciones** mantienen prioridad sobre las consultas **solo cuando la intención de ejecutar sea
+   INEQUÍVOCA**. *(Refuerza el §1: ante duda entre acción y consulta, se pide aclaración.)*
+
+**Pasos restantes, exclusivamente técnicos:** auditoría de la tabla → implementación →
+RED/GREEN/MUTACIÓN → auditoría independiente → integración.
+**Después, el CEO evaluará AURORA solo por la experiencia de uso diario.**
 
 Refactor de la cascada existente, no componente nuevo (condición 1). Hace explícita la precedencia
 que hoy fija el orden en que se escribieron las líneas.

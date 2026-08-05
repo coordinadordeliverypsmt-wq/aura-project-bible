@@ -75,3 +75,90 @@ buscar = '''        # Ventana del SO Interno en la conversacion (M3 entry): "¿q
         estado_operativo=estado_operativo,
     )'''
 sustituir = '''    )'''
+
+# --- Rechazo de auditoria independiente: mutantes A7-A11 que sobrevivian a las 684 pruebas -------
+#
+# El auditor declaro 5 mutantes que las pruebas de la primera version NO detectaban, porque las
+# aserciones eran decorativas (subcadenas genericas que cualquier constante fabricada satisface).
+# Los mutantes de abajo son SU version formal, declarada en el arnes: deben morir contra las
+# pruebas reescritas de tests/integration/test_conversacion_ventana_so.py.
+
+# (A7) "por que estas bloqueada"/"que esta pasando" dejan de leer el Centro de Gobierno real y
+# devuelven un texto fijo, ignorando los bloqueos REALES del Estado Operativo (INV-9).
+[[mutante]]
+id = "M6"
+garantia = "'por que estas bloqueada' deja de leer el Centro de Gobierno real: devuelve un texto fijo (INV-9)"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        secciones = self._secciones_del_ciclo()
+        if not secciones:
+            return "No tengo ningún objetivo activo, así que no hay nada bloqueado ahora mismo."
+        resumen = self._resumen_de(secciones, "Que esta bloqueado", "Riesgos activos", "Recomendaciones derivadas")
+        return f"Esto es lo que está pasando:\n{resumen}"'''
+sustituir = '''        return "Esto es lo que está pasando:\n• Que esta bloqueado: nada relevante"'''
+
+# (A9) "que aprendiste" deja de devolver la seccion REAL leida del fichero y fabrica un resumen
+# plausible ("Aprendidas" incluido, para que una prueba con aserciones de subcadena no lo notara).
+[[mutante]]
+id = "M7"
+garantia = "'que aprendiste' devuelve un resumen INVENTADO en vez de la seccion real leida del Plan de Formacion"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''    seccion = _extraer_seccion(md, "Aprendidas")
+    if seccion is None:
+        return "El Plan de Formación existe pero no tiene una sección de capacidades aprendidas."
+    return seccion'''
+sustituir = '''    seccion = _extraer_seccion(md, "Aprendidas")
+    if seccion is None:
+        return "El Plan de Formación existe pero no tiene una sección de capacidades aprendidas."
+    return "## Aprendidas\n\nAURORA ha aprendido mucho este periodo."'''
+
+# (A10) Con el Plan de Formacion AUSENTE, en vez de declarar la ausencia (INV-9) se fabrica un
+# contenido que aparenta ser real -el peor de los dos casos: ni declara ni lee, finge-.
+[[mutante]]
+id = "M8"
+garantia = "con el Plan de Formacion ausente, se fabrica contenido plausible en vez de declarar la ausencia (INV-9)"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''    except (OSError, UnicodeDecodeError):
+        return "No encuentro el Plan de Formación en el repositorio; no puedo declarar qué he aprendido."'''
+sustituir = '''    except (OSError, UnicodeDecodeError):
+        return "## Aprendidas\n\nAURORA ha aprendido mucho este periodo."'''
+
+# (A11) El filtro de `_resumen_de` se ignora: "en que trabajas" y "por que bloqueada" devuelven
+# TODAS las secciones del panel (tareas y bloqueos mezclados) en vez de solo las suyas.
+[[mutante]]
+id = "M9"
+garantia = "'_resumen_de' ignora el filtro de sufijos: tareas y bloqueo devuelven las mismas secciones mezcladas"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        filtradas = [s for s in secciones if any(s.titulo.endswith(suf) for suf in sufijos)]
+        return "\n".join(f"• {s.titulo}: {s.contenido}" for s in filtradas)'''
+sustituir = '''        return "\n".join(f"• {s.titulo}: {s.contenido}" for s in secciones)'''
+
+# --- Regresiones de conducta (defecto 2 y defecto 3 de la auditoria) ------------------------------
+
+# (defecto 2) La guarda de dominio se deshabilita: "que esta pasando con mi pedido de Amazon" vuelve
+# a volcar el Centro de Gobierno, "que estas haciendo con mis archivos" el Estado Operativo, y "que
+# has aprendido de mi" el Plan de Formacion -contestar MAL, que es peor que no responder-.
+[[mutante]]
+id = "M10"
+garantia = "la guarda de dominio se deshabilita: frases con objeto ajeno (mi pedido, mis archivos, de mi) vuelven a interceptarse"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''def _tiene_objeto_ajeno(texto_norm: str) -> bool:
+    """True si la frase declara algo que el usuario o un tercero posee ("mi pedido", "mis archivos",
+    "de mi"): entonces la pregunta no es sobre AURORA misma, y las superficies de la ventana del SO
+    no deben interceptarla."""
+    return any(re.search(p, texto_norm) for p in _RE_OBJETO_AJENO)'''
+sustituir = '''def _tiene_objeto_ajeno(texto_norm: str) -> bool:
+    """True si la frase declara algo que el usuario o un tercero posee ("mi pedido", "mis archivos",
+    "de mi"): entonces la pregunta no es sobre AURORA misma, y las superficies de la ventana del SO
+    no deben interceptarla."""
+    return False'''
+
+# (defecto 3) `UnicodeDecodeError` deja de capturarse: un Plan de Formacion con bytes que no son
+# UTF-8 valido revienta el turno entero -ni declara ausencia ni fabrica, explota-.
+[[mutante]]
+id = "M11"
+garantia = "UnicodeDecodeError ya no se captura al leer el Plan de Formacion: un fichero con codificacion invalida revienta el turno"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''    except (OSError, UnicodeDecodeError):
+        return "No encuentro el Plan de Formación en el repositorio; no puedo declarar qué he aprendido."'''
+sustituir = '''    except OSError:
+        return "No encuentro el Plan de Formación en el repositorio; no puedo declarar qué he aprendido."'''

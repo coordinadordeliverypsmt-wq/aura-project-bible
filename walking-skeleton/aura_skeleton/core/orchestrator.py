@@ -5,6 +5,7 @@ no en el payload. Asi el MISMO orquestador corre sobre el bus in-process o sobre
 from __future__ import annotations
 
 import asyncio
+import re
 from pathlib import Path
 
 from .. import observability as obs
@@ -383,24 +384,63 @@ _PAT_FORMACION = (
 )
 
 
+# GUARDA DE DOMINIO (rechazo de auditoria independiente, defecto 2): la misma disciplina que
+# `_es_cancelacion_de_regla` (marcador + mencion de dominio) y `_es_peticion_de_olvido` (marcador
+# menos la construccion reflexiva) aplicada aqui. "que esta pasando", "que estas haciendo" y "que
+# aprendiste"/"que has aprendido" son marcadores DEMASIADO ANCHOS en solitario: aparecen en frases
+# mundanas que no hablan del propio sistema, sino de algo que el usuario o un tercero posee.
+#
+# Verificado por la auditoria: sin esta guarda, "¿que esta pasando con mi pedido de Amazon?" volcaba
+# el Centro de Gobierno, "¿que estas haciendo con mis archivos?" volcaba el Estado Operativo, y "¿que
+# has aprendido de mi?" volcaba el Plan de Formacion -con notas internas sobre APUS-5- en vez de caer,
+# como ANTES de este incremento, en la ausencia de memoria (ADR-0014). Contestar MAL es peor que no
+# responder: rompe el principio de que el usuario no debe percibir la arquitectura interna.
+#
+# `\b` (limite de palabra) evita falsos positivos por sub-cadena ("de mi" no debe reconocer "de
+# miedo"). Con objeto ajeno, el turno sigue su flujo normal (memoria/LLM), igual que las otras
+# guardas de dominio del fichero.
+_RE_OBJETO_AJENO = (
+    r"\bcon mi\b",
+    r"\bcon mis\b",
+    r"\bcon tu\b",
+    r"\bcon tus\b",
+    r"\bde mi\b",
+    r"\bde mis\b",
+    r"\bde ti\b",
+)
+
+
+def _tiene_objeto_ajeno(texto_norm: str) -> bool:
+    """True si la frase declara algo que el usuario o un tercero posee ("mi pedido", "mis archivos",
+    "de mi"): entonces la pregunta no es sobre AURORA misma, y las superficies de la ventana del SO
+    no deben interceptarla."""
+    return any(re.search(p, texto_norm) for p in _RE_OBJETO_AJENO)
+
+
 def _es_consulta_de_capacidades(texto: str) -> bool:
     """True si el usuario pregunta que puede hacer AURA ("¿que capacidades tienes?")."""
     return any(p in _normalizar(texto) for p in _PAT_CAPACIDADES)
 
 
 def _es_consulta_de_tareas(texto: str) -> bool:
-    """True si el usuario pregunta por el trabajo en curso del ciclo de AURORA."""
-    return any(p in _normalizar(texto) for p in _PAT_TAREAS)
+    """True si el usuario pregunta por el trabajo en curso del ciclo de AURORA, y no por algo que
+    el o un tercero posee (guarda de dominio, ver `_tiene_objeto_ajeno`)."""
+    t = _normalizar(texto)
+    return any(p in t for p in _PAT_TAREAS) and not _tiene_objeto_ajeno(t)
 
 
 def _es_consulta_de_gobierno(texto: str) -> bool:
-    """True si el usuario pregunta por que AURORA esta bloqueada o que esta pasando ahora mismo."""
-    return any(p in _normalizar(texto) for p in _PAT_GOBIERNO)
+    """True si el usuario pregunta por que AURORA esta bloqueada o que esta pasando ahora mismo, y
+    no por algo ajeno al sistema (guarda de dominio, ver `_tiene_objeto_ajeno`)."""
+    t = _normalizar(texto)
+    return any(p in t for p in _PAT_GOBIERNO) and not _tiene_objeto_ajeno(t)
 
 
 def _es_consulta_de_formacion(texto: str) -> bool:
-    """True si el usuario pregunta que ha aprendido AURORA."""
-    return any(p in _normalizar(texto) for p in _PAT_FORMACION)
+    """True si el usuario pregunta que ha aprendido AURORA sobre el mundo o sus capacidades -no que
+    ha aprendido SOBRE EL USUARIO, eso es Modelo de Usuario (guarda de dominio, `_tiene_objeto_ajeno`)."""
+    t = _normalizar(texto)
+    return any(p in t for p in _PAT_FORMACION) and not _tiene_objeto_ajeno(t)
 
 
 # Ubicacion FIJA del Plan de Formacion: gobierno del proyecto, no dato de usuario, vive junto a
@@ -433,10 +473,15 @@ def _resumen_formacion() -> str:
 
     INV-9: si el fichero no esta donde debe estar, o no tiene seccion de aprendidas, se declara la
     ausencia -nunca se simula contenido-.
+
+    Defecto menor corregido (auditoria independiente): `read_text(encoding="utf-8")` no solo puede
+    fallar con `OSError` (fichero ausente/sin permiso) sino con `UnicodeDecodeError` (subclase de
+    `ValueError`) si el fichero existe pero su codificacion no es UTF-8 valida. Sin capturarlo, el
+    turno entero revienta: ni declara ausencia ni fabrica, explota -- el peor de los tres resultados.
     """
     try:
         md = _ruta_plan_formacion().read_text(encoding="utf-8")
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return "No encuentro el Plan de Formación en el repositorio; no puedo declarar qué he aprendido."
     seccion = _extraer_seccion(md, "Aprendidas")
     if seccion is None:

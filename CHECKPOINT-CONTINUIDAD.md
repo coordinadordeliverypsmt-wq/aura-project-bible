@@ -17,6 +17,48 @@ aprobadas.
 
 
 
+
+## >>> PUNTO DE REANUDACION EXACTO (CEO, 2026-08-05) <<<
+
+**NO INICIAR NADA NUEVO MIENTRAS LA CUOTA SIGA AGOTADA.** Orden literal del CEO al volver:
+
+1. **Verificar las correcciones escritas** (commit `WIP` del worktree, ver abajo). `./quality-gate.sh`
+   + `python3 -m herramientas.mutar mutaciones/conversacion-so.toml` + **rehacer los 5 mutantes
+   A7-A11 del auditor** (vivian en `/tmp`, ya no existen; reconstruirlos desde el informe de arriba).
+2. **Rehacer la auditoria independiente** — agente que NO implemento.
+3. **Integrar el incremento conversacional en `main`.**
+4. **Validar en el binario oficial** que responde a: que puedes hacer · en que estas trabajando ·
+   que aprendiste · por que estas bloqueada · que sabes de mi.
+5. **Solo cuando esa version sea la que el CEO use a diario**, empezar la etapa siguiente.
+
+### Etapa siguiente (definida, NO empezada)
+Usar AURORA como interfaz principal para que **genere evidencia de producto y detecte por si misma
+necesidades reales**. Su evolucion se basa en esa evidencia, y **siempre propone los cambios para
+aprobacion antes de implementarlos**.
+
+### ESTADO VERIFICADO DEL PRODUCTO HOY (medido 2026-08-05, no leido)
+`main` = `befb303`. Ejecutado contra el binario oficial con `AURA_DATOS` aislado:
+
+```
+tu> ¿Que puedes hacer?          AURA> No tengo ningun recuerdo registrado sobre eso.
+tu> ¿En que estas trabajando?   AURA> No tengo ningun recuerdo registrado sobre eso.
+tu> ¿Por que estas bloqueada?   AURA> No tengo ningun recuerdo registrado sobre eso.
+tu> ¿Que aprendiste?            AURA> No tengo ningun recuerdo registrado sobre eso.
+tu> ¿Que sabes de mi?           AURA> Todavia no se nada sobre ti.
+```
+
+`_es_consulta_de_capacidades` **no existe en main** (0 coincidencias). Lo que el CEO ejecuta hoy es la
+version anterior. **Lo unico integrado y util de este trabajo son `--gobierno` y `--servir`.**
+Tambien sigue apareciendo el bloque `AURA - arranque verificado`, que el criterio 3 del sprint pide
+ocultar.
+
+### PENDIENTE NO TECNICO
+El **Modelo de Usuario real contiene un dato FABRICADO** ("prefiero trabajar de noche"). Limpiarlo por
+la via del producto ANTES de que el CEO empiece a usar AURORA a diario: si no, lo primero que le dira
+sobre si mismo sera falso.
+
+---
+
 ## ESTADO 2026-08-05 · CORRECCIONES ESCRITAS PERO **SIN VERIFICAR** — LEER ANTES DE TOCAR NADA
 
 **El incremento conversacional fue RECHAZADO por auditoria independiente. Las correcciones estan

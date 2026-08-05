@@ -5,12 +5,14 @@ no en el payload. Asi el MISMO orquestador corre sobre el bus in-process o sobre
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 
 from .. import observability as obs
 from ..contracts import Event
 from ..observability import Timer
 from .almacen_senales import AlmacenSenales
 from .automatizacion import MotorAutomatizacion
+from .centro_gobierno import panel
 from .modelo_usuario import describir_conocimiento, explicar_entrada
 from .notificaciones import notificacion_de_accion
 from .registro import RegistroAdaptadores
@@ -334,6 +336,114 @@ def _es_creacion_de_regla(texto: str) -> bool:
     return any(p in t for p in _PAT_REGLA_DISPARADOR) and "copia" in t and _detectar_accion_disparadora(t) is not None
 
 
+# --- Ventana del SO Interno en la conversacion (M3 entry) -----------------------------------
+#
+# El chat es la interfaz con la que el usuario consulta el Sistema Operativo de AURORA. Antes de
+# esto, preguntas como "¿que capacidades tienes?" o "¿en que estas trabajando?" no tenian
+# superficie propia: caian en la ausencia de memoria (ADR-0014) y AURA respondia "No tengo ningun
+# recuerdo registrado sobre eso" aunque la respuesta EXISTIERA en el propio sistema (el registro de
+# adaptadores, el Estado Operativo, el Centro de Gobierno, el Plan de Formacion). Eso es el mismo
+# patron "declarado != real" que este proyecto ya ha pagado 8 veces, aplicado a la interfaz.
+#
+# Misma disciplina que el resto de superficies (ADR-0014): deteccion DETERMINISTA por patrones en
+# el nucleo, JAMAS clasificada por el LLM. Y la misma cautela de INV-9: la fuente se LEE tal cual;
+# si esta vacia o ausente, se declara -nunca se rellena con contenido fabricado-.
+#
+# Se anaden DESPUES de las 8 superficies deterministas previas (modelo de usuario: ver/porque/
+# refuta/olvida; notificaciones; reglas: ver/crear/cancelar -- CHECKLIST-CONTINUIDAD.md #4.6) y
+# ANTES de la ausencia de memoria: ninguna de sus frases se solapa con las de arriba (comprobado
+# frase a frase contra las 8 tablas de patrones existentes; la prueba de no interferencia vive en
+# tests/integration/test_conversacion_ventana_so.py).
+
+_PAT_CAPACIDADES = (
+    "que capacidades tienes",
+    "que capacidades tenes",
+    "cuales son tus capacidades",
+    "que puedes hacer",
+    "que podes hacer",
+)
+
+_PAT_TAREAS = (
+    "que tareas tienes",
+    "cuales son tus tareas",
+    "en que estas trabajando",
+    "en que trabajas",
+    "que estas haciendo",
+)
+
+_PAT_GOBIERNO = (
+    "por que estas bloqueada",
+    "por que estas bloqueado",
+    "que esta pasando",
+)
+
+_PAT_FORMACION = (
+    "que aprendiste",
+    "que has aprendido",
+)
+
+
+def _es_consulta_de_capacidades(texto: str) -> bool:
+    """True si el usuario pregunta que puede hacer AURA ("¿que capacidades tienes?")."""
+    return any(p in _normalizar(texto) for p in _PAT_CAPACIDADES)
+
+
+def _es_consulta_de_tareas(texto: str) -> bool:
+    """True si el usuario pregunta por el trabajo en curso del ciclo de AURORA."""
+    return any(p in _normalizar(texto) for p in _PAT_TAREAS)
+
+
+def _es_consulta_de_gobierno(texto: str) -> bool:
+    """True si el usuario pregunta por que AURORA esta bloqueada o que esta pasando ahora mismo."""
+    return any(p in _normalizar(texto) for p in _PAT_GOBIERNO)
+
+
+def _es_consulta_de_formacion(texto: str) -> bool:
+    """True si el usuario pregunta que ha aprendido AURORA."""
+    return any(p in _normalizar(texto) for p in _PAT_FORMACION)
+
+
+# Ubicacion FIJA del Plan de Formacion: gobierno del proyecto, no dato de usuario, vive junto a
+# CLAUDE.md y CHECKLIST-CONTINUIDAD.md. Desde este fichero (aura_skeleton/core/orchestrator.py) son
+# tres niveles hacia arriba: core -> aura_skeleton -> walking-skeleton -> raiz del repo. Si el
+# repositorio se reubica sin ese vecino, la respuesta correcta es declarar la ausencia (INV-9), no
+# fabricar un resumen de lo que AURORA "deberia" haber aprendido.
+_NOMBRE_PLAN_FORMACION = "PLAN-DE-FORMACION-AURORA.md"
+
+
+def _ruta_plan_formacion() -> Path:
+    return Path(__file__).resolve().parents[3] / _NOMBRE_PLAN_FORMACION
+
+
+def _extraer_seccion(md: str, encabezado_contiene: str) -> str | None:
+    """El bloque bajo el primer encabezado de nivel 2 (`## `) que contiene `encabezado_contiene`,
+    hasta el siguiente encabezado de nivel 2 o el final del documento. None si no aparece."""
+    lineas = md.splitlines()
+    inicio = next(
+        (i for i, linea in enumerate(lineas) if linea.startswith("## ") and encabezado_contiene in linea), None
+    )
+    if inicio is None:
+        return None
+    fin = next((i for i in range(inicio + 1, len(lineas)) if lineas[i].startswith("## ")), len(lineas))
+    return "\n".join(lineas[inicio:fin]).strip()
+
+
+def _resumen_formacion() -> str:
+    """Responde "¿que aprendiste?" leyendo el Plan de Formacion REAL, no un resumen inventado.
+
+    INV-9: si el fichero no esta donde debe estar, o no tiene seccion de aprendidas, se declara la
+    ausencia -nunca se simula contenido-.
+    """
+    try:
+        md = _ruta_plan_formacion().read_text(encoding="utf-8")
+    except OSError:
+        return "No encuentro el Plan de Formación en el repositorio; no puedo declarar qué he aprendido."
+    seccion = _extraer_seccion(md, "Aprendidas")
+    if seccion is None:
+        return "El Plan de Formación existe pero no tiene una sección de capacidades aprendidas."
+    return seccion
+
+
 class Orchestrator:
     """Coordina el turno conversacional. NO ejecuta acciones por su cuenta (M2.5, ALERTA-005).
 
@@ -355,12 +465,17 @@ class Orchestrator:
         notificaciones=None,
         modelo_usuario=None,
         automatizaciones=None,
+        estado_operativo=None,
     ):
         self.bus, self.memory, self.router = bus, memory, router
         self.perm, self.voice = permissions, voice
         self.notificaciones = notificaciones  # Centro de Notificaciones (MVP): registra lo que AURA hace
         self.modelo_usuario = modelo_usuario  # Soberania (MVP): ver/entender/corregir/olvidar lo que sabe de ti
         self.automatizaciones = automatizaciones  # AlmacenReglas (MVP cap. 5): reglas del usuario, persistentes
+        # Estado Operativo del SO Interno (M3 entry): fuente de "que tareas tienes" / "por que estas
+        # bloqueada" en la conversacion. OPCIONAL: sin el, esas preguntas siguen el flujo normal
+        # (memoria/LLM), igual que notificaciones/modelo_usuario/automatizaciones cuando no se conectan.
+        self.estado_operativo = estado_operativo
         self._foco_modelo: dict[str, dict] = {}  # a que afirmacion se refiere "eso" por usuario
         # M3.0 — captura de senales. OPCIONAL y PASIVA: si no hay registro de contexto, el sistema
         # se comporta exactamente igual que en M2. La captura observa el turno; no participa en
@@ -425,6 +540,24 @@ class Orchestrator:
             if _es_cancelacion_de_regla(text):
                 await self._finalizar_turno(uid, tid, text, self._desactivar_regla(uid, text), "core", t)
                 return
+        # Ventana del SO Interno (M3 entry): "¿que capacidades tienes?" / "¿en que estas trabajando?" /
+        # "¿por que estas bloqueada?" / "¿que aprendiste?" se responden desde el propio sistema, nunca
+        # desde el LLM. Van DESPUES de las 8 superficies anteriores y ANTES de la ausencia de memoria:
+        # si llegaran a caer ahi, el usuario recibiria "no tengo ningun recuerdo" para algo que el
+        # sistema si sabe (el defecto de producto que este incremento corrige).
+        if _es_consulta_de_capacidades(text):
+            await self._finalizar_turno(uid, tid, text, self._describir_capacidades(), "core", t)
+            return
+        if self.estado_operativo is not None:
+            if _es_consulta_de_tareas(text):
+                await self._finalizar_turno(uid, tid, text, self._describir_tareas(), "core", t)
+                return
+            if _es_consulta_de_gobierno(text):
+                await self._finalizar_turno(uid, tid, text, self._describir_bloqueo(), "core", t)
+                return
+        if _es_consulta_de_formacion(text):
+            await self._finalizar_turno(uid, tid, text, _resumen_formacion(), "core", t)
+            return
         hits = await self.memory.recall(uid, text)
         t.mark("memory")
         # ADR-0014: la ausencia de memoria es un HECHO, no una inferencia. Si el usuario
@@ -561,6 +694,59 @@ class Orchestrator:
             return "No ha pasado nada relevante mientras no estabas."
         lineas = "\n".join(f"• {n.titulo}" for n in items)
         return f"Desde la última vez:\n{lineas}"
+
+    # ----------------------------------------- ventana del SO Interno (M3 entry) --
+
+    def _describir_capacidades(self) -> str:
+        """Responde "¿que capacidades tienes?" / "¿que puedes hacer?" con el registro de
+        adaptadores REAL (`self.registro`), la misma fuente que `--verificar` imprime al arrancar.
+        Ninguna capacidad se afirma sin que un adaptador la haya declarado (ALERTA-005): no se
+        inventa una lista, se lee la que existe.
+        """
+        caps = sorted(self.registro.capacidades())
+        if not caps:
+            return "Ahora mismo no tengo ninguna capacidad registrada."
+        return f"Tengo {len(caps)} capacidad(es) registradas:\n" + "\n".join(f"• {c}" for c in caps)
+
+    def _secciones_del_ciclo(self) -> list:
+        """Secciones de `centro_gobierno.panel()` para TODOS los objetivos activos, o `[]` si no
+        hay ninguno. Fuente UNICA para las dos preguntas de esta seccion (tareas y bloqueo): ambas
+        leen el mismo calculo, nunca lo repiten (CLAUDE.md: reutilizar antes que crear)."""
+        activos = self.estado_operativo.objetivos_activos()
+        if not activos:
+            return []
+        return panel(estado=self.estado_operativo, objetivo=activos)
+
+    @staticmethod
+    def _resumen_de(secciones: list, *sufijos: str) -> str:
+        """Texto de las secciones cuyo TITULO termina en alguno de los sufijos pedidos. El prefijo
+        "[objetivo] " que `panel()` antepone cuando hay varios objetivos activos no afecta al
+        filtro: el sufijo es el nombre estable de la seccion (ver `centro_gobierno.panel`)."""
+        filtradas = [s for s in secciones if any(s.titulo.endswith(suf) for suf in sufijos)]
+        return "\n".join(f"• {s.titulo}: {s.contenido}" for s in filtradas)
+
+    def _describir_tareas(self) -> str:
+        """Responde "¿que tareas tienes?" / "¿en que estas trabajando?" leyendo el Estado
+        Operativo REAL del ciclo de AURORA (`estado_operativo.py`). Fiel al estado interno
+        (INV-7: el plan no se reinterpreta): sin ningun objetivo activo, se declara -no se
+        inventa trabajo en curso-.
+        """
+        secciones = self._secciones_del_ciclo()
+        if not secciones:
+            return "No tengo ningún objetivo activo registrado en el estado operativo ahora mismo."
+        resumen = self._resumen_de(secciones, "Que esta haciendo", "Que hara despues", "Progreso")
+        return f"Esto es en lo que estoy trabajando:\n{resumen}"
+
+    def _describir_bloqueo(self) -> str:
+        """Responde "¿por que estas bloqueada?" / "¿que esta pasando?" reutilizando el MISMO
+        Centro de Gobierno que ya lee `estado_operativo.py` (`centro_gobierno.panel()/render()`):
+        el calculo de bloqueos no se duplica en el orquestador.
+        """
+        secciones = self._secciones_del_ciclo()
+        if not secciones:
+            return "No tengo ningún objetivo activo, así que no hay nada bloqueado ahora mismo."
+        resumen = self._resumen_de(secciones, "Que esta bloqueado", "Riesgos activos", "Recomendaciones derivadas")
+        return f"Esto es lo que está pasando:\n{resumen}"
 
     # ----------------------------------------- automatizaciones del usuario --
 

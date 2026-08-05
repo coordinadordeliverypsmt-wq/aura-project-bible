@@ -12,6 +12,41 @@ aprobadas.
 
 
 
+
+## AVISO 2026-08-04 (3) · DATO FALSO EN EL MODELO DE USUARIO REAL — LIMPIAR
+
+Durante la demo del encargo conversacional, un error de scoping de bash
+(`VAR=val cmd1 | cmd2` solo aplica VAR a cmd1) hizo que `AURA_DATOS` NO llegara al proceso: **la
+primera demo corrio contra el `~/.aura` REAL**, no contra el directorio aislado.
+
+**Consecuencia:** hay una entrada FABRICADA en `~/.aura/memoria.json` — *"usuario dijo: mi preferencia
+es trabajar de noche"*, user_id `usuario`. **El CEO nunca dijo eso.** Es un dato de prueba en la fuente
+que acabamos de conectar a la conversacion: si no se borra, AURORA le respondera al CEO que sabe que
+prefiere trabajar de noche, y sera FALSO. Contamina justo la fuente cuya credibilidad importa.
+
+**Como limpiarlo (NO editar el fichero a mano):** usar la propia capacidad del producto,
+`ModeloUsuario.borrar` / la secuencia conversacional de refutar-olvidar. Editar el JSON a mano seria
+manipular evidencia y ademas saltarse el Motor Unico.
+
+El `audit.jsonl` tambien recibio lineas de boot de esa corrida. **NO se tocan**: es append-only por
+diseno y reescribirlo seria peor que dejarlo. Queda declarado aqui, que es la forma correcta de
+corregir un log inmutable.
+
+### ESTADO DEL ENCARGO CONVERSACIONAL (agente terminado, **SIN AUDITORIA**)
+
+Quality Gate PASS (684 pruebas), mutacion `conversacion-so.toml` 5/5 detectados. 4 superficies nuevas
+insertadas DESPUES de las 8 previas y ANTES de la ausencia de memoria, con prueba de no interferencia
+que reejecuta las secuencias de modelo de usuario y notificaciones. Efecto colateral detectado y
+corregido: el cableado rompio el mutante M9 de `cap5-automatizacion.toml` (patron obsoleto), lo
+destapo `test_garantias_vigentes.py` — el Auditor funcionando como se diseno.
+
+**NO INTEGRADO A MAIN Y NO CERRADO: falta la auditoria independiente.** Protocolo B1 completo =
+RED, GREEN, mutacion, Quality Gate **y auditoria**. Primer paso al retomar: auditar este incremento
+con un agente que no lo implemento, prestando atencion a si algun patron nuevo roba frases a las 8
+superficies previas en casos que la prueba de no interferencia no cubra.
+
+---
+
 ## ESTADO 2026-08-04 (2) · ETAPA DE OPERACION Y APRENDIZAJE — TRABAJO EN PARALELO
 
 **Mandato vigente del CEO:** AURORA aprende del uso · APUS-5 fortalece la PLATAFORMA · el CEO decide

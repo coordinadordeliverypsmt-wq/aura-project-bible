@@ -1,0 +1,77 @@
+incremento = "La conversacion es la ventana del SO de AURORA (M3 entry)"
+# Las 4 superficies nuevas (capacidades, tareas, gobierno, formacion) y la prueba de NO
+# INTERFERENCIA de las 8 superficies previas viven en el mismo fichero: cualquier mutante de esta
+# declaracion debe morir contra el conjunto completo, no contra una prueba aislada.
+pruebas = [
+    "tests/integration/test_conversacion_ventana_so.py",
+    "tests/integration/test_composicion.py",
+]
+
+# (a) UN DETECTOR QUE NO DETECTA: "¿que capacidades tienes?" deja de reconocerse. Sin el detector,
+# la pregunta cae en la ausencia de memoria (ADR-0014) y responde "No tengo ningun recuerdo..."
+# en vez de listar las capacidades reales -- el mismo defecto de producto que este incremento existe
+# para cerrar.
+[[mutante]]
+id = "M1"
+garantia = "el detector de capacidades deja de reconocer la pregunta: vuelve la ausencia de memoria en su lugar"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''def _es_consulta_de_capacidades(texto: str) -> bool:
+    """True si el usuario pregunta que puede hacer AURA ("¿que capacidades tienes?")."""
+    return any(p in _normalizar(texto) for p in _PAT_CAPACIDADES)'''
+sustituir = '''def _es_consulta_de_capacidades(texto: str) -> bool:
+    """True si el usuario pregunta que puede hacer AURA ("¿que capacidades tienes?")."""
+    return False'''
+
+# (b) UNA SUPERFICIE PREVIA LE ROBA UNA FRASE A UNA NUEVA: en la cascada de `on_turn`, "reglas:
+# consulta" (superficie 6 de las 8 previas) se evalua ANTES que "capacidades" (superficie nueva).
+# Si su tabla de patrones se ensancha para incluir "que capacidades tienes", esa frase nunca llega
+# a la superficie nueva: la roba una superficie previa, exactamente la clase de interferencia que
+# CHECKLIST-CONTINUIDAD.md #4.6 documenta entre las 8 superficies existentes.
+[[mutante]]
+id = "M2"
+garantia = "reglas:consulta le roba la frase 'que capacidades tienes' a la superficie nueva de capacidades"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''_PAT_REGLAS_VER = ("que automatizaciones", "que automatizacion", "mis automatizaciones", "que reglas", "mis reglas")'''
+sustituir = '''_PAT_REGLAS_VER = ("que automatizaciones", "que automatizacion", "mis automatizaciones", "que reglas", "mis reglas", "que capacidades tienes")'''
+
+# (c) SE LLAMA AL LLM AUNQUE LA RESPUESTA EXISTA EN EL SO: falta el `return` tras responder desde
+# el nucleo. El turno NO se corta: sigue hasta `memory.recall`, y si hay algun recuerdo relacionado
+# (test dedicado siembra uno), la ausencia de memoria deja de aplicar y el flujo llega al LLM, que
+# SOBREESCRIBE la respuesta correcta con la suya.
+[[mutante]]
+id = "M3"
+garantia = "falta el 'return' tras responder capacidades: el turno sigue hasta el LLM y sobreescribe la respuesta"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        if _es_consulta_de_capacidades(text):
+            await self._finalizar_turno(uid, tid, text, self._describir_capacidades(), "core", t)
+            return'''
+sustituir = '''        if _es_consulta_de_capacidades(text):
+            await self._finalizar_turno(uid, tid, text, self._describir_capacidades(), "core", t)'''
+
+# (d) DATOS FABRICADOS EN VEZ DE LEER LA FUENTE: "¿en que estas trabajando?" deja de leer el Estado
+# Operativo real y devuelve un texto fijo. INV-9: fingir trabajo que no esta en el almacen.
+[[mutante]]
+id = "M4"
+garantia = "'en que estas trabajando' deja de leer el Estado Operativo real: devuelve un texto fijo (INV-9)"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        secciones = self._secciones_del_ciclo()
+        if not secciones:
+            return "No tengo ningún objetivo activo registrado en el estado operativo ahora mismo."
+        resumen = self._resumen_de(secciones, "Que esta haciendo", "Que hara despues", "Progreso")
+        return f"Esto es en lo que estoy trabajando:\n{resumen}"'''
+sustituir = '''        return "Esto es en lo que estoy trabajando:\n• trabajando en tareas generales"'''
+
+# CABLEADO DE composicion.py (CLAUDE.md: "muta tambien el cableado, no solo la logica"). Sin
+# `estado_operativo=` en la construccion del Orchestrator, "que tareas tienes"/"por que estas
+# bloqueada" quedan construidas, probadas e INALCANZABLES desde el arranque real -- ALERTA-005 otra
+# vez, esta vez sobre la ventana del SO en vez de sobre las automatizaciones.
+[[mutante]]
+id = "M5"
+garantia = "la composicion no enciende la ventana del Estado Operativo en la conversacion"
+fichero = "aura_skeleton/composicion.py"
+buscar = '''        # Ventana del SO Interno en la conversacion (M3 entry): "¿que tareas tienes?" y "¿por que
+        # estas bloqueada?" leen el MISMO almacen que expone `sistema.estado_operativo` y que
+        # `--gobierno` ya publica -- nunca un segundo estado que pudiera divergir.
+        estado_operativo=estado_operativo,
+    )'''
+sustituir = '''    )'''

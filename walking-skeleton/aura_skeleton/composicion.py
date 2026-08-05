@@ -374,6 +374,10 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
         notificaciones=centro_notificaciones,
         modelo_usuario=modelo_usuario,
         automatizaciones=automatizaciones,
+        # Ventana del SO Interno en la conversacion (M3 entry): "¿que tareas tienes?" y "¿por que
+        # estas bloqueada?" leen el MISMO almacen que expone `sistema.estado_operativo` y que
+        # `--gobierno` ya publica -- nunca un segundo estado que pudiera divergir.
+        estado_operativo=estado_operativo,
     )
 
     obs.log(

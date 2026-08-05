@@ -11,6 +11,72 @@ aprobadas.
 ---
 
 
+
+## ESTADO 2026-08-04 (2) · ETAPA DE OPERACION Y APRENDIZAJE — TRABAJO EN PARALELO
+
+**Mandato vigente del CEO:** AURORA aprende del uso · APUS-5 fortalece la PLATAFORMA · el CEO decide
+direccion. **Ninguna capacidad de PRODUCTO sin evidencia del uso real** — si la evidencia la justifica,
+se genera Decision Package, no se implementa. Mejoras de plataforma: implementables con protocolo normal.
+
+### CERRADO — arnes de mutacion con timeout (commit `6eaa383`, EN EL WORKTREE, **sin integrar a main**)
+
+`herramientas/mutar.py` imponia cero limite de tiempo: un mutante que degrada una condicion de parada
+colgaba el arnes entero y dejaba huerfanos (dano medido: 15+ h de CPU). Ahora:
+- `subprocess.Popen(start_new_session=True)` + `communicate(timeout)`; al vencer, **SIGKILL al GRUPO
+  completo** (`os.killpg`, PID negativo), no solo al hijo.
+- Estado nuevo **`TIMEOUT`**, distinto de `SOBREVIVE` a proposito: senala falta de garantia de
+  TERMINACION, no de cobertura. **Ninguno cuenta jamas como exito**: `concluyente` exige `timeouts == 0`.
+- `timeout_s` declarable en el TOML (global al fichero, 60 s por defecto).
+- **M2 y M3 de `motor-ciclo.toml` REINCORPORADOS** con valvula independiente (`DirectorInestable.tras_agotar`)
+  y override `pruebas` por-mutante. Ya no cuelgan: **5/5 detectados en 6-8 s**. La deuda queda CERRADA.
+- `mutaciones/arnes-timeout.toml` (nuevo): el arnes se protege a si mismo, 4/4 detectados.
+
+**HALLAZGO COLATERAL GRAVE, no buscado:** carrera del cache de bytecode. `__pycache__` invalida por
+mtime en SEGUNDOS + tamano, asi que si la mutacion y la reejecucion caian en el mismo segundo y el
+mutante no cambiaba el tamano del fichero, **pytest reutilizaba el .pyc SIN MUTAR**. Medido:
+**2/15 iteraciones daban estado ERRONEO**; 0/30 tras el fix (`PYTHONDONTWRITEBYTECODE=1`).
+Es decir: el arnes podia declarar "detectado" un mutante que nunca llego a ejecutarse. Corregido.
+
+Evidencia: 673 pruebas (antes 670), Quality Gate PASS, sin huerfanos.
+
+### EN CURSO — la conversacion como ventana del SO (encargo del CEO, agente trabajando)
+
+Objetivo: que preguntas naturales consulten las FUENTES OFICIALES antes que al LLM. Hoy el chat
+responde *"No tengo ningun recuerdo registrado sobre eso"* aunque el dato exista en el SO.
+Mapa pedido: capacidades->composicion · tareas->Estado Operativo · bloqueos y "que esta pasando"->
+Centro de Gobierno · aprendizajes->Plan de Formacion · "que sabes de mi"->Modelo de Usuario.
+**Si la respuesta existe en el SO, NO se llama al LLM.** Sin componentes nuevos.
+
+**TRAMPA ADVERTIDA AL IMPLEMENTADOR (leer antes de continuar):** ya existen **8 grupos de superficies
+deterministas con 47 patrones literales**, en cascada con precedencia por orden de escritura, y **4
+defectos de interferencia YA verificados** (`CHECKLIST-CONTINUIDAD.md:192-204`). Un patron nuevo como
+"que esta pasando" puede ROBAR la frase a la superficie de notificaciones y romper lo que hoy funciona,
+sin que ninguna prueba actual lo detecte. Se exigio: enumerar los 8 grupos, justificar el punto de
+entrada en la cascada, y una **prueba de NO INTERFERENCIA**.
+Limite de honestidad recordado: el Modelo de Usuario tiene **0 entradas y 0 senales**; a "que sabes de
+mi" la respuesta correcta es DECLARAR la ausencia (INV-9), nunca fabricar contenido.
+Criterio de aceptacion del CEO: **transcripcion literal de una conversacion real** con las 8 preguntas.
+
+Ficheros que estaba tocando: `aura_skeleton/core/orchestrator.py`, `aura_skeleton/composicion.py`,
+`tests/integration/test_conversacion_ventana_so.py`, `mutaciones/conversacion-so.toml`.
+
+### POR QUE `6eaa383` NO SE INTEGRO A MAIN
+
+El worktree tiene trabajo concurrente **a medias** del encargo conversacional. Integrar ahora
+arrastraria codigo sin terminar. **Primer paso de la proxima sesion:** comprobar si el agente cerro su
+trabajo (`git log`, `git status`, Quality Gate); si esta completo y en verde, integrar TODO junto; si
+quedo a medias, integrar `6eaa383` de forma aislada o rehacer el encargo conversacional desde este
+checkpoint.
+
+### SIGUE PENDIENTE (bloqueado por cuota, no por decision tecnica)
+
+1. Auditorias independientes de las Piezas 1 y 3 del canal permanente.
+2. Confirmacion definitiva de la capacidad **018** (hoy: parcial, NO confirmada).
+3. **Pieza 2** — buzon de decisiones. Diseno completo en el DP §4. Sin ella, AURORA desatendida
+   **sigue autodenegandose toda accion de lista roja**.
+
+---
+
 ## ESTADO 2026-08-04 · CANAL PERMANENTE CEO<->AURORA (piezas 3 y 1 entregadas)
 
 **DP aprobado por el CEO con 7 condiciones** — `milestones/m3-entry/DP-CANAL-PERMANENTE-CEO-AURORA.md`.

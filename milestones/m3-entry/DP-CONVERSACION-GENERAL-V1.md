@@ -93,9 +93,32 @@ Las intenciones se clasifican en dos clases:
 - **1 modificadora + 1 principal** → se responde la principal, precedida del saludo.
 - **Solo modificadoras** → se responde el saludo (`«¿en qué puedo ayudarte hoy?»`).
 - **Ninguna intención reconocida** → sigue la cascada de hoy, sin cambios.
-- **2 o más PRINCIPALES** («hola, ¿qué puedes hacer y qué tienes pendiente?») → **se piden ambas o se
-  aclara, nunca se elige en silencio.** Es el criterio de ambigüedad del CEO; **decidir cuál de las
-  dos antes de implementar** es requisito de este DP.
+- **2 o más PRINCIPALES** → **se responden TODAS, en el orden en que fueron formuladas** (CEO,
+  2026-08-05). **No se pregunta.**
+
+### MULTIPLICIDAD ≠ AMBIGÜEDAD (decisión del CEO que cierra el contrato)
+
+Son dos cosas distintas y el código no puede confundirlas:
+
+| Caso | Qué es | Comportamiento |
+|---|---|---|
+| **Multiplicidad** — «hola Aurora, ¿qué puedes hacer **y** qué tienes pendiente?» | Dos intenciones **distintas**, ambas resolubles | **Responder ambas, en orden.** Nunca preguntar |
+| **Ambigüedad real** — «¿qué has aprendido de mí?» | **UNA** frase que pertenece a **dos dominios**, y responder uno **implica ignorar el otro** | **Pedir aclaración** |
+
+Criterio del CEO, literal: *«si las dos intenciones pueden resolverse, prefiero una respuesta más
+larga antes que interrumpir la conversación para pedir confirmación»*.
+
+Respuesta modelo aprobada:
+
+```
+Buenos días.
+Puedo ayudarte a organizar tareas, revisar el estado del sistema, trabajar en nuestros
+proyectos y acompañarte durante el día.
+Sobre mis pendientes, por ahora no tengo ninguno registrado.
+```
+
+**Mutante obligatorio:** con dos intenciones principales, responder **solo la primera** (o invertir el
+orden). Debe morir.
 
 **Pruebas obligatorias, con estas frases exactas:** *«buenos días Aurora, ¿qué tienes pendiente para
 hoy?»* y *«hola, ¿qué puedes hacer?»*. **El saludo NO puede impedir reconocer la intención principal**

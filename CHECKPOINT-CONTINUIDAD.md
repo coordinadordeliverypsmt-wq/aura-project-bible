@@ -13,6 +13,47 @@ aprobadas.
 
 
 
+
+## ENCARGO EN COLA 2026-08-04 (4) · EXPERIENCIA DE USO (CEO)
+
+**Cambio de etapa declarado por el CEO:** *"Antes discutian mutantes, garantias, auditorias,
+ejecutores. Ahora empieza la pregunta: como se siente usar AURORA todos los dias? Y esa pregunta ya
+no la responde una prueba unitaria. La responde el usuario."*
+
+**NO EMPEZADO.** Va DESPUES de la auditoria independiente del encargo conversacional, que sigue
+pendiente y bloquea su integracion.
+
+### Criterio 1 — la conversacion debe SENTIRSE natural
+
+AURORA no debe responder como un conjunto de modulos. Al consultar Estado Operativo, Centro de
+Gobierno, Plan de Formacion o Modelo de Usuario, debe **transformar el dato en lenguaje natural y
+explicar el contexto**, no enumerar campos. Hoy responde con volcados (`## Aprendidas` con la tabla
+markdown cruda, listas de capacidades con vinetas).
+
+**Tension a resolver con cuidado (ADR-0014):** redactar en lenguaje natural NO puede significar
+delegar en el LLM la VERDAD del dato. El nucleo decide QUE se responde y con que datos; la redaccion
+no puede alterar hechos, inventar cifras ni suavizar una ausencia. Si se usa el modelo para redactar,
+los hechos van fijados por el Core y el resultado debe seguir siendo verificable por prueba
+determinista. **Recordar: con el hardware actual el LLM tarda 25,8 s en 8 tokens** — una redaccion
+por LLM en cada turno haria la consola inusable. La via realista es plantilla determinista bien
+escrita, no generacion.
+
+### Criterio 2 — modo usuario (por defecto) y modo desarrollador
+
+Por defecto la consola muestra SOLO `tu>` y `AURORA>`. Toda la telemetria (VOICE, EVENT, MEM, CORE,
+LAT, traces, event_id, auditoria) **se oculta**, y sigue disponible con `--debug`/`--verbose`.
+Hoy TODO log sale por stderr desde `observability.py:41`, mezclado con la conversacion.
+**La auditoria NO se apaga: se deja de IMPRIMIR.** Sigue escribiendose en `audit.jsonl` (es forense,
+ADR-0023). Ocultar != dejar de registrar; confundirlos romperia una garantia.
+
+Direccion futura que el CEO dibujo (NO implementar aun, es vision): cabecera con estado y objetivo
+activo, y solicitudes de decision en linea (`Tengo una decision pendiente... (S/N)`) — eso ultimo
+converge con la **Pieza 2** del canal permanente, que sigue sin abrirse.
+
+**Protocolo habitual exigido:** RED -> GREEN -> MUTACION -> Quality Gate -> **auditoria independiente**.
+
+---
+
 ## AVISO 2026-08-04 (3) · DATO FALSO EN EL MODELO DE USUARIO REAL — LIMPIAR
 
 Durante la demo del encargo conversacional, un error de scoping de bash

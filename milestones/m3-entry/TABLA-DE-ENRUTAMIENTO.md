@@ -1,6 +1,19 @@
 # Tabla de enrutamiento de intenciones — para revisión del CEO
 
-**Estado: APROBADA por el CEO (2026-08-05). Esta tabla es el CONTRATO del Intent Router.**
+**Estado: RECHAZADA como contrato de implementacion por auditoria independiente (2026-08-05).**
+**La DIRECCION aprobada por el CEO se sostiene; lo que se rechaza son las REGLAS DE ADMISION (§2) y
+la definicion de ambiguedad (§4). Ver `AUDITORIA-TABLA-ENRUTAMIENTO.md` — 10 correcciones exigidas.**
+
+> **AVISO — NO IMPLEMENTAR ESTA TABLA TAL CUAL.** Tres defectos medidos `[EJEC]`, cada uno bloqueante:
+> 1. **No resuelve el defecto que la motivo.** *"que tienes pendiente"* NO coincide con ningun patron
+>    del dominio 8: con esta tabla acaba en el LLM. La afirmacion en negrita de §2 («El caso del CEO,
+>    resuelto») **era FALSA**: la escribio APUS-5 sin ejecutarla. 8 de los 24 ejemplos de la propia
+>    tabla no los captura ningun patron existente.
+> 2. **Romperia ADR-0014.** La regla del dominio 12 («pregunta Y marcador») lleva la garantia de
+>    **24/24 a 0/24** sobre las negativas de `bateria_memoria.json`, revirtiendo la correccion N1-V4
+>    sin declararlo. Ninguna prueba ni mutante actual lo detectaria.
+> 3. **No es determinista.** §4 filas 2 y 3 se activan a la vez en todos los solapes reales medidos y
+>    no hay desempate; la aclaracion resulta **inalcanzable**; «sujeto = AURORA» no esta definido.
 **La fase de arquitectura queda CERRADA: no se admiten más cambios de diseño.**
 
 ### Criterios definitivos fijados por el CEO al aprobar

@@ -14,6 +14,52 @@ aprobadas.
 
 
 
+
+## SPRINT EN COLA · "EXPERIENCIA CONVERSACIONAL v1" (CEO, 2026-08-04)
+
+Renombrado por el CEO: ya no es "Conversacion como interfaz del SO". *"Se trata de que el usuario
+olvide que esta hablando con un programa y empiece a sentir que esta hablando con AURORA."*
+**Criterio rector:** usar AURORA ocho horas seguidas debe sentirse como conversar, no como leer un log.
+**No se toca ninguna garantia ni la arquitectura: solo la experiencia de uso.**
+
+### C1 · Redaccion natural, verdad del nucleo
+El LLM solo redacta cuando exista y convenga; mientras tanto, **plantillas deterministas bien
+escritas**. La VERDAD siempre la fija el Core (ADR-0014). Con 25,8 s / 8 tokens, generar por turno no
+es viable hoy.
+
+### C2 · Modo usuario por defecto, `--debug` para lo demas
+Por defecto solo `tu>` y `AURORA>`. VOICE, EVENT, MEM, CORE, LAT, trace, event_id, router: al modo
+desarrollador. **Ocultar != dejar de auditar**: `audit.jsonl` sigue completo (forense, ADR-0023).
+Punto unico de cambio: `observability.py:41` imprime TODO por stderr.
+
+### C3 · La consola es un PRODUCTO, no una herramienta de desarrollo
+Eliminar de la vista por defecto el bloque "AURA - arranque verificado" (`__main__.py:_informe`).
+Sustituir por algo minimo: `AURORA v0.3 / Estado: Operando / tu>`.
+
+**MATIZ QUE NO DEBE PERDERSE:** `_informe` NO se borra. Lo usa el flag `--verificar`, que es la
+comprobacion de arranque exigida por **D27 (preflight obligatorio, "se verifica siempre el estado real
+del sistema, nunca se asume")**. Se deja de MOSTRAR por defecto; se conserva bajo `--verificar` y
+`--debug`. Borrarlo romperia una decision del CEO de 2026-07-17.
+
+### C4 · Las respuestas de ausencia son conversacion, no mensajes de error
+Hoy: *"No tengo ningun recuerdo registrado sobre eso."* / *"Todavia no se nada sobre ti."*
+Debe decir lo MISMO sonando a persona: *"Aun no conozco suficientes cosas sobre ti. Con el tiempo ire
+recordando tus preferencias y la forma en que trabajamos juntos, pero por ahora todavia estoy
+aprendiendo."*
+
+**MATIZ CRITICO (ADR-0014):** *"No tengo ningun recuerdo registrado sobre eso"* NO es un texto
+cualquiera: es **la garantia determinista** que impide que el LLM invente un recuerdo cuando la
+busqueda da cero resultados (ADR-0014:42-44, *"no se le concede la oportunidad de inventar"*).
+Se puede cambiar **la REDACCION**. **NO se puede cambiar la CONDICION que la dispara ni permitir que
+el LLM intervenga en ese camino.** Hay pruebas que comparan contra el texto literal: al reescribirlo,
+actualizarlas SIN debilitar lo que verifican, y comprobar que el mutante "el LLM responde cuando no
+hay recuerdos" **sigue muriendo**. Si al terminar ese mutante sobrevive, se rompio ADR-0014.
+
+**Orden:** va DESPUES de la auditoria independiente del encargo conversacional (que sigue bloqueando
+su integracion). Protocolo completo: RED -> GREEN -> MUTACION -> Quality Gate -> auditoria independiente.
+
+---
+
 ## ENCARGO EN COLA 2026-08-04 (4) · EXPERIENCIA DE USO (CEO)
 
 **Cambio de etapa declarado por el CEO:** *"Antes discutian mutantes, garantias, auditorias,

@@ -20,7 +20,9 @@ ESTE MODULO es andamiaje construido por APUS-5 —el continente—; el CONTENIDO
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
+from pathlib import Path
 
 AURORA = "AURORA"
 CEO = "decision del CEO"
@@ -44,7 +46,14 @@ class Seccion:
             raise ValueError(f"'{self.titulo}': una seccion con origen declarado debe traer contenido")
 
 
-def panel(diagnostico=None, garantias=None, ima=None, dependencia=None, estado=None, objetivo=None) -> list[Seccion]:
+def panel(
+    diagnostico=None,
+    garantias=None,
+    ima=None,
+    dependencia=None,
+    estado=None,
+    objetivo: str | list[str] | None = None,
+) -> list[Seccion]:
     """Ensambla el panel con lo que AURORA sabe producir HOY. Lo que no, se declara ausente."""
     secciones: list[Seccion] = []
 
@@ -56,17 +65,29 @@ def panel(diagnostico=None, garantias=None, ima=None, dependencia=None, estado=N
         _aurora("Alertas", _alertas(diagnostico))
 
     if estado is not None and objetivo is not None:
-        tareas = estado.tareas(objetivo)
-        abiertas = [t for t in tareas if t.estado in ("abierta", "en_curso")]
-        bloqueadas = [t for t in tareas if t.estado == "bloqueada"]
-        siguiente = estado.reanudar(objetivo)
-        _aurora("Que esta haciendo", f"{len(abiertas)} tarea(s) accionables de {len(tareas)}")
-        _aurora("Que hara despues", siguiente.descripcion if siguiente else "sin trabajo accionable")
-        _aurora("Que esta bloqueado", _bloqueos(bloqueadas))
-        _aurora("Progreso", f"{sum(1 for t in tareas if t.estado == 'terminada')}/{len(tareas)} terminadas")
-        _aurora("Backlog activo", "; ".join(f"{t.tarea_id}:{t.descripcion}" for t in abiertas) or "vacio")
-        _aurora("Riesgos activos", _riesgos(bloqueadas))
-        _aurora("Recomendaciones derivadas", _recomendaciones(bloqueadas, tareas))
+        # D-3 (auditoria independiente, 2026-08-04): mostrar UN objetivo activo y callar el resto
+        # firma como [AURORA] una afirmacion falsa — "sin riesgos activos" cuando OTRO objetivo si
+        # tenia tareas bloqueadas. `objetivo` admite un id suelto (compatibilidad: un unico bloque,
+        # sin prefijo, igual que antes) o una coleccion; con mas de uno, cada bloque queda IDENTIFICADO
+        # con su objetivo para que ninguno desaparezca sin avisar ("prefiero una ausencia declarada a
+        # una capacidad simulada").
+        objetivos = [objetivo] if isinstance(objetivo, str) else list(objetivo)
+        multiple = len(objetivos) > 1
+        for obj_id in objetivos:
+            prefijo = f"[{obj_id}] " if multiple else ""
+            tareas = estado.tareas(obj_id)
+            abiertas = [t for t in tareas if t.estado in ("abierta", "en_curso")]
+            bloqueadas = [t for t in tareas if t.estado == "bloqueada"]
+            siguiente = estado.reanudar(obj_id)
+            _aurora(f"{prefijo}Que esta haciendo", f"{len(abiertas)} tarea(s) accionables de {len(tareas)}")
+            _aurora(f"{prefijo}Que hara despues", siguiente.descripcion if siguiente else "sin trabajo accionable")
+            _aurora(f"{prefijo}Que esta bloqueado", _bloqueos(bloqueadas))
+            _aurora(
+                f"{prefijo}Progreso", f"{sum(1 for t in tareas if t.estado == 'terminada')}/{len(tareas)} terminadas"
+            )
+            _aurora(f"{prefijo}Backlog activo", "; ".join(f"{t.tarea_id}:{t.descripcion}" for t in abiertas) or "vacio")
+            _aurora(f"{prefijo}Riesgos activos", _riesgos(bloqueadas))
+            _aurora(f"{prefijo}Recomendaciones derivadas", _recomendaciones(bloqueadas, tareas))
 
     if garantias is not None:
         _aurora("Garantias", f"{garantias.get('vigentes')}/{garantias.get('declaradas')} vigentes")
@@ -131,6 +152,25 @@ def _dep(i) -> str:
     if i.denominador is None:
         return f"{i.nombre}: {i.numerador}"
     return f"{i.nombre}: {i.porcentaje}%"
+
+
+def publicar(secciones: list[Seccion], ruta: str | os.PathLike[str]) -> str:
+    """Vuelca `render(secciones)` en `ruta` para que el CEO lo lea sin Claude Code (PIEZA 3).
+
+    PROYECCION DESECHABLE (ADR-0023): el fichero no lleva estado propio, solo lo que ya esta en
+    `secciones`. Borrarlo y volver a publicar da EXACTAMENTE lo mismo — si no fuera asi, el fichero
+    seria una segunda fuente de verdad y reabriria el patron "declarado != real".
+
+    ESCRITURA ATOMICA (fichero temporal + `os.replace`): un corte a mitad de escritura no puede dejar
+    en disco un panel a medias que el CEO lea como si fuera completo.
+    """
+    texto = render(secciones)
+    destino = Path(ruta)
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    provisional = destino.with_name(destino.name + ".tmp")
+    provisional.write_text(texto, encoding="utf-8")
+    os.replace(provisional, destino)
+    return texto
 
 
 def render(secciones: list[Seccion]) -> str:

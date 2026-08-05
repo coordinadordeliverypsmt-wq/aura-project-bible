@@ -23,6 +23,22 @@ from .. import observability as obs
 
 _ESPERA_SIN_TRABAJO_S = 30.0  # cuando no hay nada que hacer, no se gira en vacio quemando CPU
 
+# N razonable (CEO, PIEZA 1): absorbe fallos TRANSITORIOS (disco lento, contienda momentanea) sin
+# permitir que un demonio sin supervision gire para siempre sobre un fallo ESTRUCTURAL quemando CPU en
+# un equipo modesto (Celeron). Ni tan bajo que dos fallos sueltos tumben el servicio, ni tan alto que
+# tarde minutos en notar que algo esta roto de verdad. Sin este limite, "no morir en silencio" se
+# resolveria cambiando un silencio por otro: un bucle que nunca para tampoco deja rastro util.
+_MAX_FALLOS_CONSECUTIVOS = 5
+
+
+class FallosConsecutivosExcedidos(Exception):
+    """El servicio se detuvo: `_MAX_FALLOS_CONSECUTIVOS` latidos seguidos fallaron.
+
+    Detenerse asi es RUIDOSO a proposito (excepcion + registro de auditoria), nunca silencioso: un
+    demonio que muere sin dejar rastro es el defecto que este incremento corrige, y "seguir girando
+    para siempre" seria la misma clase de defecto con otra forma.
+    """
+
 
 class MotorDelCiclo:
     """Da latidos al Director mientras haya trabajo y el sistema este operativo."""
@@ -72,12 +88,47 @@ class MotorDelCiclo:
     async def servir(self, objetivo_id: str, trace_id: str = "-") -> None:
         """Bucle permanente: trabaja mientras haya tareas y espera cuando no las hay.
 
-        No termina por si solo: se detiene cancelando la tarea asincrona o armando el kill switch. Esa
-        es la diferencia entre `correr` (una corrida acotada) y el latido continuo de un sistema vivo.
+        No termina por si solo: se detiene cancelando la tarea asincrona, armando el kill switch, o
+        agotando `_MAX_FALLOS_CONSECUTIVOS` latidos seguidos en error (`FallosConsecutivosExcedidos`).
+        Esa es la diferencia entre `correr` (una corrida acotada, vigilada en el momento por quien la
+        invoca) y el latido continuo de un sistema vivo: aqui nadie esta mirando en tiempo real, asi
+        que una excepcion de `director.ciclo` que antes mataba el bucle EN SILENCIO ahora queda
+        registrada en el audit log y el servicio sigue con el siguiente latido -- salvo que el fallo
+        sea persistente, en cuyo caso se detiene de forma RUIDOSA en vez de girar para siempre.
         """
+        fallos_consecutivos = 0
         while True:
             if self._detenido():
                 await self._dormir(self.espera_s)
                 continue
-            if await self.director.ciclo(objetivo_id, trace_id) is None:
+            try:
+                tarea = await self.director.ciclo(objetivo_id, trace_id)
+            except Exception as e:
+                fallos_consecutivos += 1
+                obs.log(
+                    "ERROR",
+                    "motor-ciclo",
+                    f"latido fallido ({fallos_consecutivos}/{_MAX_FALLOS_CONSECUTIVOS}): {type(e).__name__}: {e}",
+                    trace_id,
+                    audit=True,
+                )
+                if fallos_consecutivos >= _MAX_FALLOS_CONSECUTIVOS:
+                    obs.log(
+                        "ERROR",
+                        "motor-ciclo",
+                        f"servicio detenido: {fallos_consecutivos} latidos consecutivos fallaron",
+                        trace_id,
+                        audit=True,
+                    )
+                    raise FallosConsecutivosExcedidos(
+                        f"{fallos_consecutivos} latidos consecutivos fallaron; ultimo error: {type(e).__name__}: {e}"
+                    ) from e
+                # No se reintenta en caliente sobre un fallo persistente: la misma espera que evita
+                # girar en vacio sin trabajo evita tambien girar en vacio sobre un error que se repite.
                 await self._dormir(self.espera_s)
+                continue
+            fallos_consecutivos = 0  # un latido en verde corta cualquier racha de fallos previa
+            if tarea is None:
+                await self._dormir(self.espera_s)
+            else:
+                obs.log("CICLO", "motor-ciclo", "latido con trabajo atendido", trace_id, audit=True)

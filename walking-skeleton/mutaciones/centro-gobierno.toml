@@ -1,4 +1,4 @@
-incremento = "Centro de Gobierno: cada seccion declara su origen y sus limites"
+incremento = "Centro de Gobierno: cada seccion declara su origen y sus limites (+ PIEZA 3: publicar() + D-1..D-5 auditoria)"
 pruebas = ["tests/integration/test_centro_gobierno.py"]
 
 [[mutante]]
@@ -28,3 +28,79 @@ garantia = "el panel deja de señalar al responsable que mas trabajo detiene"
 fichero = "aura_skeleton/core/centro_gobierno.py"
 buscar = '''    resp, n = max(por_resp.items(), key=lambda kv: (kv[1], kv[0]))'''
 sustituir = '''    resp, n = min(por_resp.items(), key=lambda kv: (kv[1], kv[0]))'''
+
+[[mutante]]
+id = "M5"
+garantia = "publicar() deja de escribir el render exacto: el fichero publicado no refleja el panel"
+fichero = "aura_skeleton/core/centro_gobierno.py"
+buscar = '''    texto = render(secciones)'''
+sustituir = '''    texto = ""'''
+
+[[mutante]]
+id = "M6"
+garantia = "publicar() deja de crear el directorio padre: la primera publicacion en una ruta nueva falla"
+fichero = "aura_skeleton/core/centro_gobierno.py"
+buscar = '''    destino.parent.mkdir(parents=True, exist_ok=True)'''
+sustituir = '''    pass'''
+
+[[mutante]]
+id = "M7"
+garantia = "publicar() deja de devolver lo que escribio: quien la llama no puede verificar la publicacion"
+fichero = "aura_skeleton/core/centro_gobierno.py"
+buscar = '''    return texto'''
+sustituir = '''    return ""'''
+
+# --- D-1/D-5 (auditoria independiente, 2026-08-04): la RED DE GARANTIAS de publicar() tenia huecos --
+# reales que las 22 pruebas previas no cubrian. El auditor demostro con estos 3 mutantes concretos que
+# el panel del CEO podia CRECER SIN LIMITE (A1), dejar temporales huerfanos (A2) o perder la atomicidad
+# sin que ninguna prueba lo notara (A3).
+
+[[mutante]]
+id = "A1"
+garantia = "publicar() abre en modo APPEND en vez de sobrescribir: el panel crece sin limite en cada ciclo"
+fichero = "aura_skeleton/core/centro_gobierno.py"
+# NOTA: apendar sobre el `.tmp` (y luego seguir reemplazando con os.replace) NO reproduce el peligro:
+# el temporal se consume en cada llamada porque `os.replace` lo RENOMBRA, asi que vuelve a nacer vacio
+# en la siguiente publicacion (verificado: ese mutante SOBREVIVIA a la prueba de republicar). El riesgo
+# real -- el que el auditor midio con ejecuciones reales de `--gobierno` creciendo 10->20->30 lineas --
+# es apendar DIRECTO sobre `destino`, que si persiste entre publicaciones sucesivas.
+buscar = '''    provisional = destino.with_name(destino.name + ".tmp")
+    provisional.write_text(texto, encoding="utf-8")
+    os.replace(provisional, destino)'''
+sustituir = '''    with open(destino, "a", encoding="utf-8") as f:
+        f.write(texto)'''
+
+[[mutante]]
+id = "A2"
+garantia = "publicar() deja el fichero temporal HUERFANO: omite el reemplazo atomico"
+fichero = "aura_skeleton/core/centro_gobierno.py"
+buscar = '''    os.replace(provisional, destino)'''
+sustituir = '''    pass'''
+
+[[mutante]]
+id = "A3"
+garantia = "escritura NO atomica: escribe directo sobre el destino, sin fichero temporal ni os.replace"
+fichero = "aura_skeleton/core/centro_gobierno.py"
+buscar = '''    provisional = destino.with_name(destino.name + ".tmp")
+    provisional.write_text(texto, encoding="utf-8")
+    os.replace(provisional, destino)'''
+sustituir = '''    destino.write_text(texto, encoding="utf-8")'''
+
+# --- D-3 (auditoria independiente, 2026-08-04): panel() debe cubrir TODOS los objetivos activos ----
+# El bug real vivia en `__main__.py` (mutante A4, en mutaciones/gobierno-cli.toml). Estos dos protegen
+# la logica NUEVA dentro de `panel()` que hace posible la correccion: identificar cada bloque (A5) y
+# procesar la coleccion COMPLETA de objetivos, no solo el primero (A6).
+
+[[mutante]]
+id = "A5"
+garantia = "el panel deja de IDENTIFICAR cada objetivo activo: con varios, los titulos vuelven a ser ambiguos"
+fichero = "aura_skeleton/core/centro_gobierno.py"
+buscar = '''            prefijo = f"[{obj_id}] " if multiple else ""'''
+sustituir = '''            prefijo = ""'''
+
+[[mutante]]
+id = "A6"
+garantia = "panel() deja de cubrir todos los objetivos activos: solo procesa el primero de la coleccion"
+fichero = "aura_skeleton/core/centro_gobierno.py"
+buscar = '''        objetivos = [objetivo] if isinstance(objetivo, str) else list(objetivo)'''
+sustituir = '''        objetivos = [objetivo] if isinstance(objetivo, str) else list(objetivo)[:1]'''

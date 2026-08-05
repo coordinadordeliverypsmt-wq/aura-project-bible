@@ -1,0 +1,31 @@
+incremento = "PIEZA 1: proceso propio -- `--servir` + `servir()` no muere en silencio ante una excepcion"
+pruebas = ["tests/integration/test_motor_ciclo.py"]
+
+[[mutante]]
+id = "M1"
+garantia = "una excepcion en el latido deja de registrarse y de dejar seguir el servicio: vuelve a morir en silencio"
+fichero = "aura_skeleton/core/motor_ciclo.py"
+buscar = '''            except Exception as e:'''
+sustituir = '''            except ZeroDivisionError as e:'''
+
+[[mutante]]
+id = "M2"
+garantia = "un latido con exito deja de reiniciar el contador de fallos consecutivos"
+fichero = "aura_skeleton/core/motor_ciclo.py"
+buscar = '''            fallos_consecutivos = 0  # un latido en verde corta cualquier racha de fallos previa'''
+sustituir = '''            pass  # un latido en verde corta cualquier racha de fallos previa'''
+
+[[mutante]]
+id = "M3"
+garantia = "el servicio deja de detenerse tras N fallos consecutivos: gira para siempre sobre un fallo estructural"
+fichero = "aura_skeleton/core/motor_ciclo.py"
+buscar = '''                if fallos_consecutivos >= _MAX_FALLOS_CONSECUTIVOS:'''
+sustituir = '''                if False:'''
+
+[[mutante]]
+id = "M4"
+garantia = "--servir deja de arrancar el latido permanente del sistema compuesto: el flag no hace nada real"
+fichero = "aura_skeleton/__main__.py"
+pruebas = ["tests/integration/test_composicion.py::test_el_ejecutable_servir_arranca_el_latido_permanente"]
+buscar = '''    await sistema.motor_ciclo.servir(objetivo, trace_id)'''
+sustituir = '''    pass'''

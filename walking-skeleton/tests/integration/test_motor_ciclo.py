@@ -8,9 +8,10 @@ import asyncio
 
 import pytest
 
+from aura_skeleton import observability as obs
 from aura_skeleton.core.director import DirectorGeneral, RegistroEjecutores
 from aura_skeleton.core.estado_operativo import AlmacenEstadoOperativo, Tarea
-from aura_skeleton.core.motor_ciclo import MotorDelCiclo
+from aura_skeleton.core.motor_ciclo import _MAX_FALLOS_CONSECUTIVOS, FallosConsecutivosExcedidos, MotorDelCiclo
 
 
 class MotorOK:
@@ -133,3 +134,88 @@ def test_el_motor_del_ciclo_no_conoce_las_tareas(tmp_path):
     fuente = inspect.getsource(motor_ciclo)
     for concepto in ("Tarea", "responsable", "evidencia", "prioridad", "AlmacenEstadoOperativo"):
         assert concepto not in fuente, f"el Motor del Ciclo conoce '{concepto}': logica en el sitio equivocado"
+
+
+# --- Servicio permanente: una excepcion en un latido no puede matar el demonio en silencio --------
+
+
+class DirectorInestable:
+    """Test double: falla en los latidos indicados por numero de llamada (1-indexado).
+
+    `tras_agotar` es una VALVULA DE SEGURIDAD para las pruebas: si la llamada indicada se alcanza sin
+    que el servicio se haya detenido antes por su cuenta, se lanza `CancelledError` para cortar el
+    bucle. Sin ella, una implementacion que NO detenga el servicio como debería (el defecto que un
+    mutante degrada a proposito) dejaria el `while True` de `servir` girando para siempre con
+    `espera_s=0`: la prueba colgaria en vez de fallar. Con la valvula, una implementacion incorrecta
+    sigue terminando -en desacuerdo con lo que la prueba espera- en vez de no terminar nunca.
+    """
+
+    def __init__(self, fallos_en: set[int], tras_agotar: int) -> None:
+        self.llamada = 0
+        self.fallos_en = set(fallos_en)
+        self.tras_agotar = tras_agotar
+
+    async def ciclo(self, objetivo_id: str, trace_id: str = "-"):
+        self.llamada += 1
+        if self.llamada in self.fallos_en:
+            raise RuntimeError(f"fallo simulado en el latido {self.llamada}")
+        if self.llamada >= self.tras_agotar:
+            raise asyncio.CancelledError  # valvula de seguridad: corta para poder observar el resultado
+        return None
+
+
+def test_un_latido_con_excepcion_no_mata_el_servicio_y_queda_registrado():
+    """DEFECTO CORREGIDO: antes, una excepcion en `director.ciclo` mataba `servir` EN SILENCIO (nadie
+    lo invocaba fuera de las pruebas, asi que daba igual). Con proceso propio, un demonio que muere
+    callado ante su primer error es peor que no tener demonio. Ahora debe quedar registrado en el
+    audit log y el servicio debe seguir con el siguiente latido."""
+    director = DirectorInestable(fallos_en={2}, tras_agotar=4)
+    ciclo = MotorDelCiclo(director, espera_s=0, dormir=_no_dormir)
+    registros_previos = len(obs._records)
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(ciclo.servir("obj"))
+
+    assert director.llamada == 4, "el fallo del latido 2 debio dejar seguir latiendo hasta la valvula de seguridad"
+    nuevos = obs._records[registros_previos:]
+    assert any(
+        r.get("audit") and r.get("level") == "ERROR" and "fallido" in r.get("msg", "").lower() for r in nuevos
+    ), "la excepcion del latido debe quedar en el registro de auditoria, no perderse en silencio"
+
+
+def test_N_fallos_consecutivos_detienen_el_servicio():
+    """Un demonio no puede girar en vacio para siempre sobre un fallo estructural quemando CPU: tras
+    `_MAX_FALLOS_CONSECUTIVOS` latidos seguidos en error, el servicio debe detenerse (con ruido, no en
+    silencio)."""
+    director = DirectorInestable(
+        fallos_en=set(range(1, _MAX_FALLOS_CONSECUTIVOS + 1)), tras_agotar=_MAX_FALLOS_CONSECUTIVOS + 5
+    )
+    ciclo = MotorDelCiclo(director, espera_s=0, dormir=_no_dormir)
+
+    with pytest.raises(FallosConsecutivosExcedidos):
+        asyncio.run(ciclo.servir("obj"))
+
+    assert director.llamada == _MAX_FALLOS_CONSECUTIVOS, (
+        f"debio detenerse justo al {_MAX_FALLOS_CONSECUTIVOS}-esimo fallo consecutivo, "
+        f"pero siguio hasta la llamada {director.llamada} (la valvula de seguridad no debio alcanzarse)"
+    )
+
+
+def test_un_latido_exitoso_reinicia_el_contador_de_fallos_consecutivos():
+    """CONTROL del anterior: sin el reinicio, una racha de fallos NUNCA consecutivos (intercalados con
+    exitos) tumbaria igual el servicio en cuanto la CUENTA TOTAL de fallos alcanzara el umbral -- que
+    es exactamente lo que un contador que no se reinicia haria pasar la prueba anterior por la razon
+    equivocada. Aqui se intercalan mas fallos que el umbral, ninguno en racha, y el servicio NO debe
+    detenerse por eso."""
+    total_llamadas = _MAX_FALLOS_CONSECUTIVOS * 4  # el doble de fallos que el umbral, todos aislados
+    fallos_en = {n for n in range(1, total_llamadas + 1) if n % 2 == 1}
+    director = DirectorInestable(fallos_en=fallos_en, tras_agotar=total_llamadas)
+    ciclo = MotorDelCiclo(director, espera_s=0, dormir=_no_dormir)
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(ciclo.servir("obj"))
+
+    assert director.llamada == total_llamadas, (
+        "una racha de fallos aislados (nunca dos seguidos) no debe detener el servicio: si el contador "
+        f"no se reiniciara tras cada exito, se habria detenido mucho antes de la llamada {total_llamadas}"
+    )

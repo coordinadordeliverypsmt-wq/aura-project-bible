@@ -83,15 +83,26 @@ No se desarrollan. La evidencia demuestra que no dependen de más arquitectura.
 | 015 | **Interpretar una necesidad en lenguaje** | formulación | Único paso del Traductor no determinista, en las 2 necesidades traducidas |
 | 016 | **Proponer backlog y cambios sugeridos** | formulación | Las 2 únicas secciones del Centro de Gobierno que AURORA no pudo construir |
 | 017 | **Usar su historial para decidir** | requiere juicio | `NO_MEDIBLE` en el IMA: registra `intentos` y nadie los lee para cambiar una decisión |
-| 018 | **Hablar con el CEO sin sesión externa** | **sin construir** | No hay proceso propio (`servir()` solo lo invoca una prueba) ni superficie de salida. Desatendida, se autodeniega toda acción roja (`hitl_consola.py:35-38`) |
+| 018 | **Hablar con el CEO sin sesión externa** | **parcial — no confirmada** | Ver nota abajo |
 
 **014, 015 y 016 son la misma limitación vista desde tres ángulos.** Todos los análisis independientes
 de dependencia externa han convergido en ella.
 
-**018 es de otra naturaleza: no la bloquea el hardware, sino que nunca se cableó.** Es la única
-🔴 que depende solo de decidir hacerla. Propuesta en
-[`DP-CANAL-PERMANENTE-CEO-AURORA.md`](milestones/m3-entry/DP-CANAL-PERMANENTE-CEO-AURORA.md),
-pendiente de aprobación del CEO.
+**018 — estado real (2026-08-04).** No la bloquea el hardware: nunca se cableó. Aprobado su
+[Decision Package](milestones/m3-entry/DP-CANAL-PERMANENTE-CEO-AURORA.md) y entregadas dos de sus
+tres piezas en `3e716d4`:
+
+- ✅ **AURORA tiene proceso propio** (`--servir`) y **muestra su estado sin sesión externa**
+  (`--gobierno`). Demostrado por ejecución: servicio vivo 75 s, panel consultado desde otra terminal,
+  kill switch deteniéndolo fuera de banda. Quality Gate PASS · 21 mutantes, 0 supervivientes.
+- ⛔ **Falta la Pieza 2**: desatendida, AURORA sigue autodenegándose toda acción de lista roja
+  (`hitl_consola.py:35-38`). **Todavía no puede pedirte permiso: te lo deniega a sí misma.**
+
+**Por eso 018 NO se declara aprendida**, pese a funcionar. Dos razones, ambas del criterio del CEO:
+las **auditorías independientes cayeron por límite de cuota** y quedan pendientes, y la ruta
+«qué decisiones esperan mi aprobación» **aún no existe**. Se declara aprendida cuando ambas cosas
+se cierren — no antes. La evidencia de que funciona no sustituye a la verificación de que es
+correcta.
 
 ---
 

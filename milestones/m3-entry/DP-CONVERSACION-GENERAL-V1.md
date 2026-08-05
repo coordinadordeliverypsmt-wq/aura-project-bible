@@ -70,12 +70,47 @@ una variante, sin tocar código.
 coincidencia por frase completa **no casaría con nada** y seguiría cayendo donde hoy. Sin resolver
 esto, el incremento no arregla el caso que lo motivó — el mismo error que hundió la tabla.
 
-**Regla añadida:** si el turno **empieza** por una variante de `saludo` seguida de separador (`,` `.`
-`:` o conjunción), se **desprende el saludo** y el resto se evalúa como un turno propio. Si el resto
-queda vacío → `saludo`. Si no → sigue la cascada normal con el texto restante.
+**Regla definitiva (CEO):** la unidad de reconocimiento **no es una frase, es una SECUENCIA DE
+INTENCIONES**. Un turno puede contener varias.
 
-Así *«buenos días Aurora, ¿qué tienes pendiente para hoy?»* → saludo desprendido → *«¿qué tienes
-pendiente para hoy?»* → intención `estado_operativo`. **Prueba obligatoria: esta frase exacta.**
+Las intenciones se clasifican en dos clases:
+
+| Clase | Ejemplos | Efecto |
+|---|---|---|
+| **Modificadoras** | `saludo`, `cortesía`, `despedida` | **No consumen el turno.** Modifican el contexto conversacional: la respuesta se antepone |
+| **Principales** | `capacidades`, `estado_operativo`, y toda la cascada existente | Deciden **quién responde** |
+
+```
+"Buenos días Aurora, ¿qué tienes pendiente para hoy?"
+      ↓
+  ✓ saludo                    (modificadora)
+  ✓ consulta_estado_operativo (principal)
+      ↓
+  "Buenos días. Por ahora no tengo tareas pendientes registradas. …"
+```
+
+**Reglas de composición:**
+- **1 modificadora + 1 principal** → se responde la principal, precedida del saludo.
+- **Solo modificadoras** → se responde el saludo (`«¿en qué puedo ayudarte hoy?»`).
+- **Ninguna intención reconocida** → sigue la cascada de hoy, sin cambios.
+- **2 o más PRINCIPALES** («hola, ¿qué puedes hacer y qué tienes pendiente?») → **se piden ambas o se
+  aclara, nunca se elige en silencio.** Es el criterio de ambigüedad del CEO; **decidir cuál de las
+  dos antes de implementar** es requisito de este DP.
+
+**Pruebas obligatorias, con estas frases exactas:** *«buenos días Aurora, ¿qué tienes pendiente para
+hoy?»* y *«hola, ¿qué puedes hacer?»*. **El saludo NO puede impedir reconocer la intención principal**
+— y una prueba de control debe verificar que sin el saludo el destino es el mismo.
+
+### LÍMITE DE HONESTIDAD EN LA RESPUESTA MODELO (INV-9)
+
+El ejemplo del CEO dice *«Buenos días, **Mauricio**»*. **AURORA no sabe hoy cómo se llama el usuario:**
+el Modelo de Usuario tiene **0 entradas y 0 señales** `[EJEC]`. Implementar ese saludo literal
+**fabricaría el nombre**, que es exactamente lo que INV-9 prohíbe.
+
+**Regla:** el nombre se usa **solo si el Modelo de Usuario lo tiene**. Si no, «Buenos días» a secas.
+Cuando el CEO se lo diga, aparecerá solo — y ese será el primer dato real que capture el Modelo de
+Usuario, que hoy está vacío. **Mutante obligatorio:** saludar con un nombre fijo aunque el modelo esté
+vacío; debe morir.
 
 ### Ajuste 2 del CEO — respuestas naturales
 

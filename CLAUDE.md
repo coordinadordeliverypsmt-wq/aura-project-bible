@@ -224,6 +224,8 @@ Claude-Session: <url de la sesión>
 | Si una implementacion no acerca a AURORA a **comprender, planificar, ejecutar, verificar, aprender y mejorarse por si misma**, no pertenece a la hoja de ruta principal | CEO 2026-08-03 |
 | Prohibido crear un componente sin demostrar antes que **no existe equivalente**, que **no puede extenderse uno existente** y que **aumenta el IMA** | CEO 2026-08-03 |
 | Toda capacidad importante **sobrevive al reinicio de sesion**. Si desaparece al terminar la conversacion, **no pertenece a AURORA**: solo pertenece lo que el sistema puede recuperar, comprender y continuar por si mismo | CEO 2026-08-03 |
+| **Ninguna capacidad se promueve mientras exista una evidencia pendiente que pueda cambiar el veredicto.** Que algo funcione no sustituye a la verificacion de que es correcto: si falta una auditoria, una pieza o una prueba que pudiera refutarlo, la capacidad permanece en estado parcial | CEO 2026-08-04 |
+| **El desarrollo lo guia la evidencia del uso real, no las ideas.** Las capacidades nacen de bloqueos observados y repetidos durante la operacion diaria, se registran en `PLAN-DE-FORMACION-AURORA.md` y ninguna se incorpora sin evidencia suficiente | CEO 2026-08-04 |
 
 ---
 

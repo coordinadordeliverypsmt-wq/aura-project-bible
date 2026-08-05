@@ -157,3 +157,131 @@ def test_el_ejecutable_arranca_y_reporta_el_sistema(tmp_path):
     assert res.returncode == 0, f"el arranque fallo: {salida[-500:]}"
     assert "capacidades" in salida.lower()
     assert "conversacion" in salida.lower(), "la captura de senales no aparece en el arranque"
+
+
+def test_el_ejecutable_gobierno_publica_el_estado_operativo_real(tmp_path):
+    """`--gobierno` debe pasar por el MISMO `componer()` que el resto (D40/PIEZA 3), leyendo el
+    estado operativo REAL -- no un panel vacio. Se siembra una tarea en el log append-only ANTES de
+    arrancar el proceso, tal como quedaria tras una sesion anterior de AURORA, para distinguir "el
+    cableado lee el estado real" de "el cableado no engancha nada" (el mismo patron de ALERTA-005:
+    una capacidad construida y probada en aislamiento que ningun camino real enciende)."""
+    import json
+    import subprocess
+    import sys
+    from dataclasses import asdict
+
+    from aura_skeleton.core.estado_operativo import Tarea
+
+    tarea = Tarea(
+        objetivo_id="cli-e2e", tarea_id="t-1", descripcion="demo", estado="abierta", responsable="qa", origen="ceo"
+    )
+    (tmp_path / "estado_operativo.jsonl").write_text(json.dumps(asdict(tarea), ensure_ascii=False) + "\n")
+
+    res = subprocess.run(
+        [sys.executable, "-m", "aura_skeleton", "--gobierno"],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        env={**os.environ, "AURA_DATOS": str(tmp_path), "AURA_STACK_REAL": "0"},
+    )
+    salida = res.stdout + res.stderr
+    assert res.returncode == 0, f"--gobierno fallo: {salida[-500:]}"
+    assert "CENTRO DE GOBIERNO" in res.stdout
+    assert "[AURORA]" in res.stdout, "el panel no uso el estado operativo real: sin el, todo queda INEXISTENTE"
+    assert "1 tarea(s) accionables de 1" in res.stdout, "no reflejo la tarea sembrada en el log real"
+
+    publicado = tmp_path / "CENTRO-DE-GOBIERNO.md"
+    assert publicado.exists(), "el panel no quedo escrito en disco junto al resto del estado permanente"
+    # Lo impreso y lo publicado deben ser la MISMA proyeccion (ADR-0023): dos superficies del mismo
+    # dato, no dos fuentes que puedan divergir.
+    assert res.stdout == publicado.read_text(encoding="utf-8") + "\n"
+
+
+def test_gobierno_CUBRE_TODOS_los_objetivos_activos_no_solo_el_PRIMERO(tmp_path):
+    """D-3 (auditoria independiente, 2026-08-04): un panel que muestra un objetivo y OCULTA otro sin
+    avisar firma como [AURORA] una afirmacion falsa. Se reproduce el caso exacto que encontro el
+    auditor: DOS objetivos activos, el alfabeticamente PRIMERO sin riesgos y el segundo con tareas
+    bloqueadas -- `activos[0]` mostraria solo el tranquilo. Se llama a `_gobierno()` directamente
+    (sin subproceso) porque necesita examinar el resultado con precision y una constante `sistema`
+    minima (solo `estado_operativo` y `ruta_memoria`, lo unico que `_gobierno()` usa) basta para
+    ejercitar el codigo REAL de `aura_skeleton.__main__`, no una reimplementacion de prueba."""
+    from types import SimpleNamespace
+
+    from aura_skeleton.__main__ import _gobierno
+    from aura_skeleton.core.estado_operativo import AlmacenEstadoOperativo, Tarea
+
+    alm = AlmacenEstadoOperativo(str(tmp_path / "estado_operativo.jsonl"))
+    alm.registrar(
+        Tarea(
+            objetivo_id="aaa-sin-riesgo",
+            tarea_id="t-1",
+            descripcion="ok",
+            estado="abierta",
+            responsable="qa",
+            origen="ceo",
+        )
+    )
+    alm.registrar(
+        Tarea(
+            objetivo_id="zzz-con-riesgo",
+            tarea_id="t-1",
+            descripcion="detenida",
+            estado="bloqueada",
+            responsable="programador",
+            origen="ceo",
+            bloqueos=["detenida: dry-run no viable"],
+        )
+    )
+
+    sistema = SimpleNamespace(estado_operativo=alm, ruta_memoria=str(tmp_path / "memoria.json"))
+    texto = _gobierno(sistema)
+
+    assert "aaa-sin-riesgo" in texto, "el objetivo sin riesgos desaparecio del panel publicado"
+    assert "zzz-con-riesgo" in texto, "el objetivo CON bloqueos desaparecio: el CEO no lo veria"
+    assert "1 tarea(s) detenidas" in texto, "los riesgos reales del segundo objetivo no llegaron al panel"
+
+
+def test_el_ejecutable_servir_arranca_el_latido_permanente(tmp_path):
+    """PIEZA 1 (CABLEADO, D40): `--servir` debe arrancar `motor_ciclo.servir()` sobre el MISMO
+    `componer()` que el resto -- no un bucle propio en el CLI. Se siembra una tarea para que exista un
+    objetivo activo (igual que el e2e de `--gobierno`) y se comprueba que el PROCESO SIGUE VIVO
+    sirviendolo (no termina solo), que es justo lo que no pasaria si el flag no arrancara el motor
+    (ALERTA-005: una capacidad construida y probada que ningun camino real enciende)."""
+    import json
+    import subprocess
+    import sys
+    import time
+    from dataclasses import asdict
+
+    from aura_skeleton.core.estado_operativo import Tarea
+
+    # `responsable` sin ejecutor registrado a proposito: el latido se despacha, no encuentra dueno y
+    # bloquea la tarea (sin romper nada), lo que basta para demostrar que el bucle esta corriendo de
+    # verdad sin depender de un adaptador pesado (QA/Programador) dentro del subproceso de la prueba.
+    tarea = Tarea(
+        objetivo_id="cli-servir",
+        tarea_id="t-1",
+        descripcion="demo",
+        estado="abierta",
+        responsable="sin-ejecutor-registrado",
+        origen="ceo",
+    )
+    (tmp_path / "estado_operativo.jsonl").write_text(json.dumps(asdict(tarea), ensure_ascii=False) + "\n")
+
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "aura_skeleton", "--servir"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env={**os.environ, "AURA_DATOS": str(tmp_path), "AURA_STACK_REAL": "0"},
+    )
+    try:
+        time.sleep(2)
+        assert proc.poll() is None, "el proceso termino solo: --servir no dejo el latido permanente corriendo"
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=10)

@@ -10,6 +10,67 @@ aprobadas.
 
 ---
 
+
+## ESTADO 2026-08-04 · CANAL PERMANENTE CEO<->AURORA (piezas 3 y 1 entregadas)
+
+**DP aprobado por el CEO con 7 condiciones** — `milestones/m3-entry/DP-CANAL-PERMANENTE-CEO-AURORA.md`.
+Orden acordado 3 -> 1 -> 2. **Criterio de exito del CEO (literal):** *"que pueda abrir una terminal,
+ejecutar AURORA, cerrar Claude Code por completo y seguir viendo que esta haciendo, que necesita de mi
+y que decisiones esperan mi aprobacion"*.
+
+### HECHO Y VERIFICADO [EJEC]
+
+- **Mitigacion N2 (condicion 7, prioritaria).** `model.onnx` (449 MB) y `tokenizer.json` (17 MB) eran
+  enlaces simbolicos a `/home/majo1230/.claude/jobs/d69740cc/tmp/mlmodel/`. **Materializados** en
+  `~/.aura/models/`. SHA-256 del modelo identico al del manifiesto (`185ae63f...`). Cero symlinks
+  bajo `~/.aura`. Quedan 6,8 GB libres. **La memoria ya no depende de ningun job externo.**
+- **PIEZA 3 — Centro de Gobierno visible.** `publicar()` en `centro_gobierno.py` (escritura atomica
+  via `os.replace`) + flag `--gobierno` en `__main__.py`. Escribe `~/.aura/CENTRO-DE-GOBIERNO.md`.
+  **RECHAZADA por auditoria independiente y corregida**: 5 defectos, entre ellos que el panel elegia
+  `activos[0]` y ocultaba el resto de objetivos, firmando como [AURORA] un "sin riesgos activos"
+  FALSO. Ahora **cubre TODOS los objetivos activos** y prefija cada bloque con `[objetivo_id]`
+  cuando hay mas de uno (decision de diseno de APUS-5, no del implementador).
+- **PIEZA 1 — AURORA tiene proceso propio.** Flag `--servir` arranca `motor_ciclo.servir()`.
+  Corregido el defecto declarado en el DP: `servir()` ya **captura excepciones del latido**, las
+  registra en el audit, continua, y se detiene tras `_MAX_FALLOS_CONSECUTIVOS=5` fallos SEGUIDOS;
+  un latido con exito reinicia el contador. `correr()` NO se toco (decision justificada: corrida
+  acotada vigilada por quien la invoca).
+- **Defecto de plataforma corregido por APUS-5:** `herramientas/mutar.py` reventaba con
+  `KeyError: 'AMBIGUO'` en `_formatear_informe`, ocultando el informe ENTERO -incluidos
+  supervivientes-. Ahora usa `.get` con marca por defecto.
+
+**Evidencia de cierre:** Quality Gate **PASS** (666 pruebas, 3 skipped, 8 contratos).
+Mutacion: `centro-gobierno` 12/12 · `gobierno-cli` 5/5 · `servicio-permanente` 4/4 =
+**21 mutantes, 0 supervivientes, 0 no aplicados, 0 ambiguos.**
+Servicio verificado vivo 75 s (dos ciclos de espera); **kill switch lo detiene fuera de banda**;
+sin procesos huerfanos. Panel consultado desde otra terminal con el servicio corriendo.
+
+### INCUMPLIMIENTO DEL ESTANDAR QUE DEBE SABERSE
+
+**Las dos auditorias independientes cayeron por limite de gasto mensual de la cuenta** (la de la
+Pieza 3 ya habia emitido su rechazo y sus 5 defectos fueron corregidos; su RE-auditoria y la
+auditoria completa de la Pieza 1 **no llegaron a terminar**). La verificacion final la hizo APUS-5,
+que **no implemento** ninguna pieza pero **si tomo la decision de diseno D-3**. No equivale a una
+auditoria independiente. **Deuda abierta: auditar Pieza 1 y re-auditar Pieza 3 cuando haya cuota.**
+
+### SIGUIENTE PASO EXACTO
+
+**PIEZA 2 — buzon de decisiones (aprobacion diferida).** NO empezada. Condicion 4 del CEO: toda
+solicitud persiste en disco, sobrevive a reinicios y **se revalida con un NUEVO dry-run antes de
+ejecutarse; la aprobacion nunca autoriza un estado obsoleto**. Diseno acordado en el DP §4:
+- confirmador `adapters/hitl_diferido.py` con la MISMA firma que `hitl_consola.py` (previsto en su
+  propio docstring, `:7-9`)
+- reutiliza **`Tarea.decisiones_pendientes`** (`estado_operativo.py:76`), campo que YA EXISTE y que
+  nadie escribe ni lee
+- el CEO responde con un fichero en `~/.aura/decisiones/`; AURORA re-ejecuta el dry-run y compara
+  antes de reabrir la tarea (`bloqueada -> abierta`, transicion ya permitida)
+- la omision SIGUE siendo denegacion (ADR-0003, tolerancia cero a falsos negativos)
+
+**Recordatorio del propio sistema:** el panel ya dice, derivandolo de su historial, que *"desbloquear
+'programador' liberaria 1 de 2 tareas detenidas (50%)"*. Eso ES la Pieza 2, y la pidio AURORA.
+
+---
+
 ## Identificación
 
 | | |

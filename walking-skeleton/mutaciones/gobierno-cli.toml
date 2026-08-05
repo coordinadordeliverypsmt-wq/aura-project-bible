@@ -1,0 +1,54 @@
+incremento = "PIEZA 3: `--gobierno` publica el estado operativo real del sistema compuesto (+ D-3/D-4 auditoria)"
+pruebas = ["tests/integration/test_composicion.py::test_el_ejecutable_gobierno_publica_el_estado_operativo_real"]
+
+[[mutante]]
+id = "M1"
+garantia = "el panel deja de construirse con el estado REAL: usa panel() vacio (todo INEXISTENTE)"
+fichero = "aura_skeleton/__main__.py"
+buscar = '''    secciones = panel(estado=sistema.estado_operativo, objetivo=activos or None)'''
+sustituir = '''    secciones = panel()'''
+
+[[mutante]]
+id = "M2"
+garantia = "los objetivos activos dejan de leerse del estado: el panel queda vacio aunque haya trabajo real"
+fichero = "aura_skeleton/__main__.py"
+# El patron incluye la linea siguiente porque `_servir()` (PIEZA 1, en el mismo fichero) repite
+# `activos = sistema.estado_operativo.objetivos_activos()` palabra por palabra: sin este contexto el
+# arnes lo marca AMBIGUO (aparece 2 veces) en vez de aplicar el mutante donde corresponde.
+buscar = '''    activos = sistema.estado_operativo.objetivos_activos()
+    secciones = panel(estado=sistema.estado_operativo, objetivo=activos or None)'''
+sustituir = '''    activos = []
+    secciones = panel(estado=sistema.estado_operativo, objetivo=activos or None)'''
+
+[[mutante]]
+id = "M3"
+garantia = "la ruta de publicacion deja de derivarse del directorio de datos real (AURA_DATOS)"
+fichero = "aura_skeleton/__main__.py"
+buscar = '''    ruta = os.path.join(os.path.dirname(sistema.ruta_memoria), "CENTRO-DE-GOBIERNO.md")'''
+sustituir = '''    ruta = "/tmp/CENTRO-DE-GOBIERNO-mutante-M3.md"'''
+
+[[mutante]]
+id = "M4"
+garantia = "--gobierno deja de imprimir por stdout lo publicado: solo queda en disco"
+fichero = "aura_skeleton/__main__.py"
+buscar = '''    if args.gobierno:
+        print(_gobierno(sistema))
+        return 0'''
+sustituir = '''    if args.gobierno:
+        _gobierno(sistema)
+        return 0'''
+
+# --- D-3 (auditoria independiente, 2026-08-04): el panel debe cubrir TODOS los objetivos activos ---
+# El bug real: `activos[0] if activos else None` elegia el objetivo alfabeticamente PRIMERO y
+# DESCARTABA el resto sin avisar. Con dos objetivos reales, uno bloqueado y otro no, el panel afirmaba
+# "sin riesgos activos" cuando el segundo SI tenia tareas detenidas -- una afirmacion falsa firmada
+# como [AURORA]. `pruebas` se acota a la prueba de DOS objetivos: la global (un solo objetivo activo)
+# no distingue "cubre todos" de "cubre el unico que hay".
+
+[[mutante]]
+id = "A4"
+garantia = "el panel vuelve a cubrir un solo objetivo (el primero alfabetico) y oculta el resto sin avisar"
+fichero = "aura_skeleton/__main__.py"
+buscar = '''    secciones = panel(estado=sistema.estado_operativo, objetivo=activos or None)'''
+sustituir = '''    secciones = panel(estado=sistema.estado_operativo, objetivo=(activos[0] if activos else None))'''
+pruebas = ["tests/integration/test_composicion.py::test_gobierno_CUBRE_TODOS_los_objetivos_activos_no_solo_el_PRIMERO"]

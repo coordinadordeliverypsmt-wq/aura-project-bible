@@ -245,13 +245,18 @@ def _formatear_informe(resultado: ResultadoMutacion, ruta_toml: str) -> str:
         return "\n".join(lineas)
 
     lineas.append(f"Base en verde. Mutantes evaluados: {len(resultado.resultados)}")
-    marcas = {_DETECTADO: "OK", _SOBREVIVE: "!!", _NO_APLICADO: "??"}
+    # `.get` con marca por defecto en vez de indexacion directa: un estado sin marca declarada
+    # reventaba el informe entero con KeyError y ocultaba TODOS los resultados —incluidos los
+    # supervivientes—. Un informe que no se puede leer es peor que uno con una marca fea.
+    marcas = {_DETECTADO: "OK", _SOBREVIVE: "!!", _NO_APLICADO: "??", _AMBIGUO: "~~"}
     for r in resultado.resultados:
-        lineas.append(f"  [{marcas[r.estado]}] {r.id} ({r.estado}): {r.garantia}")
+        lineas.append(f"  [{marcas.get(r.estado, '??')}] {r.id} ({r.estado}): {r.garantia}")
         if r.estado == _SOBREVIVE:
             lineas.append("        garantia NO verificada por ninguna prueba declarada")
         elif r.estado == _NO_APLICADO:
             lineas.append("        el patron 'buscar' ya no existe en el fichero (declaracion obsoleta)")
+        elif r.estado == _AMBIGUO:
+            lineas.append("        declaracion ambigua: el patron no identifica un unico punto del codigo")
         elif r.pruebas_que_fallaron:
             for linea_falla in r.pruebas_que_fallaron.splitlines()[:3]:
                 lineas.append(f"        {linea_falla}")

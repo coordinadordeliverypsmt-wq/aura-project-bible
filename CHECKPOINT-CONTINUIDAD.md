@@ -18,6 +18,50 @@ aprobadas.
 
 
 
+
+## PRIORITARIO · DEFECTO REPRODUCIDO POR EL CEO EN USO REAL (2026-08-05)
+
+**Primera evidencia de producto generada por uso real, no por diseno.** El CEO escribio
+*"buenos dias Aurora, que tienes pendiente para hoy?"* y recibio
+*"No tengo ningun recuerdo registrado sobre eso."* Declarado **prioritario sobre cualquier capacidad
+nueva**.
+
+### CAUSA EXACTA — UNA LINEA
+`orchestrator.py`, `_es_consulta_de_memoria`:
+
+```python
+return any(p in t for p in _PATRONES_CONSULTA_MEMORIA) or _es_pregunta(texto)
+```
+
+**`or _es_pregunta(texto)`: CUALQUIER frase interrogativa se clasifica como consulta de memoria.**
+Sin mas criterio. Log del CEO: `recall 'buenos dias...' -> 0 hit(s)` -> `grounding: memoria vacia ->
+respuesta determinista` -> respuesta de ausencia.
+
+### POR QUE NO SE PUEDE ARREGLAR SIN DECISION PACKAGE
+Ese `or` **es DELIBERADO** — el docstring lo dice: *"sin ella la garantia de no-fabricacion cubria una
+fraccion minima del espacio real de preguntas"*. Se amplio para reforzar **ADR-0014**: impedir que el
+LLM invente recuerdos ante preguntas sin marcador explicito.
+
+**La garantia y el defecto viven en la MISMA linea.** Quitar el `or` sin sustituirlo reabre el hueco
+que ADR-0014 cerro. Toca una garantia dura => **Decision Package antes de implementar**.
+
+**Direccion propuesta (a discutir, NO implementada):** que la ausencia de memoria deje de ser el cajon
+por defecto y exija que la pregunta trate del **pasado compartido**, no del presente de AURORA.
+*"que me dijiste ayer"* SI; *"que puedes hacer"* NO. Obligatorio: al terminar, el mutante **"el LLM
+responde cuando no hay recuerdos" debe SEGUIR MURIENDO**. Si sobrevive, se rompio ADR-0014 arreglando
+la experiencia.
+
+### DATO QUE CAMBIA LA PRIORIDAD DEL WORKTREE
+**El incremento conversacional pendiente NO arregla esto.** Anade superficies DELANTE en la cascada, y
+*"buenos dias Aurora, que tienes pendiente para hoy?"* no coincide con sus patrones: nunca llega a
+ellas y cae igual en la ausencia de memoria. Integrarlo es necesario pero **NO suficiente** para lo que
+el CEO acaba de reportar.
+
+**Es el MISMO defecto que la auditoria rechazo el 2026-08-04** -detectores demasiado anchos, sin guarda
+de dominio- pero en la superficie mas antigua y protegida del sistema.
+
+---
+
 ## >>> PUNTO DE REANUDACION EXACTO (CEO, 2026-08-05) <<<
 
 **NO INICIAR NADA NUEVO MIENTRAS LA CUOTA SIGA AGOTADA.** Orden literal del CEO al volver:

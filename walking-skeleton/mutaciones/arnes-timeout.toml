@@ -1,0 +1,46 @@
+incremento = "Timeout por mutante en herramientas/mutar.py (2026-08-04)"
+# El arnes de mutacion debe protegerse a si mismo (CLAUDE.md): "muta tambien el cableado, no solo
+# la logica". Estos mutantes degradan el timeout que este incremento anadio a `_ejecutar_pytest`,
+# `_evaluar_mutante` y `ejecutar()`. Las pruebas que los cubren viven en
+# tests/unit/test_arnes_mutacion.py, seccion "Meta-pruebas del TIMEOUT por mutante (2026-08-04)".
+pruebas = [
+    "tests/unit/test_arnes_mutacion.py::test_mutante_que_cuelga_se_reporta_como_timeout_y_no_bloquea_el_arnes",
+    "tests/unit/test_arnes_mutacion.py::test_no_deja_procesos_huerfanos_tras_el_timeout",
+    "tests/unit/test_arnes_mutacion.py::test_timeout_s_del_toml_se_pasa_a_ejecutar_pytest",
+]
+# 30s: cada mutante de aqui abajo esta acotado a UNA prueba especifica (~2-3s normalmente); ninguno
+# deberia acercarse a este plazo. Si alguno lo agotara seria en si mismo una senal de que algo en
+# el propio mecanismo de timeout se rompio de una forma que este fichero no anticipo.
+timeout_s = 30
+
+[[mutante]]
+id = "M1"
+garantia = "un mutante en TIMEOUT se reporta como 'detectado': la mentira exacta que este incremento existe para evitar"
+fichero = "herramientas/mutar.py"
+pruebas = ["tests/unit/test_arnes_mutacion.py::test_mutante_que_cuelga_se_reporta_como_timeout_y_no_bloquea_el_arnes"]
+buscar = '''            estado = _TIMEOUT'''
+sustituir = '''            estado = _DETECTADO'''
+
+[[mutante]]
+id = "M2"
+garantia = "al vencer el timeout solo se mata el proceso de pytest, no el ARBOL completo: deja huerfanos (el dano ya medido en produccion)"
+fichero = "herramientas/mutar.py"
+pruebas = ["tests/unit/test_arnes_mutacion.py::test_no_deja_procesos_huerfanos_tras_el_timeout"]
+buscar = '''        os.killpg(os.getpgid(proceso.pid), signal.SIGKILL)'''
+sustituir = '''        proceso.kill()'''
+
+[[mutante]]
+id = "M3"
+garantia = "'concluyente' deja de exigir timeouts==0: un mutante en TIMEOUT se colaria como exito del conjunto"
+fichero = "herramientas/mutar.py"
+pruebas = ["tests/unit/test_arnes_mutacion.py::test_mutante_que_cuelga_se_reporta_como_timeout_y_no_bloquea_el_arnes"]
+buscar = '''            and self.timeouts == 0'''
+sustituir = '''            and True'''
+
+[[mutante]]
+id = "M4"
+garantia = "el 'timeout_s' declarado en el TOML se ignora: 'ejecutar()' siempre usaria el plazo por defecto sin que nadie se entere"
+fichero = "herramientas/mutar.py"
+pruebas = ["tests/unit/test_arnes_mutacion.py::test_timeout_s_del_toml_se_pasa_a_ejecutar_pytest"]
+buscar = '''    timeout_s: float = float(declaracion.get("timeout_s", _TIMEOUT_S_POR_DEFECTO))'''
+sustituir = '''    timeout_s: float = _TIMEOUT_S_POR_DEFECTO'''

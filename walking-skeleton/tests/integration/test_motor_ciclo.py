@@ -219,3 +219,61 @@ def test_un_latido_exitoso_reinicia_el_contador_de_fallos_consecutivos():
         "una racha de fallos aislados (nunca dos seguidos) no debe detener el servicio: si el contador "
         f"no se reiniciara tras cada exito, se habria detenido mucho antes de la llamada {total_llamadas}"
     )
+
+
+# --------------------------------------------------------------------------------------------
+# Garantias de TERMINACION de M2 y M3 (2026-08-04). Ambas fueron RETIRADAS de
+# mutaciones/motor-ciclo.toml el 2026-08-03: degradar la condicion de parada de `correr()` o la
+# espera de `servir()` produce un bucle VERDADERAMENTE infinito, y el arnes de mutacion no imponia
+# timeout -- se colgaba en vez de reportar. Ahora que `herramientas.mutar` SI impone timeout, ambas
+# se reincorporan, pero las pruebas EXISTENTES que las cubrian conceptualmente
+# (`test_se_detiene_solo_cuando_no_queda_trabajo` y `test_servir_espera_en_vez_de_girar_en_vacio`)
+# seguirian colgando esos mutantes de verdad: su unica "valvula" depende exactamente del mecanismo
+# que el mutante degrada (un contador de `atendidas` que nunca avanza sin trabajo; un `dormir` que el
+# mutante deja de invocar). Reportarian TIMEOUT, no "detectado": el arnes ya no se cuelga, pero
+# tampoco demuestra la garantia con una aserción rapida.
+#
+# Estas dos pruebas nuevas usan la valvula de `DirectorInestable.tras_agotar`, que vive DENTRO de
+# `director.ciclo()` -la llamada que AMBOS mutantes dejan intacta, aunque degraden lo que pasa
+# despues- asi que se dispara pase lo que pase con la condicion de parada. Convierten lo que seria
+# un cuelgue real en un fallo RAPIDO y observable, y dejan M2 y M3 en "detectado" en vez de TIMEOUT.
+# --------------------------------------------------------------------------------------------
+
+
+def test_correr_no_gira_en_vacio_para_siempre_sin_trabajo():
+    """CONTROL DE TERMINACION de `correr()` (mutante M2). Sin trabajo, debe llamar a `ciclo()` UNA
+    sola vez y parar. Si la condicion de parada (`if tarea is None: break`) se degrada, el bucle es
+    VERDADERAMENTE infinito -sin este limite, colgaria la prueba para siempre-; la valvula de
+    `DirectorInestable.tras_agotar` corta ese cuelgue con un CancelledError rapido en vez de dejarlo
+    girar para siempre.
+    """
+    director = DirectorInestable(fallos_en=set(), tras_agotar=1000)
+    ciclo = MotorDelCiclo(director, espera_s=0, dormir=_no_dormir)
+
+    atendidas = asyncio.run(ciclo.correr("obj"))
+
+    assert atendidas == 0, "sin trabajo no puede atenderse nada"
+    assert director.llamada == 1, "sin trabajo, correr() debe parar tras el PRIMER latido sin tarea"
+
+
+def test_servir_no_gira_en_vacio_para_siempre_si_deja_de_dormir():
+    """CONTROL DE TERMINACION de `servir()` (mutante M3), independiente de la valvula de
+    `test_servir_espera_en_vez_de_girar_en_vacio`: esa depende de que `dormir` se invoque, que es
+    EXACTAMENTE lo que M3 degrada (quita la espera de `servir()`). Aqui la valvula vive en el
+    DIRECTOR (`DirectorInestable.tras_agotar`), que se llama en cada vuelta pase lo que pase con
+    `dormir` -asi que sigue cortando el bucle aunque `dormir` deje de invocarse- y la aserción sobre
+    CUANTAS VECES se invoco `dormir` es la que de verdad demuestra la garantia.
+    """
+    llamadas_a_dormir = []
+
+    async def dormir_contador(s):
+        llamadas_a_dormir.append(s)
+
+    director = DirectorInestable(fallos_en=set(), tras_agotar=5)
+    ciclo = MotorDelCiclo(director, espera_s=0, dormir=dormir_contador)
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(ciclo.servir("obj"))
+
+    assert director.llamada == 5, "la valvula del director debe alcanzarse pase lo que pase con dormir"
+    assert len(llamadas_a_dormir) == 4, "cada uno de los 4 latidos sin trabajo debe dormir ANTES del siguiente"

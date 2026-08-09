@@ -405,13 +405,19 @@ async def test_formacion_con_codificacion_invalida_no_revienta_el_turno(monkeypa
 async def test_formacion_con_objeto_ajeno_no_se_intercepta(sistema):
     """Regresión de la auditoría: "¿qué has aprendido de mí?" volcaba el Plan de Formación completo
     -incluidas notas internas sobre APUS-5-. Es una pregunta sobre el USUARIO (Modelo de Usuario),
-    no sobre lo que AURORA aprendió del mundo."""
+    no sobre lo que AURORA aprendió del mundo.
+
+    CAMBIO DECLARADO (Conversación General v1, contrato del CEO 06f53f3): la frase sigue SIN volcar
+    el Plan de Formación -la garantía original de esta prueba, intacta-, pero ya no cae en la
+    ausencia de memoria: es el ejemplo canónico de AMBIGÜEDAD REAL (una frase, dos dominios, y
+    responder uno implica ignorar el otro), y el contrato exige pedir aclaración. La verificación
+    del texto exacto vive en `test_conversacion_general_v1.py::test_ambiguedad_real_pide_aclaracion`.
+    """
     r = await _di(sistema.orquestador, "¿qué has aprendido de mí?")
     assert r["provider"] == "core"
-    assert r["say"] == "No tengo ningun recuerdo registrado sobre eso.", (
-        f"la frase activó el Plan de Formación en vez de seguir el flujo previo: {r['say']!r}"
-    )
-    assert "APUS-5" not in r["say"]
+    assert "APUS-5" not in r["say"], f"volcó el Plan de Formación: {r['say']!r}"
+    assert "Coordinar su propio backlog" not in r["say"], f"volcó el Plan de Formación: {r['say']!r}"
+    assert r["say"].rstrip().endswith("?"), f"debió pedir aclaración ante la ambigüedad real: {r['say']!r}"
 
 
 # --------------------------------------------------------------------------- prueba de NO INTERFERENCIA --

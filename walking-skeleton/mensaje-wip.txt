@@ -1,0 +1,8 @@
+wip: Conversacion General v1 - RED+GREEN antes de medir equivalencia
+
+Commit de seguridad: la medicion de equivalencia restaura temporalmente el
+orchestrator de HEAD para grabar el corpus previo. Sin este commit, un fallo a
+mitad dejaria el trabajo perdido.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01GKdEnEucf7BVZp8wQC9jBv

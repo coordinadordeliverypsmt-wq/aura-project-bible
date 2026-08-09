@@ -443,6 +443,208 @@ def _es_consulta_de_formacion(texto: str) -> bool:
     return any(p in t for p in _PAT_FORMACION) and not _tiene_objeto_ajeno(t)
 
 
+# --------------------------------------------- CONVERSACION GENERAL v1 (contrato del CEO, 06f53f3) --
+#
+# POR QUE EXISTE. El CEO uso AURORA y "¿quien eres?", "¿como puedo ayudarte?" y "buenos dias Aurora,
+# ¿que tienes pendiente para hoy?" respondieron "No tengo ningun recuerdo registrado sobre eso":
+# `_es_consulta_de_memoria` termina en `or _es_pregunta(texto)`, asi que TODA interrogativa que nadie
+# haya reclamado antes cae en la ausencia de memoria.
+#
+# QUE NO SE TOCA. Ni `_es_consulta_de_memoria` ni la puerta de ADR-0014: esta lista es POSITIVA y
+# CERRADA, solo puede desviar lo que nombra. Lo que no esta aqui sigue el camino de hoy bit a bit --
+# incluidas las 24 negativas de la bateria oficial, que la garantia existe para proteger.
+#
+# LA UNIDAD DE RECONOCIMIENTO ES UNA SECUENCIA, NO UNA FRASE (decision del CEO). Un turno puede
+# contener varias intenciones: las MODIFICADORAS (saludo, cortesia, despedida) no consumen el turno
+# -solo anteponen su respuesta-; las PRINCIPALES deciden quien responde. Por eso "buenos dias Aurora,
+# ¿que tienes pendiente para hoy?" no se pierde: el saludo modifica, la consulta manda.
+#
+# COINCIDENCIA POR SEGMENTO COMPLETO, NUNCA POR SUBCADENA. `any(patron in texto)` es exactamente la
+# construccion que produjo el defecto original, y aqui lo recrearia en el otro sentido: "¿que estas
+# haciendo con mis archivos?" volveria a robarle el turno al Estado Operativo. Exigir el segmento
+# entero ES la guarda de dominio -- la misma disciplina que `_es_cancelacion_de_regla` aprendio el
+# 2026-08-02, aplicada con otro mecanismo.
+
+_VOCATIVOS = ("aurora", "aura")
+
+# Fronteras de segmento: puntuacion fuerte. La conjuncion "y" NO parte aqui (ver `_partir_en_partes`):
+# solo se prueba como segunda pasada, para no trocear frases que se reconocen enteras.
+_SEPARADORES_DE_SEGMENTO = re.compile(r"[,;.!?¿¡\n]+")
+
+# Cada saludo lleva SU redaccion: "buenos dias" no puede contestarse "buenas tardes". El texto sale de
+# la variante reconocida, nunca del reloj -- deducir la franja horaria del sistema seria afirmar algo
+# que el usuario no ha dicho, y ademas volveria la respuesta no reproducible.
+_VAR_SALUDO = {
+    "hola": "Hola",
+    "hey": "Hola",
+    "buenas": "Hola",
+    "que tal": "Hola",
+    "que tal estas": "Hola",
+    "como estas": "Hola",
+    "como te va": "Hola",
+    "buenos dias": "Buenos días",
+    "buen dia": "Buenos días",
+    "buenas tardes": "Buenas tardes",
+    "buenas noches": "Buenas noches",
+}
+
+_VAR_CORTESIA = ("gracias", "muchas gracias", "mil gracias", "te lo agradezco")
+_VAR_DESPEDIDA = ("adios", "hasta luego", "hasta manana", "nos vemos", "chao", "chau")
+
+_VAR_IDENTIDAD = ("quien eres", "quien sos", "que eres", "sabes quien eres", "como te llamas")
+_VAR_PROPOSITO = ("para que sirves", "para que estas", "cual es tu proposito", "para que existes")
+
+# "¿como puedo ayudarte?" es el usuario OFRECIENDO ayuda, no preguntando que sabe hacer AURORA.
+# Contestar aqui el catalogo de capacidades seria responder a otra pregunta.
+_VAR_OFRECIMIENTO = (
+    "como puedo ayudarte",
+    "en que puedo ayudarte",
+    "como te puedo ayudar",
+    "en que te puedo ayudar",
+    "que necesitas de mi",
+    "que necesitas",
+)
+
+# Mismas frases que ya atiende `_es_consulta_de_capacidades`, mas las que el uso real anadio. Se
+# reclaman aqui SOLO para poder componerlas con un saludo: el cuerpo de la respuesta lo sigue dando
+# `_describir_capacidades()`, la misma fuente, con el mismo texto.
+_VAR_CAPACIDADES = (
+    "que puedes hacer",
+    "que podes hacer",
+    "que sabes hacer",
+    "que capacidades tienes",
+    "cuales son tus capacidades",
+    "en que me puedes ayudar",
+    "con que me puedes ayudar",
+    "como puedes ayudarme",
+)
+
+# SOLO las variantes que hoy FALLAN. Las que ya funcionan ("en que estas trabajando", "que tareas
+# tienes", ...) se dejan deliberadamente fuera: las atiende `_es_consulta_de_tareas` inmediatamente
+# despues y este incremento no tiene por que cambiar su respuesta.
+_VAR_PENDIENTES = (
+    "que tienes pendiente",
+    "que tienes pendiente para hoy",
+    "que tienes pendiente hoy",
+    "que tienes para hoy",
+    "que hay pendiente",
+    "que tal vas",
+    "como va todo",
+    "que hay de nuevo",
+)
+
+# AMBIGÜEDAD REAL (distinta de multiplicidad): UNA frase que pertenece a dos dominios -lo que se de
+# ti (Modelo de Usuario) y lo que he aprendido yo trabajando (Plan de Formacion)- donde responder uno
+# implica ignorar el otro. El contrato exige preguntar. Sin "de mi" no hay ambiguedad y la superficie
+# de formacion que ya existia responde igual que siempre.
+_VAR_APRENDIDO_DE_MI = (
+    "que has aprendido de mi",
+    "que aprendiste de mi",
+    "que has aprendido sobre mi",
+    "que aprendiste sobre mi",
+)
+
+# (clase, nombre, variantes). El ORDEN de esta tabla no fija precedencia alguna: las variantes son
+# disjuntas por construccion y la coincidencia es por segmento completo, de modo que un segmento
+# activa como mucho una entrada. `test_las_variantes_de_conversacion_general_son_disjuntas` lo exige.
+_TABLA_INTENCIONES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+    ("modificadora", "saludo", tuple(_VAR_SALUDO)),
+    ("modificadora", "cortesia", _VAR_CORTESIA),
+    ("modificadora", "despedida", _VAR_DESPEDIDA),
+    ("principal", "identidad", _VAR_IDENTIDAD),
+    ("principal", "proposito", _VAR_PROPOSITO),
+    ("principal", "ofrecimiento", _VAR_OFRECIMIENTO),
+    ("principal", "capacidades", _VAR_CAPACIDADES),
+    ("principal", "pendientes", _VAR_PENDIENTES),
+    ("ambigua", "aprendido_de_mi", _VAR_APRENDIDO_DE_MI),
+)
+
+# Redaccion propia de AURORA, en primera persona (ajuste 2 del CEO). Determinista sigue significando
+# "no lo decide el LLM", no "suena a maquina". INV-9: ninguna afirma una capacidad concreta -- las
+# capacidades reales las enumera `_describir_capacidades()` leyendo el registro.
+_RESPUESTA_IDENTIDAD = (
+    "Soy AURORA. Trabajo contigo: guardo lo que me cuentas, sigo el estado de lo que llevamos "
+    "entre manos y me ocupo de lo que me pidas dentro de las capacidades que tengo registradas."
+)
+_RESPUESTA_PROPOSITO = (
+    "Estoy para acompañarte en el día a día: recordar lo que me cuentas, mantener a la vista en qué "
+    "vamos y encargarme de lo que me pidas dentro de mis capacidades."
+)
+_RESPUESTA_OFRECIMIENTO = (
+    "Me ayudas usándome: cuéntame en qué estás y pídeme lo que necesites. Cuanto más trabajemos "
+    "juntos, mejor podré acompañarte."
+)
+_RESPUESTA_CORTESIA = "De nada."
+_RESPUESTA_DESPEDIDA = "Hasta luego."
+_OFRECIMIENTO_TRAS_SALUDO = "¿En qué puedo ayudarte hoy?"
+_SIN_PENDIENTES = "Por ahora no tengo nada pendiente registrado."
+_ACLARACION_APRENDIDO_DE_MI = (
+    "Puedo entenderlo de dos formas: lo que sé de ti, o lo que he aprendido yo trabajando. ¿A cuál te refieres?"
+)
+
+# El nombre del usuario NO se infiere: se lee del Modelo de Usuario o no se usa (INV-9). Con el modelo
+# vacio -su estado real hoy: 0 entradas- escribir "Buenos dias, Mauricio" seria FABRICARLO. Cuando el
+# CEO se lo diga, aparecera solo.
+_RE_NOMBRE_DECLARADO = re.compile(r"\b(?:me llamo|mi nombre es)\s+([^\W\d_]+)", re.IGNORECASE)
+
+
+def _sin_vocativo(segmento: str) -> str:
+    """Quita "aurora"/"aura" al principio o al final. Asi "buenos dias Aurora" y "buenos dias" son la
+    misma entrada de la tabla, sin duplicar ninguna variante."""
+    palabras = segmento.split()
+    while palabras and palabras[0] in _VOCATIVOS:
+        palabras.pop(0)
+    while palabras and palabras[-1] in _VOCATIVOS:
+        palabras.pop()
+    return " ".join(palabras)
+
+
+def _intencion_de_segmento(segmento: str) -> tuple[str, str, str] | None:
+    """(clase, nombre, variante) si el segmento COMPLETO es una variante conocida; None si no."""
+    for clase, nombre, variantes in _TABLA_INTENCIONES:
+        if segmento in variantes:
+            return (clase, nombre, segmento)
+    return None
+
+
+def _partir_en_partes(texto: str) -> list[str]:
+    """Segmentos normalizados, sin vocativo y sin vacios."""
+    partes = []
+    for bruto in _SEPARADORES_DE_SEGMENTO.split(_normalizar(texto)):
+        segmento = _sin_vocativo(" ".join(bruto.split()))
+        if segmento:
+            partes.append(segmento)
+    return partes
+
+
+def _secuencia_de_intenciones(texto: str) -> list[tuple[str, str, str]] | None:
+    """La secuencia de intenciones del turno, o None si ALGUNA parte no se reconoce.
+
+    "None ante lo desconocido" es la propiedad que hace inofensivo este detector: basta con que el
+    turno contenga algo fuera de la lista para que siga exactamente el camino de hoy. Es lo que
+    mantiene intactas las 24 negativas de ADR-0014 sin tocar su puerta.
+    """
+    partes = _partir_en_partes(texto)
+    if not partes:
+        return None
+    secuencia: list[tuple[str, str, str]] = []
+    for parte in partes:
+        directa = _intencion_de_segmento(parte)
+        if directa is not None:
+            secuencia.append(directa)
+            continue
+        # Segunda pasada: "¿que puedes hacer y que tienes pendiente?" son DOS principales unidas por
+        # "y". Solo se intenta si la parte entera no se reconocia, para no trocear frases legitimas.
+        trozos = [_sin_vocativo(t.strip()) for t in parte.split(" y ")]
+        if len(trozos) < 2:
+            return None
+        encontradas = [_intencion_de_segmento(t) for t in trozos]
+        if any(e is None for e in encontradas):
+            return None
+        secuencia.extend(e for e in encontradas if e is not None)
+    return secuencia or None
+
+
 # Ubicacion FIJA del Plan de Formacion: gobierno del proyecto, no dato de usuario, vive junto a
 # CLAUDE.md y CHECKLIST-CONTINUIDAD.md. Desde este fichero (aura_skeleton/core/orchestrator.py) son
 # tres niveles hacia arriba: core -> aura_skeleton -> walking-skeleton -> raiz del repo. Si el
@@ -590,6 +792,15 @@ class Orchestrator:
         # desde el LLM. Van DESPUES de las 8 superficies anteriores y ANTES de la ausencia de memoria:
         # si llegaran a caer ahi, el usuario recibiria "no tengo ningun recuerdo" para algo que el
         # sistema si sabe (el defecto de producto que este incremento corrige).
+        # Conversacion General v1 (CEO, 06f53f3). Se evalua DESPUES de las 8 superficies anteriores
+        # -no puede robarles ninguna frase- y ANTES de las 4 de la ventana del SO, porque un turno
+        # como "buenos dias Aurora, ¿que puedes hacer?" es UNA SECUENCIA: si capacidades lo
+        # interceptara primero, el saludo se perderia. Cuando no reconoce el turno entero devuelve
+        # None y todo sigue exactamente igual que antes de este incremento.
+        resp = await self._atender_conversacion_general(uid, text)
+        if resp is not None:
+            await self._finalizar_turno(uid, tid, text, resp, "core", t)
+            return
         if _es_consulta_de_capacidades(text):
             await self._finalizar_turno(uid, tid, text, self._describir_capacidades(), "core", t)
             return
@@ -739,6 +950,102 @@ class Orchestrator:
             return "No ha pasado nada relevante mientras no estabas."
         lineas = "\n".join(f"• {n.titulo}" for n in items)
         return f"Desde la última vez:\n{lineas}"
+
+    # ----------------------------------------- Conversacion General v1 (CEO, 06f53f3) --
+
+    async def _atender_conversacion_general(self, uid: str, text: str) -> str | None:
+        """Compone la respuesta del turno a partir de su SECUENCIA de intenciones, o None si el turno
+        no es enteramente reconocible (entonces sigue el camino que ya existia).
+
+        Tres reglas del contrato, en este orden:
+          - AMBIGÜEDAD REAL -> se pregunta. Una frase de dos dominios donde responder uno implica
+            ignorar el otro no se resuelve adivinando.
+          - MULTIPLICIDAD -> se responden TODAS las principales, en el orden formulado, sin
+            preguntar: "si las dos intenciones pueden resolverse, prefiero una respuesta mas larga
+            antes que interrumpir la conversacion" (CEO).
+          - Una principal NO RESOLUBLE (p.ej. pendientes sin Estado Operativo conectado) anula el
+            turno entero: mejor seguir como hoy que contestar media pregunta.
+        """
+        secuencia = _secuencia_de_intenciones(text)
+        if secuencia is None:
+            return None
+
+        prefijo = await self._prefijo_de_modificadoras(uid, secuencia)
+
+        ambiguas = [nombre for clase, nombre, _ in secuencia if clase == "ambigua"]
+        if ambiguas:
+            return self._unir(prefijo, [_ACLARACION_APRENDIDO_DE_MI])
+
+        cuerpos = []
+        for clase, nombre, _ in secuencia:
+            if clase != "principal":
+                continue
+            cuerpo = self._responder_intencion(nombre)
+            if cuerpo is None:
+                return None
+            cuerpos.append(cuerpo)
+
+        if not cuerpos:
+            if not prefijo:
+                return None
+            hay_saludo = any(nombre == "saludo" for _, nombre, _ in secuencia)
+            return self._unir(prefijo, [_OFRECIMIENTO_TRAS_SALUDO] if hay_saludo else [])
+        return self._unir(prefijo, cuerpos)
+
+    @staticmethod
+    def _unir(prefijo: list[str], cuerpos: list[str]) -> str:
+        return "\n".join([*prefijo, *cuerpos])
+
+    def _responder_intencion(self, nombre: str) -> str | None:
+        """Texto de UNA intencion principal, o None si esa intencion no es resoluble ahora mismo.
+
+        Las intenciones que tienen fuente real (capacidades, pendientes) delegan en la MISMA funcion
+        que ya las respondia: no se duplica ni se reescribe ningun hecho del sistema (ADR-0014 §1).
+        """
+        if nombre == "identidad":
+            return _RESPUESTA_IDENTIDAD
+        if nombre == "proposito":
+            return _RESPUESTA_PROPOSITO
+        if nombre == "ofrecimiento":
+            return _RESPUESTA_OFRECIMIENTO
+        if nombre == "capacidades":
+            return self._describir_capacidades()
+        if nombre == "pendientes":
+            # Sin Estado Operativo conectado no se puede afirmar que no hay nada pendiente: se
+            # ignora, como ya hace la ventana del SO cuando el componente no esta cableado (INV-9).
+            if self.estado_operativo is None:
+                return None
+            return self._describir_tareas() if self._secciones_del_ciclo() else _SIN_PENDIENTES
+        return None
+
+    async def _prefijo_de_modificadoras(self, uid: str, secuencia: list[tuple[str, str, str]]) -> list[str]:
+        """Las modificadoras no consumen el turno: aportan las lineas que anteceden a la respuesta."""
+        lineas = []
+        for clase, nombre, variante in secuencia:
+            if clase != "modificadora":
+                continue
+            if nombre == "saludo":
+                saludo = _VAR_SALUDO[variante]
+                propio = await self._nombre_del_usuario(uid)
+                lineas.append(f"{saludo}, {propio}." if propio else f"{saludo}.")
+            elif nombre == "cortesia":
+                lineas.append(_RESPUESTA_CORTESIA)
+            elif nombre == "despedida":
+                lineas.append(_RESPUESTA_DESPEDIDA)
+        return lineas
+
+    async def _nombre_del_usuario(self, uid: str) -> str | None:
+        """El nombre SOLO si el Modelo de Usuario lo tiene de verdad (INV-9). Las entradas refutadas
+        no cuentan: el usuario ya dijo que eso no era cierto."""
+        if self.modelo_usuario is None:
+            return None
+        for entrada in await self.modelo_usuario.ver(uid):
+            if entrada.get("refutada"):
+                continue
+            hallado = _RE_NOMBRE_DECLARADO.search(str(entrada.get("contenido", "")))
+            if hallado:
+                return hallado.group(1)
+        return None
 
     # ----------------------------------------- ventana del SO Interno (M3 entry) --
 

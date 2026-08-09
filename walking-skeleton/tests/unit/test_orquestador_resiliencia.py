@@ -37,11 +37,20 @@ def _orch(salida):
     )
 
 
+# Texto de entrada que LLEGA al LLM. Antes se usaba "hola", pero Conversacion General v1 lo responde
+# ahora en el nucleo: estas tres pruebas habrian dejado de ejercitar el parsing que dicen probar sin
+# fallar por ello (`assert res["say"]` lo satisface cualquier respuesta). Cada una comprueba ademas
+# `provider == "raw"`, para que la prueba se rompa -en vez de volverse decorativa- si una superficie
+# determinista futura vuelve a reclamar el turno.
+_ORDEN_QUE_LLEGA_AL_LLM = "enciende la luz de la sala"
+
+
 @pytest.mark.asyncio
 async def test_json_malformado_no_crashea():
     orch = _orch("esto no es json en absoluto")
-    await orch.handle_utterance("u", "hola", "T")
+    await orch.handle_utterance("u", _ORDEN_QUE_LLEGA_AL_LLM, "T")
     res = await orch.wait("T")  # no debe lanzar excepcion
+    assert res["provider"] == "raw", "el turno no llego al LLM: la prueba no ejercita el parsing"
     assert "reformular" in res["say"].lower()
 
 
@@ -49,14 +58,16 @@ async def test_json_malformado_no_crashea():
 async def test_json_con_texto_alrededor_se_extrae():
     salida = 'Claro: {"intent":"x","action":"consulta","args":{},"say":"Listo"} espero que sirva'
     orch = _orch(salida)
-    await orch.handle_utterance("u", "hola", "T")
+    await orch.handle_utterance("u", _ORDEN_QUE_LLEGA_AL_LLM, "T")
     res = await orch.wait("T")
+    assert res["provider"] == "raw", "el turno no llego al LLM: la prueba no ejercita el parsing"
     assert res["say"] == "Listo"
 
 
 @pytest.mark.asyncio
 async def test_claves_faltantes_usan_valores_seguros():
     orch = _orch(json.dumps({"foo": "bar"}))  # sin action ni say
-    await orch.handle_utterance("u", "hola", "T")
+    await orch.handle_utterance("u", _ORDEN_QUE_LLEGA_AL_LLM, "T")
     res = await orch.wait("T")
-    assert res["say"]  # no vacio, no crash
+    assert res["provider"] == "raw", "el turno no llego al LLM: la prueba no ejercita el parsing"
+    assert res["say"] == "Entendido.", "el valor seguro por defecto dejo de aplicarse"

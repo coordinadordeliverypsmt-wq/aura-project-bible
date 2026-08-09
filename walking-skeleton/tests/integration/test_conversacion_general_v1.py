@@ -1,0 +1,364 @@
+"""Conversación General v1 — contrato cerrado por el CEO (`DP-CONVERSACION-GENERAL-V1.md`, 06f53f3).
+
+EVIDENCIA DE USO REAL QUE LO MOTIVA. El CEO ejecutó AURORA y obtuvo:
+
+    tu> ¿Quién eres?
+    AURA> No tengo ningun recuerdo registrado sobre eso.
+    tu> ¿Cómo puedo ayudarte?
+    AURA> No tengo ningun recuerdo registrado sobre eso.
+    tu> Buenos días Aurora, ¿qué tienes pendiente para hoy?
+    AURA> No tengo ningun recuerdo registrado sobre eso.
+
+CAUSA (verificada en `orchestrator.py`): `_es_consulta_de_memoria` termina en `or _es_pregunta(texto)`,
+de modo que CUALQUIER interrogativa que nadie haya reclamado antes cae en la ausencia de memoria.
+
+QUÉ NO SE TOCA (condición del CEO): ni `_es_consulta_de_memoria` ni la puerta de ADR-0014. Este
+incremento sólo RECLAMA ANTES un conjunto cerrado de intenciones. Lo que no está en la lista sigue
+exactamente el camino de hoy, bit a bit -- por eso las 24 negativas de la batería oficial siguen
+protegidas (`test_las_24_negativas_de_adr0014_siguen_atendidas_por_el_nucleo`).
+
+LA UNIDAD DE RECONOCIMIENTO ES UNA SECUENCIA DE INTENCIONES, no una frase (ajuste del CEO):
+  - MODIFICADORAS (saludo, cortesía, despedida) NO consumen el turno: sólo anteponen su respuesta.
+  - PRINCIPALES deciden quién responde.
+  - MULTIPLICIDAD != AMBIGÜEDAD: dos principales distintas y resolubles se responden AMBAS, en el
+    orden formulado, sin preguntar; sólo una frase que pertenece a dos dominios donde responder uno
+    implica ignorar el otro pide aclaración.
+"""
+
+from __future__ import annotations
+
+import json
+import uuid
+from pathlib import Path
+
+import pytest
+
+from aura_skeleton.composicion import Configuracion, componer
+from aura_skeleton.core.estado_operativo import Tarea
+from aura_skeleton.modules.router import ModelRouter
+
+_RUTA_BATERIA_MEMORIA = Path(__file__).parent.parent / "datos" / "bateria_memoria.json"
+
+
+class _ProveedorEspia:
+    """Registra si el orquestador llegó a consultar al modelo. Copiado a propósito del patrón de
+    `tests/unit/test_grounding_core.py`: la garantía que vigila es la misma (ADR-0014)."""
+
+    name = "espia"
+
+    def __init__(self) -> None:
+        self.llamadas = 0
+
+    async def infer(self, prompt: str) -> str:
+        self.llamadas += 1
+        return '{"intent":"x","action":"consulta","args":{},"say":"respuesta fabricada por el LLM"}'
+
+
+async def _di(orq, texto, uid="mauricio"):
+    tid = uuid.uuid4().hex[:12]
+    await orq.handle_utterance(uid, texto, tid)
+    return await orq.wait(tid)
+
+
+@pytest.fixture
+def sistema(tmp_path):
+    """El sistema COMPUESTO real: mismas superficies que en producción (MA.1)."""
+    cfg = Configuracion(datos=str(tmp_path), raices_permitidas=(str(tmp_path),), usar_stack_real=False)
+    return componer(cfg)
+
+
+@pytest.fixture
+def espia(sistema):
+    """Sustituye el proveedor del router del sistema compuesto por un espía. Permite afirmar
+    "el LLM NO se consultó" sobre el sistema real, no sobre un doble escrito para cumplirlo."""
+    sonda = _ProveedorEspia()
+    sistema.orquestador.router = ModelRouter([sonda], 1200)
+    return sonda
+
+
+def _ausencia(r) -> bool:
+    return r["say"] == "No tengo ningun recuerdo registrado sobre eso."
+
+
+# ------------------------------------------------------ LA BATERÍA DEL CEO (prueba funcional base) --
+#
+# El CEO: "Considero esta batería de preguntas como la prueba funcional base de Conversación General
+# v1. A partir de ahora, cualquier implementación del router deberá superar esta batería antes de
+# integrarse." Cada frase es literal, tal como la escribió en la terminal.
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "frase",
+    [
+        "Hola",
+        "Buenos días Aurora",
+        "Hola Aurora, ¿qué puedes hacer?",
+        "¿Quién eres?",
+        "¿Cómo puedo ayudarte?",
+        "Buenos días Aurora, ¿qué tienes pendiente para hoy?",
+        "¿En qué estás trabajando?",
+    ],
+)
+async def test_bateria_del_ceo_ninguna_cae_en_la_ausencia_de_memoria(sistema, espia, frase):
+    """Ninguna de estas frases es una consulta de memoria: ninguna puede recibir la respuesta de
+    ausencia, y ninguna puede acabar en el LLM (son hechos del sistema o cortesía, ADR-0014 §2)."""
+    r = await _di(sistema.orquestador, frase)
+    assert not _ausencia(r), f"{frase!r} sigue cayendo en la ausencia de memoria: {r['say']!r}"
+    assert r["provider"] == "core", f"{frase!r} debió responderla el núcleo, no {r['provider']!r}"
+    assert espia.llamadas == 0, f"{frase!r} llegó al LLM"
+    assert r["say"].strip(), f"{frase!r} respondió con texto vacío"
+
+
+@pytest.mark.asyncio
+async def test_que_recuerdas_de_mi_sigue_siendo_consulta_de_memoria_sin_llm(sistema, espia):
+    """La otra mitad de la batería del CEO: esta SÍ es una consulta de memoria. Sin recuerdos debe
+    seguir respondiendo el núcleo con la ausencia y SIN consultar al LLM. Si este incremento la
+    hubiera reclamado, habría roto ADR-0014 arreglando la experiencia."""
+    r = await _di(sistema.orquestador, "¿Qué recuerdas de mí?")
+    assert r["provider"] == "core"
+    assert _ausencia(r), f"dejó de declarar la ausencia: {r['say']!r}"
+    assert espia.llamadas == 0
+
+
+# ------------------------------------------------------------------------ identidad y propósito --
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("frase", ["¿Quién eres?", "¿Qué eres?", "¿Sabes quién eres?"])
+async def test_quien_eres_se_presenta_sin_fabricar(sistema, frase):
+    """Se presenta con su nombre real y su papel. INV-9: no afirma capacidades concretas aquí --
+    para eso está la superficie de capacidades, que lee el registro."""
+    r = await _di(sistema.orquestador, frase)
+    assert r["provider"] == "core"
+    assert "AURORA" in r["say"], f"no se presenta por su nombre: {r['say']!r}"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("frase", ["¿Cómo puedo ayudarte?", "¿En qué puedo ayudarte?"])
+async def test_como_puedo_ayudarte_es_una_intencion_distinta_de_capacidades(sistema, frase):
+    """El usuario ofrece ayuda: no está preguntando qué sabe hacer AURORA. Responder aquí el
+    catálogo de capacidades sería contestar a otra pregunta."""
+    r = await _di(sistema.orquestador, frase)
+    assert r["provider"] == "core"
+    assert "capacidad(es) registradas" not in r["say"], (
+        f"contestó el catálogo de capacidades a una oferta de ayuda: {r['say']!r}"
+    )
+    assert not _ausencia(r)
+
+
+# ---------------------------------------------------- saludo + principal: la secuencia del CEO --
+
+
+@pytest.mark.asyncio
+async def test_el_saludo_no_consume_el_turno_capacidades(sistema):
+    """Frase exacta exigida por el contrato. El saludo es MODIFICADORA: antepone su respuesta pero
+    la intención principal (capacidades) sigue decidiendo quién responde."""
+    reales = sistema.registro_adaptadores.capacidades()
+    assert len(reales) > 3, "guarda de cordura: con <=3 capacidades esta prueba no discriminaría"
+
+    r = await _di(sistema.orquestador, "Hola Aurora, ¿qué puedes hacer?")
+    assert r["provider"] == "core"
+    assert r["say"].startswith("Hola"), f"el saludo no se antepuso: {r['say']!r}"
+    for cap in sorted(reales):
+        assert cap in r["say"], f"el saludo hizo perder la intención principal (falta {cap!r})"
+
+
+@pytest.mark.asyncio
+async def test_el_saludo_no_consume_el_turno_pendientes(sistema):
+    """La frase LITERAL que el CEO escribió en la terminal y que motivó todo el incremento."""
+    sistema.estado_operativo.registrar(
+        Tarea(
+            objetivo_id="obj-1",
+            tarea_id="t-1",
+            descripcion="escribir el ADR de la ventana del SO",
+            estado="abierta",
+            responsable="programador",
+            origen="ceo",
+        )
+    )
+    r = await _di(sistema.orquestador, "Buenos días Aurora, ¿qué tienes pendiente para hoy?")
+    assert r["provider"] == "core"
+    assert r["say"].startswith("Buenos días"), f"el saludo no se antepuso: {r['say']!r}"
+    assert "escribir el ADR de la ventana del SO" in r["say"], (
+        f"el saludo hizo perder la consulta de pendientes: {r['say']!r}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_control_sin_saludo_el_destino_es_el_mismo(sistema):
+    """CONTROL exigido por el contrato: quitar el saludo no puede cambiar el destino. El cuerpo de
+    la respuesta debe ser IDÉNTICO; lo único que desaparece es la línea del saludo.
+
+    Sin este control, la prueba anterior pasaría aunque el saludo estuviera decidiendo el destino.
+    """
+    con_saludo = await _di(sistema.orquestador, "Hola Aurora, ¿qué puedes hacer?")
+    sin_saludo = await _di(sistema.orquestador, "¿Qué puedes hacer?")
+    assert con_saludo["provider"] == sin_saludo["provider"] == "core"
+    assert con_saludo["say"].endswith(sin_saludo["say"]), (
+        f"el cuerpo cambió al quitar el saludo:\ncon:  {con_saludo['say']!r}\nsin: {sin_saludo['say']!r}"
+    )
+    assert con_saludo["say"] != sin_saludo["say"], "el saludo no añadió nada"
+
+
+@pytest.mark.asyncio
+async def test_el_vocativo_no_impide_reconocer_el_saludo_solo(sistema):
+    r_con = await _di(sistema.orquestador, "Buenos días Aurora")
+    r_sin = await _di(sistema.orquestador, "Buenos días")
+    assert r_con["provider"] == r_sin["provider"] == "core"
+    assert r_con["say"] == r_sin["say"], "el vocativo 'Aurora' cambió la respuesta al saludo"
+
+
+@pytest.mark.asyncio
+async def test_un_saludo_solo_ofrece_ayuda_no_deja_el_turno_mudo(sistema):
+    r = await _di(sistema.orquestador, "Hola")
+    assert r["provider"] == "core"
+    assert "?" in r["say"], f"un saludo suelto debe devolver la conversación al usuario: {r['say']!r}"
+
+
+# --------------------------------------------------------- MULTIPLICIDAD: dos principales, ambas --
+
+
+@pytest.mark.asyncio
+async def test_dos_intenciones_principales_se_responden_ambas_en_orden(sistema):
+    """Decisión del CEO que cerró el contrato: si las dos pueden resolverse, se responden AMBAS,
+    en el orden formulado. NUNCA se pide aclaración por multiplicidad."""
+    sistema.estado_operativo.registrar(
+        Tarea(
+            objetivo_id="obj-1",
+            tarea_id="t-1",
+            descripcion="escribir el ADR de la ventana del SO",
+            estado="abierta",
+            responsable="programador",
+            origen="ceo",
+        )
+    )
+    reales = sistema.registro_adaptadores.capacidades()
+
+    r = await _di(sistema.orquestador, "Hola Aurora, ¿qué puedes hacer y qué tienes pendiente?")
+    assert r["provider"] == "core"
+    say = r["say"]
+
+    pos_capacidades = say.find("capacidad(es) registradas")
+    pos_pendientes = say.find("escribir el ADR de la ventana del SO")
+    assert pos_capacidades >= 0, f"falta la PRIMERA intención (capacidades): {say!r}"
+    assert pos_pendientes >= 0, f"falta la SEGUNDA intención (pendientes): {say!r}"
+    assert pos_capacidades < pos_pendientes, f"el orden de las intenciones se invirtió: {say!r}"
+    for cap in sorted(reales):
+        assert cap in say
+    assert "?" not in say.split("\n")[-1] or "aclara" not in say.lower(), (
+        "pidió aclaración ante MULTIPLICIDAD; el contrato lo prohíbe"
+    )
+
+
+@pytest.mark.asyncio
+async def test_multiplicidad_invertida_respeta_el_orden_formulado(sistema):
+    """Kill del mutante "el orden lo fija la tabla, no el turno": con las mismas dos intenciones en
+    orden inverso, la respuesta debe invertirse también."""
+    sistema.estado_operativo.registrar(
+        Tarea(
+            objetivo_id="obj-1",
+            tarea_id="t-1",
+            descripcion="escribir el ADR de la ventana del SO",
+            estado="abierta",
+            responsable="programador",
+            origen="ceo",
+        )
+    )
+    r = await _di(sistema.orquestador, "Hola Aurora, ¿qué tienes pendiente y qué puedes hacer?")
+    say = r["say"]
+    pos_pendientes = say.find("escribir el ADR de la ventana del SO")
+    pos_capacidades = say.find("capacidad(es) registradas")
+    assert pos_pendientes >= 0 and pos_capacidades >= 0, f"falta alguna de las dos intenciones: {say!r}"
+    assert pos_pendientes < pos_capacidades, f"no se respetó el orden formulado: {say!r}"
+
+
+# --------------------------------------------------------------- AMBIGÜEDAD REAL: pide aclaración --
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("frase", ["¿Qué has aprendido de mí?", "¿qué aprendiste de mí?"])
+async def test_ambiguedad_real_pide_aclaracion(sistema, frase):
+    """UNA frase, DOS dominios (lo que sé de ti / lo que he aprendido yo trabajando), y responder
+    uno implica ignorar el otro. El contrato exige preguntar.
+
+    CAMBIO DE COMPORTAMIENTO DECLARADO: antes de este incremento caía en la ausencia de memoria.
+    La garantía que protegía aquella prueba -no volcar el Plan de Formación con notas internas
+    sobre APUS-5- se mantiene y se sigue verificando aquí.
+    """
+    r = await _di(sistema.orquestador, frase)
+    assert r["provider"] == "core"
+    assert r["say"].rstrip().endswith("?"), f"no pidió aclaración: {r['say']!r}"
+    assert not _ausencia(r)
+    assert "APUS-5" not in r["say"], "volcó el Plan de Formación en vez de preguntar"
+    assert "Coordinar su propio backlog" not in r["say"]
+
+
+@pytest.mark.asyncio
+async def test_que_has_aprendido_sin_objeto_ajeno_sigue_siendo_el_plan_de_formacion(sistema):
+    """Control de la anterior: sin "de mí" NO hay ambigüedad, y la superficie de formación que ya
+    existía debe seguir respondiendo exactamente igual."""
+    r = await _di(sistema.orquestador, "¿Qué has aprendido?")
+    assert r["provider"] == "core"
+    assert "Coordinar su propio backlog" in r["say"], f"la superficie de formación cambió: {r['say']!r}"
+
+
+# ------------------------------------------------------------------------------- INV-9: el nombre --
+
+
+@pytest.mark.asyncio
+async def test_no_saluda_con_nombre_si_el_modelo_de_usuario_esta_vacio(sistema):
+    """INV-9. El ejemplo del CEO decía "Buenos días, Mauricio", pero AURORA no sabe hoy cómo se
+    llama: el Modelo de Usuario tiene 0 entradas. Escribir ese nombre sería FABRICARLO.
+
+    Mutante obligatorio del contrato: saludar con un nombre fijo con el modelo vacío -> debe morir.
+    """
+    entradas = await sistema.modelo_usuario.ver("mauricio")
+    assert entradas == [], "guarda: esta prueba exige el Modelo de Usuario vacío"
+
+    r = await _di(sistema.orquestador, "Buenos días")
+    assert r["provider"] == "core"
+    assert "," not in r["say"].split("\n")[0], f"saludó con un nombre que nadie le ha dicho: {r['say']!r}"
+    assert "Mauricio" not in r["say"]
+
+
+@pytest.mark.asyncio
+async def test_saluda_con_nombre_solo_cuando_el_modelo_de_usuario_lo_sabe(sistema):
+    """La otra mitad del contrato: cuando el dato EXISTE de verdad, se usa. Sin esta prueba, no
+    fabricar el nombre se cumpliría trivialmente no usándolo nunca."""
+    await sistema.memoria.write(
+        "mauricio", "semantica", "me llamo Mauricio", {"origen": "declarada", "fuente": "usuario"}
+    )
+    r = await _di(sistema.orquestador, "Buenos días")
+    assert r["provider"] == "core"
+    assert "Buenos días, Mauricio" in r["say"], f"no usó el nombre REAL del modelo de usuario: {r['say']!r}"
+
+
+# ------------------------------------------------------- ADR-0014: la garantía irrenunciable --
+
+
+def _negativas_de_la_bateria() -> list[str]:
+    """Las consultas SIN `esperado` de la batería oficial: aquellas para las que NO existe ningún
+    recuerdo correcto. Son las que la garantía de no-fabricación existe para proteger."""
+    bateria = json.loads(_RUTA_BATERIA_MEMORIA.read_text(encoding="utf-8"))
+    return [c["texto"] for c in bateria["consultas"] if c.get("esperado") is None]
+
+
+@pytest.mark.asyncio
+async def test_las_24_negativas_de_adr0014_siguen_atendidas_por_el_nucleo(sistema, espia):
+    """LA PRUEBA IRRENUNCIABLE. Con memoria vacía, las 24 consultas negativas de la batería oficial
+    deben seguir respondidas por el NÚCLEO y sin UNA SOLA llamada al LLM.
+
+    Es la medida que hundió la tabla de enrutamiento: su regla de admisión llevaba esta garantía de
+    24/24 a 0/24 y ninguna prueba existente lo habría notado.
+    """
+    negativas = _negativas_de_la_bateria()
+    assert len(negativas) == 24, f"la batería oficial cambió de tamaño: {len(negativas)} negativas"
+
+    fallos = []
+    for frase in negativas:
+        r = await _di(sistema.orquestador, frase)
+        if r["provider"] != "core" or not _ausencia(r):
+            fallos.append((frase, r["provider"], r["say"]))
+    assert not fallos, f"{len(fallos)}/24 negativas dejaron de estar protegidas: {fallos[:3]}"
+    assert espia.llamadas == 0, f"el LLM fue consultado {espia.llamadas} veces sobre las negativas"

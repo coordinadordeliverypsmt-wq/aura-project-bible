@@ -137,6 +137,34 @@ async def test_capacidades_no_se_delega_al_llm_ni_con_recuerdos_relacionados(sis
         assert cap in r["say"]
 
 
+@pytest.mark.asyncio
+async def test_capacidades_cubre_la_pregunta_dentro_de_una_oracion_mas_larga(sistema):
+    """QUÉ SIGUE SIENDO DE ESTA SUPERFICIE tras Conversación General v1.
+
+    Aquel incremento reclama las frases EXACTAS ("¿qué puedes hacer?") antes que esta superficie,
+    para poder componerlas con un saludo. Lo que sigue siendo suyo es la misma pregunta EMBEBIDA en
+    una oración más larga, que el reconocimiento por segmento completo no reclama.
+
+    Sin esta prueba, `_es_consulta_de_capacidades` no tendría ya ninguna prueba que dependa de él y
+    sus mutantes M1 ("el detector deja de reconocer") y M3 ("falta el return") SOBREVIVIRÍAN -- una
+    garantía sin red. Medido `[EJEC]`, no supuesto: sobrevivieron al ejecutar el arnés.
+
+    El recuerdo sembrado es lo que hace significativo a M3: sin `return`, el turno seguiría hasta
+    `memory.recall`, encontraría este recuerdo, llegaría al LLM y su respuesta SOBREESCRIBIRÍA la del
+    registro de capacidades.
+    """
+    await sistema.memoria.write(
+        "mauricio", "episodica", "hablamos de que puedes hacer con las fotos ayer", {"fuente": "conversacion"}
+    )
+    reales = sistema.registro_adaptadores.capacidades()
+
+    r = await _di(sistema.orquestador, "Oye, ¿y qué puedes hacer con mis fotos?")
+    assert r["provider"] == "core", "el turno debió cortarse en el núcleo, no seguir hasta el LLM"
+    assert f"Tengo {len(reales)} capacidad(es) registradas" in r["say"]
+    for cap in sorted(reales):
+        assert cap in r["say"], f"falta la capacidad real '{cap}' en la respuesta: {r['say']!r}"
+
+
 # -------------------------------------------------------------------------------------------- tareas --
 
 

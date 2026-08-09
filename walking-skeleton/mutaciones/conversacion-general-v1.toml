@@ -1,0 +1,231 @@
+incremento = "Conversacion General v1 (contrato cerrado del CEO, 06f53f3)"
+# Se declaran juntos los mutantes del incremento nuevo Y las pruebas que protegen lo que este
+# incremento podria romper: la ventana del SO (que ahora se evalua DESPUES de este detector) y la
+# resiliencia del orquestador. Un mutante que solo muera contra su propia prueba no demuestra que el
+# incremento no rompio nada.
+pruebas = [
+    "tests/integration/test_conversacion_general_v1.py",
+    "tests/integration/test_conversacion_ventana_so.py",
+    "tests/unit/test_grounding_core.py",
+    "tests/unit/test_orquestador_resiliencia.py",
+]
+
+# ------------------------------------------------------------------------------------------------
+# (d) EL MUTANTE IRRENUNCIABLE QUE NUNCA SE HABIA ESCRITO.
+#
+# La auditoria de la tabla de enrutamiento descubrio que el mutante "el LLM responde cuando no hay
+# recuerdos" se citaba en tres documentos y NO EXISTIA en ninguno de los 31 ficheros de mutacion del
+# repositorio. Se escribe aqui, en el incremento mas pequeno posible, que es el mejor momento para
+# estrenarlo: si la puerta de ADR-0014 se salta, las 24 negativas de la bateria oficial dejan de
+# estar protegidas y el LLM pasa a inventar recuerdos que nadie le dio.
+[[mutante]]
+id = "M1"
+garantia = "la puerta de ADR-0014 se salta: con memoria vacia el turno llega al LLM y este fabrica el recuerdo"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        if not hits and _es_consulta_de_memoria(text):'''
+sustituir = '''        if False:'''
+
+# ------------------------------------------------------------------------------------------------
+# (a) EL DETECTOR NO DETECTA. Todo el incremento queda inerte y vuelve el defecto que el CEO
+# reprodujo: "¿quien eres?" -> "No tengo ningun recuerdo registrado sobre eso."
+[[mutante]]
+id = "M2"
+garantia = "el detector de Conversacion General no reconoce nada: vuelve la ausencia de memoria del defecto original"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''    partes = _partir_en_partes(texto)
+    if not partes:
+        return None'''
+sustituir = '''    partes = _partir_en_partes(texto)
+    if partes:
+        return None'''
+
+# ------------------------------------------------------------------------------------------------
+# (c) COINCIDENCIA POR SUBCADENA EN VEZ DE POR SEGMENTO COMPLETO. Es literalmente la construccion
+# `any(patron in texto)` que produjo el defecto original, recreada en el otro sentido: "¿que tienes
+# pendiente en la lista de la compra que te di?" pasaria a contestarse con el Estado Operativo.
+[[mutante]]
+id = "M3"
+garantia = "la coincidencia pasa a ser por subcadena: frases que CONTIENEN una variante se reclaman sin serlo"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''    for clase, nombre, variantes in _TABLA_INTENCIONES:
+        if segmento in variantes:
+            return (clase, nombre, segmento)
+    return None'''
+sustituir = '''    for clase, nombre, variantes in _TABLA_INTENCIONES:
+        for variante in variantes:
+            if variante in segmento:
+                return (clase, nombre, variante)
+    return None'''
+
+# ------------------------------------------------------------------------------------------------
+# (b) EL DETECTOR SE EVALUA EN OTRA POSICION DE LA CASCADA. La superficie de capacidades intercepta
+# primero y el saludo se pierde: "hola Aurora, ¿que puedes hacer?" deja de ser una SECUENCIA. El
+# contrato del CEO es explicito -- el saludo no consume el turno, pero tampoco se descarta.
+[[mutante]]
+id = "M4"
+garantia = "Conversacion General se evalua DESPUES de capacidades: el saludo de una secuencia se pierde"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        resp = await self._atender_conversacion_general(uid, text)
+        if resp is not None:
+            await self._finalizar_turno(uid, tid, text, resp, "core", t)
+            return
+        if _es_consulta_de_capacidades(text):
+            await self._finalizar_turno(uid, tid, text, self._describir_capacidades(), "core", t)
+            return'''
+sustituir = '''        if _es_consulta_de_capacidades(text):
+            await self._finalizar_turno(uid, tid, text, self._describir_capacidades(), "core", t)
+            return
+        resp = await self._atender_conversacion_general(uid, text)
+        if resp is not None:
+            await self._finalizar_turno(uid, tid, text, resp, "core", t)
+            return'''
+
+# ------------------------------------------------------------------------------------------------
+# EL SALUDO CONSUME EL TURNO. Es el defecto exacto que el CEO ordeno prohibir: "El saludo no debe
+# consumir el turno. Solo modifica el contexto conversacional. La intencion principal sigue siendo
+# la consulta." Con este mutante, "buenos dias Aurora, ¿que tienes pendiente para hoy?" contesta
+# "Buenos dias." y se olvida de la pregunta.
+[[mutante]]
+id = "M5"
+garantia = "el saludo consume el turno: la intencion principal se descarta y solo se responde el saludo"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        cuerpos = []
+        for clase, nombre, _ in secuencia:
+            if clase != "principal":
+                continue'''
+sustituir = '''        cuerpos = []
+        for clase, nombre, _ in secuencia:
+            if clase != "principal" or prefijo:
+                continue'''
+
+# ------------------------------------------------------------------------------------------------
+# MULTIPLICIDAD: SOLO SE RESPONDE LA PRIMERA. Mutante declarado OBLIGATORIO por el CEO al cerrar el
+# contrato: "Si un turno contiene dos o mas intenciones principales... quiero que responda ambas, en
+# el mismo orden en que fueron formuladas."
+[[mutante]]
+id = "M6"
+garantia = "con dos intenciones principales solo se responde la primera: la segunda se pierde en silencio"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            cuerpo = self._responder_intencion(nombre)
+            if cuerpo is None:
+                return None
+            cuerpos.append(cuerpo)'''
+sustituir = '''            cuerpo = self._responder_intencion(nombre)
+            if cuerpo is None:
+                return None
+            cuerpos.append(cuerpo)
+            break'''
+
+# ------------------------------------------------------------------------------------------------
+# MULTIPLICIDAD: EL ORDEN SE INVIERTE. La otra mitad del mutante obligatorio del CEO: el orden lo
+# fija el TURNO, no la tabla. Sin esto, "¿que puedes hacer y que tienes pendiente?" contestaria en
+# el orden interno del codigo, que no es el que el usuario formulo.
+[[mutante]]
+id = "M7"
+garantia = "el orden de las intenciones lo fija la tabla y no el turno: la respuesta sale invertida"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        return self._unir(prefijo, cuerpos)'''
+sustituir = '''        return self._unir(prefijo, list(reversed(cuerpos)))'''
+
+# ------------------------------------------------------------------------------------------------
+# INV-9: EL NOMBRE FABRICADO. Mutante declarado OBLIGATORIO por el contrato. El ejemplo del CEO
+# decia "Buenos dias, Mauricio", pero el Modelo de Usuario tiene 0 entradas: escribir ese nombre
+# seria FABRICARLO. Este mutante lo fabrica.
+[[mutante]]
+id = "M8"
+garantia = "se saluda con un nombre fijo aunque el Modelo de Usuario este vacio (INV-9: fabricar el nombre)"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        if self.modelo_usuario is None:
+            return None
+        for entrada in await self.modelo_usuario.ver(uid):'''
+sustituir = '''        if self.modelo_usuario is None:
+            return None
+        return "Mauricio"
+        for entrada in await self.modelo_usuario.ver(uid):'''
+
+# ------------------------------------------------------------------------------------------------
+# LA OTRA MITAD DE INV-9: el nombre NO SE USA NUNCA. Sin este mutante, "no fabricar el nombre" se
+# cumpliria trivialmente ignorando siempre el Modelo de Usuario -- y el dia que el CEO diga como se
+# llama, AURORA seguiria sin usarlo. Una garantia sin su contrario es media garantia.
+[[mutante]]
+id = "M9"
+garantia = "el nombre del Modelo de Usuario se ignora aunque EXISTA: el saludo nunca lo usa"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            hallado = _RE_NOMBRE_DECLARADO.search(str(entrada.get("contenido", "")))
+            if hallado:
+                return hallado.group(1)'''
+sustituir = '''            hallado = _RE_NOMBRE_DECLARADO.search(str(entrada.get("contenido", "")))
+            if hallado and False:
+                return hallado.group(1)'''
+
+# ------------------------------------------------------------------------------------------------
+# AMBIGÜEDAD REAL RESUELTA ADIVINANDO. "¿que has aprendido de mi?" es la frase que la auditoria
+# destapo respondiendose mal: volcaba el Plan de Formacion entero, con notas internas sobre APUS-5.
+# El contrato exige PREGUNTAR. Este mutante vuelve a adivinar.
+[[mutante]]
+id = "M10"
+garantia = "la ambiguedad real se resuelve adivinando un dominio en vez de pedir aclaracion"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        if ambiguas:
+            return self._unir(prefijo, [_ACLARACION_APRENDIDO_DE_MI])'''
+sustituir = '''        if ambiguas:
+            return self._unir(prefijo, [_resumen_formacion()])'''
+
+# ------------------------------------------------------------------------------------------------
+# EL VOCATIVO DEJA DE QUITARSE. "buenos dias Aurora" dejaria de ser la misma entrada que "buenos
+# dias", y la frase LITERAL que el CEO escribio en la terminal volveria a no reconocerse.
+[[mutante]]
+id = "M11"
+garantia = "el vocativo 'Aurora' deja de quitarse: la frase literal del CEO deja de reconocerse"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''    palabras = segmento.split()
+    while palabras and palabras[0] in _VOCATIVOS:
+        palabras.pop(0)
+    while palabras and palabras[-1] in _VOCATIVOS:
+        palabras.pop()
+    return " ".join(palabras)'''
+sustituir = '''    return segmento'''
+
+# ------------------------------------------------------------------------------------------------
+# LAS PARTES NO RECONOCIDAS SE IGNORAN EN SILENCIO. "None ante lo desconocido" es la propiedad que
+# hace inofensivo este detector. Con este mutante, "Hola, ¿cual es la capital de Francia?" contesta
+# "Hola." y descarta la pregunta: peor que la ausencia de memoria, porque PARECE una respuesta.
+[[mutante]]
+id = "M12"
+garantia = "una parte no reconocida se descarta en silencio en vez de devolver el turno al camino de hoy"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        trozos = [_sin_vocativo(t.strip()) for t in parte.split(" y ")]
+        if len(trozos) < 2:
+            return None'''
+sustituir = '''        trozos = [_sin_vocativo(t.strip()) for t in parte.split(" y ")]
+        if len(trozos) < 2:
+            continue'''
+
+# ------------------------------------------------------------------------------------------------
+# CABLEADO, NO LOGICA (CLAUDE.md: "muta tambien el cableado de composicion.py"). Sin Estado
+# Operativo conectado, AURORA no SABE si tiene pendientes. Este mutante le hace afirmar que no tiene
+# ninguno: una respuesta convincente construida sobre una fuente que nadie encendio. Es ALERTA-005
+# aplicada a la conversacion.
+[[mutante]]
+id = "M13"
+garantia = "sin Estado Operativo conectado se afirma 'no tengo nada pendiente' en vez de seguir el camino previo (INV-9)"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            if self.estado_operativo is None:
+                return None
+            return self._describir_tareas() if self._secciones_del_ciclo() else _SIN_PENDIENTES'''
+sustituir = '''            if self.estado_operativo is None:
+                return _SIN_PENDIENTES
+            return self._describir_tareas() if self._secciones_del_ciclo() else _SIN_PENDIENTES'''
+
+# ------------------------------------------------------------------------------------------------
+# LA OFERTA DE AYUDA SE CONFUNDE CON EL CATALOGO DE CAPACIDADES. "¿como puedo ayudarte?" es el
+# usuario OFRECIENDO ayuda; contestar el catalogo es responder a otra pregunta. Son dos intenciones
+# distintas y el codigo no puede fundirlas.
+[[mutante]]
+id = "M14"
+garantia = "'como puedo ayudarte' se responde con el catalogo de capacidades: se contesta a otra pregunta"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        if nombre == "ofrecimiento":
+            return _RESPUESTA_OFRECIMIENTO'''
+sustituir = '''        if nombre == "ofrecimiento":
+            return self._describir_capacidades()'''

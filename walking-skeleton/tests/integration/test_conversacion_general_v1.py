@@ -35,9 +35,15 @@ import pytest
 
 from aura_skeleton.composicion import Configuracion, componer
 from aura_skeleton.core.estado_operativo import Tarea
+from aura_skeleton.core.orchestrator import (
+    _TABLA_INTENCIONES,
+    _normalizar,
+    _secuencia_de_intenciones,
+)
 from aura_skeleton.modules.router import ModelRouter
 
 _RUTA_BATERIA_MEMORIA = Path(__file__).parent.parent / "datos" / "bateria_memoria.json"
+_RUTA_BATERIA_INTENCION = Path(__file__).resolve().parents[3] / "milestones" / "m3-entry" / "bateria-intencion.json"
 
 
 class _ProveedorEspia:
@@ -362,3 +368,112 @@ async def test_las_24_negativas_de_adr0014_siguen_atendidas_por_el_nucleo(sistem
             fallos.append((frase, r["provider"], r["say"]))
     assert not fallos, f"{len(fallos)}/24 negativas dejaron de estar protegidas: {fallos[:3]}"
     assert espia.llamadas == 0, f"el LLM fue consultado {espia.llamadas} veces sobre las negativas"
+
+
+# ------------------------------------------- LO QUE NO ESTÁ EN LA LISTA SIGUE EL CAMINO DE HOY --
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "frase",
+    [
+        "¿qué tienes pendiente en la lista de la compra que te di?",
+        "hola qué tal la fiesta de ayer",
+    ],
+)
+async def test_contener_una_variante_no_basta_hace_falta_ser_el_segmento_entero(sistema, frase):
+    """Kill del mutante "coincidencia por subcadena". Estas frases CONTIENEN una variante ("qué
+    tienes pendiente", "hola", "qué tal") pero no la SON: hablan de otra cosa. `any(patrón in texto)`
+    es la construcción que produjo el defecto original y aquí lo recrearía en el otro sentido --
+    robarle el turno a lo que sí sabe responder."""
+    r = await _di(sistema.orquestador, frase)
+    assert not r["say"].startswith("Hola"), f"la reclamó por subcadena: {r['say']!r}"
+    assert "capacidad(es) registradas" not in r["say"]
+    assert "pendiente registrado" not in r["say"]
+
+
+@pytest.mark.asyncio
+async def test_saludo_mas_pregunta_desconocida_sigue_el_flujo_previo(sistema):
+    """Kill del mutante "las partes no reconocidas se ignoran". Si el saludo se respondiera y la
+    pregunta se descartara en silencio, el usuario recibiría "Hola." a una pregunta real: peor que
+    la ausencia de memoria, porque parece una respuesta."""
+    r = await _di(sistema.orquestador, "Hola, ¿cuál es la capital de Francia?")
+    assert r["provider"] == "core"
+    assert _ausencia(r), f"perdió la pregunta y respondió sólo al saludo: {r['say']!r}"
+
+
+@pytest.mark.asyncio
+async def test_pendientes_sin_estado_operativo_conectado_no_fabrica_la_ausencia(tmp_path):
+    """INV-9 sobre el CABLEADO, no sobre la lógica. Sin Estado Operativo conectado, AURORA no puede
+    afirmar "no tengo nada pendiente": no lo sabe. Debe seguir el camino previo.
+
+    Es el mutante que ALERTA-005 enseñó a buscar: la composición deja de encender una fuente y el
+    sistema responde igual de convincente con datos que nadie le dio.
+    """
+    from aura_skeleton.adapters.home_assistant import HomeAssistantMock
+    from aura_skeleton.adapters.voice import VoiceAdapterMock
+    from aura_skeleton.bus import InProcessEventBus
+    from aura_skeleton.core.orchestrator import Orchestrator
+    from aura_skeleton.core.permissions import PermissionManager
+    from aura_skeleton.modules.memory import SimpleMemory
+    from aura_skeleton.modules.router import MockProvider
+
+    async def _deny(a, args, tid):
+        return False
+
+    orq = Orchestrator(
+        InProcessEventBus(),
+        SimpleMemory(),
+        ModelRouter([MockProvider("m", 1)], 1200),
+        PermissionManager(_deny),
+        VoiceAdapterMock(),
+        HomeAssistantMock(),
+    )
+    r = await _di(orq, "¿Qué tienes pendiente?")
+    assert r["provider"] == "core"
+    assert _ausencia(r), f"afirmó no tener pendientes sin Estado Operativo conectado: {r['say']!r}"
+
+
+# ------------------------------------------------------------------- PRUEBA DE EQUIVALENCIA (DP §4) --
+#
+# `bateria-intencion.json` (172 casos) existía en `milestones/m3-entry/` y NINGUNA prueba lo leía.
+# Se estrena aquí, que es para lo que se grabó.
+
+# Medido `[EJEC]` grabando la respuesta del sistema COMPUESTO a los 172 casos con el código anterior
+# (06f53f3) y con el nuevo: cambian 5 y sólo 5. Los 167 restantes son idénticos byte a byte, provider
+# incluido. Los 5 pasan de `mock` a `core`: este incremento QUITA llamadas al LLM, no las añade.
+_CAMBIOS_ESPERADOS_EN_LA_BATERIA = ("Adiós", "Buenos días", "Gracias", "Hasta luego", "Hola")
+
+
+def test_equivalencia_solo_cambian_los_casos_declarados_por_adelantado():
+    """La lista es POSITIVA y CERRADA: sólo puede desviar lo que nombra. Esta prueba lo convierte en
+    una obligación permanente -- ampliar las variantes sin declarar el cambio rompe aquí, no en
+    producción, que es donde se enteró el CEO la última vez.
+    """
+    casos = json.loads(_RUTA_BATERIA_INTENCION.read_text(encoding="utf-8"))["casos"]
+    assert len(casos) == 172, f"la batería de intención cambió de tamaño: {len(casos)}"
+
+    reclamados = sorted({c["texto"] for c in casos if _secuencia_de_intenciones(c["texto"]) is not None})
+    assert reclamados == sorted(_CAMBIOS_ESPERADOS_EN_LA_BATERIA), (
+        f"el conjunto de casos desviados dejó de ser el declarado: {reclamados}"
+    )
+
+
+def test_las_variantes_son_disjuntas_entre_intenciones():
+    """Si una variante estuviera en dos intenciones, el orden de `_TABLA_INTENCIONES` pasaría a fijar
+    precedencia -- exactamente la precedencia accidental que este proyecto ya ha pagado cuatro veces
+    en la cascada de detectores. Aquí se prohíbe por construcción."""
+    duenos: dict[str, str] = {}
+    for _clase, nombre, variantes in _TABLA_INTENCIONES:
+        for variante in variantes:
+            assert variante not in duenos, f"{variante!r} está en {duenos[variante]!r} y en {nombre!r}"
+            duenos[variante] = nombre
+
+
+def test_todas_las_variantes_estan_normalizadas():
+    """El texto del turno se compara YA normalizado (minúsculas, sin tildes). Una variante escrita
+    con tilde o mayúscula no casaría NUNCA y el defecto sería invisible: la frase seguiría cayendo
+    donde caía, sin error ni aviso."""
+    for _clase, nombre, variantes in _TABLA_INTENCIONES:
+        for variante in variantes:
+            assert variante == _normalizar(variante), f"variante sin normalizar en {nombre!r}: {variante!r}"

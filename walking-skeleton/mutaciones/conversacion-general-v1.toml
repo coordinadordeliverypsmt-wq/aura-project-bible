@@ -340,3 +340,109 @@ buscar = '''            if clase == "ambigua":
                 continue'''
 sustituir = '''            if clase == "ambigua":
                 return self._unir(prefijo, [_ACLARACION_APRENDIDO_DE_MI])'''
+
+# =================================================================================================
+# MUTANTES VIVOS DE LA SEGUNDA AUDITORIA INDEPENDIENTE (2026-08-09).
+#
+# Tras corregir el primer rechazo, un segundo auditor escribio 21 mutantes propios contra el codigo
+# NUEVO y 8 sobrevivieron (mas uno equivalente, que no cuenta). Sus dos controles murieron, asi que
+# los supervivientes no eran artefacto de su arnes. Se incorporan aqui con su prueba.
+# =================================================================================================
+
+# (A1) Las variantes de saludo se recorren de MENOR a mayor longitud. "buenas" es prefijo de "buenas
+# noches", asi que "buenas noches que tienes pendiente" se parte mal y acaba en el LLM: el defecto
+# insignia del contrato, reintroducido para las tardes y las noches. El docstring afirmaba que el
+# orden lo impedia y NADA lo comprobaba.
+[[mutante]]
+id = "M25"
+garantia = "el saludo pegado elige la variante mas CORTA: 'buenas noches ...' vuelve a caer en el LLM"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''    for variante in sorted(_VAR_SALUDO, key=len, reverse=True):'''
+sustituir = '''    for variante in sorted(_VAR_SALUDO, key=len):'''
+
+# (A2) El separador pierde el limite de palabra: la coincidencia pasa a ser por prefijo de
+# CARACTERES y "heyque tienes pendiente" se lee como "hey" + "que tienes pendiente". Es la misma
+# disciplina que `_RE_OBJETO_AJENO` ya aplica con `\b`, por la misma razon.
+[[mutante]]
+id = "M26"
+garantia = "el saludo pegado casa por prefijo de caracteres en vez de por palabra completa"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        if parte.startswith(variante + " "):'''
+sustituir = '''        if parte.startswith(variante):'''
+
+# (A6) La deduplicacion conserva la ULTIMA aparicion en vez de la primera: "buenos dias, hola, que
+# tal" responde "Hola." en vez de "Buenos dias.". AURORA contestaria con un saludo que el usuario
+# escribio de pasada, no con el que abrio la conversacion.
+[[mutante]]
+id = "M27"
+garantia = "la deduplicacion conserva la ULTIMA intencion repetida en vez de la primera"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        if nombre in vistas:
+            continue
+        vistas.add(nombre)
+        unicas.append((clase, nombre, variante))'''
+sustituir = '''        unicas = [u for u in unicas if u[1] != nombre]
+        vistas.add(nombre)
+        unicas.append((clase, nombre, variante))'''
+
+# (A7) Una principal NO RESOLUBLE deja de anular el turno y se descarta en silencio. Sin Estado
+# Operativo cableado, "Hola, ¿que tienes pendiente para hoy?" responde "Hola. ¿En que puedo ayudarte
+# hoy?" y TIRA la pregunta: el usuario recibe algo que PARECE una respuesta, que es peor que declarar
+# la ausencia. M13 solo cubria el `_SIN_PENDIENTES` fabricado, no esta rama.
+[[mutante]]
+id = "M28"
+garantia = "una intencion principal no resoluble se descarta en silencio en vez de anular el turno"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            cuerpo = self._responder_intencion(nombre)
+            if cuerpo is None:
+                return None
+            cuerpos.append(cuerpo)'''
+sustituir = '''            cuerpo = self._responder_intencion(nombre)
+            if cuerpo is None:
+                continue
+            cuerpos.append(cuerpo)'''
+
+# (A12) La rama `proposito` devuelve el texto de `identidad`. `_RESPUESTA_PROPOSITO` no tenia NINGUNA
+# prueba: "¿para que sirves?" y "¿quien eres?" son dos preguntas distintas.
+[[mutante]]
+id = "M29"
+garantia = "'para que sirves' responde el texto de identidad: dos preguntas distintas se funden"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        if nombre == "proposito":
+            return _RESPUESTA_PROPOSITO'''
+sustituir = '''        if nombre == "proposito":
+            return _RESPUESTA_IDENTIDAD'''
+
+# (E2/E3/E4) EL SEGUNDO HUECO DEL CANDADO DE EQUIVALENCIA, y el mas importante de esta tanda.
+#
+# `test_ninguna_variante_le_roba_la_respuesta_a_una_superficie_posterior` empieza por
+# `if not reconoce(variante): continue`, asi que solo vigila las variantes que YA reconocia alguna de
+# las 4 superficies posteriores. Una variante que NADIE reconocia no se comparaba con nada -- y sin
+# embargo le roba el turno a la puerta de ADR-0014. Los tres mutantes del auditor sobrevivian a las
+# 730 pruebas, y ninguna de las tres frases aparece en los 172 casos de la bateria de intencion.
+#
+# Lo cierra `test_el_inventario_de_variantes_esta_congelado`: la lista completa se declara en la
+# prueba y cualquier ampliacion la rompe hasta que se declare.
+[[mutante]]
+id = "M30"
+garantia = "una variante que ninguna superficie reconocia le roba el turno a la puerta de ADR-0014 (pendientes)"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''    "que hay pendiente",'''
+sustituir = '''    "que hay pendiente",
+    "que me gusta",'''
+
+[[mutante]]
+id = "M31"
+garantia = "una variante que ninguna superficie reconocia le roba el turno a la puerta de ADR-0014 (capacidades)"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''    "que sabes hacer",'''
+sustituir = '''    "que sabes hacer",
+    "cuentame algo",'''
+
+[[mutante]]
+id = "M32"
+garantia = "una variante que ninguna superficie reconocia le roba el turno a la puerta de ADR-0014 (saludo)"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''    "buenos dias": "Buenos días",'''
+sustituir = '''    "buenos dias": "Buenos días",
+    "que hora es": "Hola",'''

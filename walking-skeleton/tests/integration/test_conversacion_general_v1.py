@@ -407,6 +407,68 @@ async def test_el_saludo_pegado_a_la_consulta_sin_coma_se_reconoce(sistema):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("frase", "esperado"),
+    [
+        ("buenas noches qué tienes pendiente", "Buenas noches."),
+        ("buenas tardes Aurora qué tienes pendiente", "Buenas tardes."),
+        ("qué tal estás qué tienes pendiente", "Hola."),
+    ],
+)
+async def test_el_saludo_pegado_reconoce_la_variante_mas_larga(sistema, frase, esperado):
+    """MUTANTE VIVO (2ª auditoría): recorrer las variantes de saludo de MENOR a mayor longitud.
+
+    "buenas" es prefijo de "buenas noches" y "buenas tardes"; "que tal" lo es de "que tal estas". Con
+    el orden ascendente, "buenas noches qué tienes pendiente" se parte como "buenas" + "noches qué
+    tienes pendiente", el resto no casa y la frase acaba en el LLM: el defecto insignia del contrato
+    reintroducido para las tardes y las noches. El docstring afirmaba que el orden lo impedía y nada
+    lo comprobaba.
+    """
+    r = await _di(sistema.orquestador, frase)
+    assert r["provider"] == "core", f"{frase!r} acabó en el LLM: {r['say']!r}"
+    assert r["say"].startswith(esperado), f"no eligió la variante más larga: {r['say']!r}"
+    assert _SIN_PENDIENTES in r["say"], f"perdió la consulta: {r['say']!r}"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("frase", ["heyque tienes pendiente", "holaque puedes hacer"])
+async def test_el_saludo_pegado_exige_limite_de_palabra(sistema, frase):
+    """MUTANTE VIVO (2ª auditoría): `startswith(variante)` en vez de `startswith(variante + " ")`.
+
+    Sin el espacio, la coincidencia pasa a ser por prefijo de CARACTERES y "heyque…" se lee como
+    "hey" + "que…". Es la misma disciplina de límite de palabra que `_RE_OBJETO_AJENO` ya aplica con
+    `\\b` en este fichero, por la misma razón: "de mi" no debe reconocer "de miedo".
+    """
+    r = await _di(sistema.orquestador, frase)
+    assert not r["say"].startswith("Hola."), f"reclamó por prefijo de caracteres: {r['say']!r}"
+
+
+@pytest.mark.asyncio
+async def test_la_deduplicacion_conserva_el_primer_saludo(sistema):
+    """MUTANTE VIVO (2ª auditoría): deduplicar conservando la ÚLTIMA aparición en vez de la primera.
+
+    "buenos días, hola, qué tal" pasaba a responder "Hola." en vez de "Buenos días.": AURORA
+    contestaría con un saludo que el usuario escribió de pasada, no con el que abrió la conversación.
+    El docstring exige "conservando su primera posición" y nada lo comprobaba.
+    """
+    r = await _di(sistema.orquestador, "buenos días, hola, qué tal")
+    assert r["provider"] == "core"
+    assert r["say"].startswith("Buenos días."), f"no conservó el primer saludo: {r['say']!r}"
+
+
+@pytest.mark.asyncio
+async def test_para_que_sirves_no_responde_lo_mismo_que_quien_eres(sistema):
+    """MUTANTE VIVO (2ª auditoría): la rama `proposito` devolvía el texto de `identidad` y ninguna
+    prueba lo notaba -- `_RESPUESTA_PROPOSITO` no tenía red alguna. Son dos preguntas distintas:
+    quién eres y para qué estás."""
+    r_proposito = await _di(sistema.orquestador, "¿Para qué sirves?")
+    r_identidad = await _di(sistema.orquestador, "¿Quién eres?")
+    assert r_proposito["provider"] == r_identidad["provider"] == "core"
+    assert r_proposito["say"] != r_identidad["say"], "propósito e identidad devuelven el mismo texto"
+    assert not _ausencia(r_proposito)
+
+
+@pytest.mark.asyncio
 async def test_el_saludo_pegado_no_reintroduce_la_coincidencia_por_subcadena(sistema):
     """CONTROL de la anterior. Separar un saludo inicial NO puede convertirse en "empieza por hola,
     luego reclamo": el resto tiene que casar ENTERO con otra variante."""
@@ -560,6 +622,14 @@ async def test_pendientes_sin_estado_operativo_conectado_no_fabrica_la_ausencia(
     assert r["provider"] == "core"
     assert _ausencia(r), f"afirmó no tener pendientes sin Estado Operativo conectado: {r['say']!r}"
 
+    # MUTANTE VIVO (2ª auditoría): `continue` en vez de `return None` cuando una principal no es
+    # resoluble. CON SALUDO DELANTE el efecto es peor y la frase sola no lo detecta: el turno se
+    # queda con el saludo, responde "Hola. ¿En qué puedo ayudarte hoy?" y DESCARTA la pregunta. El
+    # usuario recibe algo que PARECE una respuesta, que es peor que declarar la ausencia.
+    r_con_saludo = await _di(orq, "Hola, ¿qué tienes pendiente para hoy?")
+    assert r_con_saludo["provider"] == "core"
+    assert _ausencia(r_con_saludo), f"el saludo se comió una pregunta que no podía resolver: {r_con_saludo['say']!r}"
+
 
 # ------------------------------------------------------------------- PRUEBA DE EQUIVALENCIA (DP §4) --
 #
@@ -593,6 +663,106 @@ def test_equivalencia_solo_cambian_los_casos_declarados_por_adelantado():
     )
 
 
+# INVENTARIO CONGELADO de la lista cerrada. Es la lista POSITIVA completa, copiada aquí a propósito:
+# ampliar una intención en el código sin declararlo aquí rompe la prueba.
+#
+# POR QUÉ HACE FALTA, además del candado de abajo (rechazo de la segunda auditoría independiente):
+# aquel bucle empieza por `if not reconoce(variante): continue`, así que sólo vigila las variantes que
+# YA reconocía alguna de las 4 superficies posteriores. Una variante que NADIE reconocía no se
+# comparaba con nada -- y sin embargo cambia la producción. El auditor lo demostró con tres mutantes
+# que sobrevivían a las 730 pruebas: añadir "que me gusta" a las de pendientes, "cuentame algo" a las
+# de capacidades o "que hora es" a los saludos hace que esas frases dejen de llegar a la puerta de
+# ADR-0014, que es exactamente lo que este incremento prometió no tocar fuera de la lista declarada.
+#
+# La batería de intención tampoco las atrapaba: ninguna de las tres aparece entre sus 172 casos.
+_INVENTARIO_DECLARADO = {
+    "saludo": (
+        "buen dia",
+        "buenas",
+        "buenas noches",
+        "buenas tardes",
+        "buenos dias",
+        "como estas",
+        "como te va",
+        "hey",
+        "hola",
+        "que tal",
+        "que tal estas",
+    ),
+    "cortesia": ("gracias", "mil gracias", "muchas gracias", "te lo agradezco"),
+    "despedida": ("adios", "chao", "chau", "hasta luego", "hasta manana", "nos vemos"),
+    "identidad": ("como te llamas", "que eres", "quien eres", "quien sos", "sabes quien eres"),
+    "proposito": ("cual es tu proposito", "para que estas", "para que existes", "para que sirves"),
+    "ofrecimiento": (
+        "como puedo ayudarte",
+        "como te puedo ayudar",
+        "en que puedo ayudarte",
+        "en que te puedo ayudar",
+        "que necesitas",
+        "que necesitas de mi",
+    ),
+    "capacidades": (
+        "como puedes ayudarme",
+        "con que me puedes ayudar",
+        "cuales son tus capacidades",
+        "en que me puedes ayudar",
+        "que capacidades tienes",
+        "que podes hacer",
+        "que puedes hacer",
+        "que sabes hacer",
+    ),
+    "pendientes": (
+        "como va todo",
+        "que hay de nuevo",
+        "que hay pendiente",
+        "que tal vas",
+        "que tienes para hoy",
+        "que tienes pendiente",
+        "que tienes pendiente hoy",
+        "que tienes pendiente para hoy",
+    ),
+    "aprendido_de_mi": (
+        "que aprendiste de mi",
+        "que aprendiste sobre mi",
+        "que has aprendido de mi",
+        "que has aprendido sobre mi",
+    ),
+}
+
+
+def test_el_inventario_de_variantes_esta_congelado():
+    """Ninguna frase entra en la lista cerrada sin declararse aquí.
+
+    El riesgo que cubre no es hipotético: la lista existe para CRECER con el uso real del CEO, y cada
+    frase que se le añada deja de llegar donde llegaba antes. Esta prueba obliga a que ese cambio sea
+    explícito y revisable, en vez de descubrirse en producción -que es donde se descubrió el defecto
+    que originó todo el incremento-.
+    """
+    actual = {nombre: tuple(sorted(variantes)) for _clase, nombre, variantes in _TABLA_INTENCIONES}
+    assert actual == _INVENTARIO_DECLARADO, "la lista cerrada cambió sin declararse"
+
+
+def test_ninguna_variante_colisiona_con_la_bateria_protegida_de_adr0014():
+    """LO QUE EL INVENTARIO POR SÍ SOLO NO GARANTIZA (segundo apunte del auditor).
+
+    Congelar la lista obliga a DECLARAR una ampliación, pero no impide que la ampliación declarada
+    rompa algo: quien añada una variante y actualice el inventario pasa el gate igual.
+
+    Aquí está el límite que NO se puede cruzar declarándolo: ninguna variante puede coincidir con una
+    de las 24 consultas negativas de la batería oficial. Ésas son las frases que ADR-0014 existe para
+    proteger, y desviarlas no es una decisión de producto -- es romper la garantía. Con el inventario
+    delante, esto convierte "no robar a ADR-0014" en algo comprobable antes de llegar a producción.
+    """
+    negativas = {_normalizar(t) for t in _negativas_de_la_bateria()}
+    colisiones = [
+        (nombre, variante)
+        for _clase, nombre, variantes in _TABLA_INTENCIONES
+        for variante in variantes
+        if variante in negativas
+    ]
+    assert not colisiones, f"variantes que desvían una negativa protegida por ADR-0014: {colisiones}"
+
+
 @pytest.mark.asyncio
 async def test_ninguna_variante_le_roba_la_respuesta_a_una_superficie_posterior(sistema):
     """EL CANDADO QUE FALTABA (rechazo de auditoría independiente).
@@ -624,6 +794,13 @@ async def test_ninguna_variante_le_roba_la_respuesta_a_una_superficie_posterior(
                 esperado = responder()
                 if esperado is None or r["say"] != esperado:
                     discrepancias.append((variante, r["say"], esperado))
+                # FORMA COMPUESTA (segundo apunte del auditor): el candado sólo probaba variantes
+                # DESNUDAS, así que fijaba casos y no la propiedad. Con un saludo delante, el cuerpo
+                # tiene que seguir siendo EXACTAMENTE el de la superficie: lo único que puede añadir
+                # este incremento es la línea del saludo.
+                compuesta = await _di(sistema.orquestador, f"hola, {variante}")
+                if esperado is None or compuesta["say"] != f"Hola.\n{esperado}":
+                    discrepancias.append((f"hola, {variante}", compuesta["say"], f"Hola.\n{esperado}"))
     assert not discrepancias, f"variantes que cambian lo que respondía la cascada: {discrepancias}"
 
 

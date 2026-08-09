@@ -39,6 +39,7 @@ from aura_skeleton.core.orchestrator import (
     _ACLARACION_APRENDIDO_DE_MI,
     _SIN_PENDIENTES,
     _TABLA_INTENCIONES,
+    _VAR_SALUDO,
     _es_consulta_de_capacidades,
     _es_consulta_de_formacion,
     _es_consulta_de_gobierno,
@@ -730,8 +731,47 @@ _INVENTARIO_DECLARADO = {
 }
 
 
+# La CLASE de cada intención, congelada aparte: decide si consume el turno o sólo lo modifica.
+# El inventario de arriba sólo fija QUÉ frases se reclaman; cambiar `pendientes` de `principal` a
+# `ambigua` no lo veía (lo señaló el auditor).
+_CLASES_DECLARADAS = {
+    "saludo": "modificadora",
+    "cortesia": "modificadora",
+    "despedida": "modificadora",
+    "identidad": "principal",
+    "proposito": "principal",
+    "ofrecimiento": "principal",
+    "capacidades": "principal",
+    "pendientes": "principal",
+    "aprendido_de_mi": "ambigua",
+}
+
+# La REDACCIÓN de cada saludo, congelada literalmente y NO derivada del código.
+#
+# MUTANTE VIVO que cierra (auditoría, 2026-08-09): el inventario congelaba las CLAVES y nunca los
+# VALORES, así que cambiar `"buen dia": "Buenos días"` por `"Buenas noches"` dejaba a AURORA
+# contestando "Buenas noches" a un "buen día" con las 749 pruebas en verde. `"buen dia"` y `"hey"`
+# sólo aparecían en la declaración del inventario y su redacción no se afirmaba en ninguna parte.
+#
+# Derivar el esperado de `_VAR_SALUDO` no serviría: el mutante cambiaría los dos lados a la vez.
+_REDACCIONES_DECLARADAS = {
+    "hola": "Hola",
+    "hey": "Hola",
+    "buenas": "Hola",
+    "que tal": "Hola",
+    "que tal estas": "Hola",
+    "como estas": "Hola",
+    "como te va": "Hola",
+    "buenos dias": "Buenos días",
+    "buen dia": "Buenos días",
+    "buenas tardes": "Buenas tardes",
+    "buenas noches": "Buenas noches",
+}
+
+
 def test_el_inventario_de_variantes_esta_congelado():
-    """Ninguna frase entra en la lista cerrada sin declararse aquí.
+    """Ninguna frase entra en la lista cerrada sin declararse aquí, ni cambia de clase, ni cambia lo
+    que AURORA contesta.
 
     El riesgo que cubre no es hipotético: la lista existe para CRECER con el uso real del CEO, y cada
     frase que se le añada deja de llegar donde llegaba antes. Esta prueba obliga a que ese cambio sea
@@ -740,6 +780,24 @@ def test_el_inventario_de_variantes_esta_congelado():
     """
     actual = {nombre: tuple(sorted(variantes)) for _clase, nombre, variantes in _TABLA_INTENCIONES}
     assert actual == _INVENTARIO_DECLARADO, "la lista cerrada cambió sin declararse"
+
+    clases = {nombre: clase for clase, nombre, _variantes in _TABLA_INTENCIONES}
+    assert clases == _CLASES_DECLARADAS, "una intención cambió de clase sin declararse"
+
+    assert _VAR_SALUDO == _REDACCIONES_DECLARADAS, "la redacción de un saludo cambió sin declararse"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("variante", sorted(_REDACCIONES_DECLARADAS))
+async def test_cada_saludo_responde_con_su_propia_redaccion(sistema, variante):
+    """La otra mitad del mutante anterior, medida sobre el producto y no sobre la tabla: un "buen
+    día" no puede contestarse "Buenas noches". La redacción sale de la variante reconocida, nunca del
+    reloj -deducir la franja horaria sería afirmar algo que el usuario no ha dicho-."""
+    r = await _di(sistema.orquestador, variante)
+    assert r["provider"] == "core"
+    assert r["say"].startswith(f"{_REDACCIONES_DECLARADAS[variante]}."), (
+        f"{variante!r} se contestó con otra redacción: {r['say']!r}"
+    )
 
 
 def test_ninguna_variante_colisiona_con_la_bateria_protegida_de_adr0014():

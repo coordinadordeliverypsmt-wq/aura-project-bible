@@ -446,3 +446,41 @@ fichero = "aura_skeleton/core/orchestrator.py"
 buscar = '''    "buenos dias": "Buenos días",'''
 sustituir = '''    "buenos dias": "Buenos días",
     "que hora es": "Hola",'''
+
+# =================================================================================================
+# TERCERA PASADA DE AUDITORIA (2026-08-09): el inventario congelaba MENOS de lo que su nombre decia.
+# =================================================================================================
+
+# (N3, que sobrevivia) La REDACCION de un saludo cambia sin que nada falle: el inventario congelaba
+# las CLAVES y nunca los VALORES. AURORA contestaria "Buenas noches" a un "buen dia" con las 749
+# pruebas en verde. "buen dia" y "hey" solo aparecian en la declaracion del inventario, y lo que
+# CONTESTAN no se afirmaba en ninguna parte.
+[[mutante]]
+id = "M33"
+garantia = "la redaccion de un saludo cambia sin declararse: 'buen dia' se contesta 'Buenas noches'"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''    "buen dia": "Buenos días",'''
+sustituir = '''    "buen dia": "Buenas noches",'''
+
+# (N2) La CLASE de una intencion cambia: `pendientes` pasa de principal a ambigua y toda consulta de
+# pendientes se responde pidiendo aclaracion. El inventario construia `{nombre: variantes}` y
+# descartaba la clase, asi que no lo veia.
+[[mutante]]
+id = "M34"
+garantia = "una intencion cambia de CLASE sin declararse: 'pendientes' pasa a pedir aclaracion"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''    ("principal", "pendientes", _VAR_PENDIENTES),'''
+sustituir = '''    ("ambigua", "pendientes", _VAR_PENDIENTES),'''
+
+# (N1) Un defecto que SOLO afecta a la forma compuesta: con prefijo, el cuerpo se trunca a su primera
+# linea; sin prefijo el resultado es identico byte a byte. Es el mutante con el que el auditor
+# demostro que el candado ampliado a formas compuestas tiene mordida -- la version que solo probaba
+# variantes desnudas no podia detectarlo.
+[[mutante]]
+id = "M35"
+garantia = "un defecto que solo afecta a la forma compuesta (saludo + consulta) trunca el cuerpo"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        return "\n".join([*prefijo, *cuerpos])'''
+sustituir = '''        if prefijo:
+            return "\n".join([*prefijo, *[c.split("\n")[0] for c in cuerpos]])
+        return "\n".join([*prefijo, *cuerpos])'''

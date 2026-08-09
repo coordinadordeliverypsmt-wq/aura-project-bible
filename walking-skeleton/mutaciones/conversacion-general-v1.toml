@@ -273,7 +273,7 @@ buscar = '''            return self._describir_tareas() if self._secciones_del_c
 sustituir = '''            return _SIN_PENDIENTES'''
 
 # (A12) EL CANDADO DE EQUIVALENCIA. El auditor demostro que anadir una variante que YA atiende una
-# superficie posterior cambia la respuesta en produccion sin romper ninguna de las 730 pruebas.
+# superficie posterior cambia la respuesta en produccion sin romper ninguna prueba de la suite.
 # Es el mutante mas importante de este bloque: prueba que la lista cerrada puede crecer y robar.
 [[mutante]]
 id = "M20"
@@ -419,7 +419,7 @@ sustituir = '''        if nombre == "proposito":
 # `if not reconoce(variante): continue`, asi que solo vigila las variantes que YA reconocia alguna de
 # las 4 superficies posteriores. Una variante que NADIE reconocia no se comparaba con nada -- y sin
 # embargo le roba el turno a la puerta de ADR-0014. Los tres mutantes del auditor sobrevivian a las
-# 730 pruebas, y ninguna de las tres frases aparece en los 172 casos de la bateria de intencion.
+# la suite entera, y ninguna de las tres frases aparece en los 172 casos de la bateria de intencion.
 #
 # Lo cierra `test_el_inventario_de_variantes_esta_congelado`: la lista completa se declara en la
 # prueba y cualquier ampliacion la rompe hasta que se declare.
@@ -452,7 +452,7 @@ sustituir = '''    "buenos dias": "Buenos días",
 # =================================================================================================
 
 # (N3, que sobrevivia) La REDACCION de un saludo cambia sin que nada falle: el inventario congelaba
-# las CLAVES y nunca los VALORES. AURORA contestaria "Buenas noches" a un "buen dia" con las 749
+# las CLAVES y nunca los VALORES. AURORA contestaria "Buenas noches" a un "buen dia" con la suite entera
 # pruebas en verde. "buen dia" y "hey" solo aparecian en la declaracion del inventario, y lo que
 # CONTESTAN no se afirmaba en ninguna parte.
 [[mutante]]
@@ -484,3 +484,16 @@ buscar = '''        return "\n".join([*prefijo, *cuerpos])'''
 sustituir = '''        if prefijo:
             return "\n".join([*prefijo, *[c.split("\n")[0] for c in cuerpos]])
         return "\n".join([*prefijo, *cuerpos])'''
+
+# (apunte de la ultima verificacion) La CLASE del defecto anterior, no solo el caso: los textos de
+# `identidad`, `proposito` y `ofrecimiento` no estaban fijados en ninguna parte. Congelar su
+# redaccion literal seria fragil -toda mejora de estilo romperia la prueba-, pero que dos ramas
+# devuelvan LO MISMO si es un defecto: son tres preguntas distintas.
+[[mutante]]
+id = "M36"
+garantia = "el ofrecimiento de ayuda devuelve el texto de identidad: dos intenciones propias comparten respuesta"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        if nombre == "ofrecimiento":
+            return _RESPUESTA_OFRECIMIENTO'''
+sustituir = '''        if nombre == "ofrecimiento":
+            return _RESPUESTA_IDENTIDAD'''

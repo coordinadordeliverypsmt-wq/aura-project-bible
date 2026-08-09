@@ -470,6 +470,24 @@ async def test_para_que_sirves_no_responde_lo_mismo_que_quien_eres(sistema):
 
 
 @pytest.mark.asyncio
+async def test_las_tres_respuestas_propias_son_distintas_entre_si(sistema):
+    """Cierra la CLASE del defecto anterior, no sólo el caso (apunte de la última verificación).
+
+    `_REDACCIONES_DECLARADAS` congela los saludos porque ahí una confusión produce una respuesta
+    incorrecta ("Buenas noches" a un "buen día"). Identidad, propósito y ofrecimiento tienen un solo
+    texto cada una, así que el riesgo equivalente no es la redacción -que puede mejorarse sin avisar-
+    sino que dos ramas devuelvan lo mismo: quién eres, para qué estás y en qué puedo ayudarte son
+    tres preguntas distintas y no pueden compartir respuesta.
+    """
+    respuestas = {}
+    for frase in ("¿Quién eres?", "¿Para qué sirves?", "¿Cómo puedo ayudarte?"):
+        r = await _di(sistema.orquestador, frase)
+        assert r["provider"] == "core"
+        respuestas[frase] = r["say"]
+    assert len(set(respuestas.values())) == 3, f"dos intenciones propias comparten respuesta: {respuestas}"
+
+
+@pytest.mark.asyncio
 async def test_el_saludo_pegado_no_reintroduce_la_coincidencia_por_subcadena(sistema):
     """CONTROL de la anterior. Separar un saludo inicial NO puede convertirse en "empieza por hola,
     luego reclamo": el resto tiene que casar ENTERO con otra variante."""
@@ -671,7 +689,7 @@ def test_equivalencia_solo_cambian_los_casos_declarados_por_adelantado():
 # aquel bucle empieza por `if not reconoce(variante): continue`, así que sólo vigila las variantes que
 # YA reconocía alguna de las 4 superficies posteriores. Una variante que NADIE reconocía no se
 # comparaba con nada -- y sin embargo cambia la producción. El auditor lo demostró con tres mutantes
-# que sobrevivían a las 730 pruebas: añadir "que me gusta" a las de pendientes, "cuentame algo" a las
+# que sobrevivían a la suite ENTERA: añadir "que me gusta" a las de pendientes, "cuentame algo" a las
 # de capacidades o "que hora es" a los saludos hace que esas frases dejen de llegar a la puerta de
 # ADR-0014, que es exactamente lo que este incremento prometió no tocar fuera de la lista declarada.
 #
@@ -750,7 +768,7 @@ _CLASES_DECLARADAS = {
 #
 # MUTANTE VIVO que cierra (auditoría, 2026-08-09): el inventario congelaba las CLAVES y nunca los
 # VALORES, así que cambiar `"buen dia": "Buenos días"` por `"Buenas noches"` dejaba a AURORA
-# contestando "Buenas noches" a un "buen día" con las 749 pruebas en verde. `"buen dia"` y `"hey"`
+# contestando "Buenas noches" a un "buen día" con la suite entera en verde. `"buen dia"` y `"hey"`
 # sólo aparecían en la declaración del inventario y su redacción no se afirmaba en ninguna parte.
 #
 # Derivar el esperado de `_VAR_SALUDO` no serviría: el mutante cambiaría los dos lados a la vez.
@@ -827,7 +845,7 @@ async def test_ninguna_variante_le_roba_la_respuesta_a_una_superficie_posterior(
 
     `test_equivalencia_...` sólo ejercita 5 de las 56 variantes, porque la batería de intención no
     contiene las demás. El auditor lo falsó con un mutante: añadir "que estas haciendo" a
-    `_VAR_PENDIENTES` CAMBIA la respuesta en producción y las 730 pruebas seguían en verde.
+    `_VAR_PENDIENTES` CAMBIA la respuesta en producción y la suite entera seguía en verde.
 
     Esta prueba cierra el hueco por construcción y para las 56: si una variante también la reconoce
     una de las 4 superficies posteriores, Conversación General debe devolver EXACTAMENTE su mismo

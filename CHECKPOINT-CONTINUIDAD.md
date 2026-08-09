@@ -11,6 +11,61 @@ aprobadas.
 ---
 
 
+## ESTADO ACTUAL — CONVERSACION GENERAL v1 CERRADA Y AUDITADA (2026-08-09)
+
+**Ultimo commit del worktree:** `4ab4c8a` · **`main`:** `befb303` (NO contiene el incremento).
+**Rama:** `worktree-m3-entry`. Worktree limpio. **NO INTEGRADO: falta el acta del CEO.**
+
+### Que hay hecho
+Cinco commits, del defecto al cierre:
+- `e552746` implementacion (RED -> GREEN -> mutacion -> Quality Gate)
+- `8a52dd1` correcciones del rechazo de las 2 primeras auditorias
+- `fee4e52` cierre de los 8 mutantes que la 2a auditoria demostro vivos
+- `51b19d8` el inventario congelaba menos de lo que su nombre decia
+- `4ab4c8a` conteos no derivables fuera + la CLASE del defecto
+
+**Evidencia final `[EJEC]`:** Quality Gate PASS (761 pruebas, 3 skipped) ·
+35 mutantes en `conversacion-general-v1.toml`, 0 supervivientes · `conversacion-so.toml` 11/11 ·
+`contencion-alerta006.toml` 5/5 · 24/24 negativas de ADR-0014 por el nucleo, 0 llamadas al LLM ·
+equivalencia 5/172 y NINGUNA frase pasa del nucleo al LLM.
+
+**Cuatro auditorias independientes.** Rechazaron dos veces; ambos rechazos eran correctos y estan
+corregidos. Veredicto final: APRUEBAN. El bloqueante mas grave lo encontro la auditoria, no la
+implementacion: el saludo con nombre FABRICABA ("No me llamo Pedro, me llamo Mauricio" -> "Buenos
+dias, Pedro") y ademas era INALCANZABLE por via de usuario, porque decir "me llamo X" no alimenta el
+Modelo de Usuario (medido: 0 entradas). Se retiro entero.
+
+### DECISION PENDIENTE DEL CEO — no continuar sin ella
+1. **Integrar a `main`** o no. Todo lo tecnico esta cerrado y auditado.
+2. **El volcado de 17 identificadores en snake_case** ante "¿que puedes hacer?" incumple el Ajuste 2
+   del contrato. La plantilla es PREEXISTENTE (verificado contra 06f53f3) y redactarla exige decidir
+   como se nombra cada capacidad: es contenido de producto. Propuesto como primer punto de
+   *Experiencia Conversacional v1*.
+3. **Punto de insercion**: el detector se evalua antes de 4 de las 12 superficies, no de todas como
+   decia el DP §1. Es NECESARIO para componer saludo+capacidades, que el ajuste posterior del CEO
+   exige. Requiere acta.
+4. **DP nuevo propuesto**: "AURORA aprende como te llamas". Sin esa capacidad, el saludo por el
+   nombre no puede existir sin fabricar.
+
+### Limites declarados (NO son deuda, son limites del metodo)
+- **Crecimiento DECLARADO**: anadir una variante y declararla en el inventario pasa el gate, y esa
+  frase deja de llegar a ADR-0014. No es cerrable por prueba: ninguna puede decidir que "que me
+  gusta" no es semanticamente una consulta de pendientes. Lo que SI esta protegido: coincidir con
+  una de las 24 negativas rompe dos pruebas distintas.
+- **El saludo se pierde** cuando la principal NO esta en la lista ("hola, lista el directorio").
+  Anteponerlo exigiria propagar el prefijo por toda la cascada: el refactor que el CEO prohibio.
+- **`_es_consulta_de_capacidades` casa por SUBCADENA**: "que puedes hacer y cual es la capital de
+  Francia" pierde la pregunta. PREEXISTENTE y ajeno, medido identico en `06f53f3`.
+- **`_CLASES_DECLARADAS`** no tiene mordida propia demostrada: en la prueba del auditor, 9 de 10
+  fallos eran pruebas preexistentes. Se mantiene por explicito y barato.
+
+### Siguiente paso exacto
+Esperar el acta del CEO sobre los 4 puntos de arriba. Si aprueba la integracion, seguir `CLAUDE.md`
+§3 (merge --no-ff a `main`, Quality Gate en `main`, push, realinear el worktree).
+
+---
+
+
 
 
 

@@ -582,10 +582,23 @@ _ACLARACION_APRENDIDO_DE_MI = (
     "Puedo entenderlo de dos formas: lo que sé de ti, o lo que he aprendido yo trabajando. ¿A cuál te refieres?"
 )
 
-# El nombre del usuario NO se infiere: se lee del Modelo de Usuario o no se usa (INV-9). Con el modelo
-# vacio -su estado real hoy: 0 entradas- escribir "Buenos dias, Mauricio" seria FABRICARLO. Cuando el
-# CEO se lo diga, aparecera solo.
-_RE_NOMBRE_DECLARADO = re.compile(r"\b(?:me llamo|mi nombre es)\s+([^\W\d_]+)", re.IGNORECASE)
+# EL SALUDO NO LLEVA NOMBRE. RETIRADO POR AUDITORIA INDEPENDIENTE (2026-08-09), y conviene que quede
+# escrito por que, porque el contrato lo pedia:
+#
+# El DP daba por hecho que "cuando el CEO diga como se llama, aparecera solo -y ese sera el primer
+# dato real que capture el Modelo de Usuario-". La premisa es FALSA, medido `[EJEC]`: decir "me llamo
+# Mauricio" deja el Modelo de Usuario con 0 entradas. Ningun detector de senales reconoce una
+# declaracion de nombre.
+#
+# Con la premisa caida, la version que se implemento -leer "me llamo X" del texto libre de cualquier
+# entrada semantica- solo era alcanzable por accidente, y fabricaba: con "No me llamo Pedro, me llamo
+# Mauricio" saludaba "Buenos dias, Pedro" (la negacion del usuario perdia), y con "Mi nombre es de
+# dominio publico" saludaba "Buenos dias, de". Es el mismo fallo de guarda de dominio que este fichero
+# ya pago dos veces, y ademas dejaba codigo probado e INALCANZABLE en produccion (ALERTA-005).
+#
+# Saludar con el nombre exige antes una capacidad que no existe: que AURORA APRENDA como te llamas.
+# Eso es producto nuevo y necesita su Decision Package. Hasta entonces, "Buenos dias" a secas -- que
+# es literalmente lo que el propio contrato manda cuando el Modelo de Usuario no lo sabe.
 
 
 def _sin_vocativo(segmento: str) -> str:
@@ -617,6 +630,42 @@ def _partir_en_partes(texto: str) -> list[str]:
     return partes
 
 
+def _separar_saludo_inicial(parte: str) -> tuple[str, str] | None:
+    """(variante de saludo, resto) si la parte EMPIEZA por un saludo y queda algo detras; None si no.
+
+    Existe por un defecto medido en auditoria: la entrada llega por transcripcion de voz, y la
+    puntuacion es justo lo que menos fiable produce el dictado. Sin esto, "buenos dias Aurora que
+    tienes pendiente para hoy" -la frase insignia del contrato, sin la coma- no se reconocia.
+
+    La variante mas LARGA gana ("buenas tardes" antes que "buenas"): con el orden inverso, "buenas
+    tardes ..." se partiria como "buenas" + "tardes ...". El resto debe casar ENTERO con otra
+    variante, asi que esto no reintroduce la coincidencia por subcadena: "hola que tal la fiesta de
+    ayer" sigue sin reclamarse.
+    """
+    for variante in sorted(_VAR_SALUDO, key=len, reverse=True):
+        if parte.startswith(variante + " "):
+            resto = _sin_vocativo(parte[len(variante) :].strip())
+            if resto:
+                return (variante, resto)
+    return None
+
+
+def _sin_repeticiones(secuencia: list[tuple[str, str, str]]) -> list[tuple[str, str, str]]:
+    """La misma intencion repetida en un turno se responde UNA vez, conservando su primera posicion.
+
+    "hola, Aurora, que tal" contiene dos saludos y "¿que puedes hacer? ¿que puedes hacer?" dos veces
+    la misma consulta: sin esto, AURORA contestaba "Hola. Hola." y volcaba el catalogo por duplicado.
+    """
+    vistas = set()
+    unicas = []
+    for clase, nombre, variante in secuencia:
+        if nombre in vistas:
+            continue
+        vistas.add(nombre)
+        unicas.append((clase, nombre, variante))
+    return unicas
+
+
 def _secuencia_de_intenciones(texto: str) -> list[tuple[str, str, str]] | None:
     """La secuencia de intenciones del turno, o None si ALGUNA parte no se reconoce.
 
@@ -633,7 +682,17 @@ def _secuencia_de_intenciones(texto: str) -> list[tuple[str, str, str]] | None:
         if directa is not None:
             secuencia.append(directa)
             continue
-        # Segunda pasada: "¿que puedes hacer y que tienes pendiente?" son DOS principales unidas por
+        # Segunda pasada: un saludo pegado a su consulta SIN separador ("buenos dias Aurora que
+        # tienes pendiente para hoy"). El resto tiene que casar entero.
+        pegado = _separar_saludo_inicial(parte)
+        if pegado is not None:
+            variante, resto = pegado
+            del_resto = _intencion_de_segmento(resto)
+            if del_resto is not None:
+                secuencia.append(("modificadora", "saludo", variante))
+                secuencia.append(del_resto)
+                continue
+        # Tercera pasada: "¿que puedes hacer y que tienes pendiente?" son DOS principales unidas por
         # "y". Solo se intenta si la parte entera no se reconocia, para no trocear frases legitimas.
         trozos = [_sin_vocativo(t.strip()) for t in parte.split(" y ")]
         if len(trozos) < 2:
@@ -969,15 +1028,17 @@ class Orchestrator:
         secuencia = _secuencia_de_intenciones(text)
         if secuencia is None:
             return None
+        secuencia = _sin_repeticiones(secuencia)
 
-        prefijo = await self._prefijo_de_modificadoras(uid, secuencia)
-
-        ambiguas = [nombre for clase, nombre, _ in secuencia if clase == "ambigua"]
-        if ambiguas:
-            return self._unir(prefijo, [_ACLARACION_APRENDIDO_DE_MI])
+        prefijo = self._prefijo_de_modificadoras(secuencia)
 
         cuerpos = []
         for clase, nombre, _ in secuencia:
+            if clase == "ambigua":
+                # La ambigua ocupa SU posicion en la secuencia y no anula el resto: una intencion
+                # resoluble no puede perderse porque otra sea ambigua (rechazo de auditoria).
+                cuerpos.append(_ACLARACION_APRENDIDO_DE_MI)
+                continue
             if clase != "principal":
                 continue
             cuerpo = self._responder_intencion(nombre)
@@ -1018,34 +1079,23 @@ class Orchestrator:
             return self._describir_tareas() if self._secciones_del_ciclo() else _SIN_PENDIENTES
         return None
 
-    async def _prefijo_de_modificadoras(self, uid: str, secuencia: list[tuple[str, str, str]]) -> list[str]:
-        """Las modificadoras no consumen el turno: aportan las lineas que anteceden a la respuesta."""
+    @staticmethod
+    def _prefijo_de_modificadoras(secuencia: list[tuple[str, str, str]]) -> list[str]:
+        """Las modificadoras no consumen el turno: aportan las lineas que anteceden a la respuesta.
+
+        Sin nombre propio: ver la nota de `_VAR_SALUDO` sobre por que se retiro (INV-9).
+        """
         lineas = []
         for clase, nombre, variante in secuencia:
             if clase != "modificadora":
                 continue
             if nombre == "saludo":
-                saludo = _VAR_SALUDO[variante]
-                propio = await self._nombre_del_usuario(uid)
-                lineas.append(f"{saludo}, {propio}." if propio else f"{saludo}.")
+                lineas.append(f"{_VAR_SALUDO[variante]}.")
             elif nombre == "cortesia":
                 lineas.append(_RESPUESTA_CORTESIA)
             elif nombre == "despedida":
                 lineas.append(_RESPUESTA_DESPEDIDA)
         return lineas
-
-    async def _nombre_del_usuario(self, uid: str) -> str | None:
-        """El nombre SOLO si el Modelo de Usuario lo tiene de verdad (INV-9). Las entradas refutadas
-        no cuentan: el usuario ya dijo que eso no era cierto."""
-        if self.modelo_usuario is None:
-            return None
-        for entrada in await self.modelo_usuario.ver(uid):
-            if entrada.get("refutada"):
-                continue
-            hallado = _RE_NOMBRE_DECLARADO.search(str(entrada.get("contenido", "")))
-            if hallado:
-                return hallado.group(1)
-        return None
 
     # ----------------------------------------- ventana del SO Interno (M3 entry) --
 

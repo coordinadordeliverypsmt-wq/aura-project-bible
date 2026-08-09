@@ -36,7 +36,13 @@ import pytest
 from aura_skeleton.composicion import Configuracion, componer
 from aura_skeleton.core.estado_operativo import Tarea
 from aura_skeleton.core.orchestrator import (
+    _ACLARACION_APRENDIDO_DE_MI,
+    _SIN_PENDIENTES,
     _TABLA_INTENCIONES,
+    _es_consulta_de_capacidades,
+    _es_consulta_de_formacion,
+    _es_consulta_de_gobierno,
+    _es_consulta_de_tareas,
     _normalizar,
     _secuencia_de_intenciones,
 )
@@ -252,9 +258,7 @@ async def test_dos_intenciones_principales_se_responden_ambas_en_orden(sistema):
     assert pos_capacidades < pos_pendientes, f"el orden de las intenciones se invirtió: {say!r}"
     for cap in sorted(reales):
         assert cap in say
-    assert "?" not in say.split("\n")[-1] or "aclara" not in say.lower(), (
-        "pidió aclaración ante MULTIPLICIDAD; el contrato lo prohíbe"
-    )
+    assert _ACLARACION_APRENDIDO_DE_MI not in say, "pidió aclaración ante MULTIPLICIDAD; el contrato lo prohíbe"
 
 
 @pytest.mark.asyncio
@@ -313,31 +317,36 @@ async def test_que_has_aprendido_sin_objeto_ajeno_sigue_siendo_el_plan_de_formac
 
 
 @pytest.mark.asyncio
-async def test_no_saluda_con_nombre_si_el_modelo_de_usuario_esta_vacio(sistema):
-    """INV-9. El ejemplo del CEO decía "Buenos días, Mauricio", pero AURORA no sabe hoy cómo se
-    llama: el Modelo de Usuario tiene 0 entradas. Escribir ese nombre sería FABRICARLO.
+@pytest.mark.parametrize(
+    "declarado",
+    [
+        "me llamo Mauricio",
+        "Prefiero el té. No me llamo Pedro, me llamo Mauricio.",
+        "Mi nombre es de dominio publico.",
+        "El perro se llama Toby. Me llamo Mauricio.",
+    ],
+)
+async def test_el_saludo_nunca_lleva_nombre_propio(sistema, declarado):
+    """INV-9, endurecido tras el rechazo de la auditoría independiente.
 
-    Mutante obligatorio del contrato: saludar con un nombre fijo con el modelo vacío -> debe morir.
+    La primera versión leía "me llamo X" del texto libre de cualquier entrada semántica y saludaba
+    con la PRIMERA coincidencia. Medido `[EJEC]`: con "No me llamo Pedro, me llamo Mauricio" saludaba
+    "Buenos días, Pedro" -la negación explícita del usuario perdía-, y con "Mi nombre es de dominio
+    publico" saludaba "Buenos días, de".
+
+    Y el fondo era peor: decir "me llamo Mauricio" NO alimenta el Modelo de Usuario (0 entradas,
+    medido). La rama "con nombre" sólo era alcanzable fabricando. Saludar por el nombre exige antes
+    una capacidad que no existe -que AURORA aprenda cómo te llamas- y ésa necesita su propio
+    Decision Package.
+
+    Estas cuatro entradas son las que rompían la versión anterior; ninguna puede colarse ahora.
     """
-    entradas = await sistema.modelo_usuario.ver("mauricio")
-    assert entradas == [], "guarda: esta prueba exige el Modelo de Usuario vacío"
-
+    await sistema.memoria.write("mauricio", "semantica", declarado, {"origen": "declarada", "fuente": "usuario"})
     r = await _di(sistema.orquestador, "Buenos días")
     assert r["provider"] == "core"
-    assert "," not in r["say"].split("\n")[0], f"saludó con un nombre que nadie le ha dicho: {r['say']!r}"
-    assert "Mauricio" not in r["say"]
-
-
-@pytest.mark.asyncio
-async def test_saluda_con_nombre_solo_cuando_el_modelo_de_usuario_lo_sabe(sistema):
-    """La otra mitad del contrato: cuando el dato EXISTE de verdad, se usa. Sin esta prueba, no
-    fabricar el nombre se cumpliría trivialmente no usándolo nunca."""
-    await sistema.memoria.write(
-        "mauricio", "semantica", "me llamo Mauricio", {"origen": "declarada", "fuente": "usuario"}
-    )
-    r = await _di(sistema.orquestador, "Buenos días")
-    assert r["provider"] == "core"
-    assert "Buenos días, Mauricio" in r["say"], f"no usó el nombre REAL del modelo de usuario: {r['say']!r}"
+    assert r["say"].split("\n")[0] == "Buenos días.", f"el saludo llevaba nombre: {r['say']!r}"
+    for fabricado in ("Mauricio", "Pedro", "Toby", "dominio"):
+        assert fabricado not in r["say"], f"coló {fabricado!r} en el saludo: {r['say']!r}"
 
 
 # ------------------------------------------------------- ADR-0014: la garantía irrenunciable --
@@ -368,6 +377,124 @@ async def test_las_24_negativas_de_adr0014_siguen_atendidas_por_el_nucleo(sistem
             fallos.append((frase, r["provider"], r["say"]))
     assert not fallos, f"{len(fallos)}/24 negativas dejaron de estar protegidas: {fallos[:3]}"
     assert espia.llamadas == 0, f"el LLM fue consultado {espia.llamadas} veces sobre las negativas"
+
+
+# --------------------------------------- DEFECTOS ENCONTRADOS POR LA AUDITORÍA INDEPENDIENTE --
+#
+# Cada prueba de este bloque nació de un mutante que SOBREVIVÍA o de una conducta medida como
+# defectuosa. Ninguna es preventiva: todas cubren algo que estaba roto.
+
+
+@pytest.mark.asyncio
+async def test_el_saludo_pegado_a_la_consulta_sin_coma_se_reconoce(sistema):
+    """DEFECTO MEDIDO: "buenos días Aurora qué tienes pendiente para hoy" -sin la coma- respondía
+    "Entendido." desde el LLM. Es la frase insignia del contrato, y la entrada llega por
+    transcripción de voz, donde la puntuación es lo primero que se pierde."""
+    sistema.estado_operativo.registrar(
+        Tarea(
+            objetivo_id="obj-1",
+            tarea_id="t-1",
+            descripcion="escribir el ADR de la ventana del SO",
+            estado="abierta",
+            responsable="programador",
+            origen="ceo",
+        )
+    )
+    r = await _di(sistema.orquestador, "buenos días Aurora qué tienes pendiente para hoy")
+    assert r["provider"] == "core", f"acabó en el LLM: {r['say']!r}"
+    assert r["say"].startswith("Buenos días."), f"no reconoció el saludo pegado: {r['say']!r}"
+    assert "escribir el ADR de la ventana del SO" in r["say"], f"perdió la consulta: {r['say']!r}"
+
+
+@pytest.mark.asyncio
+async def test_el_saludo_pegado_no_reintroduce_la_coincidencia_por_subcadena(sistema):
+    """CONTROL de la anterior. Separar un saludo inicial NO puede convertirse en "empieza por hola,
+    luego reclamo": el resto tiene que casar ENTERO con otra variante."""
+    r = await _di(sistema.orquestador, "hola qué tal la fiesta de ayer")
+    assert not r["say"].startswith("Hola."), f"reclamó por prefijo: {r['say']!r}"
+
+
+@pytest.mark.asyncio
+async def test_una_intencion_repetida_se_responde_una_sola_vez(sistema):
+    """DEFECTO MEDIDO: "hola, Aurora, qué tal" respondía "Hola.\\nHola." y "¿Qué puedes hacer? ¿Qué
+    puedes hacer?" volcaba el catálogo de 17 capacidades DOS veces."""
+    r_saludo = await _di(sistema.orquestador, "hola, Aurora, qué tal")
+    assert r_saludo["say"].count("Hola.") == 1, f"saludo duplicado: {r_saludo['say']!r}"
+
+    r_caps = await _di(sistema.orquestador, "¿Qué puedes hacer? ¿Qué puedes hacer?")
+    assert r_caps["say"].count("capacidad(es) registradas") == 1, f"catálogo duplicado: {r_caps['say']!r}"
+
+
+@pytest.mark.asyncio
+async def test_una_ambigua_no_anula_una_principal_resoluble(sistema):
+    """REGRESIÓN MEDIDA por la auditoría: "¿qué puedes hacer y qué has aprendido de mí?" respondía
+    las capacidades ANTES del incremento y pasó a sólo preguntar.
+
+    Contradice el criterio literal del CEO: "si las dos intenciones pueden resolverse, prefiero una
+    respuesta más larga antes que interrumpir la conversación". La ambigua ocupa su posición en la
+    secuencia; no se traga las demás.
+    """
+    reales = sistema.registro_adaptadores.capacidades()
+    r = await _di(sistema.orquestador, "¿qué puedes hacer y qué has aprendido de mí?")
+    assert r["provider"] == "core"
+    for cap in sorted(reales):
+        assert cap in r["say"], f"la ambigua se tragó la intención resoluble: {r['say']!r}"
+    assert _ACLARACION_APRENDIDO_DE_MI in r["say"], f"perdió la aclaración: {r['say']!r}"
+    assert r["say"].find("capacidad(es) registradas") < r["say"].find(_ACLARACION_APRENDIDO_DE_MI), (
+        "no respetó el orden formulado"
+    )
+
+
+@pytest.mark.asyncio
+async def test_una_parte_desconocida_dentro_de_la_conjuncion_anula_el_turno(sistema):
+    """MUTANTE A5, que sobrevivía: en la pasada de la conjunción "y", descartar en silencio los
+    trozos no reconocidos, contestando el que sí se reconoce y TIRANDO la pregunta del usuario.
+    El mutante declarado M12 sólo cubría la otra rama (`len(trozos) < 2`).
+
+    OJO CON LA FRASE ELEGIDA. Con "¿qué puedes hacer y cuál es la capital de Francia?" esta prueba
+    mediría otra cosa: ahí Conversación General SÍ devuelve el turno, pero lo recoge después
+    `_es_consulta_de_capacidades`, que casa por SUBCADENA y contesta el catálogo tirando la pregunta.
+    Ese defecto es PREEXISTENTE y ajeno a este incremento (verificado `[EJEC]`: el detector antiguo
+    reconoce la frase entera). Se usa "qué tienes pendiente", que ninguna superficie posterior
+    reclama, para que lo que falle aquí sea sólo lo de este incremento.
+    """
+    r = await _di(sistema.orquestador, "Hola, ¿qué tienes pendiente y cuál es la capital de Francia?")
+    assert r["provider"] == "core"
+    assert _ausencia(r), f"descartó la parte desconocida y respondió igual: {r['say']!r}"
+
+
+@pytest.mark.asyncio
+async def test_el_vocativo_inicial_tambien_se_quita(sistema):
+    """MUTANTE A3, que sobrevivía: quitar sólo el vocativo FINAL. "Aurora buenos días" acababa en
+    el LLM. El bucle del principio no tenía ninguna prueba que dependiera de él."""
+    r = await _di(sistema.orquestador, "Aurora, buenos días")
+    assert r["provider"] == "core", f"acabó en el LLM: {r['say']!r}"
+    assert r["say"].startswith("Buenos días."), f"no quitó el vocativo inicial: {r['say']!r}"
+
+
+@pytest.mark.asyncio
+async def test_cada_modificadora_aporta_su_propia_linea(sistema):
+    """MUTANTES A15 y A2, que sobrevivían: que la despedida dejara de aportar su línea, y que las
+    líneas se unieran con un espacio en vez de con un salto. "Gracias, adiós" debe dar las dos
+    líneas, en su orden."""
+    r = await _di(sistema.orquestador, "Gracias, adiós")
+    assert r["provider"] == "core"
+    assert r["say"] == "De nada.\nHasta luego.", f"las modificadoras no se compusieron bien: {r['say']!r}"
+
+
+@pytest.mark.asyncio
+async def test_pendientes_distingue_tener_objetivos_de_no_tenerlos(sistema):
+    """MUTANTE A14, que sobrevivía: que el texto de "sin objetivos" dejara de distinguirse. Se fija
+    el texto EXACTO de la ausencia y se comprueba que con una tarea real deja de aparecer."""
+    r_vacio = await _di(sistema.orquestador, "¿Qué tienes pendiente?")
+    assert r_vacio["say"] == _SIN_PENDIENTES, f"el texto de ausencia cambió: {r_vacio['say']!r}"
+
+    sistema.estado_operativo.registrar(
+        Tarea(objetivo_id="obj-1", tarea_id="t-1", descripcion="tarea real sembrada", estado="abierta", origen="ceo")
+    )
+    r_con = await _di(sistema.orquestador, "¿Qué tienes pendiente?")
+    assert r_con["say"] != _SIN_PENDIENTES, "siguió declarando ausencia con una tarea real registrada"
+    assert "tarea real sembrada" in r_con["say"], f"no leyó el Estado Operativo real: {r_con['say']!r}"
 
 
 # ------------------------------------------- LO QUE NO ESTÁ EN LA LISTA SIGUE EL CAMINO DE HOY --
@@ -444,6 +571,13 @@ async def test_pendientes_sin_estado_operativo_conectado_no_fabrica_la_ausencia(
 # incluido. Los 5 pasan de `mock` a `core`: este incremento QUITA llamadas al LLM, no las añade.
 _CAMBIOS_ESPERADOS_EN_LA_BATERIA = ("Adiós", "Buenos días", "Gracias", "Hasta luego", "Hola")
 
+# ÚNICAS variantes autorizadas a cambiar lo que respondía la cascada, declaradas por adelantado.
+# `_tiene_objeto_ajeno` cubre "de mi" pero NO "sobre mi", así que estas dos frases volcaban el Plan
+# de Formación entero -con las notas internas sobre APUS-5- que la auditoría anterior declaró
+# bloqueante para su hermana "de mí". Aquí pasan a pedir aclaración, que es la misma corrección.
+# Lo señaló la auditoría independiente como cambio de conducta no declarado; queda declarado.
+_VARIANTES_QUE_CAMBIAN_A_PROPOSITO = frozenset({"que has aprendido sobre mi", "que aprendiste sobre mi"})
+
 
 def test_equivalencia_solo_cambian_los_casos_declarados_por_adelantado():
     """La lista es POSITIVA y CERRADA: sólo puede desviar lo que nombra. Esta prueba lo convierte en
@@ -457,6 +591,51 @@ def test_equivalencia_solo_cambian_los_casos_declarados_por_adelantado():
     assert reclamados == sorted(_CAMBIOS_ESPERADOS_EN_LA_BATERIA), (
         f"el conjunto de casos desviados dejó de ser el declarado: {reclamados}"
     )
+
+
+@pytest.mark.asyncio
+async def test_ninguna_variante_le_roba_la_respuesta_a_una_superficie_posterior(sistema):
+    """EL CANDADO QUE FALTABA (rechazo de auditoría independiente).
+
+    `test_equivalencia_...` sólo ejercita 5 de las 56 variantes, porque la batería de intención no
+    contiene las demás. El auditor lo falsó con un mutante: añadir "que estas haciendo" a
+    `_VAR_PENDIENTES` CAMBIA la respuesta en producción y las 730 pruebas seguían en verde.
+
+    Esta prueba cierra el hueco por construcción y para las 56: si una variante también la reconoce
+    una de las 4 superficies posteriores, Conversación General debe devolver EXACTAMENTE su mismo
+    texto. Puede adelantarse a ellas -hace falta para componer el saludo-, pero no puede cambiar lo
+    que responden. Añadir una variante solapada sin igualar la respuesta rompe aquí.
+    """
+    posteriores = (
+        (_es_consulta_de_capacidades, sistema.orquestador._describir_capacidades),
+        (_es_consulta_de_tareas, sistema.orquestador._describir_tareas),
+        (_es_consulta_de_gobierno, sistema.orquestador._describir_bloqueo),
+        (_es_consulta_de_formacion, lambda: None),
+    )
+    discrepancias = []
+    for _clase, _nombre, variantes in _TABLA_INTENCIONES:
+        for variante in variantes:
+            if variante in _VARIANTES_QUE_CAMBIAN_A_PROPOSITO:
+                continue
+            for reconoce, responder in posteriores:
+                if not reconoce(variante):
+                    continue
+                r = await _di(sistema.orquestador, variante)
+                esperado = responder()
+                if esperado is None or r["say"] != esperado:
+                    discrepancias.append((variante, r["say"], esperado))
+    assert not discrepancias, f"variantes que cambian lo que respondía la cascada: {discrepancias}"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("frase", sorted(_VARIANTES_QUE_CAMBIAN_A_PROPOSITO))
+async def test_las_excepciones_declaradas_dejan_de_volcar_el_plan_de_formacion(sistema, frase):
+    """La excepción de arriba no puede ser una puerta trasera: aquí se verifica que cada frase
+    exceptuada cambia EN LA DIRECCIÓN declarada -pedir aclaración- y no en cualquier otra."""
+    r = await _di(sistema.orquestador, frase)
+    assert r["provider"] == "core"
+    assert r["say"] == _ACLARACION_APRENDIDO_DE_MI, f"{frase!r} no pidió aclaración: {r['say']!r}"
+    assert "APUS-5" not in r["say"]
 
 
 def test_las_variantes_son_disjuntas_entre_intenciones():

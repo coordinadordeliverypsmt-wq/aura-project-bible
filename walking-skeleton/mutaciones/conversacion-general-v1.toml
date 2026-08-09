@@ -89,14 +89,12 @@ sustituir = '''        if _es_consulta_de_capacidades(text):
 id = "M5"
 garantia = "el saludo consume el turno: la intencion principal se descarta y solo se responde el saludo"
 fichero = "aura_skeleton/core/orchestrator.py"
-buscar = '''        cuerpos = []
-        for clase, nombre, _ in secuencia:
-            if clase != "principal":
-                continue'''
-sustituir = '''        cuerpos = []
-        for clase, nombre, _ in secuencia:
-            if clase != "principal" or prefijo:
-                continue'''
+buscar = '''            if clase != "principal":
+                continue
+            cuerpo = self._responder_intencion(nombre)'''
+sustituir = '''            if clase != "principal" or prefijo:
+                continue
+            cuerpo = self._responder_intencion(nombre)'''
 
 # ------------------------------------------------------------------------------------------------
 # MULTIPLICIDAD: SOLO SE RESPONDE LA PRIMERA. Mutante declarado OBLIGATORIO por el CEO al cerrar el
@@ -130,33 +128,15 @@ sustituir = '''        return self._unir(prefijo, list(reversed(cuerpos)))'''
 # ------------------------------------------------------------------------------------------------
 # INV-9: EL NOMBRE FABRICADO. Mutante declarado OBLIGATORIO por el contrato. El ejemplo del CEO
 # decia "Buenos dias, Mauricio", pero el Modelo de Usuario tiene 0 entradas: escribir ese nombre
-# seria FABRICARLO. Este mutante lo fabrica.
+# seria FABRICARLO. La auditoria independiente demostro que la primera version lo fabricaba de
+# verdad -- "No me llamo Pedro, me llamo Mauricio" saludaba "Buenos dias, Pedro"-, asi que el saludo
+# con nombre se RETIRO entero. Este mutante lo reintroduce en la forma mas simple posible.
 [[mutante]]
 id = "M8"
 garantia = "se saluda con un nombre fijo aunque el Modelo de Usuario este vacio (INV-9: fabricar el nombre)"
 fichero = "aura_skeleton/core/orchestrator.py"
-buscar = '''        if self.modelo_usuario is None:
-            return None
-        for entrada in await self.modelo_usuario.ver(uid):'''
-sustituir = '''        if self.modelo_usuario is None:
-            return None
-        return "Mauricio"
-        for entrada in await self.modelo_usuario.ver(uid):'''
-
-# ------------------------------------------------------------------------------------------------
-# LA OTRA MITAD DE INV-9: el nombre NO SE USA NUNCA. Sin este mutante, "no fabricar el nombre" se
-# cumpliria trivialmente ignorando siempre el Modelo de Usuario -- y el dia que el CEO diga como se
-# llama, AURORA seguiria sin usarlo. Una garantia sin su contrario es media garantia.
-[[mutante]]
-id = "M9"
-garantia = "el nombre del Modelo de Usuario se ignora aunque EXISTA: el saludo nunca lo usa"
-fichero = "aura_skeleton/core/orchestrator.py"
-buscar = '''            hallado = _RE_NOMBRE_DECLARADO.search(str(entrada.get("contenido", "")))
-            if hallado:
-                return hallado.group(1)'''
-sustituir = '''            hallado = _RE_NOMBRE_DECLARADO.search(str(entrada.get("contenido", "")))
-            if hallado and False:
-                return hallado.group(1)'''
+buscar = '''                lineas.append(f"{_VAR_SALUDO[variante]}.")'''
+sustituir = '''                lineas.append(f"{_VAR_SALUDO[variante]}, Mauricio.")'''
 
 # ------------------------------------------------------------------------------------------------
 # AMBIGÜEDAD REAL RESUELTA ADIVINANDO. "¿que has aprendido de mi?" es la frase que la auditoria
@@ -166,10 +146,10 @@ sustituir = '''            hallado = _RE_NOMBRE_DECLARADO.search(str(entrada.get
 id = "M10"
 garantia = "la ambiguedad real se resuelve adivinando un dominio en vez de pedir aclaracion"
 fichero = "aura_skeleton/core/orchestrator.py"
-buscar = '''        if ambiguas:
-            return self._unir(prefijo, [_ACLARACION_APRENDIDO_DE_MI])'''
-sustituir = '''        if ambiguas:
-            return self._unir(prefijo, [_resumen_formacion()])'''
+buscar = '''                cuerpos.append(_ACLARACION_APRENDIDO_DE_MI)
+                continue'''
+sustituir = '''                cuerpos.append(_resumen_formacion())
+                continue'''
 
 # ------------------------------------------------------------------------------------------------
 # EL VOCATIVO DEJA DE QUITARSE. "buenos dias Aurora" dejaria de ser la misma entrada que "buenos
@@ -229,3 +209,134 @@ buscar = '''        if nombre == "ofrecimiento":
             return _RESPUESTA_OFRECIMIENTO'''
 sustituir = '''        if nombre == "ofrecimiento":
             return self._describir_capacidades()'''
+
+# =================================================================================================
+# MUTANTES QUE LA AUDITORIA INDEPENDIENTE DEMOSTRO VIVOS (2026-08-09).
+#
+# El auditor escribio 16 mutantes propios contra este incremento y 8 SOBREVIVIERON a las 730
+# pruebas. Siete cambiaban la conducta de forma demostrable. Se incorporan aqui -con su prueba
+# correspondiente ya escrita- porque un mutante que sobrevive es una garantia sin red, y porque
+# quien encontro el hueco no debe ser el unico que lo recuerde.
+# =================================================================================================
+
+# (A5) En la pasada de la conjuncion "y", los trozos no reconocidos se descartan EN SILENCIO: el
+# turno contesta lo que reconoce y TIRA la pregunta del usuario. M12 solo cubria la otra rama del
+# mismo bloque (`len(trozos) < 2`), de modo que media funcion estaba sin proteger.
+[[mutante]]
+id = "M15"
+garantia = "los trozos no reconocidos de una conjuncion se descartan en silencio: se pierde la pregunta del usuario"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        encontradas = [_intencion_de_segmento(t) for t in trozos]
+        if any(e is None for e in encontradas):
+            return None'''
+sustituir = '''        encontradas = [_intencion_de_segmento(t) for t in trozos]
+        if all(e is None for e in encontradas):
+            return None'''
+
+# (A3) El vocativo INICIAL deja de quitarse: "Aurora, buenos dias" acaba en el LLM. M11 borraba la
+# funcion entera, asi que el bucle del principio nunca tuvo una prueba que dependiera solo de el.
+[[mutante]]
+id = "M16"
+garantia = "el vocativo INICIAL deja de quitarse: 'Aurora, buenos dias' deja de reconocerse"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''    while palabras and palabras[0] in _VOCATIVOS:
+        palabras.pop(0)'''
+sustituir = '''    while False:
+        palabras.pop(0)'''
+
+# (A15) Una modificadora deja de aportar su linea: "Gracias, adios" pierde la despedida.
+[[mutante]]
+id = "M17"
+garantia = "la despedida deja de aportar su linea: una modificadora reconocida se pierde"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            elif nombre == "despedida":
+                lineas.append(_RESPUESTA_DESPEDIDA)'''
+sustituir = '''            elif nombre == "despedida":
+                pass'''
+
+# (A2) `_unir` funde las lineas con un espacio: el saludo y el catalogo de capacidades se pegan en
+# un parrafo ilegible. Nadie comprobaba el separador.
+[[mutante]]
+id = "M18"
+garantia = "las lineas de la respuesta se funden con un espacio en vez de un salto de linea"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        return "\n".join([*prefijo, *cuerpos])'''
+sustituir = '''        return " ".join([*prefijo, *cuerpos])'''
+
+# (A14) "pendientes" deja de distinguir "no hay objetivos" de "los hay": el texto de ausencia se
+# usa siempre. Con tareas reales registradas, AURORA diria que no tiene nada pendiente (INV-9).
+[[mutante]]
+id = "M19"
+garantia = "'pendientes' deja de distinguir si hay objetivos: declara ausencia con tareas reales registradas"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            return self._describir_tareas() if self._secciones_del_ciclo() else _SIN_PENDIENTES'''
+sustituir = '''            return _SIN_PENDIENTES'''
+
+# (A12) EL CANDADO DE EQUIVALENCIA. El auditor demostro que anadir una variante que YA atiende una
+# superficie posterior cambia la respuesta en produccion sin romper ninguna de las 730 pruebas.
+# Es el mutante mas importante de este bloque: prueba que la lista cerrada puede crecer y robar.
+[[mutante]]
+id = "M20"
+garantia = "una variante nueva le roba la frase a la superficie de tareas y cambia su respuesta sin que nada lo note"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''    "que hay de nuevo",
+)'''
+sustituir = '''    "que hay de nuevo",
+    "que estas haciendo",
+)'''
+
+# --- Defectos de conducta corregidos tras el rechazo: sus mutantes ---------------------------------
+
+# El saludo pegado a la consulta SIN separador deja de reconocerse: vuelve el defecto medido en
+# auditoria -"buenos dias Aurora que tienes pendiente para hoy" acababa en el LLM-.
+[[mutante]]
+id = "M21"
+garantia = "el saludo pegado sin coma deja de separarse: la frase insignia del contrato vuelve a caer en el LLM"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''    for variante in sorted(_VAR_SALUDO, key=len, reverse=True):
+        if parte.startswith(variante + " "):'''
+sustituir = '''    for variante in sorted(_VAR_SALUDO, key=len, reverse=True):
+        if False:'''
+
+# El separador de saludo pasa a aceptar un resto NO reconocido: reintroduce por la puerta de atras
+# la coincidencia por prefijo que el contrato prohibe ("hola que tal la fiesta de ayer").
+[[mutante]]
+id = "M22"
+garantia = "el saludo pegado reclama el turno aunque el resto no se reconozca: coincidencia por prefijo"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            del_resto = _intencion_de_segmento(resto)
+            if del_resto is not None:
+                secuencia.append(("modificadora", "saludo", variante))
+                secuencia.append(del_resto)
+                continue'''
+sustituir = '''            del_resto = _intencion_de_segmento(resto)
+            if True:
+                secuencia.append(("modificadora", "saludo", variante))
+                if del_resto is not None:
+                    secuencia.append(del_resto)
+                continue'''
+
+# La deduplicacion desaparece: "hola, Aurora, que tal" vuelve a responder "Hola. Hola." y
+# "¿que puedes hacer? ¿que puedes hacer?" vuelve a volcar el catalogo por duplicado.
+[[mutante]]
+id = "M23"
+garantia = "una intencion repetida se responde dos veces: 'Hola. Hola.' y el catalogo duplicado"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        if nombre in vistas:
+            continue'''
+sustituir = '''        if False:
+            continue'''
+
+# La ambigua vuelve a consumir el turno entero y se traga una principal resoluble: es la REGRESION
+# que la auditoria midio contra 06f53f3 ("¿que puedes hacer y que has aprendido de mi?").
+[[mutante]]
+id = "M24"
+garantia = "una intencion ambigua anula las principales resolubles del mismo turno (regresion medida)"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            if clase == "ambigua":
+                # La ambigua ocupa SU posicion en la secuencia y no anula el resto: una intencion
+                # resoluble no puede perderse porque otra sea ambigua (rechazo de auditoria).
+                cuerpos.append(_ACLARACION_APRENDIDO_DE_MI)
+                continue'''
+sustituir = '''            if clase == "ambigua":
+                return self._unir(prefijo, [_ACLARACION_APRENDIDO_DE_MI])'''

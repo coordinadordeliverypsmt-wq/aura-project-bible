@@ -11,6 +11,23 @@ aprobadas.
 ---
 
 
+## METRICA QUE GOBIERNA LOS SIGUIENTES INCREMENTOS (CEO, 2026-08-09)
+
+> **¿Que trabajo nuevo puede completar AURORA POR SI MISMA despues de este incremento que antes no
+> podia completar?**
+>
+> Si la respuesta no aumenta autonomia real, el incremento queda POR DETRAS de uno que si la
+> aumente. El objetivo dejo de ser un repositorio cada vez mas perfecto.
+
+**A queda APROBADO funcionalmente** por el CEO con los cuatro defectos criticos corregidos. **No se
+abren mas auditorias sobre A ni microvalidaciones.** El merge y el push los ejecuta el CEO desde el
+checkout principal, con el procedimiento indicado abajo y **sin bypass del Quality Gate**.
+
+Centro de gravedad de la proxima sesion: **A integrado y cerrado → B minimo y cerrado → Pieza 2**.
+Despues de B se deja de invertir en endurecer garantias ya suficientemente protegidas.
+
+---
+
 ## ESTADO (2026-08-09, fin de sesion) — A LISTO PARA INTEGRAR
 
 **Worktree:** `b8d914b` limpio · **`main` = `origin/main` = `131896c`** (Conversacion General v1 YA

@@ -384,3 +384,103 @@ async def test_H10_sin_el_dato_declarado_se_declara_la_ausencia_exacta(sistema):
     await _di(sistema.orquestador, "Mi nombre es Mauricio")
     r = await _di(sistema.orquestador, "¿Qué trabajo hago?")
     assert r["say"] == "Todavía no me has dicho en qué trabajas.", f"fabricó una ocupación: {r['say']!r}"
+
+
+# ------------------------------- DEFECTOS QUE ENCONTRÓ LA AUDITORÍA INDEPENDIENTE (D1-D5) --
+#
+# Los cuatro primeros eran CRÍTICOS o ALTOS y se midieron sobre el producto real, no en unidad:
+# P5/P6 llamaban a `ModeloUsuario` directamente y por eso no los veían. Es el patrón
+# «declarado != real» otra vez: la garantía se cumplía en la unidad y no en el producto.
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("gobierno", "consulta", "no_debe_contener"),
+    [
+        ("Olvida que trabajo en logística", "¿Qué trabajo hago?", "logística"),
+        ("Mi nombre es Mauricio ya no es cierto", "¿Cómo me llamo?", "ya no es cierto"),
+    ],
+)
+async def test_D1_gobernar_el_modelo_no_recrea_el_hecho(sistema, gobierno, consulta, no_debe_contener):
+    """D1 (CRÍTICO). «Olvida que trabajo en logística» contiene «trabajo en»: se borraba el hecho y
+    acto seguido la propia orden de borrado se capturaba como hecho nuevo. Borrar lo RE-CREABA.
+    Idéntico con la refutación. Una frase que gobierna el modelo no declara nada sobre el usuario."""
+    await _di(sistema.orquestador, "Trabajo en logística")
+    await _di(sistema.orquestador, "Mi nombre es Mauricio")
+    await _di(sistema.orquestador, gobierno)
+
+    r = await _di(sistema.orquestador, consulta)
+    assert no_debe_contener not in r["say"], f"la orden de gobierno se recreó como hecho: {r['say']!r}"
+    contenidos = " | ".join(e["contenido"] for e in await sistema.modelo_usuario.ver("mauricio"))
+    assert gobierno not in contenidos, f"la frase de gobierno entró en el perfil: {contenidos}"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "frase",
+    [
+        "No trabajo en logística",
+        "Me dijo: me llamo Ana",
+        "Si trabajo en Madrid me mudo",
+        "Antes trabajo en banca",
+        "Ojalá trabajo en Google algún día",
+        "Creo que trabajo en exceso",
+    ],
+)
+async def test_D2_las_frases_que_no_afirman_no_envenenan_el_perfil(sistema, frase):
+    """D2 (CRÍTICO). Las seis entraban como hecho declarado. Dos consecuencias medidas: «No trabajo
+    en logística» hacía que AURORA afirmara lo contrario de lo dicho, y «Me dijo: me llamo Ana» le
+    hacía afirmar el nombre de OTRA persona como si fuera el del usuario — INV-9 roto.
+
+    Negación, condicional, cita, pasado, deseo y opinión llevan el marcador pero no AFIRMAN."""
+    await _di(sistema.orquestador, frase)
+    entradas = await sistema.modelo_usuario.ver("mauricio")
+    assert not entradas, f"{frase!r} envenenó el perfil: {entradas}"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("frase", ["Prefiero el trabajo de noche", "No me gusta el trabajo en equipo"])
+async def test_D3_una_preferencia_con_marcador_de_hecho_sigue_siendo_preferencia(sistema, frase):
+    """D3 (ALTO, regresión). «Prefiero el trabajo de noche» contiene «trabajo de» y pasaba a
+    clasificarse como HECHO, con dos efectos: el etiquetado permanente erróneo que esta misma
+    ampliación existe para evitar, y `¿Qué prefiero?` respondiendo «todavía no me has dicho qué
+    prefieres» con preferencias declaradas en el modelo."""
+    await _di(sistema.orquestador, frase)
+    entradas = await sistema.modelo_usuario.ver("mauricio")
+    assert entradas, f"{frase!r} no se capturó"
+    assert entradas[0]["clase"] == "preferencia_declarada", f"clasificada como {entradas[0]['clase']!r}"
+
+    r = await _di(sistema.orquestador, "¿Qué prefiero?")
+    assert "no me has dicho" not in r["say"], f"tenía la preferencia y dijo no saberla: {r['say']!r}"
+
+
+@pytest.mark.asyncio
+async def test_D4_consultar_las_preferencias_no_las_contamina(sistema):
+    """D4 (ALTO). La guarda interrogativa se había puesto sólo en los hechos: «¿Qué prefiero?» se
+    guardaba como preferencia y reaparecía en la respuesta siguiente, creciendo sin límite por el
+    mero acto de consultar el propio perfil."""
+    await _di(sistema.orquestador, "Prefiero trabajar de noche")
+    for _ in range(3):
+        r = await _di(sistema.orquestador, "¿Qué prefiero?")
+    assert "¿Qué prefiero?" not in r["say"], f"la consulta se guardó como preferencia: {r['say']!r}"
+    assert r["say"].count("•") == 1, f"el perfil creció al consultarlo: {r['say']!r}"
+
+
+@pytest.mark.asyncio
+async def test_D5_redeclarar_un_hecho_lo_actualiza(sistema):
+    """D5. Se devolvía la PRIMERA declaración viva: «me llamo Pedro» seguido de «mi nombre es
+    Mauricio» seguía respondiendo «Pedro». Redeclarar es el gesto natural de corregirse."""
+    await _di(sistema.orquestador, "Me llamo Pedro")
+    await _di(sistema.orquestador, "Mi nombre es Mauricio")
+    r = await _di(sistema.orquestador, "¿Cómo me llamo?")
+    assert "Mauricio" in r["say"] and "Pedro" not in r["say"], f"no tomó la última declaración: {r['say']!r}"
+
+
+@pytest.mark.asyncio
+async def test_D8_la_extraccion_no_se_come_la_frase_entera(sistema):
+    """D8. `trabajo (?:en|de)\\s+(.+)` capturaba hasta el final: «logística y me gusta»."""
+    # Sin marcador de preferencia: "y me gusta" haría ganar a la preferencia -correcto por diseño,
+    # ver D3- y la prueba mediría otra cosa.
+    await _di(sistema.orquestador, "Trabajo en logística y vivo en Madrid")
+    r = await _di(sistema.orquestador, "¿Qué trabajo hago?")
+    assert r["say"] == "Trabajas en logística.", f"extracción glotona: {r['say']!r}"

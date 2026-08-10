@@ -37,9 +37,9 @@ id = "H3"
 garantia = "una PREGUNTA se captura como hecho declarado: consultar contamina el Modelo de Usuario"
 fichero = "aura_skeleton/conectores/conversacion.py"
 buscar = '''    if "?" in texto_norm or "¿" in texto_norm:
-        return False'''
-sustituir = '''    if False:
-        return False'''
+        return True
+    return any(re.search(p, texto_norm) for p in _INTERROGATIVOS_INICIALES)'''
+sustituir = '''    return False'''
 
 # (4) SE CAPTURA UN HECHO DE UN TERCERO. "Mi hermana se llama Ana" entraria en el modelo del
 # usuario: perfil de otra persona sin su consentimiento (ALERTA-002, Bible 4.4 §1).

@@ -91,6 +91,40 @@ _TEMPORAL = (
 # por el interrogativo INICIAL. Solo al principio: "trabajo en donde me mandaron" es una declaracion.
 _INTERROGATIVOS_INICIALES = (r"^(como|cual|cuales|que|quien|donde|cuando|cuanto|sabes|recuerdas|dime|cuentame)\b",)
 
+# CUARTA CONDICION: la frase debe AFIRMAR el hecho del usuario, en presente y sin intermediarios.
+# Todas estas construcciones llevan marcador de hecho y NO declaran nada -- una auditoria las midio
+# entrando en el perfil: "No trabajo en logistica" hacia que AURORA afirmase lo contrario de lo
+# dicho, y "Me dijo: me llamo Ana" le hacia afirmar el nombre de OTRA persona como si fuera el del
+# usuario (INV-9). Un perfil envenenado se paga migrando historial real.
+_NO_AFIRMA = (
+    r"^no\b",  # negacion: "no trabajo en logistica"
+    r"\bno (?:me llamo|trabajo|es)\b",
+    r"^si\b",  # condicional: "si trabajo en Madrid me mudo"
+    r"\bsi (?:trabajo|me llamo)\b",
+    r"\b(?:me|te|le|nos|les) dijo\b",  # cita: el hecho es de otro
+    r"\bdijo que\b",
+    r"\bantes\b",  # pasado: "antes trabajo en banca"
+    r"\bcuando (?:trabajaba|era|estudiaba)\b",
+    r"\bojala\b",  # deseo, no hecho
+    r"\balgun dia\b",
+    r"\bme gustaria\b",
+    r"\bcreo que\b",  # opinion, no hecho
+    r"\bquizas?\b",
+    r"\btal vez\b",
+    r"\bya no es cierto\b",  # gobierno del propio modelo: refutar
+    r"^olvida\b",  # gobierno del propio modelo: olvidar
+    r"\bolvida que\b",
+    r"\bcorrige\b",
+)
+
+
+def _es_pregunta(texto_norm: str) -> bool:
+    """Signos de interrogacion, o interrogativo INICIAL -el dictado por voz no siempre produce los
+    signos-. Solo al principio: "trabajo en donde me mandaron" es una declaracion."""
+    if "?" in texto_norm or "¿" in texto_norm:
+        return True
+    return any(re.search(p, texto_norm) for p in _INTERROGATIVOS_INICIALES)
+
 
 def _es_hecho_declarado(texto_norm: str) -> bool:
     """Marcador de declaracion sobre uno mismo, SIN marca temporal y que no sea una PREGUNTA.
@@ -103,11 +137,11 @@ def _es_hecho_declarado(texto_norm: str) -> bool:
     pregunta EN EL MODELO DE USUARIO -- el usuario contaminaria su propio perfil cada vez que
     consultase algo. Preguntar no es declarar, y la distincion tiene que ser explicita.
     """
-    if "?" in texto_norm or "¿" in texto_norm:
-        return False
-    if any(re.search(p, texto_norm) for p in _INTERROGATIVOS_INICIALES):
+    if _es_pregunta(texto_norm):
         return False
     if any(re.search(p, texto_norm) for p in _TEMPORAL):
+        return False
+    if any(re.search(p, texto_norm) for p in _NO_AFIRMA):
         return False
     return any(re.search(p, texto_norm) for p in _HECHO)
 
@@ -118,14 +152,23 @@ def _clasificar(texto_norm: str) -> ClaseSenal | None:
     `HECHO_DECLARADO` va ANTES que la preferencia porque es mas especifico: exige una construccion
     declarativa completa, mientras que la preferencia se reconoce por un marcador suelto.
     """
+    # Preguntar no es declarar, para NINGUNA clase. La guarda interrogativa se corrigio primero solo
+    # para los hechos y una auditoria midio el resto: "¿Que prefiero?" se guardaba como preferencia y
+    # reaparecia en la respuesta siguiente, creciendo sin limite por el mero acto de consultar.
+    if _es_pregunta(texto_norm):
+        return None
     if any(m in texto_norm for m in _FEEDBACK):
         return ClaseSenal.FEEDBACK_DIRECTO
     if any(m in texto_norm for m in _CORRECCION):
         return ClaseSenal.CORRECCION
+    if any(m in texto_norm for m in _PREFERENCIA):
+        # La PREFERENCIA gana cuando ambos marcadores coinciden. "Prefiero el trabajo de noche"
+        # contiene "trabajo de", pero declara un gusto, no una ocupacion: clasificarla como hecho
+        # producia el etiquetado permanente erroneo que esta misma ampliacion existe para evitar,
+        # y ademas vaciaba la respuesta de "¿que prefiero?" (medido en auditoria).
+        return ClaseSenal.PREFERENCIA_DECLARADA
     if _es_hecho_declarado(texto_norm):
         return ClaseSenal.HECHO_DECLARADO
-    if any(m in texto_norm for m in _PREFERENCIA):
-        return ClaseSenal.PREFERENCIA_DECLARADA
     return None
 
 

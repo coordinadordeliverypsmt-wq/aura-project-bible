@@ -18,6 +18,7 @@ from .modelo_usuario import describir_conocimiento, explicar_entrada
 from .notificaciones import notificacion_de_accion
 from .registro import RegistroAdaptadores
 from .reglas import ReglaUsuario, evaluar_condicion, resolver_args
+from .senales import ClaseSenal
 
 
 def _parse_decision(out: str, tid: str) -> tuple[str, dict, str]:
@@ -183,7 +184,10 @@ _CONSULTAS_DE_HECHO: tuple[tuple[tuple[str, ...], str, str, str], ...] = (
         "Todavía no me has dicho en qué trabajas.",
     ),
     (
-        ("en que proyecto trabajo", "cual es mi proyecto", "que sabes de mi proyecto", "como se llama mi proyecto"),
+        # "que sabes de mi proyecto" NO se lista: `_PAT_MODELO_VER` contiene "que sabes de mi" y
+        # `_cae_en` casa por subcadena, asi que el turno se atiende antes. Declararlo aqui seria
+        # codigo muerto que aparenta cobertura.
+        ("en que proyecto trabajo", "cual es mi proyecto", "como se llama mi proyecto"),
         r"(?:proyecto llamado|mi proyecto se llama)\s+(.+)",
         "Tu proyecto se llama {}.",
         "Todavía no me has dicho en qué proyecto trabajas.",
@@ -202,7 +206,10 @@ def _valor_declarado(contenido: str, patron: str) -> str | None:
     hallado = re.search(patron, contenido, re.IGNORECASE)
     if not hallado:
         return None
-    return hallado.group(1).strip(" .,;:!?") or None
+    # No glotona: "trabajo en logistica y me gusta" declara la ocupacion, no la coletilla. Se corta
+    # en el primer conector o signo de puntuacion.
+    bruto = re.split(r"\s+(?:y|pero|aunque|porque)\s+|[,;.]", hallado.group(1))[0]
+    return bruto.strip(" .,;:!?") or None
 
 
 def _es_peticion_de_olvido(t: str) -> bool:
@@ -1030,10 +1037,17 @@ class Orchestrator:
         INV-9: si el atributo no se ha declarado, se dice -no se infiere de otras entradas ni se
         deja que la pregunta caiga al recall, que respondería por parecido de texto-.
         """
+        # Solo entradas de clase HECHO_DECLARADO: emparejar el regex contra CUALQUIER entrada viva
+        # devolvia como hecho lo que era una preferencia o un patron observado, borrando la
+        # distincion declarado/observado que la ampliacion de 4.4 §1 existe para preservar.
+        hechos = [e for e in vivas if e.get("clase") == ClaseSenal.HECHO_DECLARADO.value]
         for preguntas, patron, plantilla, ausencia in _CONSULTAS_DE_HECHO:
             if not _cae_en(t, preguntas):
                 continue
-            for entrada in vivas:
+            # La ULTIMA declaracion gana: redeclarar es el gesto natural de corregirse, y devolver
+            # la primera hacia que "me llamo Pedro" seguido de "mi nombre es Mauricio" respondiera
+            # todavia "Pedro".
+            for entrada in reversed(hechos):
                 valor = _valor_declarado(str(entrada.get("contenido", "")), patron)
                 if valor:
                     return plantilla.format(valor)

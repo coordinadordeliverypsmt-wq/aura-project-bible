@@ -14,8 +14,10 @@ como "detectado". Si esa prueba fallara, el arnes estaria mintiendo otra vez.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import textwrap
+import time
 from pathlib import Path
 
 import pytest
@@ -219,11 +221,16 @@ def test_el_fichero_mutado_se_restaura_byte_a_byte(tmp_path):
 
 
 def test_restauracion_incluso_si_subprocess_lanza_excepcion(tmp_path, monkeypatch):
-    """Si subprocess.run lanza una excepcion evaluando el mutante, el fichero se restaura igual.
+    """Si el subprocess de pytest lanza una excepcion evaluando el mutante, el fichero se restaura
+    igual.
 
     La restauracion va en un try/finally: la excepcion debe seguir propagandose (el arnes no la
     esconde, porque esconderla seria otra forma de mentir), pero el contenido original queda a
     salvo pase lo que pase.
+
+    Se monkeypatchea `subprocess.Popen` (no `subprocess.run`): desde el timeout por mutante
+    (2026-08-04) `_ejecutar_pytest` gestiona el Popen a mano -para poder matar el grupo de procesos
+    completo al agotarse el plazo, ver `_matar_arbol_de_procesos`- en vez de usar `subprocess.run`.
     """
     _crear_proyecto_juguete(tmp_path)
     fichero = tmp_path / "modulo_juguete.py"
@@ -244,17 +251,17 @@ def test_restauracion_incluso_si_subprocess_lanza_excepcion(tmp_path, monkeypatc
     )
 
     llamadas = {"n": 0}
-    original_run = subprocess.run
+    original_popen = subprocess.Popen
 
-    def run_que_explota_en_la_segunda_llamada(*args, **kwargs):
+    def popen_que_explota_en_la_segunda_llamada(*args, **kwargs):
         # 1a llamada: verificacion de base en verde (debe pasar de verdad).
-        # 2a llamada: evaluacion del mutante -> aqui simulamos que subprocess explota.
+        # 2a llamada: evaluacion del mutante -> aqui simulamos que Popen explota.
         llamadas["n"] += 1
         if llamadas["n"] >= 2:
             raise OSError("fallo simulado de subprocess")
-        return original_run(*args, **kwargs)
+        return original_popen(*args, **kwargs)
 
-    monkeypatch.setattr(subprocess, "run", run_que_explota_en_la_segunda_llamada)
+    monkeypatch.setattr(subprocess, "Popen", popen_que_explota_en_la_segunda_llamada)
 
     with pytest.raises(OSError):
         ejecutar(str(toml), raiz=str(tmp_path))
@@ -355,3 +362,199 @@ def test_la_verificacion_de_restauracion_esta_viva(tmp_path, monkeypatch):
     monkeypatch.setattr(Path, "write_bytes", sabotea_la_restauracion)
     with pytest.raises(RuntimeError, match="restaurar"):
         ejecutar(str(toml), raiz=str(tmp_path))
+
+
+# --------------------------------------------------------------------------------------------
+# Meta-pruebas del TIMEOUT por mutante (2026-08-04).
+#
+# Dano ya documentado en mutaciones/motor-ciclo.toml: los mutantes M2 y M3 degradaban la
+# condicion de parada de un bucle y el arnes se colgaba EN VEZ de reportar SOBREVIVE, porque
+# `_ejecutar_pytest` no imponia ningun limite de tiempo al subprocess de pytest. Un proceso
+# huerfano llego a quedar 15+ horas consumiendo CPU en un equipo de 2 nucleos.
+#
+# El proyecto de juguete de aqui abajo reproduce el bug DE VERDAD: su mutante produce un bucle
+# infinito real (`while True: pass`, sin valvula de escape) y ademas lanza un proceso HIJO
+# propio, para poder comprobar que el arnes no lo deja huerfano al matar el arbol completo.
+# --------------------------------------------------------------------------------------------
+
+
+def _crear_proyecto_que_cuelga(tmp_path: Path) -> None:
+    """Proyecto de juguete cuyo mutante cuelga de verdad (reproduce M2/M3 de motor-ciclo.toml).
+
+    `trabajo()` lanza un proceso hijo propio (un `sleep` en Python, sin dependencias del SO) y dejar
+    escrito su PID en un fichero ANTES de decidir si para o no: eso permite que la meta-prueba
+    compruebe, despues de que el arnes actue, si ese proceso hijo sigue vivo (huerfano) o no.
+
+    La duracion del sleep (20s) es DELIBERADAMENTE mayor que `timeout_s` (ver `_toml_que_cuelga`):
+    si el hijo se autoterminara ANTES de que el arnes lo mate, `test_no_deja_procesos_huerfanos_tras_el_timeout`
+    pasaria de forma VACUA -el proceso habria muerto solo, no por el SIGKILL del arnes- y no
+    demostraria nada. Con 20s > timeout_s, el hijo sigue vivo cuando el timeout vence, asi que
+    matarlo (o no) es lo unico que decide el resultado de la prueba. Sigue siendo acotado: incluso si
+    algun mutante de `arnes-timeout.toml` llegase a dejar escapar el proceso, se autolimpia en
+    segundos, no minutos ni horas.
+    """
+    modulo = tmp_path / "modulo_cuelga.py"
+    modulo.write_text(
+        textwrap.dedent(
+            """\
+            import subprocess
+            import sys
+            from pathlib import Path
+
+
+            def condicion_de_parada():
+                return True
+
+
+            def trabajo():
+                proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(20)"])
+                Path("pid_hijo.txt").write_text(str(proc.pid))
+                if condicion_de_parada():
+                    return "listo"
+                while True:
+                    pass  # bucle infinito real: reproduce el bug de motor-ciclo.toml M2/M3
+            """
+        ),
+        encoding="utf-8",
+    )
+    tests_dir = tmp_path / "tests"
+    tests_dir.mkdir()
+    (tests_dir / "test_modulo_cuelga.py").write_text(
+        textwrap.dedent(
+            """\
+            from modulo_cuelga import trabajo
+
+
+            def test_trabajo_termina():
+                assert trabajo() == "listo"
+            """
+        ),
+        encoding="utf-8",
+    )
+
+
+def _toml_que_cuelga(tmp_path: Path, timeout_s: float = 8.0) -> Path:
+    # 8s (no 2s): el chequeo de "base en verde" tambien pasa por este timeout, y un valor demasiado
+    # ajustado convierte una maquina momentaneamente cargada (CI compartida, otras pruebas todavia
+    # liberando CPU) en una BASE EN ROJO falsa -medido en esta misma verificacion bajo carga real.
+    return _escribir_toml(
+        tmp_path,
+        f"""\
+        incremento = "juguete: mutante que cuelga"
+        pruebas = ["tests/test_modulo_cuelga.py"]
+        timeout_s = {timeout_s}
+
+        [[mutante]]
+        id = "M1"
+        garantia = "la condicion de parada deja de parar: bucle infinito"
+        fichero = "modulo_cuelga.py"
+        buscar = "return True"
+        sustituir = "return False"
+        """,
+    )
+
+
+def test_mutante_que_cuelga_se_reporta_como_timeout_y_no_bloquea_el_arnes(tmp_path):
+    """OBLIGATORIA (a): un mutante cuyas pruebas cuelgan se reporta y NO bloquea el arnes.
+
+    Sin timeout, esta linea nunca devuelve: `ejecutar()` se queda esperando al subprocess de
+    pytest para siempre. Con timeout, debe devolver en un tiempo acotado y el mutante debe
+    quedar marcado de forma que NUNCA cuente como "detectado" ni como exito del conjunto.
+    """
+    _crear_proyecto_que_cuelga(tmp_path)
+    toml = _toml_que_cuelga(tmp_path)
+
+    inicio = time.monotonic()
+    resultado = ejecutar(str(toml), raiz=str(tmp_path))
+    duracion = time.monotonic() - inicio
+
+    assert duracion < 40, f"el arnes debio cortar el mutante colgado en ~8s, tardo {duracion:.1f}s"
+    assert resultado.base_verde is True
+    assert len(resultado.resultados) == 1
+    assert resultado.resultados[0].estado != "detectado", "un mutante colgado JAMAS puede contar como detectado"
+    assert resultado.resultados[0].estado == "TIMEOUT"
+    assert resultado.concluyente is False, "un mutante en TIMEOUT no puede dejar el conjunto como exito"
+
+
+def test_el_fichero_se_restaura_aunque_el_mutante_cuelgue(tmp_path):
+    """OBLIGATORIA (b): tras el timeout el fichero mutado queda RESTAURADO byte a byte."""
+    _crear_proyecto_que_cuelga(tmp_path)
+    fichero = tmp_path / "modulo_cuelga.py"
+    original = fichero.read_bytes()
+    toml = _toml_que_cuelga(tmp_path)
+
+    ejecutar(str(toml), raiz=str(tmp_path))
+
+    assert fichero.read_bytes() == original
+
+
+def test_no_deja_procesos_huerfanos_tras_el_timeout(tmp_path):
+    """OBLIGATORIA (c): tras el timeout NO quedan procesos huerfanos.
+
+    El mutante lanza un proceso hijo propio (ver `_crear_proyecto_que_cuelga`). Si el arnes solo
+    matara el proceso de pytest directo (y no el ARBOL completo), ese hijo quedaria huerfano y
+    seguiria vivo. Se comprueba con `os.kill(pid, 0)`: si el proceso sigue vivo no lanza excepcion.
+    """
+    _crear_proyecto_que_cuelga(tmp_path)
+    toml = _toml_que_cuelga(tmp_path)
+
+    ejecutar(str(toml), raiz=str(tmp_path))
+
+    ruta_pid = tmp_path / "pid_hijo.txt"
+    assert ruta_pid.exists(), "el proceso hijo no llego a escribir su PID: la prueba de juguete no es valida"
+    pid_hijo = int(ruta_pid.read_text().strip())
+
+    time.sleep(0.5)  # margen breve por si el SO tarda un instante en liberar el PID tras el SIGKILL
+    with pytest.raises(ProcessLookupError):
+        os.kill(pid_hijo, 0)
+
+
+def test_main_devuelve_2_si_un_mutante_esta_en_timeout(tmp_path):
+    """El TIMEOUT tambien debe reflejarse en el codigo de salida de la CLI, no solo en el dataclass:
+    es el codigo el que consume un hook o una CI, no el objeto Python."""
+    _crear_proyecto_que_cuelga(tmp_path)
+    toml = _toml_que_cuelga(tmp_path)
+
+    assert mutar.main([str(toml), "--raiz", str(tmp_path)]) == 2
+
+
+def test_timeout_s_del_toml_se_pasa_a_ejecutar_pytest(tmp_path, monkeypatch):
+    """El `timeout_s` declarado en el TOML debe llegar de verdad a `_ejecutar_pytest`, no quedarse
+    como una clave leida y nunca usada.
+
+    Se verifica CAPTURANDO el argumento (rapido, sin depender del reloj) en vez de comprobar cuanto
+    tarda un mutante colgado en cortarse: si esta wiring se rompiera y `ejecutar()` volviera a usar
+    siempre `_TIMEOUT_S_POR_DEFECTO`, un timeout corto declarado en un TOML real (como los 10s de
+    `mutaciones/motor-ciclo.toml`) se ignoraria en silencio y cualquier mutante que cuelgue tardaria
+    el DEFAULT completo en reportarse -exactamente la lentitud que declarar un timeout corto existe
+    para evitar.
+    """
+    _crear_proyecto_juguete(tmp_path)
+    toml = _escribir_toml(
+        tmp_path,
+        """\
+        incremento = "juguete: timeout_s personalizado"
+        pruebas = ["tests/test_modulo_juguete.py"]
+        timeout_s = 12.5
+
+        [[mutante]]
+        id = "M1"
+        garantia = "sumar debe sumar, no restar"
+        fichero = "modulo_juguete.py"
+        buscar = "return a + b"
+        sustituir = "return a - b"
+        """,
+    )
+    capturados: list[float] = []
+    original = mutar._ejecutar_pytest
+
+    def espia(pruebas, raiz, timeout_s):
+        capturados.append(timeout_s)
+        return original(pruebas, raiz, timeout_s)
+
+    monkeypatch.setattr(mutar, "_ejecutar_pytest", espia)
+
+    ejecutar(str(toml), raiz=str(tmp_path))
+
+    assert capturados, "nunca se llamo a _ejecutar_pytest: la prueba de juguete no es valida"
+    assert all(t == 12.5 for t in capturados), f"timeout_s del TOML no llego a _ejecutar_pytest: {capturados}"

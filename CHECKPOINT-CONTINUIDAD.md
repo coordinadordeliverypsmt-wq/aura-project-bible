@@ -11,6 +11,421 @@ aprobadas.
 ---
 
 
+## ESTADO ACTUAL — CONVERSACION GENERAL v1 CERRADA Y AUDITADA (2026-08-09)
+
+**Ultimo commit del worktree:** `4ab4c8a` · **`main`:** `befb303` (NO contiene el incremento).
+**Rama:** `worktree-m3-entry`. Worktree limpio. **NO INTEGRADO: falta el acta del CEO.**
+
+### Que hay hecho
+Cinco commits, del defecto al cierre:
+- `e552746` implementacion (RED -> GREEN -> mutacion -> Quality Gate)
+- `8a52dd1` correcciones del rechazo de las 2 primeras auditorias
+- `fee4e52` cierre de los 8 mutantes que la 2a auditoria demostro vivos
+- `51b19d8` el inventario congelaba menos de lo que su nombre decia
+- `4ab4c8a` conteos no derivables fuera + la CLASE del defecto
+
+**Evidencia final `[EJEC]`:** Quality Gate PASS (761 pruebas, 3 skipped) ·
+35 mutantes en `conversacion-general-v1.toml`, 0 supervivientes · `conversacion-so.toml` 11/11 ·
+`contencion-alerta006.toml` 5/5 · 24/24 negativas de ADR-0014 por el nucleo, 0 llamadas al LLM ·
+equivalencia 5/172 y NINGUNA frase pasa del nucleo al LLM.
+
+**Cuatro auditorias independientes.** Rechazaron dos veces; ambos rechazos eran correctos y estan
+corregidos. Veredicto final: APRUEBAN. El bloqueante mas grave lo encontro la auditoria, no la
+implementacion: el saludo con nombre FABRICABA ("No me llamo Pedro, me llamo Mauricio" -> "Buenos
+dias, Pedro") y ademas era INALCANZABLE por via de usuario, porque decir "me llamo X" no alimenta el
+Modelo de Usuario (medido: 0 entradas). Se retiro entero.
+
+### DECISION PENDIENTE DEL CEO — no continuar sin ella
+1. **Integrar a `main`** o no. Todo lo tecnico esta cerrado y auditado.
+2. **El volcado de 17 identificadores en snake_case** ante "¿que puedes hacer?" incumple el Ajuste 2
+   del contrato. La plantilla es PREEXISTENTE (verificado contra 06f53f3) y redactarla exige decidir
+   como se nombra cada capacidad: es contenido de producto. Propuesto como primer punto de
+   *Experiencia Conversacional v1*.
+3. **Punto de insercion**: el detector se evalua antes de 4 de las 12 superficies, no de todas como
+   decia el DP §1. Es NECESARIO para componer saludo+capacidades, que el ajuste posterior del CEO
+   exige. Requiere acta.
+4. **DP nuevo propuesto**: "AURORA aprende como te llamas". Sin esa capacidad, el saludo por el
+   nombre no puede existir sin fabricar.
+
+### Limites declarados (NO son deuda, son limites del metodo)
+- **Crecimiento DECLARADO**: anadir una variante y declararla en el inventario pasa el gate, y esa
+  frase deja de llegar a ADR-0014. No es cerrable por prueba: ninguna puede decidir que "que me
+  gusta" no es semanticamente una consulta de pendientes. Lo que SI esta protegido: coincidir con
+  una de las 24 negativas rompe dos pruebas distintas.
+- **El saludo se pierde** cuando la principal NO esta en la lista ("hola, lista el directorio").
+  Anteponerlo exigiria propagar el prefijo por toda la cascada: el refactor que el CEO prohibio.
+- **`_es_consulta_de_capacidades` casa por SUBCADENA**: "que puedes hacer y cual es la capital de
+  Francia" pierde la pregunta. PREEXISTENTE y ajeno, medido identico en `06f53f3`.
+- **`_CLASES_DECLARADAS`** no tiene mordida propia demostrada: en la prueba del auditor, 9 de 10
+  fallos eran pruebas preexistentes. Se mantiene por explicito y barato.
+
+### Siguiente paso exacto
+Esperar el acta del CEO sobre los 4 puntos de arriba. Si aprueba la integracion, seguir `CLAUDE.md`
+§3 (merge --no-ff a `main`, Quality Gate en `main`, push, realinear el worktree).
+
+---
+
+
+
+
+
+
+
+
+
+
+## PRIORITARIO · DEFECTO REPRODUCIDO POR EL CEO EN USO REAL (2026-08-05)
+
+**Primera evidencia de producto generada por uso real, no por diseno.** El CEO escribio
+*"buenos dias Aurora, que tienes pendiente para hoy?"* y recibio
+*"No tengo ningun recuerdo registrado sobre eso."* Declarado **prioritario sobre cualquier capacidad
+nueva**.
+
+### CAUSA EXACTA — UNA LINEA
+`orchestrator.py`, `_es_consulta_de_memoria`:
+
+```python
+return any(p in t for p in _PATRONES_CONSULTA_MEMORIA) or _es_pregunta(texto)
+```
+
+**`or _es_pregunta(texto)`: CUALQUIER frase interrogativa se clasifica como consulta de memoria.**
+Sin mas criterio. Log del CEO: `recall 'buenos dias...' -> 0 hit(s)` -> `grounding: memoria vacia ->
+respuesta determinista` -> respuesta de ausencia.
+
+### POR QUE NO SE PUEDE ARREGLAR SIN DECISION PACKAGE
+Ese `or` **es DELIBERADO** — el docstring lo dice: *"sin ella la garantia de no-fabricacion cubria una
+fraccion minima del espacio real de preguntas"*. Se amplio para reforzar **ADR-0014**: impedir que el
+LLM invente recuerdos ante preguntas sin marcador explicito.
+
+**La garantia y el defecto viven en la MISMA linea.** Quitar el `or` sin sustituirlo reabre el hueco
+que ADR-0014 cerro. Toca una garantia dura => **Decision Package antes de implementar**.
+
+**Direccion propuesta (a discutir, NO implementada):** que la ausencia de memoria deje de ser el cajon
+por defecto y exija que la pregunta trate del **pasado compartido**, no del presente de AURORA.
+*"que me dijiste ayer"* SI; *"que puedes hacer"* NO. Obligatorio: al terminar, el mutante **"el LLM
+responde cuando no hay recuerdos" debe SEGUIR MURIENDO**. Si sobrevive, se rompio ADR-0014 arreglando
+la experiencia.
+
+### DATO QUE CAMBIA LA PRIORIDAD DEL WORKTREE
+**El incremento conversacional pendiente NO arregla esto.** Anade superficies DELANTE en la cascada, y
+*"buenos dias Aurora, que tienes pendiente para hoy?"* no coincide con sus patrones: nunca llega a
+ellas y cae igual en la ausencia de memoria. Integrarlo es necesario pero **NO suficiente** para lo que
+el CEO acaba de reportar.
+
+**Es el MISMO defecto que la auditoria rechazo el 2026-08-04** -detectores demasiado anchos, sin guarda
+de dominio- pero en la superficie mas antigua y protegida del sistema.
+
+---
+
+## >>> PUNTO DE REANUDACION EXACTO (CEO, 2026-08-05) <<<
+
+**NO INICIAR NADA NUEVO MIENTRAS LA CUOTA SIGA AGOTADA.** Orden literal del CEO al volver:
+
+1. **Verificar las correcciones escritas** (commit `WIP` del worktree, ver abajo). `./quality-gate.sh`
+   + `python3 -m herramientas.mutar mutaciones/conversacion-so.toml` + **rehacer los 5 mutantes
+   A7-A11 del auditor** (vivian en `/tmp`, ya no existen; reconstruirlos desde el informe de arriba).
+2. **Rehacer la auditoria independiente** — agente que NO implemento.
+3. **Integrar el incremento conversacional en `main`.**
+4. **Validar en el binario oficial** que responde a: que puedes hacer · en que estas trabajando ·
+   que aprendiste · por que estas bloqueada · que sabes de mi.
+5. **Solo cuando esa version sea la que el CEO use a diario**, empezar la etapa siguiente.
+
+### Etapa siguiente (definida, NO empezada)
+Usar AURORA como interfaz principal para que **genere evidencia de producto y detecte por si misma
+necesidades reales**. Su evolucion se basa en esa evidencia, y **siempre propone los cambios para
+aprobacion antes de implementarlos**.
+
+### ESTADO VERIFICADO DEL PRODUCTO HOY (medido 2026-08-05, no leido)
+`main` = `befb303`. Ejecutado contra el binario oficial con `AURA_DATOS` aislado:
+
+```
+tu> ¿Que puedes hacer?          AURA> No tengo ningun recuerdo registrado sobre eso.
+tu> ¿En que estas trabajando?   AURA> No tengo ningun recuerdo registrado sobre eso.
+tu> ¿Por que estas bloqueada?   AURA> No tengo ningun recuerdo registrado sobre eso.
+tu> ¿Que aprendiste?            AURA> No tengo ningun recuerdo registrado sobre eso.
+tu> ¿Que sabes de mi?           AURA> Todavia no se nada sobre ti.
+```
+
+`_es_consulta_de_capacidades` **no existe en main** (0 coincidencias). Lo que el CEO ejecuta hoy es la
+version anterior. **Lo unico integrado y util de este trabajo son `--gobierno` y `--servir`.**
+Tambien sigue apareciendo el bloque `AURA - arranque verificado`, que el criterio 3 del sprint pide
+ocultar.
+
+### PENDIENTE NO TECNICO
+El **Modelo de Usuario real contiene un dato FABRICADO** ("prefiero trabajar de noche"). Limpiarlo por
+la via del producto ANTES de que el CEO empiece a usar AURORA a diario: si no, lo primero que le dira
+sobre si mismo sera falso.
+
+---
+
+## ESTADO 2026-08-05 · CORRECCIONES ESCRITAS PERO **SIN VERIFICAR** — LEER ANTES DE TOCAR NADA
+
+**El incremento conversacional fue RECHAZADO por auditoria independiente. Las correcciones estan
+APLICADAS EN EL ARBOL DE TRABAJO pero NADIE HA VERIFICADO QUE FUNCIONEN.** El agente que las escribio
+murio por **limite de gasto mensual de la cuenta** justo antes de ejecutar la demo y las pruebas.
+
+**NO INTEGRAR. NO ASUMIR QUE ESTAN BIEN.** Este es exactamente el estado en el que nace
+«declarado != real»: codigo escrito que parece terminado y que nadie ejecuto.
+
+Modificado sin verificar: `aura_skeleton/core/orchestrator.py`,
+`mutaciones/conversacion-so.toml`, `tests/integration/test_conversacion_ventana_so.py`.
+Indicios de que la correccion se intento: 11 menciones de `dominio` y 2 de `UnicodeDecodeError`
+en el orquestador. **Indicio no es evidencia.**
+
+### LOS 3 DEFECTOS QUE HAY QUE COMPROBAR CERRADOS (informe completo del auditor arriba)
+
+1. **5 mutantes sobrevivian a las 684 pruebas** (A7-A11): capacidades FABRICADAS a mano en vez de las
+   17 reales, y Plan de Formacion INVENTADO, pasaban la suite entera. Aserciones decorativas que
+   cualquier constante satisface (`test_conversacion_ventana_so.py:67-68`, `:189-190`, `:159`, `:177`).
+   Las ramas de ausencia `orchestrator.py:439` y `:442` no tenian NINGUNA prueba. ALERTA-005 nº 10.
+2. **6 regresiones de conducta**: detectores sin guarda de dominio. *"que esta pasando con mi pedido de
+   Amazon"* respondia **"no hay nada bloqueado"**, y *"que has aprendido de mi"* volcaba el Plan de
+   Formacion con notas internas. Antes callaba honestamente; ahora contestaba MAL. El proyecto ya
+   arreglo esto dos veces: `orchestrator.py:210-222` y `:148-171` exigen marcador **Y** dominio.
+3. `UnicodeDecodeError` no capturado en `:437-440` (es `ValueError`, no `OSError`): el turno reventaba.
+
+### PRIMER PASO EXACTO AL RETOMAR (en este orden)
+
+1. `./quality-gate.sh` — si falla, las correcciones estan a medias.
+2. `python3 -m herramientas.mutar mutaciones/conversacion-so.toml` — deben morir TODOS.
+3. **Reconstruir los mutantes A7-A11 del auditor y comprobar que ahora MUEREN.** Vivian en
+   `/tmp/aura_audit/auditoria-conversacion-so.toml`, que **ya no existe**: hay que rehacerlos desde la
+   descripcion de arriba. Sin este paso no se sabe si el defecto 1 esta cerrado.
+4. Pruebas negativas con las 6 frases del defecto 2.
+5. Demo real con `env AURA_DATOS=/tmp/... python3 -m aura_skeleton` (NUNCA `VAR=val cmd | cmd2`).
+6. **Re-auditoria independiente.** Sigue sin poder integrarse sin ella.
+
+### BLOQUEO OPERATIVO REAL
+
+**Cuota mensual de la cuenta AGOTADA.** Han muerto por esta causa: la auditoria de la Pieza 1, la
+re-auditoria de la Pieza 3 y ahora la correccion del incremento conversacional. **No es un problema
+tecnico del proyecto y no se resuelve trabajando mas**: hasta que haya cuota, no hay auditoria
+independiente, y sin auditoria independiente no se integra nada. El trabajo pendiente esta
+completamente especificado; lo que falta es capacidad de ejecucion.
+
+---
+
+## PRINCIPIO RECTOR DE "EXPERIENCIA CONVERSACIONAL v1" (CEO, 2026-08-04)
+
+> **El usuario nunca debe percibir la arquitectura interna de AURORA.**
+> Puede consultar el Centro de Gobierno, el Estado Operativo, el Plan de Formacion, el Modelo de
+> Usuario, la Memoria o cualquier componente, **pero siempre responde como UNA UNICA PERSONALIDAD**,
+> sin mencionar modulos internos salvo peticion expresa del usuario.
+> *"La conversacion debe parecer la de un companero inteligente, no la de un orquestador mostrando su
+> implementacion."*
+
+### Prueba de aceptacion del CEO
+Conversacion de 20-30 min sin que aparezca **ninguna** referencia tecnica: `EVENT`, `VOICE`, `CORE`,
+`MEM`, `LAT`, `trace`, `router`, "grounding", "memoria vacia", nombres de modulos — **salvo** con
+`--debug` o si el usuario pide informacion tecnica explicitamente.
+
+**Criterio de exito:** ya no basta con que pasen las pruebas. La arquitectura debe DESAPARECER detras
+de la conversacion.
+
+### COMO CONVERTIR ESA PRUEBA EN GARANTIA AUTOMATICA (aportacion de APUS-5)
+
+La parte objetiva del criterio **si es verificable por prueba determinista**, y conviene que lo sea:
+una revision manual de 20-30 min no se repite en cada push, y lo que no se automatiza se degrada
+(CLAUDE.md §5: *"el trabajo manual repetitivo se abandona, no se hace mal"*).
+
+Implementar como **lista negra de terminos** sobre la salida en modo usuario:
+1. Prueba que recorra un guion de preguntas variadas y **falle si CUALQUIER respuesta contiene un
+   termino de la lista**. Cubre tanto las superficies nuevas como las 8 previas.
+2. **Caso de control obligatorio** (si no, la prueba es decorativa): con `--debug` los terminos **SI**
+   deben aparecer. Sin ese caso, una prueba que nunca ve telemetria pasaria aunque el modo debug
+   estuviera roto.
+3. **Mutante:** que un termino tecnico se cuele en una respuesta de modo usuario. Debe morir.
+
+Lo que NO puede automatizarse es si la redaccion suena natural. **Ese juicio es del CEO usando el
+producto**, y es la evidencia que abre la siguiente iteracion. La lista negra protege el suelo; la
+calidez la juzga el usuario.
+
+---
+
+## SPRINT EN COLA · "EXPERIENCIA CONVERSACIONAL v1" (CEO, 2026-08-04)
+
+Renombrado por el CEO: ya no es "Conversacion como interfaz del SO". *"Se trata de que el usuario
+olvide que esta hablando con un programa y empiece a sentir que esta hablando con AURORA."*
+**Criterio rector:** usar AURORA ocho horas seguidas debe sentirse como conversar, no como leer un log.
+**No se toca ninguna garantia ni la arquitectura: solo la experiencia de uso.**
+
+### C1 · Redaccion natural, verdad del nucleo
+El LLM solo redacta cuando exista y convenga; mientras tanto, **plantillas deterministas bien
+escritas**. La VERDAD siempre la fija el Core (ADR-0014). Con 25,8 s / 8 tokens, generar por turno no
+es viable hoy.
+
+### C2 · Modo usuario por defecto, `--debug` para lo demas
+Por defecto solo `tu>` y `AURORA>`. VOICE, EVENT, MEM, CORE, LAT, trace, event_id, router: al modo
+desarrollador. **Ocultar != dejar de auditar**: `audit.jsonl` sigue completo (forense, ADR-0023).
+Punto unico de cambio: `observability.py:41` imprime TODO por stderr.
+
+### C3 · La consola es un PRODUCTO, no una herramienta de desarrollo
+Eliminar de la vista por defecto el bloque "AURA - arranque verificado" (`__main__.py:_informe`).
+Sustituir por algo minimo: `AURORA v0.3 / Estado: Operando / tu>`.
+
+**MATIZ QUE NO DEBE PERDERSE:** `_informe` NO se borra. Lo usa el flag `--verificar`, que es la
+comprobacion de arranque exigida por **D27 (preflight obligatorio, "se verifica siempre el estado real
+del sistema, nunca se asume")**. Se deja de MOSTRAR por defecto; se conserva bajo `--verificar` y
+`--debug`. Borrarlo romperia una decision del CEO de 2026-07-17.
+
+### C4 · Las respuestas de ausencia son conversacion, no mensajes de error
+Hoy: *"No tengo ningun recuerdo registrado sobre eso."* / *"Todavia no se nada sobre ti."*
+Debe decir lo MISMO sonando a persona: *"Aun no conozco suficientes cosas sobre ti. Con el tiempo ire
+recordando tus preferencias y la forma en que trabajamos juntos, pero por ahora todavia estoy
+aprendiendo."*
+
+**MATIZ CRITICO (ADR-0014):** *"No tengo ningun recuerdo registrado sobre eso"* NO es un texto
+cualquiera: es **la garantia determinista** que impide que el LLM invente un recuerdo cuando la
+busqueda da cero resultados (ADR-0014:42-44, *"no se le concede la oportunidad de inventar"*).
+Se puede cambiar **la REDACCION**. **NO se puede cambiar la CONDICION que la dispara ni permitir que
+el LLM intervenga en ese camino.** Hay pruebas que comparan contra el texto literal: al reescribirlo,
+actualizarlas SIN debilitar lo que verifican, y comprobar que el mutante "el LLM responde cuando no
+hay recuerdos" **sigue muriendo**. Si al terminar ese mutante sobrevive, se rompio ADR-0014.
+
+**Orden:** va DESPUES de la auditoria independiente del encargo conversacional (que sigue bloqueando
+su integracion). Protocolo completo: RED -> GREEN -> MUTACION -> Quality Gate -> auditoria independiente.
+
+---
+
+## ENCARGO EN COLA 2026-08-04 (4) · EXPERIENCIA DE USO (CEO)
+
+**Cambio de etapa declarado por el CEO:** *"Antes discutian mutantes, garantias, auditorias,
+ejecutores. Ahora empieza la pregunta: como se siente usar AURORA todos los dias? Y esa pregunta ya
+no la responde una prueba unitaria. La responde el usuario."*
+
+**NO EMPEZADO.** Va DESPUES de la auditoria independiente del encargo conversacional, que sigue
+pendiente y bloquea su integracion.
+
+### Criterio 1 — la conversacion debe SENTIRSE natural
+
+AURORA no debe responder como un conjunto de modulos. Al consultar Estado Operativo, Centro de
+Gobierno, Plan de Formacion o Modelo de Usuario, debe **transformar el dato en lenguaje natural y
+explicar el contexto**, no enumerar campos. Hoy responde con volcados (`## Aprendidas` con la tabla
+markdown cruda, listas de capacidades con vinetas).
+
+**Tension a resolver con cuidado (ADR-0014):** redactar en lenguaje natural NO puede significar
+delegar en el LLM la VERDAD del dato. El nucleo decide QUE se responde y con que datos; la redaccion
+no puede alterar hechos, inventar cifras ni suavizar una ausencia. Si se usa el modelo para redactar,
+los hechos van fijados por el Core y el resultado debe seguir siendo verificable por prueba
+determinista. **Recordar: con el hardware actual el LLM tarda 25,8 s en 8 tokens** — una redaccion
+por LLM en cada turno haria la consola inusable. La via realista es plantilla determinista bien
+escrita, no generacion.
+
+### Criterio 2 — modo usuario (por defecto) y modo desarrollador
+
+Por defecto la consola muestra SOLO `tu>` y `AURORA>`. Toda la telemetria (VOICE, EVENT, MEM, CORE,
+LAT, traces, event_id, auditoria) **se oculta**, y sigue disponible con `--debug`/`--verbose`.
+Hoy TODO log sale por stderr desde `observability.py:41`, mezclado con la conversacion.
+**La auditoria NO se apaga: se deja de IMPRIMIR.** Sigue escribiendose en `audit.jsonl` (es forense,
+ADR-0023). Ocultar != dejar de registrar; confundirlos romperia una garantia.
+
+Direccion futura que el CEO dibujo (NO implementar aun, es vision): cabecera con estado y objetivo
+activo, y solicitudes de decision en linea (`Tengo una decision pendiente... (S/N)`) — eso ultimo
+converge con la **Pieza 2** del canal permanente, que sigue sin abrirse.
+
+**Protocolo habitual exigido:** RED -> GREEN -> MUTACION -> Quality Gate -> **auditoria independiente**.
+
+---
+
+## AVISO 2026-08-04 (3) · DATO FALSO EN EL MODELO DE USUARIO REAL — LIMPIAR
+
+Durante la demo del encargo conversacional, un error de scoping de bash
+(`VAR=val cmd1 | cmd2` solo aplica VAR a cmd1) hizo que `AURA_DATOS` NO llegara al proceso: **la
+primera demo corrio contra el `~/.aura` REAL**, no contra el directorio aislado.
+
+**Consecuencia:** hay una entrada FABRICADA en `~/.aura/memoria.json` — *"usuario dijo: mi preferencia
+es trabajar de noche"*, user_id `usuario`. **El CEO nunca dijo eso.** Es un dato de prueba en la fuente
+que acabamos de conectar a la conversacion: si no se borra, AURORA le respondera al CEO que sabe que
+prefiere trabajar de noche, y sera FALSO. Contamina justo la fuente cuya credibilidad importa.
+
+**Como limpiarlo (NO editar el fichero a mano):** usar la propia capacidad del producto,
+`ModeloUsuario.borrar` / la secuencia conversacional de refutar-olvidar. Editar el JSON a mano seria
+manipular evidencia y ademas saltarse el Motor Unico.
+
+El `audit.jsonl` tambien recibio lineas de boot de esa corrida. **NO se tocan**: es append-only por
+diseno y reescribirlo seria peor que dejarlo. Queda declarado aqui, que es la forma correcta de
+corregir un log inmutable.
+
+### ESTADO DEL ENCARGO CONVERSACIONAL (agente terminado, **SIN AUDITORIA**)
+
+Quality Gate PASS (684 pruebas), mutacion `conversacion-so.toml` 5/5 detectados. 4 superficies nuevas
+insertadas DESPUES de las 8 previas y ANTES de la ausencia de memoria, con prueba de no interferencia
+que reejecuta las secuencias de modelo de usuario y notificaciones. Efecto colateral detectado y
+corregido: el cableado rompio el mutante M9 de `cap5-automatizacion.toml` (patron obsoleto), lo
+destapo `test_garantias_vigentes.py` — el Auditor funcionando como se diseno.
+
+**NO INTEGRADO A MAIN Y NO CERRADO: falta la auditoria independiente.** Protocolo B1 completo =
+RED, GREEN, mutacion, Quality Gate **y auditoria**. Primer paso al retomar: auditar este incremento
+con un agente que no lo implemento, prestando atencion a si algun patron nuevo roba frases a las 8
+superficies previas en casos que la prueba de no interferencia no cubra.
+
+---
+
+## ESTADO 2026-08-04 (2) · ETAPA DE OPERACION Y APRENDIZAJE — TRABAJO EN PARALELO
+
+**Mandato vigente del CEO:** AURORA aprende del uso · APUS-5 fortalece la PLATAFORMA · el CEO decide
+direccion. **Ninguna capacidad de PRODUCTO sin evidencia del uso real** — si la evidencia la justifica,
+se genera Decision Package, no se implementa. Mejoras de plataforma: implementables con protocolo normal.
+
+### CERRADO — arnes de mutacion con timeout (commit `6eaa383`, EN EL WORKTREE, **sin integrar a main**)
+
+`herramientas/mutar.py` imponia cero limite de tiempo: un mutante que degrada una condicion de parada
+colgaba el arnes entero y dejaba huerfanos (dano medido: 15+ h de CPU). Ahora:
+- `subprocess.Popen(start_new_session=True)` + `communicate(timeout)`; al vencer, **SIGKILL al GRUPO
+  completo** (`os.killpg`, PID negativo), no solo al hijo.
+- Estado nuevo **`TIMEOUT`**, distinto de `SOBREVIVE` a proposito: senala falta de garantia de
+  TERMINACION, no de cobertura. **Ninguno cuenta jamas como exito**: `concluyente` exige `timeouts == 0`.
+- `timeout_s` declarable en el TOML (global al fichero, 60 s por defecto).
+- **M2 y M3 de `motor-ciclo.toml` REINCORPORADOS** con valvula independiente (`DirectorInestable.tras_agotar`)
+  y override `pruebas` por-mutante. Ya no cuelgan: **5/5 detectados en 6-8 s**. La deuda queda CERRADA.
+- `mutaciones/arnes-timeout.toml` (nuevo): el arnes se protege a si mismo, 4/4 detectados.
+
+**HALLAZGO COLATERAL GRAVE, no buscado:** carrera del cache de bytecode. `__pycache__` invalida por
+mtime en SEGUNDOS + tamano, asi que si la mutacion y la reejecucion caian en el mismo segundo y el
+mutante no cambiaba el tamano del fichero, **pytest reutilizaba el .pyc SIN MUTAR**. Medido:
+**2/15 iteraciones daban estado ERRONEO**; 0/30 tras el fix (`PYTHONDONTWRITEBYTECODE=1`).
+Es decir: el arnes podia declarar "detectado" un mutante que nunca llego a ejecutarse. Corregido.
+
+Evidencia: 673 pruebas (antes 670), Quality Gate PASS, sin huerfanos.
+
+### EN CURSO — la conversacion como ventana del SO (encargo del CEO, agente trabajando)
+
+Objetivo: que preguntas naturales consulten las FUENTES OFICIALES antes que al LLM. Hoy el chat
+responde *"No tengo ningun recuerdo registrado sobre eso"* aunque el dato exista en el SO.
+Mapa pedido: capacidades->composicion · tareas->Estado Operativo · bloqueos y "que esta pasando"->
+Centro de Gobierno · aprendizajes->Plan de Formacion · "que sabes de mi"->Modelo de Usuario.
+**Si la respuesta existe en el SO, NO se llama al LLM.** Sin componentes nuevos.
+
+**TRAMPA ADVERTIDA AL IMPLEMENTADOR (leer antes de continuar):** ya existen **8 grupos de superficies
+deterministas con 47 patrones literales**, en cascada con precedencia por orden de escritura, y **4
+defectos de interferencia YA verificados** (`CHECKLIST-CONTINUIDAD.md:192-204`). Un patron nuevo como
+"que esta pasando" puede ROBAR la frase a la superficie de notificaciones y romper lo que hoy funciona,
+sin que ninguna prueba actual lo detecte. Se exigio: enumerar los 8 grupos, justificar el punto de
+entrada en la cascada, y una **prueba de NO INTERFERENCIA**.
+Limite de honestidad recordado: el Modelo de Usuario tiene **0 entradas y 0 senales**; a "que sabes de
+mi" la respuesta correcta es DECLARAR la ausencia (INV-9), nunca fabricar contenido.
+Criterio de aceptacion del CEO: **transcripcion literal de una conversacion real** con las 8 preguntas.
+
+Ficheros que estaba tocando: `aura_skeleton/core/orchestrator.py`, `aura_skeleton/composicion.py`,
+`tests/integration/test_conversacion_ventana_so.py`, `mutaciones/conversacion-so.toml`.
+
+### POR QUE `6eaa383` NO SE INTEGRO A MAIN
+
+El worktree tiene trabajo concurrente **a medias** del encargo conversacional. Integrar ahora
+arrastraria codigo sin terminar. **Primer paso de la proxima sesion:** comprobar si el agente cerro su
+trabajo (`git log`, `git status`, Quality Gate); si esta completo y en verde, integrar TODO junto; si
+quedo a medias, integrar `6eaa383` de forma aislada o rehacer el encargo conversacional desde este
+checkpoint.
+
+### SIGUE PENDIENTE (bloqueado por cuota, no por decision tecnica)
+
+1. Auditorias independientes de las Piezas 1 y 3 del canal permanente.
+2. Confirmacion definitiva de la capacidad **018** (hoy: parcial, NO confirmada).
+3. **Pieza 2** — buzon de decisiones. Diseno completo en el DP §4. Sin ella, AURORA desatendida
+   **sigue autodenegandose toda accion de lista roja**.
+
+---
+
 ## ESTADO 2026-08-04 · CANAL PERMANENTE CEO<->AURORA (piezas 3 y 1 entregadas)
 
 **DP aprobado por el CEO con 7 condiciones** — `milestones/m3-entry/DP-CANAL-PERMANENTE-CEO-AURORA.md`.

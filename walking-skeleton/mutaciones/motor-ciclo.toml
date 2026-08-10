@@ -1,5 +1,8 @@
 incremento = "Motor del Ciclo - el latido propio de AURORA"
 pruebas = ["tests/integration/test_motor_ciclo.py", "tests/integration/test_director_cableado.py"]
+# 10s: generoso frente a la suite normal (~2s) y acotado frente a M2/M3, que degradan una condicion
+# de parada y por tanto SI cuelgan de verdad si el arnes no los corta (ver comentario de cada uno).
+timeout_s = 10
 
 [[mutante]]
 id = "M1"
@@ -8,19 +11,42 @@ fichero = "aura_skeleton/core/motor_ciclo.py"
 buscar = '''        return self.kill_switch is not None and self.kill_switch.is_engaged()'''
 sustituir = '''        return False'''
 
-# MUTANTE M2 RETIRADO, y el motivo importa (2026-08-03). Degradar la condicion de parada del bucle
-# produce un BUCLE INFINITO: el arnes se cuelga en vez de reportar SOBREVIVE, porque no impone timeout
-# por mutante. Se intento con dos formulaciones distintas y ambas colgaron el proceso, dejando el
-# fichero mutado -la trampa que CLAUDE.md documenta- hasta restaurarlo a mano.
+# M2 y M3 fueron RETIRADOS el 2026-08-03 y se REINCORPORAN aqui el 2026-08-04, tras dotar a
+# `herramientas.mutar` de timeout por mutante (ver CLAUDE.md y `mutaciones/arnes-timeout.toml`).
+# El motivo de la retirada sigue documentado porque importa: degradar la condicion de parada de
+# CUALQUIERA de estos dos bucles produce un BUCLE INFINITO real, no una prueba que falla.
 #
-# La garantia "el bucle sabe parar sin trabajo" SI la cubre
-# test_se_detiene_solo_cuando_no_queda_trabajo, pero queda SIN MUTANTE: es una garantia sin red y se
-# declara como tal en vez de fingir cobertura. Es deuda del ARNES, no del Motor del Ciclo: mientras
-# `herramientas.mutar` no acote cada mutante con un timeout, ninguna garantia de TERMINACION podra
-# verificarse por mutacion.
+# Cada uno declara su PROPIA lista `pruebas`, mas acotada que la global: las pruebas historicas que
+# cubren conceptualmente esta garantia (`test_se_detiene_solo_cuando_no_queda_trabajo`,
+# `test_servir_espera_en_vez_de_girar_en_vacio`) tambien cuelgan de verdad con estos mutantes -su
+# unica valvula depende exactamente de lo que el mutante degrada- y si se dejan en la lista, pytest
+# se queda colgado EN ELLAS antes de llegar a ejecutar la prueba nueva que si tiene una valvula
+# independiente (ver `tests/integration/test_motor_ciclo.py`, seccion "Garantias de TERMINACION de
+# M2 y M3"). El timeout del arnes seguiria cortando el cuelgue igualmente -el mutante no se
+# reportaria como muerto en falso ni bloquearia el arnes- pero acotar la prueba es lo que permite
+# reportar "detectado" en segundos en vez de "TIMEOUT" tras agotar el plazo completo.
 
-# M3 RETIRADO por el MISMO motivo que M2: quitar la espera del bucle permanente impide que la prueba
-# llegue a cancelarlo, y el arnes se cuelga. Mismo limite del arnes, misma deuda declarada.
+[[mutante]]
+id = "M2"
+garantia = "el bucle sabe parar sin trabajo: degradar la condicion de parada de `correr()` produce un bucle infinito"
+fichero = "aura_skeleton/core/motor_ciclo.py"
+pruebas = ["tests/integration/test_motor_ciclo.py::test_correr_no_gira_en_vacio_para_siempre_sin_trabajo"]
+buscar = '''            if tarea is None:
+                break  # sin trabajo accionable: se para, no se gira en vacio'''
+sustituir = '''            if tarea is None:
+                pass  # MUTANTE: nunca para'''
+
+[[mutante]]
+id = "M3"
+garantia = "el bucle permanente deja de esperar sin trabajo: quitar la espera de `servir()` lo deja girando en vacio sin poder cancelarlo"
+fichero = "aura_skeleton/core/motor_ciclo.py"
+pruebas = ["tests/integration/test_motor_ciclo.py::test_servir_no_gira_en_vacio_para_siempre_si_deja_de_dormir"]
+buscar = '''            if tarea is None:
+                await self._dormir(self.espera_s)
+            else:'''
+sustituir = '''            if tarea is None:
+                pass  # MUTANTE: nunca duerme
+            else:'''
 
 [[mutante]]
 id = "M4"

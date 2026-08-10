@@ -93,6 +93,18 @@ def test_arranque_enciende_las_automatizaciones_del_usuario(config, tmp_path):
     assert sistema.automatizaciones._ruta.startswith(str(tmp_path)), "las reglas no viven con el estado del usuario"
 
 
+def test_arranque_conecta_la_ventana_del_so_en_la_conversacion(config):
+    """M3 entry: "¿que tareas tienes?"/"¿por que estas bloqueada?" en la conversacion deben leer
+    el MISMO Estado Operativo que expone el sistema (y que `--gobierno` ya publica).
+
+    Detectada por mutacion (ALERTA-005 otra vez, CLAUDE.md): sin `estado_operativo=` en el cableado,
+    esas preguntas quedarian construidas, probadas e INALCANZABLES desde el arranque real.
+    """
+    sistema = componer(config)
+
+    assert sistema.orquestador.estado_operativo is sistema.estado_operativo, "el orquestador usa otro almacen"
+
+
 def test_orquestador_y_motor_comparten_el_mismo_registro(config):
     """Un registro distinto en cada uno permitiria dos conjuntos de capacidades divergentes."""
     sistema = componer(config)

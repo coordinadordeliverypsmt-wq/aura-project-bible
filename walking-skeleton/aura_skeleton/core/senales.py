@@ -22,12 +22,19 @@ from enum import Enum
 
 
 class ClaseSenal(Enum):
-    """Las seis senales de 4.4 §1, en sus dos familias."""
+    """Las siete senales de 4.4 §1, en sus dos familias."""
 
     # Explicitas: el usuario las expresa.
     PREFERENCIA_DECLARADA = "preferencia_declarada"
     CORRECCION = "correccion"
     FEEDBACK_DIRECTO = "feedback_directo"
+    # Un HECHO sobre uno mismo no es una PREFERENCIA (acta del CEO, 2026-08-09, Bible 4.4 §1).
+    # Un nombre o una ocupacion no expresan gusto sino identidad o circunstancia: son verdaderos o
+    # falsos, no preferidos. Registrarlos como preferencia etiquetaria mal el dato de forma
+    # PERMANENTE, y §2 exige que la procedencia viaje con el desde el primer registro -- corregirlo
+    # despues obligaria a migrar historial real del usuario. La distincion no anade capacidad:
+    # anade veracidad al registro.
+    HECHO_DECLARADO = "hecho_declarado"
     # Implicitas: se observan del uso.
     PATRON_DE_USO = "patron_de_uso"
     TEMA_RECURRENTE = "tema_recurrente"
@@ -40,6 +47,7 @@ _EXPLICITAS = {
     ClaseSenal.PREFERENCIA_DECLARADA,
     ClaseSenal.CORRECCION,
     ClaseSenal.FEEDBACK_DIRECTO,
+    ClaseSenal.HECHO_DECLARADO,
 }
 
 

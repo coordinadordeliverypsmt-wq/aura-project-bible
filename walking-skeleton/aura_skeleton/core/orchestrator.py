@@ -158,6 +158,52 @@ _PAT_OLVIDO_REFLEXIVO = ("se me olvid", "se te olvid", "se le olvid", "se nos ol
 # Respuesta unica ante un referente ambiguo, para olvidar y para refutar: se pregunta en vez de actuar.
 _DESAMBIGUAR = "¿A qué te refieres? Puedes decirme «¿qué sabes de mí?» y lo revisamos."
 
+# --------------------------------- RECUPERACION POR INTENCION DE HECHOS DECLARADOS (incremento A) --
+#
+# El defecto que cierra: el CEO decia "Mi nombre es Mauricio" y "¿Cómo me llamo?" respondia "No tengo
+# ningun recuerdo registrado sobre eso". Ahora el hecho SI se persiste (`HECHO_DECLARADO`), pero el
+# recall es LEXICO: "como me llamo" no comparte ni un termino con "mi nombre es Mauricio", asi que
+# nunca lo encontraria. Hace falta preguntarle al Modelo de Usuario POR INTENCION.
+#
+# Cada categoria declara (1) como se PREGUNTA, (2) como se DECLARO -para localizar el hecho entre lo
+# que el modelo sabe- y (3) como se responde. La respuesta sale SIEMPRE del Modelo de Usuario: es lo
+# que hace distinguible esta ruta del volcado episodico ("Segun lo que recuerdo: usuario dijo: ...")
+# y lo que el candado A de las pruebas verifica.
+_CONSULTAS_DE_HECHO: tuple[tuple[tuple[str, ...], str, str, str], ...] = (
+    (
+        ("como me llamo", "cual es mi nombre", "quien soy", "sabes como me llamo", "recuerdas mi nombre"),
+        r"(?:me llamo|mi nombre es)\s+(.+)",
+        "Te llamas {}.",
+        "Todavía no me has dicho cómo te llamas.",
+    ),
+    (
+        ("que trabajo hago", "en que trabajo", "cual es mi trabajo", "a que me dedico", "de que trabajo"),
+        r"trabajo (?:en|de)\s+(.+)",
+        "Trabajas en {}.",
+        "Todavía no me has dicho en qué trabajas.",
+    ),
+    (
+        ("en que proyecto trabajo", "cual es mi proyecto", "que sabes de mi proyecto", "como se llama mi proyecto"),
+        r"(?:proyecto llamado|mi proyecto se llama)\s+(.+)",
+        "Tu proyecto se llama {}.",
+        "Todavía no me has dicho en qué proyecto trabajas.",
+    ),
+)
+
+_PAT_CONSULTA_PREFERENCIA = ("que prefiero", "cuales son mis preferencias", "que me gusta")
+
+
+def _valor_declarado(contenido: str, patron: str) -> str | None:
+    """El valor que el usuario declaro, extraido de SU PROPIA frase tal como la dijo.
+
+    Se busca sobre el texto original -no normalizado- para devolver "Mauricio" y no "mauricio": el
+    dato es del usuario y se le repite como el lo escribio (ADR-0017: fidelidad al modelo).
+    """
+    hallado = re.search(patron, contenido, re.IGNORECASE)
+    if not hallado:
+        return None
+    return hallado.group(1).strip(" .,;:!?") or None
+
 
 def _es_peticion_de_olvido(t: str) -> bool:
     """True solo si el usuario ORDENA a AURA olvidar, no si describe un olvido propio.
@@ -942,6 +988,13 @@ class Orchestrator:
                 self._foco_modelo[uid] = next((e for e in vivas if e.get("origen") != "declarada"), vivas[0])
             return describir_conocimiento(entradas)
 
+        # Consulta de un ATRIBUTO concreto (incremento A). Va aqui, dentro de la soberania del Modelo
+        # de Usuario, porque la fuente es la misma: no se crea ninguna ruta nueva (regla 3 del acta).
+        # Solo se leen entradas VIVAS: un hecho refutado dejo de darse por cierto (regla 5).
+        respuesta = self._responder_hecho(t, vivas)
+        if respuesta is not None:
+            return respuesta
+
         if _es_peticion_de_olvido(t):  # antes que refutar/porque: "olvida" es inequivoco
             foco = self._foco(uid, t, vivas, entradas)
             if foco is None:
@@ -968,6 +1021,29 @@ class Orchestrator:
             foco = self._foco(uid, t, vivas, entradas)
             return explicar_entrada(foco) if foco else "Ahora mismo no estoy afirmando nada sobre ti."
 
+        return None
+
+    @staticmethod
+    def _responder_hecho(t: str, vivas: list[dict]) -> str | None:
+        """Responde una consulta de atributo desde el MODELO DE USUARIO, o None si no es una de ellas.
+
+        INV-9: si el atributo no se ha declarado, se dice -no se infiere de otras entradas ni se
+        deja que la pregunta caiga al recall, que respondería por parecido de texto-.
+        """
+        for preguntas, patron, plantilla, ausencia in _CONSULTAS_DE_HECHO:
+            if not _cae_en(t, preguntas):
+                continue
+            for entrada in vivas:
+                valor = _valor_declarado(str(entrada.get("contenido", "")), patron)
+                if valor:
+                    return plantilla.format(valor)
+            return ausencia
+
+        if _cae_en(t, _PAT_CONSULTA_PREFERENCIA):
+            declaradas = [e["contenido"] for e in vivas if e.get("clase") == "preferencia_declarada"]
+            if not declaradas:
+                return "Todavía no me has dicho qué prefieres."
+            return "Esto es lo que me has dicho que prefieres:\n" + "\n".join(f"• {d}" for d in declaradas)
         return None
 
     def _foco(self, uid: str, t: str, vivas: list[dict], existentes: list[dict] | None = None) -> dict | None:

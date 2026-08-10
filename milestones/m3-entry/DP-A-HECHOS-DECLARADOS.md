@@ -1,7 +1,38 @@
 # Decision Package A — Hechos declarados del usuario
 
-**Estado:** propuesto · **Fecha:** 2026-08-09 · **Decide:** CEO · **Propone:** APUS-5
+**Estado:** **DIRECCIÓN APROBADA** (CEO, 2026-08-09) · **Fecha:** 2026-08-09 · **Propone:** APUS-5
 **Origen:** defecto reproducido por el CEO en uso real, no por diseño anticipado.
+**Fase actual:** evidencia de contrato → `EVIDENCIA-CONTRATO-A-HECHO-DECLARADO.md`.
+**Ningún componente funcional se toca hasta la aprobación explícita de esa evidencia.**
+
+---
+
+## 0 · ACTA DEL CEO — las diez reglas que gobiernan este incremento
+
+El CEO aprueba formalmente ampliar `ClaseSenal` en Bible 4.4 §1 con `HECHO_DECLARADO`,
+**condicionada** a las diez reglas siguientes. Ninguna es negociable durante la implementación:
+
+1. `HECHO_DECLARADO` es **epistemológicamente distinta** de `PREFERENCIA_DECLARADA`.
+2. **No reutilizar** `PREFERENCIA_DECLARADA` para nombres, ocupaciones, proyectos u otros hechos.
+3. **No crear una segunda ruta** de persistencia fuera de
+   `ConectorConversacion → Senal → AlmacenSenales → memoria semántica → ModeloUsuario`.
+4. La procedencia queda **`declarada` desde el primer registro**.
+5. Conserva compatibilidad con **refutación y borrado**.
+6. La ampliación queda **documentada formalmente** en Bible 4.4 §1 y en los contratos afectados.
+7. Alcance limitado a: **nombre · ocupación · proyecto · preferencia**.
+8. Las pruebas demuestran que el dato **termina realmente en el Modelo de Usuario** y que la
+   recuperación posterior se hace **desde allí**.
+9. Existen **pruebas negativas** que demuestran que el sistema no puede «pasar» por simple recall
+   episódico o coincidencia léxica.
+10. Cubierto por el **Quality Gate** y por el **arnés de mutación** correspondiente.
+
+**Criterio de aceptación fijado por el CEO:** declarar el hecho → persistirlo → verificarlo en el
+Modelo de Usuario → reiniciar si corresponde → consultarlo **mediante una intención distinta** →
+demostrar que la respuesta procede del Modelo de Usuario y **no** del recall episódico.
+
+Dónde se cumple cada regla: 1-2 en §3 y en `EVIDENCIA…` §1 · 3-5 en `EVIDENCIA…` §2-§3 ·
+6 en `EVIDENCIA…` §1-§2 (contrato ejecutable **P1**) · 7 en §4 · 8-9 en `EVIDENCIA…` §4-§5 ·
+10 en §6.
 
 ---
 

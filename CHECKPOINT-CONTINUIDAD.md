@@ -11,6 +11,58 @@ aprobadas.
 ---
 
 
+## ESTADO (2026-08-09, fin de sesion) — A LISTO PARA INTEGRAR
+
+**Worktree:** `b8d914b` limpio · **`main` = `origin/main` = `131896c`** (Conversacion General v1 YA
+integrado y publicado).
+
+### Hecho y cerrado
+- **Conversacion General v1**: integrado en `131896c`, publicado, hook pre-push PASS.
+- **Incremento A (HECHO_DECLARADO)**: implementado, auditado, RECHAZADO, corregido y verificado.
+  Bible 4.4 §1 ampliada. Quality Gate PASS 804 pruebas · 10 mutantes 0 supervivientes.
+  Verificacion corta sobre el producto: los 4 defectos criticos/altos de la auditoria, cerrados.
+
+### SIGUIENTE ACCION EXACTA: integrar A
+El sandbox impide al agente operar sobre el checkout compartido. Lo ejecuta el CEO:
+
+    MAIN=/home/majo1230/Documentos/AURA/aura-project-bible
+    git -C "$MAIN" merge --no-ff worktree-m3-entry -m "merge: incremento A - hechos declarados"
+    cd "$MAIN/walking-skeleton" && AURA_DATOS=/tmp/aura-gate ./quality-gate.sh
+    git -C "$MAIN" push
+    # y desde el worktree:  git merge --ff-only main
+
+`AURA_DATOS` NO es opcional: sin el, el gate puede escribir en el `~/.aura` real (ya se contamino
+una vez).
+
+### Despues, por orden fijado por el CEO (2026-08-09)
+1. **B — Experiencia Conversacional v1**: PEQUENO. Solo separar modo usuario de modo diagnostico.
+   DP ya escrito: `milestones/m3-entry/DP-B-EXPERIENCIA-CONVERSACIONAL-V1.md`. Medido: NO hay
+   logging que migrar, `observability.py` NO se toca. Falta un flag `--debug` y ocultar el bloque de
+   arranque. Dos mutantes obligatorios: ADR-0003 y el registro forense integros en modo usuario.
+2. **Pieza 2 — buzon de decisiones / canal HITL permanente.** ES EL BLOQUEO DE AUTONOMIA:
+   verificado en `hitl_consola.py:33-38`, desatendida AURORA recibe EOFError y SE AUTODENIEGA toda
+   accion de lista roja. No puede pedir permiso. DP existente:
+   `milestones/m3-entry/DP-CANAL-PERMANENTE-CEO-AURORA.md` (Pieza 2, la unica sin entregar).
+3. Capacidad **017** (usar su historial para decidir) y **010-012** (Traductor Operativo).
+
+### Criterio operativo VIGENTE del CEO (2026-08-09)
+- Ejecuta directamente lo que este dentro del alcance aprobado y no cambie arquitectura, autonomia,
+  permisos, datos ni politicas. **Detente solo** si cambia arquitectura o amplia soberania.
+- **No abrir mas rondas de auditoria** salvo riesgo real de seguridad, perdida de datos, soberania
+  del usuario o veracidad del comportamiento.
+- Quality Gate y regresion son GUARDRAILS, no el objetivo. "Las pruebas protegen el producto, no son
+  el producto."
+- **014-016 congeladas por hardware**: no gastar ciclos en resolver por software un limite medido de
+  capacidad del LLM (25,8 s por "Hola").
+- **D-ADP-1** se atiende cuando se toque el adaptador, salvo que afecte una ejecucion real.
+
+### Deudas registradas
+`DEUDA-ADR0014-MEMORIA-VACIA.md` (24/24 es CON MEMORIA VACIA; con corpus sembrado 19/24, y este
+incremento no lo introduce) · `CLAUDE.md` §2 (nada en paralelo con `herramientas.mutar`).
+
+---
+
+
 ## ESTADO ACTUAL — CONVERSACION GENERAL v1 CERRADA Y AUDITADA (2026-08-09)
 
 **Ultimo commit del worktree:** `4ab4c8a` · **`main`:** `befb303` (NO contiene el incremento).

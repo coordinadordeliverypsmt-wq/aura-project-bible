@@ -307,6 +307,23 @@ problema del protocolo, **detenerse y corregirlo** antes de gastar la tanda de 3
   audio_text, trace_id)` seguido de `Orchestrator.wait(trace_id, timeout=10)`
   (`core/orchestrator.py:859` y `:867`). Es la ruta que hay que usar para medir el producto y no una
   función aislada.
+- **DEFECTO DE AISLAMIENTO — CRÍTICO, detectado antes de ejecutar nada.** `EjecutorProgramador` y
+  `EjecutorAuditor` **NO reciben su raíz de `Configuracion`**: la calculan como
+  `Path(__file__).resolve().parents[1]` (`composicion.py:256` y `:258`), es decir, el
+  `walking-skeleton/` del paquete que se haya importado. `raices_permitidas` **no los afecta** — eso
+  sólo gobierna a `AdaptadorComputador`.
+
+  Consecuencia: si el arnés se ejecuta importando `aura_skeleton` desde el worktree real, el ejecutor
+  y el auditor **operarían sobre el worktree real**, no sobre el laboratorio. El aislamiento por
+  `git archive` habría sido decorativo, y la comparación SHA-256 del laboratorio habría salido
+  idéntica **precisamente porque nada tocaba el laboratorio**: un falso PASS de seguridad.
+
+  **Corrección del protocolo, dentro del arnés:** el arnés se lanza con el intérprete situado en
+  `<lab>/walking-skeleton`, importando `aura_skeleton` **desde la copia del laboratorio**, para que
+  `__file__` resuelva dentro del lab. Verificación obligatoria antes de medir: imprimir la raíz
+  efectiva de ambos ejecutores y **exigir que esté bajo el laboratorio**. Y las huellas SHA-256 se
+  calculan **también sobre el worktree real**, no sólo sobre el lab, porque el riesgo era ése.
+
 - **TRAMPA YA DETECTADA, antes de gastar el ensayo:** `wait()` trae **timeout por defecto de 10 s**, y
   en esta máquina el modelo tarda 25,8 s sólo en responder «Hola». Con el valor por defecto, TODAS las
   mediciones darían falso HARDWARE. El arnés debe pasar un `timeout` explícito y holgado, coherente

@@ -79,22 +79,24 @@ def auditar_garantias(raiz: str, trace_id: str = "-") -> dict:
                 "objetivo": str(m.get("fichero", "")),
             }
 
+            # SE DECIDE QUE PASA, Y LUEGO SE PUBLICA UNA SOLA VEZ. Las cuatro ramas anexaban su
+            # propio diccionario con `**accionable` repetido, y solo una tenia prueba: la quinta
+            # auditoria encontro las otras tres como mutantes vivos -- quitar el contexto de la rama
+            # AMBIGUO, o de DEGENERADO, o de la de fichero ausente, no rompia nada. Es la misma
+            # familia que ya costo tres rechazos: una regla escrita N veces diverge en N-1 sitios.
+            problema, detalle = "", ""
             if not fichero.is_file():
-                rotos.append(
-                    {"mutante": ident, "problema": "AUSENTE", "detalle": f"no existe {m.get('fichero')}", **accionable}
-                )
-                continue
-            apariciones = fichero.read_text(encoding="utf-8").count(buscar)
-            if apariciones == 0:
-                rotos.append(
-                    {"mutante": ident, "problema": "AUSENTE", "detalle": "el patron ya no aparece", **accionable}
-                )
-            elif apariciones > 1:
-                rotos.append(
-                    {"mutante": ident, "problema": "AMBIGUO", "detalle": f"aparece {apariciones} veces", **accionable}
-                )
-            elif buscar == sustituir:
-                rotos.append({"mutante": ident, "problema": "DEGENERADO", "detalle": "no degrada nada", **accionable})
+                problema, detalle = "AUSENTE", f"no existe {m.get('fichero')}"
+            else:
+                apariciones = fichero.read_text(encoding="utf-8").count(buscar)
+                if apariciones == 0:
+                    problema, detalle = "AUSENTE", "el patron ya no aparece"
+                elif apariciones > 1:
+                    problema, detalle = "AMBIGUO", f"aparece {apariciones} veces"
+                elif buscar == sustituir:
+                    problema, detalle = "DEGENERADO", "no degrada nada"
+            if problema:
+                rotos.append({"mutante": ident, "problema": problema, "detalle": detalle, **accionable})
 
     ok = not rotos
     obs.log("AUDIT", "ejecutor-auditor", f"garantias: {total - len(rotos)}/{total} vigentes", trace_id, audit=True)

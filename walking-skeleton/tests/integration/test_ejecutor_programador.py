@@ -134,9 +134,17 @@ def test_un_cambio_sin_sustituto_real_se_RECHAZA_en_vez_de_borrar(tmp_path, sust
         pytest.param(3, id="numero"),
         pytest.param({"a": 1}, id="dict"),
         pytest.param(True, id="bool"),
-        pytest.param("​", id="ZWSP-anchura-cero"),
-        pytest.param("­", id="guion-blando"),
-        pytest.param("‍", id="ZWJ"),
+        # UNA POR CATEGORÍA UNICODE, no tres del mismo tipo. La versión anterior de esta lista traía
+        # ZWSP, guion blando y ZWJ — los tres `Cf` — disfrazados de tres casos distintos, y por eso
+        # la quinta auditoría encontró cinco puntos de código más que pasaban. Cada `pytest.param`
+        # nombra su categoría para que ampliar la regla obligue a ampliar esta lista.
+        pytest.param("​", id="Cf-ZWSP"),
+        pytest.param("\x00", id="Cc-NUL"),
+        pytest.param("️", id="Mn-variation-selector"),
+        pytest.param("́", id="Mn-combinante"),
+        pytest.param("\U000e0000", id="Cn-no-asignado"),
+        pytest.param("\ud800", id="Cs-surrogate"),
+        pytest.param(" ", id="Zs-espacio-fino"),
     ],
 )
 def test_un_sustituto_inservible_se_RECHAZA_aunque_parezca_texto(tmp_path, sustituto):
@@ -203,6 +211,81 @@ def test_la_contencion_de_ruta_no_depende_del_nombre_del_directorio_vecino(tmp_p
     assert previo["viable"] is False, "el dry-run avaló un cambio fuera del árbol"
     assert r["aplicado"] is False
     assert secreto.read_text(encoding="utf-8") == "CLAVE = 'intacta'\n", "se escribió fuera del árbol declarado"
+
+
+@pytest.mark.parametrize("invisible", ["ㅤ", "⠀"])
+def test_lo_que_la_regla_no_puede_ver_lo_ve_EL_HUMANO_en_la_previsualizacion(tmp_path, invisible):
+    """LA GARANTÍA QUE SOSTIENE A LAS DEMÁS, y la razón de que la guarda pueda ser incompleta.
+
+    `texto_utilizable` rechaza las categorías que nunca se ven solas, pero **no detecta «invisible»**:
+    U+3164 (relleno hangul, `Lo`) y U+2800 (braille en blanco, `So`) son signos legítimos en
+    categorías ordinarias que se pintan VACÍOS. Ninguna regla categórica los separa de una letra, y
+    cada auditoría encontraba dos o tres puntos de código más que la anterior: ampliar la lista es una
+    carrera que se pierde.
+
+    Lo que sí es completo y enunciable: **en la previsualización no cabe nada que no se vea.** Con
+    `ascii()`, el invisible aparece delante de quien autoriza como `'\\u3164'`, y la decisión es suya
+    e informada — que es lo que ADR-0003 pide de verdad.
+
+    `repr()` NO sirve aquí, y se probó: Python sólo escapa lo que considera no imprimible, y U+3164
+    lo es. La previsualización mostraba el invisible... invisible.
+    """
+    prog, _, _ = _entorno(tmp_path)
+    args = {"fichero": "m.py", "buscar": "VALOR = 1", "sustituir": invisible}
+
+    efecto = asyncio.run(prog.simular("proponer_cambio", args, "t"))["efecto"]
+
+    assert invisible not in efecto, f"el carácter invisible se coló crudo en la previsualización: {efecto!r}"
+    assert f"\\u{ord(invisible):04x}" in efecto, f"la previsualización no lo delata: {efecto!r}"
+
+
+def test_la_previsualizacion_dice_QUE_se_sustituye_y_POR_QUE(tmp_path):
+    """Decía sólo «sustituir 1 aparicion en m.py»: cierto y sin informar de nada. Con ese texto
+    delante, en cuatro auditorías seguidas se aprobaron borrados encubiertos y sustituciones por
+    caracteres invisibles, todos indistinguibles entre sí y de un cambio legítimo."""
+    prog, _, _ = _entorno(tmp_path)
+    args = {"fichero": "m.py", "buscar": "VALOR = 1", "sustituir": "VALOR = 2"}
+
+    efecto = asyncio.run(prog.simular("proponer_cambio", args, "t"))["efecto"]
+
+    assert "VALOR = 1" in efecto and "VALOR = 2" in efecto, f"no dice qué se sustituye ni por qué: {efecto!r}"
+    assert "m.py" in efecto
+
+
+def test_la_previsualizacion_es_ascii_pura(tmp_path):
+    """La regla completa, enunciada como aserción: si algo no es ASCII imprimible, va escapado. Sin
+    esto, «se ve» depende de la fuente del terminal de quien confirma."""
+    prog, _, _ = _entorno(tmp_path)
+    args = {"fichero": "m.py", "buscar": "VALOR = 1", "sustituir": "contraseña válida ㅤ"}
+
+    efecto = asyncio.run(prog.simular("proponer_cambio", args, "t"))["efecto"]
+
+    assert efecto.isascii(), f"la previsualización trae caracteres que pueden no verse: {efecto!r}"
+
+
+def test_un_arbol_alcanzado_por_un_enlace_simbolico_sigue_siendo_el_arbol(tmp_path):
+    """MUTANTE VIVO C31, y es la mitad que faltaba de la contención: endurecerla no puede convertir un
+    árbol legítimo en inalcanzable.
+
+    La raíz llega como cadena y nadie garantiza que venga resuelta — un `~/proyecto` que es enlace, o
+    `/tmp` en macOS. Sin resolverla antes de comparar, el fichero resuelto (`.../real/m.py`) no es
+    relativo a la raíz sin resolver (`.../enlace`) y TODO cambio legítimo se rechaza por «fuera del
+    árbol». Falla cerrado, pero deja la capacidad muerta sin que nada lo diga.
+    """
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "m.py").write_text("VALOR = 1\n", encoding="utf-8")
+    enlace = tmp_path / "enlace"
+    enlace.symlink_to(real, target_is_directory=True)
+    prog = EjecutorProgramador(str(enlace), Verificador())
+
+    args = {"fichero": "m.py", "buscar": "VALOR = 1", "sustituir": "VALOR = 2"}
+    previo = asyncio.run(prog.simular("proponer_cambio", args, "t"))
+    r = asyncio.run(prog.execute("proponer_cambio", args, "t", "e"))
+
+    assert previo["viable"] is True, f"un árbol alcanzado por enlace quedó inalcanzable: {previo}"
+    assert r["aplicado"] is True
+    assert (real / "m.py").read_text(encoding="utf-8") == "VALOR = 2\n"
 
 
 def test_la_previsualizacion_no_puede_prometer_algo_distinto_de_lo_que_ocurre(tmp_path):

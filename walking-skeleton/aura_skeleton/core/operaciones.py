@@ -21,30 +21,41 @@ class ErrorDeValidacion(Exception):
     """Los argumentos no son admisibles. El adaptador NUNCA debe recibirlos."""
 
 
+# Categorias Unicode que NUNCA forman por si solas un signo visible: controles, formato, sustitutos,
+# uso privado, no asignados, marcas combinantes (que se pintan SOBRE otro signo, no solas) y todos los
+# separadores. Un texto compuesto solo de estos no se ve.
+_INVISIBLES = frozenset({"Cc", "Cf", "Cs", "Co", "Cn", "Mn", "Me", "Zs", "Zl", "Zp"})
+
+
 def texto_utilizable(valor: object) -> bool:
     """UNA sola definicion, para todo el sistema, de "este valor sirve como argumento de texto".
 
     Vive aqui porque aqui se decide *si los argumentos concretos son admisibles*, y porque este
     modulo no depende de nada del nucleo: cualquier capa puede usarlo sin crear un ciclo.
 
-    Existe porque la regla se escribio DOS VECES y las dos copias divergieron. La tercera auditoria
-    midio el coste de una copia; la cuarta, el de la otra:
+    Existe porque la regla se escribio DOS VECES y las copias divergieron, tres auditorias seguidas:
 
     - NO BASTA CON QUE HAYA VALOR. `sustituir = "   "` es presente y verdadero, y sustituir el patron
       por espacios destruye la garantia igual que borrarla.
-    - NO BASTA CON `.strip()`. Solo quita lo que `isspace()` reconoce. Un ZWSP (U+200B) o un guion
-      blando (U+00AD) lo atraviesan, y sustituir una guarda por un caracter de anchura cero es
-      INDISTINGUIBLE de borrarla, en el fichero y en el diff. Por eso tambien se descartan las
-      categorias Unicode `Cf` (formato) y `Cc` (control).
+    - NO BASTA CON `.strip()`. Solo quita lo que `isspace()` reconoce; un ZWSP (U+200B) o un guion
+      blando (U+00AD) lo atraviesan.
     - NO BASTA CON QUE SEA VERDADERO. Una lista o un numero pasaban porque `str(["x"])` es veraz, y
       el ejecutor escribia literalmente `['x']` en el fichero: un cambio que nadie formulo (INV-9).
 
-    Lo que SI es utilizable es cualquier texto con al menos un caracter visible -incluido `"#"`-:
-    eso es una sustitucion real, aunque sea pobre, y el humano la ve en la previsualizacion.
+    LIMITE DECLARADO, y es importante que conste. **Esta funcion NO detecta "invisible": detecta
+    "categoria que nunca se ve sola".** No es lo mismo, y la diferencia es demostrable: U+3164
+    (relleno hangul, categoria `Lo`) y U+2800 (braille en blanco, `So`) son signos legitimos en
+    categorias ordinarias que se pintan VACIOS. Ninguna regla categorica los separa de una letra.
+
+    Cada auditoria encontro dos o tres puntos de codigo mas que la anterior; ampliar la lista es una
+    carrera que se pierde. Por eso **la garantia que sostiene esto no es esta funcion: es que la
+    previsualizacion diga la verdad** (ADR-0003). El ejecutor muestra el sustituto con `repr`, asi que
+    un caracter invisible aparece delante del humano como `'\\u3164'` y la decision es suya, informada.
+    Esta funcion es una red anterior, util y deliberadamente incompleta.
     """
     if not isinstance(valor, str):
         return False
-    return any(not c.isspace() and unicodedata.category(c) not in ("Cf", "Cc") for c in valor)
+    return any(unicodedata.category(c) not in _INVISIBLES for c in valor)
 
 
 # Argumentos que espera cada operacion. `rutas` indica cuales deben validarse como rutas del

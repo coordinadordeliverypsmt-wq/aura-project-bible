@@ -34,6 +34,7 @@ from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 
 from .. import observability as obs
+from .operaciones import texto_utilizable
 
 # Estados posibles de una tarea. `bloqueada` es distinto de `abierta`: una tarea bloqueada NO es la
 # siguiente accion, aunque no este terminada. Sin esa distincion, reanudar elegiria trabajo imposible.
@@ -79,17 +80,20 @@ _CAMPOS_DE_EJECUCION = ("fichero", "buscar", "sustituir")
 
 
 def _utilizables(origen: dict) -> dict:
-    """Los campos de ejecucion que de verdad se pueden ejecutar. UNA sola definicion, no dos gemelas.
+    """Los campos de ejecucion que de verdad se pueden ejecutar, segun la regla UNICA del sistema.
 
     Habia una copia de esta regla en cada capa -el traductor y el filtro del punto de paso-. La
     tercera auditoria midio lo que eso costaba: revertir UNA de las dos a la veracidad a secas dejaba
     44/44 pruebas en verde, porque la otra capa atrapaba el fallo. Dos guardas gemelas no son defensa
     en profundidad: son dos sitios donde la regla puede divergir y una sola prueba que se entera.
 
-    Se exige `str`, no solo contenido: una lista o un numero pasaban la guarda porque `str(["x"])` es
-    veraz, y aguas abajo el ejecutor habria escrito literalmente `['x']` en el fichero.
+    Y VOLVIO A PASAR: la correccion anterior escribio `texto_utilizable` en `operaciones` para el
+    ejecutor y dejo AQUI la copia inline, mientras el commit y estos docstrings anunciaban la
+    unificacion. La quinta auditoria lo midio: `sustituir = "\\u200b"` y `sustituir = "\\x00"` los
+    rechazaba el ejecutor y los aceptaba esta capa. Declarado != real, esta vez en mi propio texto.
+    Ahora se llama a la funcion, que es la unica forma de que no puedan divergir.
     """
-    return {c: origen[c] for c in _CAMPOS_DE_EJECUCION if isinstance(origen.get(c), str) and origen[c].strip()}
+    return {c: origen[c] for c in _CAMPOS_DE_EJECUCION if texto_utilizable(origen.get(c))}
 
 
 def solo_ejecutable_completo(contexto: dict) -> dict:

@@ -58,7 +58,7 @@ sustituir = '''                args={},'''
 id = "C4"
 garantia = "se fabrican fichero y patron cuando el veredicto no los trae (INV-9)"
 fichero = "aura_skeleton/core/estado_operativo.py"
-buscar = '''    return {c: origen[c] for c in _CAMPOS_DE_EJECUCION if isinstance(origen.get(c), str) and origen[c].strip()}'''
+buscar = '''    return {c: origen[c] for c in _CAMPOS_DE_EJECUCION if texto_utilizable(origen.get(c))}'''
 sustituir = '''    return {c: origen.get(c) or "desconocido" for c in _CAMPOS_DE_EJECUCION}'''
 
 # (C5) EL MOTIVO DEJA DE VIAJAR. Aun sin datos accionables, el motivo es lo unico que convierte una
@@ -122,9 +122,9 @@ sustituir = '''    primera = {k: v for r in rotas if isinstance(r, dict) for k, 
 [[mutante]]
 id = "C9"
 garantia = "un campo en blanco cuenta como campo: el contexto incompleto se vuelve destructivo"
-fichero = "aura_skeleton/core/estado_operativo.py"
-buscar = '''if isinstance(origen.get(c), str) and origen[c].strip()}'''
-sustituir = '''if origen.get(c)}'''
+fichero = "aura_skeleton/core/operaciones.py"
+buscar = '''    return any(unicodedata.category(c) not in _INVISIBLES for c in valor)'''
+sustituir = '''    return bool(valor)'''
 
 # (C10) LA PROTECCION VUELVE A SER DE UN LLAMADOR, NO DEL SISTEMA. El oyente copiaba el contexto
 # VERBATIM: cualquier ruta que lo adjuntase a mano esquivaba la guarda y reabria el camino
@@ -169,9 +169,9 @@ sustituir = '''        contexto = contexto_de_correccion(veredicto if isinstance
 [[mutante]]
 id = "C13"
 garantia = "un valor no textual pasa como campo de ejecucion: el ejecutor escribiria su repr"
-fichero = "aura_skeleton/core/estado_operativo.py"
-buscar = '''if isinstance(origen.get(c), str) and origen[c].strip()}'''
-sustituir = '''if str(origen.get(c) or "").strip()}'''
+fichero = "aura_skeleton/core/operaciones.py"
+buscar = '''    if not isinstance(valor, str):'''
+sustituir = '''    if False:'''
 
 # (C14) UN VEREDICTO QUE NO ES UN DICCIONARIO TUMBA EL OBSERVADOR. `args` es abierto: nadie garantiza
 # que `_veredicto` traiga un dict. Sin la guarda revienta con AttributeError DENTRO del observador y
@@ -288,8 +288,8 @@ sustituir = '''        if not str(sustituir).strip():'''
 id = "C24"
 garantia = "un caracter invisible cuenta como sustituto: el borrado se disfraza de sustitucion"
 fichero = "aura_skeleton/core/operaciones.py"
-buscar = '''    return any(not c.isspace() and unicodedata.category(c) not in ("Cf", "Cc") for c in valor)'''
-sustituir = '''    return bool(valor.strip())'''
+buscar = '''_INVISIBLES = frozenset({"Cc", "Cf", "Cs", "Co", "Cn", "Mn", "Me", "Zs", "Zl", "Zp"})'''
+sustituir = '''_INVISIBLES = frozenset({"Cf"})'''
 
 # (C25) EL FICHERO Y EL PATRON DEJAN DE COMPROBARSE COMO TEXTO. `_campos` los convierte con `str()`
 # despues, asi que sin la comprobacion de tipo el ejecutor buscaria el `repr` de una lista dentro del
@@ -312,3 +312,81 @@ garantia = "la contencion de ruta compara prefijos de texto: se escribe fuera de
 fichero = "aura_skeleton/adapters/programador.py"
 buscar = '''        return ruta, not ruta.is_relative_to(self._raiz.resolve())'''
 sustituir = '''        return ruta, not str(ruta).startswith(str(self._raiz.resolve()))'''
+
+# ================================================================================================
+# QUINTA AUDITORIA (2026-08-15): la unificacion estaba ANUNCIADA Y NO HECHA, la guarda dejaba pasar
+# cinco categorias mas de invisibles, y seis mutantes vivos sin declarar.
+# ================================================================================================
+
+# (C27) LA UNIFICACION SE DESHACE. Es el mutante mas importante del arnes, porque el defecto que
+# representa YA OCURRIO: la correccion anterior escribio `texto_utilizable` para el ejecutor y dejo la
+# copia inline en esta capa, mientras el commit y los docstrings anunciaban la unificacion. Medido: un
+# ZWSP y un NUL los rechazaba el ejecutor y los aceptaba aqui. Declarado != real, el patron numero 1
+# de este proyecto, esta vez dentro de la propia correccion.
+[[mutante]]
+id = "C27"
+garantia = "la capa del contexto vuelve a tener su copia de la regla y diverge del ejecutor"
+fichero = "aura_skeleton/core/estado_operativo.py"
+buscar = '''if texto_utilizable(origen.get(c))}'''
+sustituir = '''if isinstance(origen.get(c), str) and origen[c].strip()}'''
+
+# (C28) LOS CONTROLES VUELVEN A PASAR. La mitad de control de la guarda no tenia caso: ninguna prueba
+# usaba un `Cc`, asi que quitar esa categoria no rompia nada y un NUL se escribia en el fichero.
+[[mutante]]
+id = "C28"
+garantia = "un caracter de control cuenta como sustituto"
+fichero = "aura_skeleton/core/operaciones.py"
+buscar = '''frozenset({"Cc", "Cf",'''
+sustituir = '''frozenset({"Cf",'''
+
+# (C29) LA PREVISUALIZACION VUELVE A CALLAR QUE SE SUSTITUYE. Decia solo "sustituir 1 aparicion en X":
+# cierto y sin informar de nada. Con ese texto delante se aprobaron, en cuatro auditorias seguidas,
+# borrados encubiertos y sustituciones por invisibles -- todos indistinguibles entre si y de un cambio
+# legitimo. ADR-0003 pide consentimiento INFORMADO.
+[[mutante]]
+id = "C29"
+garantia = "la previsualizacion no dice que se sustituye ni por que: el consentimiento es ciego"
+fichero = "aura_skeleton/adapters/programador.py"
+buscar = '''sustituir {ascii(buscar)} por {ascii(sustituir)} '''
+sustituir = '''sustituir '''
+
+# (C30) LA PREVISUALIZACION DEJA DE SER ASCII. Es la garantia que sostiene a las demas:
+# `texto_utilizable` es deliberadamente incompleta -no hay regla categorica que separe U+3164, relleno
+# hangul de categoria `Lo`, de una letra- y lo que cierra el hueco es que el humano LO VEA. Con `repr`
+# no lo ve: Python solo escapa lo que considera no imprimible, y U+3164 lo es. Se probo, y no servia.
+[[mutante]]
+id = "C30"
+garantia = "la previsualizacion usa repr: un invisible se muestra invisible y el humano lo aprueba"
+fichero = "aura_skeleton/adapters/programador.py"
+buscar = '''{ascii(buscar)} por {ascii(sustituir)}'''
+sustituir = '''{buscar!r} por {sustituir!r}'''
+
+# (C31) LA RAIZ DEJA DE RESOLVERSE ANTES DE COMPARAR. Linea nueva sin prueba propia: si la raiz llega
+# con enlaces simbolicos o `..`, la comparacion de segmentos se hace contra una ruta que no es la real.
+[[mutante]]
+id = "C31"
+garantia = "la contencion compara contra la raiz sin resolver"
+fichero = "aura_skeleton/adapters/programador.py"
+buscar = '''not ruta.is_relative_to(self._raiz.resolve())'''
+sustituir = '''not ruta.is_relative_to(self._raiz)'''
+
+# (C32) UNAS `rotas` MAL FORMADAS REVIENTAN EL TRADUCTOR. Gemelo de C14 y C20, que si tienen red en sus
+# capas. `contexto_de_correccion` es contrato publico: con `rotas=["texto"]` lanzaba AttributeError
+# DENTRO del observador, fuera de su contencion.
+[[mutante]]
+id = "C32"
+garantia = "unas rotas mal formadas propagan AttributeError desde el traductor"
+fichero = "aura_skeleton/core/estado_operativo.py"
+buscar = '''isinstance(rotas, list) and rotas and isinstance(rotas[0], dict) else {}'''
+sustituir = '''isinstance(rotas, list) and rotas else {}'''
+
+# (C33) EL CONTEXTO DEJA DE PUBLICARSE EN TODAS LAS RAMAS. Las cuatro ramas del auditor anexaban su
+# propio diccionario repitiendo `**accionable`, y solo una tenia prueba: quitarlo de AMBIGUO, de
+# DEGENERADO o de la de fichero ausente no rompia nada. Ahora se publica en un solo sitio, asi que un
+# unico mutante cubre las cuatro salidas -- que es justo el punto de escribir la regla una sola vez.
+[[mutante]]
+id = "C33"
+garantia = "alguna rama del auditor deja de publicar el contexto accionable"
+fichero = "aura_skeleton/adapters/auditor.py"
+buscar = '''"detalle": detalle, **accionable})'''
+sustituir = '''"detalle": detalle})'''

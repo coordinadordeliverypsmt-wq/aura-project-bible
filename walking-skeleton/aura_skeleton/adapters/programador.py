@@ -62,7 +62,30 @@ class EjecutorProgramador:
         if apariciones != 1:
             motivo = "el patron no aparece" if apariciones == 0 else f"el patron aparece {apariciones} veces"
             return {"viable": False, "motivo": motivo}
-        return {"viable": True, "efecto": f"sustituir 1 aparicion en {relativa} y verificar; se revierte si falla"}
+        # LA PREVISUALIZACION DICE QUE SE SUSTITUYE, Y POR QUE. Decia solo "sustituir 1 aparicion en
+        # X", que es cierto y no informa de nada: con ese texto delante, el humano aprobo -en cuatro
+        # auditorias seguidas- borrados encubiertos y sustituciones por caracteres invisibles, todos
+        # indistinguibles entre si y de un cambio legitimo.
+        #
+        # Y ESTA ES LA GARANTIA QUE SOSTIENE EL RESTO. `texto_utilizable` es una red anterior, pero
+        # deliberadamente incompleta: no existe regla categorica que separe U+3164 -relleno hangul,
+        # categoria `Lo`, se pinta vacio- de una letra. Ampliar la lista de invisibles es una carrera
+        # que se pierde; cada auditoria encontraba dos o tres puntos de codigo mas que la anterior.
+        # `ascii()` Y NO `repr()`. Lo intente con `repr` primero y NO SERVIA: Python solo escapa lo
+        # que considera no imprimible, y U+3164 lo es -categoria `Lo`-, asi que la previsualizacion
+        # mostraba el invisible... invisible. `ascii()` escapa TODO lo que no sea ASCII imprimible, de
+        # modo que la regla es completa y se puede enunciar entera: **en la previsualizacion no cabe
+        # nada que no se vea**. Un relleno hangul aparece como `'\\u3164'`.
+        #
+        # El coste es que un texto con acentos se muestra escapado. Se acepta: esto es lo que un
+        # humano lee para autorizar que se toque el codigo, no un mensaje de interfaz.
+        return {
+            "viable": True,
+            "efecto": (
+                f"en {relativa}: sustituir {ascii(buscar)} por {ascii(sustituir)} "
+                "(1 aparicion) y verificar; se revierte si falla"
+            ),
+        }
 
     def _resolver(self, relativa: str):
         # `startswith` sobre la ruta DESNUDA comparaba prefijos de texto, no de arbol: con la raiz en

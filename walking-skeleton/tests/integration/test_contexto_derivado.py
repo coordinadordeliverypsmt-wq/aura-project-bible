@@ -144,6 +144,44 @@ def test_el_auditor_publica_el_contexto_accionable_de_cada_garantia_rota(tmp_pat
     )
 
 
+@pytest.mark.parametrize(
+    ("contenido", "objetivo", "sustituto", "problema"),
+    [
+        pytest.param("alfa\n", "objetivo.py", "otra cosa", "AUSENTE", id="AUSENTE-patron-no-aparece"),
+        pytest.param("dos\ndos\n", "objetivo.py", "otra cosa", "AMBIGUO", id="AMBIGUO"),
+        pytest.param("dos\n", "objetivo.py", "dos", "DEGENERADO", id="DEGENERADO"),
+        pytest.param(None, "no_existe.py", "otra cosa", "AUSENTE", id="AUSENTE-fichero-no-existe"),
+    ],
+)
+def test_TODAS_las_ramas_del_auditor_publican_el_contexto(tmp_path, contenido, objetivo, sustituto, problema):
+    """MUTANTES VIVOS. Las cuatro ramas anexaban su propio diccionario repitiendo `**accionable`, y
+    sólo la primera tenía prueba: quitar el contexto de AMBIGUO, de DEGENERADO o de la de fichero
+    ausente no rompía nada. Misma familia que ya costó tres rechazos — una regla escrita N veces
+    diverge en N-1 sitios.
+
+    Ahora se decide qué pasa y se publica UNA sola vez, y esta prueba recorre las cuatro salidas.
+    """
+    from aura_skeleton.adapters.auditor import auditar_garantias
+
+    raiz = tmp_path / "proyecto"
+    (raiz / "mutaciones").mkdir(parents=True)
+    if contenido is not None:
+        (raiz / objetivo).write_text(contenido, encoding="utf-8")
+    (raiz / "mutaciones" / "x.toml").write_text(
+        'incremento = "x"\npruebas = ["t"]\n\n[[mutante]]\nid = "M1"\n'
+        f'garantia = "g"\nfichero = "{objetivo}"\n'
+        f"buscar = '''dos'''\nsustituir = '''{sustituto}'''\n",
+        encoding="utf-8",
+    )
+
+    rotas = auditar_garantias(str(raiz), "t")["rotas"]
+
+    assert len(rotas) == 1, f"guarda: la rama {problema} no se activó: {rotas}"
+    assert rotas[0]["problema"] == problema, f"guarda: se activó otra rama: {rotas[0]}"
+    assert rotas[0].get("fichero") == "mutaciones/x.toml", f"la rama {problema} no publica el contexto: {rotas[0]}"
+    assert rotas[0].get("buscar") == "dos", f"la rama {problema} no publica el patrón: {rotas[0]}"
+
+
 # ------------------------------------- 2 · EL DIRECTOR ADJUNTA EL CONTEXTO A LA TAREA --
 
 
@@ -647,6 +685,39 @@ async def test_la_tarea_bloqueada_conserva_los_argumentos_con_los_que_se_intento
     causa = [t for t in estado.tareas("obj") if t.tarea_id == "t-rojo"][-1]
     assert causa.estado == "bloqueada", "guarda: la rama que adjunta el veredicto no llegó a ejecutarse"
     assert {k: causa.args.get(k) for k in intento} == intento, f"la tarea perdió lo que intentó: {causa.args}"
+
+
+@pytest.mark.parametrize("invisible", ["​", "\x00", "️", "\U000e0000"])
+def test_la_capa_del_contexto_usa_LA_MISMA_regla_que_el_ejecutor(invisible):
+    """MUTANTE VIVO C27, y el defecto que representa YA OCURRIÓ: la corrección anterior escribió
+    `texto_utilizable` para el ejecutor, dejó aquí la copia inline, y el commit y los docstrings
+    anunciaron una unificación que no existía. Medido: un ZWSP y un NUL los rechazaba el ejecutor y
+    los aceptaba esta capa.
+
+    Los casos en blanco NO distinguen las dos implementaciones — las dos los rechazan —, y por eso
+    las pruebas que había no veían la divergencia. Sólo los invisibles la delatan.
+    """
+    from aura_skeleton.core.estado_operativo import solo_ejecutable_completo
+    from aura_skeleton.core.operaciones import texto_utilizable
+
+    assert texto_utilizable(invisible) is False, "guarda: la regla del sistema debe rechazarlo"
+
+    ctx = solo_ejecutable_completo({"fichero": "a.toml", "buscar": "p", "sustituir": invisible})
+
+    assert "sustituir" not in ctx, f"la capa del contexto es más laxa que el ejecutor: {ctx}"
+    assert "fichero" not in ctx, "y arrastra a los demás: el todo-o-nada es todo o nada"
+
+
+@pytest.mark.parametrize("rotas", [["texto"], [3], [None], "no es lista", 7])
+def test_unas_rotas_mal_formadas_no_revientan_el_traductor(rotas):
+    """MUTANTE VIVO, gemelo de los dos que sí tienen red (`_veredicto` no-dict en las dos capas). El
+    traductor es contrato público del módulo: cualquiera puede llamarlo, y con `rotas=["texto"]`
+    reventaba con `AttributeError` DENTRO del observador, fuera de su contención."""
+    from aura_skeleton.core.estado_operativo import contexto_de_correccion
+
+    ctx = contexto_de_correccion({"ok": False, "rotas": rotas}, "m")
+
+    assert ctx == {"motivo": "m"}, f"unas rotas mal formadas produjeron contexto: {ctx}"
 
 
 @pytest.mark.asyncio

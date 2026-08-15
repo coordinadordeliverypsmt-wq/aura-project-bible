@@ -164,6 +164,17 @@ Dos trampas del formato, ambas pagadas ya:
 - **Elegir mal las pruebas produce supervivientes falsos.** Declara las pruebas que de verdad cubren la
   garantía; si dejas fuera la que la protege, el mutante «sobrevive» y no es culpa del código.
 
+**NADA se ejecuta en paralelo con `herramientas.mutar`** (CEO, 2026-08-09). El arnés muta los ficheros
+**en el sitio**, así que mientras corre, el árbol de trabajo NO contiene el código real. Una auditoría
+independiente lanzó la batería en segundo plano y midió el producto a la vez: AURORA respondió
+`«Hola, Mauricio.»` —que es literalmente el mutante M8— y estuvo a un paso de reportar como rota la
+garantía INV-9 que precisamente estaba sana. Lo detectó por `git status`. Es un generador de casos
+«declarado ≠ real» **del lado del auditor**: la medición miente y el código está bien.
+
+Regla: mientras corra el arnés, ni pruebas, ni demos, ni `python -m aura_skeleton`, ni otro arnés. Si
+necesitas medir en paralelo, hazlo sobre una copia exportada
+(`git archive HEAD | tar -x -C <dir>`), nunca sobre el worktree.
+
 **Cierre en cinco bloques:** (1) qué cambió técnicamente · (2) qué gana AURA como producto · (3) cómo lo
 demostraría un usuario —ejecutado, no descrito— · (4) qué deuda queda abierta · (5) qué capacidades
 existentes mejoran.

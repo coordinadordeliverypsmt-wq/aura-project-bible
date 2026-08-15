@@ -1,0 +1,121 @@
+incremento = "A -- Hechos declarados del usuario (acta del CEO, 2026-08-09)"
+# Se declaran juntas las pruebas del incremento y las que protegen lo que podria romper: la
+# soberania del Modelo de Usuario -donde se inserta la superficie nueva- y ADR-0014.
+pruebas = [
+    "tests/integration/test_hechos_declarados.py",
+    "tests/unit/test_modelo_usuario.py",
+    "tests/unit/test_senales.py",
+    "tests/unit/test_grounding_core.py",
+]
+
+# (1) EL DETECTOR NO RECONOCE LA DECLARACION. Vuelve el defecto exacto que el CEO reprodujo:
+# "Mi nombre es Mauricio" no se persiste y "¿Como me llamo?" no sabe nada.
+[[mutante]]
+id = "H1"
+garantia = "el detector de hechos declarados no reconoce nada: vuelve el defecto original del CEO"
+fichero = "aura_skeleton/conectores/conversacion.py"
+buscar = '''    return any(re.search(p, texto_norm) for p in _HECHO)'''
+sustituir = '''    return False'''
+
+# (2) SE PROMUEVE CUALQUIER FRASE. La guarda temporal desaparece y "Hoy estoy cansado" o "hoy
+# trabajo en casa" se convierten en conocimiento PERMANENTE del usuario. Es el Objetivo 4 del CEO:
+# la promocion tiene que ser conservadora y testeable.
+[[mutante]]
+id = "H2"
+garantia = "la guarda temporal desaparece: un estado pasajero se promueve a conocimiento permanente"
+fichero = "aura_skeleton/conectores/conversacion.py"
+buscar = '''    if any(re.search(p, texto_norm) for p in _TEMPORAL):
+        return False'''
+sustituir = '''    if False:
+        return False'''
+
+# (3) PREGUNTAR PASA A DECLARAR. Sin la guarda interrogativa, "¿Como me llamo?" -que contiene el
+# marcador "me llamo"- se escribe EN EL MODELO DE USUARIO: el usuario contaminaria su propio perfil
+# cada vez que consultase algo. Lo destapo una prueba, no el diseno.
+[[mutante]]
+id = "H3"
+garantia = "una PREGUNTA se captura como hecho declarado: consultar contamina el Modelo de Usuario"
+fichero = "aura_skeleton/conectores/conversacion.py"
+buscar = '''    if "?" in texto_norm or "¿" in texto_norm:
+        return True
+    return any(re.search(p, texto_norm) for p in _INTERROGATIVOS_INICIALES)'''
+sustituir = '''    return False'''
+
+# (4) SE CAPTURA UN HECHO DE UN TERCERO. "Mi hermana se llama Ana" entraria en el modelo del
+# usuario: perfil de otra persona sin su consentimiento (ALERTA-002, Bible 4.4 §1).
+[[mutante]]
+id = "H4"
+garantia = "la guarda de terceros deja de aplicarse a los hechos: se perfila a otra persona (ALERTA-002)"
+fichero = "aura_skeleton/conectores/conversacion.py"
+buscar = '''def _habla_de_tercero(texto_norm: str) -> bool:
+    return any(re.search(p, texto_norm) for p in _TERCERO)'''
+sustituir = '''def _habla_de_tercero(texto_norm: str) -> bool:
+    return False'''
+
+# (5) EL IRRENUNCIABLE DE ESTE INCREMENTO. La recuperacion por intencion se apaga, asi que la
+# consulta cae al recall episodico y responde POR SOLAPE LEXICO. "¿Que trabajo hago?" seguiria
+# diciendo "logistica" -por parecido de texto, no por conocimiento- y "¿Como me llamo?" volveria a
+# no saber nada. Es el defecto que hoy hace PARECER que el sistema recuerda.
+[[mutante]]
+id = "H5"
+garantia = "la recuperacion por intencion se apaga: la respuesta vuelve a venir del recall lexico"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        respuesta = self._responder_hecho(t, vivas)
+        if respuesta is not None:
+            return respuesta'''
+sustituir = '''        if False:
+            return None'''
+
+# (6) LA CLASE SE REGISTRA COMO PREFERENCIA. Regla 2 del acta del CEO, explicitamente prohibido:
+# un nombre quedaria etiquetado como gusto de forma PERMANENTE, y corregirlo despues obligaria a
+# migrar historial real.
+[[mutante]]
+id = "H6"
+garantia = "un hecho se registra como PREFERENCIA_DECLARADA: etiqueta mal el dato de forma permanente"
+fichero = "aura_skeleton/conectores/conversacion.py"
+buscar = '''    if _es_hecho_declarado(texto_norm):
+        return ClaseSenal.HECHO_DECLARADO'''
+sustituir = '''    if _es_hecho_declarado(texto_norm):
+        return ClaseSenal.PREFERENCIA_DECLARADA'''
+
+# (7) EL HECHO DEJA DE SER "DECLARADO". Sacarlo de `_EXPLICITAS` cambia `Senal.declarada` a False y
+# con ello la PROCEDENCIA que se persiste: el dato quedaria registrado como observado, no como algo
+# que el usuario dijo. Regla 4 del acta. Ninguna prueba de conducta lo notaria: hay que mirar la
+# procedencia, que es justo lo que P4 y el contrato P1 hacen.
+[[mutante]]
+id = "H7"
+garantia = "HECHO_DECLARADO sale de las explicitas: la procedencia deja de ser 'declarada'"
+fichero = "aura_skeleton/core/senales.py"
+buscar = '''    ClaseSenal.FEEDBACK_DIRECTO,
+    ClaseSenal.HECHO_DECLARADO,
+}'''
+sustituir = '''    ClaseSenal.FEEDBACK_DIRECTO,
+}'''
+
+# (8) EL HECHO ATERRIZA EN MEMORIA PROCEDIMENTAL. `ModeloUsuario` lo seguiria viendo -filtra por
+# ambos tipos-, pero el dato quedaria clasificado como "como el usuario hace las cosas" en vez de
+# "lo que se sobre el". Es la taxonomia de Bible 4.1 §1 rota en silencio.
+[[mutante]]
+id = "H8"
+garantia = "un hecho declarado se guarda como memoria procedimental en vez de semantica"
+fichero = "aura_skeleton/core/almacen_senales.py"
+buscar = '''_PROCEDIMENTALES = {ClaseSenal.PATRON_DE_USO, ClaseSenal.RESPUESTA_A_SUGERENCIA}'''
+sustituir = '''_PROCEDIMENTALES = {ClaseSenal.PATRON_DE_USO, ClaseSenal.RESPUESTA_A_SUGERENCIA, ClaseSenal.HECHO_DECLARADO}'''
+
+# (9) LA RECUPERACION IGNORA LA REFUTACION. Se leerian tambien las entradas refutadas, de modo que
+# AURORA seguiria afirmando un hecho que el usuario ya corrigio. Regla 5 del acta y ADR-0017 §2.
+[[mutante]]
+id = "H9"
+garantia = "la recuperacion lee entradas REFUTADAS: AURORA afirma un hecho que el usuario ya corrigio"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        respuesta = self._responder_hecho(t, vivas)'''
+sustituir = '''        respuesta = self._responder_hecho(t, entradas)'''
+
+# (10) SE FABRICA UN VALOR CUANDO NO HAY DATO (INV-9). En vez de declarar que no lo sabe, la
+# superficie devolveria el primer contenido que encuentre, sea del atributo que sea.
+[[mutante]]
+id = "H10"
+garantia = "sin el dato declarado se responde con cualquier otra entrada en vez de declarar la ausencia (INV-9)"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            return ausencia'''
+sustituir = '''            return plantilla.format(vivas[0]["contenido"]) if vivas else ausencia'''

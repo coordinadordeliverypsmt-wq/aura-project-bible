@@ -303,6 +303,13 @@ problema del protocolo, **detenerse y corregirlo** antes de gastar la tanda de 3
 - Ollama: binario en `/usr/local/bin/ollama`, **servicio NO levantado**; pesos en disco bajo
   `/usr/share/ollama/.ollama/models` — `qwen2.5:3b` (1,93 GB) y `qwen2.5:0.5b` (398 MB).
 - Timeout del cliente: 180 s por defecto, elevable con `AURA_OLLAMA_TIMEOUT_S`.
+- **Campos del `Sistema`** que devuelve `componer` (`composicion.py:175`), para no adivinar al escribir
+  el arnés: `orquestador` (en español, **no** `orchestrator`), `motor`, `permisos`, `kill_switch`,
+  `estado_operativo`, `director`, `motor_ciclo`, `memoria`, `plan`, `materializaciones`,
+  `ruta_memoria`, `ruta_audit`. El ciclo real se dispara con `motor_ciclo.correr(objetivo, max_latidos=N)`
+  y el oyente ya está cableado en la composición.
+- Responsables con ejecutor real (`_EJECUTORES`, `composicion.py:210`): `programador`, `qa`, `auditor`,
+  `diagnostico`. El caso «sin ejecutor» se provoca con cualquier otro responsable.
 - **Punto de entrada real del producto para un turno**: `Orchestrator.handle_utterance(user_id,
   audio_text, trace_id)` seguido de `Orchestrator.wait(trace_id, timeout=10)`
   (`core/orchestrator.py:859` y `:867`). Es la ruta que hay que usar para medir el producto y no una

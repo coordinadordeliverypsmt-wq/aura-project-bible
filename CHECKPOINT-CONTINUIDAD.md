@@ -303,6 +303,12 @@ problema del protocolo, **detenerse y corregirlo** antes de gastar la tanda de 3
 - Ollama: binario en `/usr/local/bin/ollama`, **servicio NO levantado**; pesos en disco bajo
   `/usr/share/ollama/.ollama/models` — `qwen2.5:3b` (1,93 GB) y `qwen2.5:0.5b` (398 MB).
 - Timeout del cliente: 180 s por defecto, elevable con `AURA_OLLAMA_TIMEOUT_S`.
+- **Captura de la respuesta cruda del modelo, sin tocar el producto.** `OllamaProvider` expone un solo
+  punto: `async def infer(self, prompt: str) -> str` (`modules/providers_real.py:68`), y el prompt de
+  sistema y el catálogo se inyectan dentro de `_infer_sync`. El arnés **envuelve `infer` desde fuera**
+  —en la copia del laboratorio— para registrar prompt y respuesta literales. Es instrumentación del
+  arnés, no un cambio del producto. También ahí se lee `AURA_OLLAMA_TIMEOUT_S`.
+- **RECONOCIMIENTO COMPLETO.** No queda nada más que averiguar antes de escribir el arnés.
 - **Campos del `Sistema`** que devuelve `componer` (`composicion.py:175`), para no adivinar al escribir
   el arnés: `orquestador` (en español, **no** `orchestrator`), `motor`, `permisos`, `kill_switch`,
   `estado_operativo`, `director`, `motor_ciclo`, `memoria`, `plan`, `materializaciones`,

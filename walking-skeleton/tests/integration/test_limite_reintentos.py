@@ -192,8 +192,12 @@ async def test_e2e_una_tarea_que_falla_siempre_no_detiene_el_resto_del_backlog(t
     s.estado_operativo.registrar(
         Tarea(objetivo_id="obj", tarea_id="t-rota", descripcion="sin ejecutor", responsable="inexistente")
     )
+    # `diagnostico` y no `auditor`: el auditor mide las garantías REALES del repositorio, así que un
+    # mutante desapuntado en cualquier arnés hacía fallar esta prueba por una razón ajena -pasó, y
+    # AURORA hizo lo correcto: detectó las garantías rotas y bloqueó la tarea-. El diagnóstico no
+    # depende del estado del repo, así que aquí mide lo que dice medir.
     s.estado_operativo.registrar(
-        Tarea(objetivo_id="obj", tarea_id="t-sana", descripcion="auditar", responsable="auditor")
+        Tarea(objetivo_id="obj", tarea_id="t-sana", descripcion="diagnosticar", responsable="diagnostico")
     )
     buzon = AlmacenDecisiones(str(tmp_path / "decisiones"))
     buzon.solicitar("proponer_cambio", {"t": "t-rota"}, "efecto", "tr:t-rota")

@@ -5,7 +5,7 @@ pruebas = ["tests/integration/test_composicion.py::test_el_ejecutable_gobierno_p
 id = "M1"
 garantia = "el panel deja de construirse con el estado REAL: usa panel() vacio (todo INEXISTENTE)"
 fichero = "aura_skeleton/__main__.py"
-buscar = '''    secciones = panel(estado=sistema.estado_operativo, objetivo=activos or None)'''
+buscar = '''    secciones = panel(estado=sistema.estado_operativo, objetivo=activos or None, decisiones=buzon)'''
 sustituir = '''    secciones = panel()'''
 
 [[mutante]]
@@ -16,9 +16,9 @@ fichero = "aura_skeleton/__main__.py"
 # `activos = sistema.estado_operativo.objetivos_activos()` palabra por palabra: sin este contexto el
 # arnes lo marca AMBIGUO (aparece 2 veces) en vez de aplicar el mutante donde corresponde.
 buscar = '''    activos = sistema.estado_operativo.objetivos_activos()
-    secciones = panel(estado=sistema.estado_operativo, objetivo=activos or None)'''
+    # El buzon viaja con el panel'''
 sustituir = '''    activos = []
-    secciones = panel(estado=sistema.estado_operativo, objetivo=activos or None)'''
+    # El buzon viaja con el panel'''
 
 [[mutante]]
 id = "M3"
@@ -49,6 +49,6 @@ sustituir = '''    if args.gobierno:
 id = "A4"
 garantia = "el panel vuelve a cubrir un solo objetivo (el primero alfabetico) y oculta el resto sin avisar"
 fichero = "aura_skeleton/__main__.py"
-buscar = '''    secciones = panel(estado=sistema.estado_operativo, objetivo=activos or None)'''
+buscar = '''    secciones = panel(estado=sistema.estado_operativo, objetivo=activos or None, decisiones=buzon)'''
 sustituir = '''    secciones = panel(estado=sistema.estado_operativo, objetivo=(activos[0] if activos else None))'''
 pruebas = ["tests/integration/test_composicion.py::test_gobierno_CUBRE_TODOS_los_objetivos_activos_no_solo_el_PRIMERO"]

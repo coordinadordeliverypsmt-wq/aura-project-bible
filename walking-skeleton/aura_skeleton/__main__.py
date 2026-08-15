@@ -28,6 +28,7 @@ import uuid
 from .adapters.hitl_diferido import crear_confirmador_diferido
 from .composicion import Configuracion, componer
 from .core.centro_gobierno import panel, publicar
+from .core.decisiones import AlmacenDecisiones
 from .core.motor_ciclo import FallosConsecutivosExcedidos
 
 
@@ -70,7 +71,10 @@ def _gobierno(sistema) -> str:
     mas de uno.
     """
     activos = sistema.estado_operativo.objetivos_activos()
-    secciones = panel(estado=sistema.estado_operativo, objetivo=activos or None)
+    # El buzon viaja con el panel: es la interfaz oficial donde el CEO ve lo que AURORA espera de el.
+    # Sin esto, la aprobacion diferida existe pero llega por un canal que el CEO no mira.
+    buzon = AlmacenDecisiones(os.path.join(Configuracion.desde_entorno().datos, "decisiones"))
+    secciones = panel(estado=sistema.estado_operativo, objetivo=activos or None, decisiones=buzon)
     # <datos>/CENTRO-DE-GOBIERNO.md: junto al resto del estado permanente (memoria, audit log). No se
     # anade un campo nuevo a `Sistema` para la ruta de datos: `ruta_memoria` ya vive en ese directorio
     # y derivar de ahi evita crear una segunda fuente de configuracion (reutilizar, no crear).

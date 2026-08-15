@@ -11,6 +11,48 @@ aprobadas.
 ---
 
 
+## CIERRE — 017 + BUZON VISIBLE (2026-08-10)
+
+**Rama:** `2ae2416` · limpio · **`main` = `origin/main` = `02f1404`** (Pieza 2 integrada).
+`main` es ancestro de HEAD: **merge sin conflictos**. La rama trae DOS commits:
+`b48fbbd` (017) y `2ae2416` (buzon visible).
+
+### Evidencia
+- Quality Gate PASS: **845 pruebas, 3 skipped**. **28 mutantes, 0 supervivientes, 0 no aplicados.**
+- 017: el bucle medido tras Pieza 2 queda cerrado -reabiertas 1,1,0,0,0,0- con el historial intacto
+  y escalada al CEO. Umbral `_LIMITE_DE_REINTENTOS = 3`, con su motivo escrito y fijado por prueba.
+- Buzon visible: `--gobierno` real muestra
+  `Decisiones pendientes [AURORA] 1 esperando tu decision: 659bb014b5d1 · proponer_cambio · efecto: ...`
+  y `Escaladas al CEO`. E2E: solicitud -> panel -> el CEO aprueba por su huella -> se ejecuta -> deja
+  de reclamar atencion.
+
+### Deudas declaradas, NO corregir
+- `DEUDA-PANEL-BLOQUEO-SIN-MOTIVO.md`: el panel revienta ante una tarea bloqueada sin motivo. No
+  alcanzable hoy -el director siempre pasa el motivo-. Fuera de alcance por decision del CEO.
+- `DEUDA-ADR0014-MEMORIA-VACIA.md` y `CLAUDE.md` §2 (nada en paralelo con `herramientas.mutar`).
+
+### SIGUIENTE ACCION EXACTA: integrar (lo ejecuta el CEO; el sandbox aisla al agente)
+
+    MAIN=/home/majo1230/Documentos/AURA/aura-project-bible
+    git -C "$MAIN" merge --no-ff worktree-m3-entry -m "merge: 017 + buzon visible en el Centro de Gobierno"
+    cd "$MAIN/walking-skeleton" && AURA_DATOS=/tmp/aura-gate ./quality-gate.sh
+    git -C "$MAIN" push
+    # y desde el worktree:  git merge --ff-only main
+
+`AURA_DATOS` NO es opcional: sin el, el gate puede escribir en el `~/.aura` real.
+
+### DESPUES: solo ANALISIS, sin implementar (orden del CEO)
+**Decision Package sobre la frontera real de autonomia**, con evidencia, distinguiendo: que resuelve
+software · que exige un modelo/LLM · que exige hardware · coste y riesgo de cada alternativa · y
+cuanto aumenta la autonomia cada una. **NO abrir 015/016 ni ningun cambio hasta aprobar ese DP.**
+
+Contexto medido que el analisis debe partir: `admitir()` acepta `ceo`, `asistencia_externa` y
+`derivado`, y **AURORA solo puede crear trabajo `derivado`**, con cadena de longitud 1 por corte
+deliberado. Puede reaccionar a lo que encuentra; no puede iniciar nada nuevo. Ese es el cuello.
+
+---
+
+
 ## PIEZA 2 — APROBACION DIFERIDA · LISTA PARA INTEGRAR (2026-08-10)
 
 **Commit:** `975e465` · worktree limpio · **`main` = `origin/main` = `62387a6`**

@@ -128,6 +128,21 @@ class EjecutorProgramador:
     def _rechazo_previo(self, relativa: str, buscar: str, sustituir: str) -> str:
         if not relativa or not buscar:
             return "un cambio necesita fichero y patron a sustituir"
+        # UN CAMBIO SIN SUSTITUTO NO ES UN CAMBIO: ES UN BORRADO. Medido por la tercera auditoria
+        # independiente sobre el sistema real -- `fichero` + `buscar` sin `sustituir` daba `viable` con
+        # el efecto "sustituir 1 aparicion", y borraba el patron del disco. Como quitar una guarda no
+        # rompe pruebas, el QA daba verde y el cambio se CONSERVABA.
+        #
+        # Y rompia el consentimiento antes que el codigo: al humano se le enseñaba "sustituir" y se
+        # ejecutaba un borrado. Una confirmacion sobre una previsualizacion falsa no es una
+        # confirmacion (ADR-0003).
+        #
+        # `.strip()` y no la veracidad a secas: `sustituir = "   "` es un valor PRESENTE y VERDADERO
+        # que pasaba la guarda y sustituia el patron POR ESPACIOS. La misma trampa se pago un piso mas
+        # arriba, en el todo-o-nada del contexto derivado; alli quedo protegido solo ESE carril, y
+        # cualquier otra ruta hacia aqui lo esquivaba. Este es el punto donde se toca el disco.
+        if not sustituir.strip():
+            return "un cambio necesita un sustituto real: sin el seria un borrado, no una sustitucion"
         if buscar == sustituir:
             return "el cambio es degenerado: no cambia nada"
         if not (self._raiz / relativa).is_file():

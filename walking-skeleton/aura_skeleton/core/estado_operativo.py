@@ -78,6 +78,20 @@ CLAVE_CONTEXTO = "_veredicto"
 _CAMPOS_DE_EJECUCION = ("fichero", "buscar", "sustituir")
 
 
+def _utilizables(origen: dict) -> dict:
+    """Los campos de ejecucion que de verdad se pueden ejecutar. UNA sola definicion, no dos gemelas.
+
+    Habia una copia de esta regla en cada capa -el traductor y el filtro del punto de paso-. La
+    tercera auditoria midio lo que eso costaba: revertir UNA de las dos a la veracidad a secas dejaba
+    44/44 pruebas en verde, porque la otra capa atrapaba el fallo. Dos guardas gemelas no son defensa
+    en profundidad: son dos sitios donde la regla puede divergir y una sola prueba que se entera.
+
+    Se exige `str`, no solo contenido: una lista o un numero pasaban la guarda porque `str(["x"])` es
+    veraz, y aguas abajo el ejecutor habria escrito literalmente `['x']` en el fichero.
+    """
+    return {c: origen[c] for c in _CAMPOS_DE_EJECUCION if isinstance(origen.get(c), str) and origen[c].strip()}
+
+
 def solo_ejecutable_completo(contexto: dict) -> dict:
     """Filtra un contexto para que NUNCA salga con claves de ejecucion incompletas.
 
@@ -90,7 +104,13 @@ def solo_ejecutable_completo(contexto: dict) -> dict:
     una tarea que un ejecutor va a leer. Lo incompleto no se descarta: se degrada a `*_declarado`,
     que nadie ejecuta y el CEO si puede leer.
     """
-    completos = {c: contexto[c] for c in _CAMPOS_DE_EJECUCION if str(contexto.get(c) or "").strip()}
+    if not isinstance(contexto, dict):
+        # `args` es un diccionario abierto: nadie garantiza que `_veredicto` traiga un dict. Sin esto
+        # un valor suelto reventaba con AttributeError DENTRO del observador, y la excepcion escapaba
+        # de `transitar` -- que promete justo lo contrario: "un observador que falle no corrompe el
+        # estado, solo se pierde su reaccion".
+        return {}
+    completos = _utilizables(contexto)
     if len(completos) == len(_CAMPOS_DE_EJECUCION):
         return dict(contexto)
     limpio = {k: v for k, v in contexto.items() if k not in _CAMPOS_DE_EJECUCION}
@@ -124,7 +144,7 @@ def contexto_de_correccion(resultado: dict, motivo: str) -> dict:
     # VERDADERO que pasaba la guarda y llegaba como ejecutable. Medido: el dry-run daba `viable` y el
     # efecto era sustituir el patron por espacios -- destruir la garantia, con el QA respaldandolo
     # porque eso no rompe ninguna prueba. Un campo en blanco no es un campo.
-    completos = {c: primera[c] for c in _CAMPOS_DE_EJECUCION if str(primera.get(c) or "").strip()}
+    completos = _utilizables(primera)
     if len(completos) == len(_CAMPOS_DE_EJECUCION):
         contexto.update(completos)
     else:

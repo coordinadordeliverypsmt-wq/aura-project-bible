@@ -91,6 +91,59 @@ def test_se_rechaza_un_cambio_degenerado(tmp_path):
     assert v.veces == 0, "un cambio que no cambia nada no debe consumir una verificacion"
 
 
+# ------------------------------------------- UN CAMBIO SIN SUSTITUTO NO ES UN CAMBIO: ES UN BORRADO --
+#
+# La tercera auditoria independiente lo midio sobre el sistema real: `fichero` + `buscar` SIN
+# `sustituir` daba `viable: True` con efecto "sustituir 1 aparicion ... y verificar", y lo que hacia
+# era BORRAR el patron del disco. El QA daba verde -quitar una guarda no rompe pruebas- y el cambio se
+# CONSERVABA.
+#
+# Dos garantias distintas caen ahi, y por eso van dos pruebas:
+#   1. El efecto: se destruye codigo que nadie pidio destruir.
+#   2. El CONSENTIMIENTO (ADR-0003): al CEO se le enseñaba "sustituir" y se ejecutaba un borrado. Una
+#      confirmacion humana sobre una previsualizacion falsa no es una confirmacion.
+#
+# La regla ya existia un piso mas arriba -el todo-o-nada del contexto derivado-, pero vivia solo en el
+# carril derivado: cualquier otra ruta hacia el ejecutor la esquivaba. Aqui se aplica donde de verdad
+# se toca el disco.
+
+
+@pytest.mark.parametrize("sustituir", [None, "", "   ", "\n\t "])
+def test_un_cambio_sin_sustituto_real_se_RECHAZA_en_vez_de_borrar(tmp_path, sustituir):
+    """Los blancos van aparte de la ausencia: `sustituir = "   "` es un valor PRESENTE y VERDADERO, y
+    una guarda escrita con veracidad a secas lo dejaria pasar. Ya ocurrio un piso mas arriba."""
+    prog, v, f = _entorno(tmp_path)
+    original = f.read_bytes()
+    args = {"fichero": "m.py", "buscar": "VALOR = 1"}
+    if sustituir is not None:
+        args["sustituir"] = sustituir
+
+    previo = asyncio.run(prog.simular("proponer_cambio", args, "t"))
+    r = asyncio.run(prog.execute("proponer_cambio", args, "t", "e"))
+
+    assert previo["viable"] is False, f"el dry-run avalo un borrado encubierto: {previo}"
+    assert r["aplicado"] is False, "se aplico un cambio sin sustituto: eso es un borrado"
+    assert f.read_bytes() == original, "el patron fue BORRADO del disco"
+    assert v.veces == 0, "un cambio inadmisible no debe consumir una verificacion"
+
+
+def test_la_previsualizacion_no_puede_prometer_algo_distinto_de_lo_que_ocurre(tmp_path):
+    """CONTROL del par anterior. Sin esto, "rechazar sin sustituto" se cumpliria rechazandolo todo, y
+    la capacidad de cambiar codigo -que es el incremento entero- quedaria anulada en silencio.
+
+    Ademas fija lo que exige ADR-0003: lo que se le enseña al humano describe lo que va a pasar.
+    """
+    prog, v, f = _entorno(tmp_path)
+    args = {"fichero": "m.py", "buscar": "VALOR = 1", "sustituir": "VALOR = 2"}
+
+    previo = asyncio.run(prog.simular("proponer_cambio", args, "t"))
+    asyncio.run(prog.execute("proponer_cambio", args, "t", "e"))
+
+    assert previo["viable"] is True, "un cambio completo y legitimo debe seguir siendo viable"
+    assert f.read_text(encoding="utf-8") == "VALOR = 2\n"
+    assert v.veces == 1
+
+
 def test_la_superficie_es_cerrada(tmp_path):
     prog, _, _ = _entorno(tmp_path)
     with pytest.raises(ValueError):

@@ -397,7 +397,13 @@ async def test_una_tarea_sin_ejecutor_tambien_deriva_con_su_motivo(estado):
     await director.ciclo("obj")
 
     d = [t for t in estado.tareas("obj") if t.origen == "derivado"][0]
-    assert "inexistente" in str(d.args.get("motivo", "")), f"la derivada nació sin motivo: {d.args}"
+    # EXACTO, no una subcadena. La tercera auditoría lo midió: `"inexistente" in ...` pasaba igual
+    # borrando entero el `args=` que esta rama añade, porque el fallback del oyente compone OTRO texto
+    # -«ningun ejecutor atiende al responsable 'inexistente'»- que también lo contiene. La aserción no
+    # podía distinguir las dos capas, así que la línea del director quedaba sin red.
+    assert d.args.get("motivo") == "sin ejecutor para 'inexistente'", (
+        f"la derivada no recibió el motivo que adjunta el director: {d.args}"
+    )
 
 
 @pytest.mark.asyncio
@@ -496,6 +502,83 @@ async def test_la_proteccion_se_aplica_en_el_punto_de_paso_no_en_el_llamador(est
     d = [t for t in estado.tareas("obj") if t.origen == "derivado"][0]
     assert "fichero" not in d.args, f"el contexto incompleto esquivó la protección: {d.args}"
     assert d.args.get("fichero_declarado") == "a.toml", "pero el dato debe seguir viajando"
+
+
+# ---------------------------- DEFECTOS ENCONTRADOS DESPUÉS DE LA TERCERA AUDITORÍA --
+#
+# Todos de la misma familia: garantías reales sin red PROPIA, sostenidas por otra capa. Medido: cada
+# una de estas tres líneas podía revertirse a su versión defectuosa con las 44 pruebas en verde.
+
+
+@pytest.mark.parametrize("en_blanco", ["   ", "\n", "\t"])
+def test_el_filtro_del_punto_de_paso_por_si_solo_rechaza_los_campos_en_blanco(en_blanco):
+    """MUTANTE VIVO. Espejo exacto de la prueba del traductor, para la OTRA capa.
+
+    `test_un_campo_en_blanco_no_cuenta_como_campo` pasa por el Director, donde el traductor ya limpió
+    el blanco antes de llegar aquí: ejercita el sistema, no esta guarda. Devolverla a la veracidad a
+    secas dejaba 44/44 en verde. Es literalmente el defecto que la segunda auditoría encontró en la
+    capa de al lado, corregido allí y reproducido aquí.
+    """
+    from aura_skeleton.core.estado_operativo import solo_ejecutable_completo
+
+    ctx = solo_ejecutable_completo({"motivo": "m", "fichero": "a.toml", "buscar": "p", "sustituir": en_blanco})
+
+    assert "fichero" not in ctx, f"el filtro dejó pasar un campo en blanco como ejecutable: {ctx}"
+    assert "sustituir" not in ctx
+    assert ctx.get("fichero_declarado") == "a.toml", "pero el dato debe seguir viajando"
+
+
+@pytest.mark.parametrize("no_texto", [["x"], 3, {"a": 1}, True])
+def test_un_campo_que_no_es_texto_no_es_un_campo(no_texto):
+    """Un campo de ejecución que no es texto pasaba la guarda, porque `str(["x"])` es veraz. Aguas
+    abajo `_campos()` lo convierte a cadena y el ejecutor habría escrito `['x']` en el fichero: un
+    cambio que nadie formuló."""
+    from aura_skeleton.core.estado_operativo import solo_ejecutable_completo
+
+    ctx = solo_ejecutable_completo({"motivo": "m", "fichero": "a.toml", "buscar": "p", "sustituir": no_texto})
+
+    assert "sustituir" not in ctx, f"un valor no textual llegó como ejecutable: {ctx}"
+    assert "fichero" not in ctx, "y arrastra a los demás: el todo-o-nada es todo o nada"
+
+
+@pytest.mark.asyncio
+async def test_sin_veredicto_alguno_la_derivada_conserva_el_motivo_del_bloqueo(estado):
+    """MUTANTE VIVO. Da red al fallback `or {"motivo": motivo}` del oyente, que estaba enmascarado
+    por la rama del director: como aquélla SIEMPRE adjunta un contexto, el fallback no se ejercitaba
+    nunca y podía borrarse sin que nada fallara.
+
+    La ruta es real: cualquier componente que bloquee una tarea con `transitar` sin adjuntar
+    `_veredicto` -que era el comportamiento de TODO el sistema antes de este incremento- cae aquí. Si
+    el fallback desaparece, esa derivada vuelve a nacer con `args={}` y opaca.
+    """
+    estado.registrar(Tarea(objetivo_id="obj", tarea_id="t-pelada", descripcion="x", responsable="programador"))
+    estado.transitar(
+        "obj", "t-pelada", "bloqueada", autoridad="otro-componente", causa="se cayó la red", bloqueos=["se cayó la red"]
+    )
+
+    d = [t for t in estado.tareas("obj") if t.origen == "derivado"][0]
+    assert d.args.get("motivo") == "se cayó la red", f"la derivada nació opaca: {d.args}"
+
+
+@pytest.mark.asyncio
+async def test_un_veredicto_que_no_es_un_diccionario_no_tumba_el_observador(estado):
+    """`args` es abierto: nadie garantiza que `_veredicto` traiga un dict. Reventaba con
+    `AttributeError` DENTRO del observador y la excepción ESCAPABA de `transitar`, que promete lo
+    contrario: «un observador que falle no corrompe el estado, solo se pierde su reacción»."""
+    estado.registrar(Tarea(objetivo_id="obj", tarea_id="t-raro", descripcion="x", responsable="programador"))
+    estado.transitar(
+        "obj",
+        "t-raro",
+        "bloqueada",
+        autoridad="director",
+        causa="fallo",
+        bloqueos=["fallo"],
+        args={CLAVE_CONTEXTO: "texto"},
+    )
+
+    assert [t for t in estado.tareas("obj") if t.tarea_id == "t-raro"][-1].estado == "bloqueada"
+    d = [t for t in estado.tareas("obj") if t.origen == "derivado"][0]
+    assert d.args.get("motivo") == "fallo", f"se perdió el motivo por un veredicto mal formado: {d.args}"
 
 
 @pytest.mark.asyncio

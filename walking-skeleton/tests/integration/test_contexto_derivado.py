@@ -581,6 +581,94 @@ async def test_un_veredicto_que_no_es_un_diccionario_no_tumba_el_observador(esta
     assert d.args.get("motivo") == "fallo", f"se perdió el motivo por un veredicto mal formado: {d.args}"
 
 
+# ---------------------------- DEFECTOS ENCONTRADOS DESPUÉS DE LA CUARTA AUDITORÍA --
+#
+# Cuatro mutantes vivos que yo no había declarado, sobre líneas que este incremento añadió.
+
+
+@pytest.mark.asyncio
+async def test_la_referencia_de_la_garantia_rota_viaja_hasta_la_derivada(estado):
+    """MUTANTE VIVO. `referencia` es el identificador de la garantía rota (`x.toml:M1`) y es el dato
+    MÁS accionable que llega al CEO: le dice exactamente cuál de los mutantes hay que revisar. No
+    tenía ni prueba ni mutante — se podía borrar entero sin que nada fallara."""
+    estado.registrar(Tarea(objetivo_id="obj", tarea_id="t-audit", descripcion="auditar", responsable="auditor"))
+    director = DirectorGeneral(
+        estado, _MotorFalso(_VEREDICTO_CON_CONTEXTO), RegistroEjecutores({"auditor": "auditar_garantias"})
+    )
+    await director.ciclo("obj")
+
+    d = [t for t in estado.tareas("obj") if t.origen == "derivado"][0]
+    assert d.args.get("referencia") == "gobierno-cli.toml:M1", f"se perdió qué garantía hay que arreglar: {d.args}"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("veredicto", ["texto suelto", 42, ["a"]])
+async def test_un_veredicto_no_dict_no_tumba_el_ciclo_del_director(estado, veredicto):
+    """MUTANTE VIVO, gemelo exacto del que sí tiene red un piso más abajo. La guarda de aquí no la
+    ejercitaba nadie: con un resultado no-dict, el traductor reventaba con `AttributeError` FUERA de
+    la contención del observador y se llevaba por delante el ciclo entero del Director — no una
+    tarea: el ciclo.
+
+    El camino exige que el motor NO ejecute: cuando ejecuta, un veredicto no-dict se considera bueno
+    y la tarea termina antes de llegar aquí. Ésa es justo la ruta de una acción detenida por permisos
+    o por el kill switch, que es de las más frecuentes.
+    """
+
+    class MotorDetenido:
+        async def ejecutar(self, accion, args, trace_id, event_id, origen):
+            return {"accion": accion, "estado": "detenida", "motivo": "permisos", "resultado": veredicto}
+
+    estado.registrar(Tarea(objetivo_id="obj", tarea_id="t-audit", descripcion="auditar", responsable="auditor"))
+    director = DirectorGeneral(estado, MotorDetenido(), RegistroEjecutores({"auditor": "auditar_garantias"}))
+
+    await director.ciclo("obj")
+
+    causa = [t for t in estado.tareas("obj") if t.tarea_id == "t-audit"][-1]
+    assert causa.estado == "bloqueada", "el ciclo no llegó a bloquear la tarea"
+    d = [t for t in estado.tareas("obj") if t.origen == "derivado"][0]
+    assert d.args.get("motivo") == "detenida: permisos", f"la derivada nació sin motivo: {d.args}"
+
+
+@pytest.mark.asyncio
+async def test_la_tarea_bloqueada_conserva_los_argumentos_con_los_que_se_intento(estado):
+    """MUTANTE VIVO, en las DOS ramas que bloquean. Adjuntar el veredicto no puede costar el registro
+    de lo que se intentó: sin esos `args`, al reanudar tras un reinicio nadie sabe con qué se falló, y
+    la regla del CEO es que sólo pertenece a AURORA lo que el sistema puede recuperar y continuar por
+    sí mismo."""
+    intento = {"fichero": "a.py", "buscar": "viejo", "sustituir": "nuevo"}
+    estado.registrar(
+        Tarea(objetivo_id="obj", tarea_id="t-rojo", descripcion="cambio", responsable="programador", args=dict(intento))
+    )
+    rojo = {"capacidad": "proponer_cambio", "ok": False, "resumen": "la verificacion no paso"}
+    await DirectorGeneral(estado, _MotorFalso(rojo), RegistroEjecutores({"programador": "proponer_cambio"})).ciclo(
+        "obj"
+    )
+
+    causa = [t for t in estado.tareas("obj") if t.tarea_id == "t-rojo"][-1]
+    assert causa.estado == "bloqueada", "guarda: la rama que adjunta el veredicto no llegó a ejecutarse"
+    assert {k: causa.args.get(k) for k in intento} == intento, f"la tarea perdió lo que intentó: {causa.args}"
+
+
+@pytest.mark.asyncio
+async def test_la_tarea_sin_ejecutor_tambien_conserva_sus_argumentos(estado):
+    """MUTANTE VIVO C22, y la primera versión de esta prueba era DECORATIVA: metía las dos tareas en
+    el mismo objetivo, el director sólo atendía la primera por ciclo, y la de la rama sin ejecutor
+    llegaba al final del test sin haberse procesado — sus `args` seguían intactos por no haber pasado
+    nada. La aserción no medía la garantía: medía que no había ocurrido nada.
+
+    De ahí la guarda de estado: sin ella, esto vuelve a ser un falso PASS.
+    """
+    estado.registrar(
+        Tarea(objetivo_id="obj", tarea_id="t-sin", descripcion="x", responsable="inexistente", args={"k": "v"})
+    )
+    director = DirectorGeneral(estado, _MotorFalso({}), RegistroEjecutores({"programador": "proponer_cambio"}))
+    await director.ciclo("obj")
+
+    t = [x for x in estado.tareas("obj") if x.tarea_id == "t-sin"][-1]
+    assert t.estado == "bloqueada", "guarda: la rama sin ejecutor no llegó a ejecutarse"
+    assert t.args.get("k") == "v", f"la rama sin ejecutor perdió sus argumentos: {t.args}"
+
+
 @pytest.mark.asyncio
 async def test_un_veredicto_completo_si_llega_como_ejecutable(estado):
     """CONTROL de todo lo anterior. Sin él, «no dejar pasar lo incompleto» se cumpliría trivialmente

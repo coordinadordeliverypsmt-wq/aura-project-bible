@@ -14,10 +14,37 @@ catalogo: no hay ruta para ejecucion libre.
 from __future__ import annotations
 
 import os
+import unicodedata
 
 
 class ErrorDeValidacion(Exception):
     """Los argumentos no son admisibles. El adaptador NUNCA debe recibirlos."""
+
+
+def texto_utilizable(valor: object) -> bool:
+    """UNA sola definicion, para todo el sistema, de "este valor sirve como argumento de texto".
+
+    Vive aqui porque aqui se decide *si los argumentos concretos son admisibles*, y porque este
+    modulo no depende de nada del nucleo: cualquier capa puede usarlo sin crear un ciclo.
+
+    Existe porque la regla se escribio DOS VECES y las dos copias divergieron. La tercera auditoria
+    midio el coste de una copia; la cuarta, el de la otra:
+
+    - NO BASTA CON QUE HAYA VALOR. `sustituir = "   "` es presente y verdadero, y sustituir el patron
+      por espacios destruye la garantia igual que borrarla.
+    - NO BASTA CON `.strip()`. Solo quita lo que `isspace()` reconoce. Un ZWSP (U+200B) o un guion
+      blando (U+00AD) lo atraviesan, y sustituir una guarda por un caracter de anchura cero es
+      INDISTINGUIBLE de borrarla, en el fichero y en el diff. Por eso tambien se descartan las
+      categorias Unicode `Cf` (formato) y `Cc` (control).
+    - NO BASTA CON QUE SEA VERDADERO. Una lista o un numero pasaban porque `str(["x"])` es veraz, y
+      el ejecutor escribia literalmente `['x']` en el fichero: un cambio que nadie formulo (INV-9).
+
+    Lo que SI es utilizable es cualquier texto con al menos un caracter visible -incluido `"#"`-:
+    eso es una sustitucion real, aunque sea pobre, y el humano la ve en la previsualizacion.
+    """
+    if not isinstance(valor, str):
+        return False
+    return any(not c.isspace() and unicodedata.category(c) not in ("Cf", "Cc") for c in valor)
 
 
 # Argumentos que espera cada operacion. `rutas` indica cuales deben validarse como rutas del

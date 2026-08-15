@@ -25,6 +25,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from .. import observability as obs
+from ..core.operaciones import texto_utilizable
 
 
 class EjecutorProgramador:
@@ -50,10 +51,10 @@ class EjecutorProgramador:
         No aplica nada: comprueba las mismas precondiciones que `execute` y describe el efecto para
         que la confirmacion humana sea informada (lista roja, ADR-0003).
         """
-        relativa, buscar, sustituir = _campos(args)
-        rechazo = self._rechazo_previo(relativa, buscar, sustituir)
+        rechazo = self._rechazo_previo(args)
         if rechazo:
             return {"viable": False, "motivo": rechazo}
+        relativa, buscar, sustituir = _campos(args)
         ruta, fuera = self._resolver(relativa)
         if fuera:
             return {"viable": False, "motivo": "ruta fuera del arbol"}
@@ -64,18 +65,25 @@ class EjecutorProgramador:
         return {"viable": True, "efecto": f"sustituir 1 aparicion en {relativa} y verificar; se revierte si falla"}
 
     def _resolver(self, relativa: str):
+        # `startswith` sobre la ruta DESNUDA comparaba prefijos de texto, no de arbol: con la raiz en
+        # `.../x`, un `../xyz/secreto.py` resolvia a `.../xyz/secreto.py`, que empieza por `.../x` y
+        # pasaba la contencion. Medido por la cuarta auditoria: el cambio se aplico y se CONSERVO
+        # fuera del arbol declarado. No era explotable en la composicion real -no hay hermano de
+        # `walking-skeleton/` con ese prefijo-, pero la contencion no puede depender de como se
+        # llamen los directorios vecinos.
+        #
+        # `is_relative_to` compara SEGMENTOS, que es lo que "dentro del arbol" significa.
         ruta = (self._raiz / relativa).resolve()
-        return ruta, not str(ruta).startswith(str(self._raiz.resolve()))
+        return ruta, not ruta.is_relative_to(self._raiz.resolve())
 
     async def execute(self, command: str, args: dict, trace_id: str, event_id: str) -> dict:
         if command != "proponer_cambio":
             raise ValueError(f"capacidad no ofrecida por el ejecutor Programador: {command!r}")
 
-        relativa, buscar, sustituir = _campos(args)
-
-        rechazo = self._rechazo_previo(relativa, buscar, sustituir)
+        rechazo = self._rechazo_previo(args)
         if rechazo:
             return {"capacidad": command, "aplicado": False, "verificado": False, "motivo": rechazo}
+        relativa, buscar, sustituir = _campos(args)
 
         ruta, fuera = self._resolver(relativa)
         if fuera:
@@ -125,8 +133,10 @@ class EjecutorProgramador:
             "motivo": f"revertido: {veredicto.get('resumen', 'la verificacion no paso')}",
         }
 
-    def _rechazo_previo(self, relativa: str, buscar: str, sustituir: str) -> str:
-        if not relativa or not buscar:
+    def _rechazo_previo(self, args: dict) -> str:
+        """Recibe los argumentos CRUDOS, no convertidos: validar despues de `str()` no valida nada."""
+        relativa, buscar, sustituir = _crudos(args)
+        if not isinstance(relativa, str) or not isinstance(buscar, str) or not relativa or not buscar:
             return "un cambio necesita fichero y patron a sustituir"
         # UN CAMBIO SIN SUSTITUTO NO ES UN CAMBIO: ES UN BORRADO. Medido por la tercera auditoria
         # independiente sobre el sistema real -- `fichero` + `buscar` sin `sustituir` daba `viable` con
@@ -137,11 +147,12 @@ class EjecutorProgramador:
         # ejecutaba un borrado. Una confirmacion sobre una previsualizacion falsa no es una
         # confirmacion (ADR-0003).
         #
-        # `.strip()` y no la veracidad a secas: `sustituir = "   "` es un valor PRESENTE y VERDADERO
-        # que pasaba la guarda y sustituia el patron POR ESPACIOS. La misma trampa se pago un piso mas
-        # arriba, en el todo-o-nada del contexto derivado; alli quedo protegido solo ESE carril, y
-        # cualquier otra ruta hacia aqui lo esquivaba. Este es el punto donde se toca el disco.
-        if not sustituir.strip():
+        # La regla de "esto sirve como texto" es UNA y vive en `operaciones`. Estuvo escrita dos
+        # veces y las dos copias divergieron: la primera correccion aplico aqui la leccion del caso
+        # BLANCO y no la del caso TIPO, asi que una lista seguia escribiendose como `['x']` en el
+        # fichero. Y `.strip()` por si solo deja pasar los invisibles que no son espacio -- un ZWSP
+        # sustituyendo a una guarda es indistinguible de haberla borrado.
+        if not texto_utilizable(sustituir):
             return "un cambio necesita un sustituto real: sin el seria un borrado, no una sustitucion"
         if buscar == sustituir:
             return "el cambio es degenerado: no cambia nada"
@@ -150,10 +161,19 @@ class EjecutorProgramador:
         return ""
 
 
-def _campos(args: dict) -> tuple[str, str, str]:
-    """Lectura unica de los argumentos: `simular` y `execute` deben ver EXACTAMENTE lo mismo.
+def _crudos(args: dict) -> tuple[object, object, object]:
+    """Lectura unica de los argumentos, SIN CONVERTIR: `simular` y `execute` deben ver EXACTAMENTE lo
+    mismo. Si divergieran, el dry-run aprobaria un cambio y la ejecucion aplicaria otro — que es la
+    clase de defecto que el dry-run existe para impedir.
 
-    Si divergieran, el dry-run aprobaria un cambio y la ejecucion aplicaria otro — que es la clase de
-    defecto que el dry-run existe para impedir.
+    Sin convertir porque la conversion era justo lo que enmascaraba el valor inadmisible: `str(["x"])`
+    es un texto perfectamente valido, asi que validar DESPUES de convertir no valida nada.
     """
-    return str(args.get("fichero", "")), str(args.get("buscar", "")), str(args.get("sustituir", ""))
+    return args.get("fichero", ""), args.get("buscar", ""), args.get("sustituir", "")
+
+
+def _campos(args: dict) -> tuple[str, str, str]:
+    """Los mismos argumentos ya como texto. Solo se llama DESPUES de `_rechazo_previo`, que es quien
+    garantiza que los tres son cadenas: aqui `str()` ya no puede convertir nada inesperado."""
+    fichero, buscar, sustituir = _crudos(args)
+    return str(fichero), str(buscar), str(sustituir)

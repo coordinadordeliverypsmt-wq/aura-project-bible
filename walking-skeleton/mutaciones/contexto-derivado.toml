@@ -213,7 +213,7 @@ sustituir = '''                args=dict(contexto),'''
 id = "C17"
 garantia = "un cambio sin sustituto se aplica: es un borrado con la previsualizacion de una sustitucion"
 fichero = "aura_skeleton/adapters/programador.py"
-buscar = '''        if not sustituir.strip():'''
+buscar = '''        if not texto_utilizable(sustituir):'''
 sustituir = '''        if False:'''
 
 # (C18) VUELVE EL DEFECTO D1. El auditor publicaba el fichero OBJETIVO de la garantia en vez del TOML
@@ -225,3 +225,90 @@ garantia = "el auditor vuelve a publicar el fichero objetivo en vez del TOML de 
 fichero = "aura_skeleton/adapters/auditor.py"
 buscar = '''                "fichero": str(toml.relative_to(base)),'''
 sustituir = '''                "fichero": str(m.get("fichero", "")),'''
+
+# ================================================================================================
+# CUARTA AUDITORIA (2026-08-15): cuatro supervivientes que YO no habia declarado, sobre lineas que
+# este incremento anadio, y dos huecos mas en el punto donde se toca el disco.
+# ================================================================================================
+
+# (C19) SE PIERDE QUE GARANTIA HAY QUE ARREGLAR. `referencia` es el identificador del mutante roto
+# (`x.toml:M1`) y el dato MAS accionable que llega al CEO: sin el, la escalada dice que algo se rompio
+# pero no cual. No tenia ni prueba ni mutante.
+[[mutante]]
+id = "C19"
+garantia = "la referencia de la garantia rota no viaja: la escalada no dice QUE hay que arreglar"
+fichero = "aura_skeleton/core/estado_operativo.py"
+buscar = '''        contexto["referencia"] = primera["mutante"]'''
+sustituir = '''        pass'''
+
+# (C20) UN VEREDICTO NO-DICT TUMBA EL CICLO ENTERO. Gemelo exacto de C14, que si tiene red un piso mas
+# abajo. Se alcanza por la ruta de una accion DETENIDA -permisos, kill switch-, que es de las mas
+# frecuentes: el traductor revienta con AttributeError fuera de la contencion del observador y se
+# lleva por delante `DirectorGeneral.ciclo`. No una tarea: el ciclo.
+[[mutante]]
+id = "C20"
+garantia = "un veredicto no-dict propaga AttributeError y tumba el ciclo del Director"
+fichero = "aura_skeleton/core/director.py"
+buscar = '''        contexto = contexto_de_correccion(veredicto if isinstance(veredicto, dict) else {}, motivo)'''
+sustituir = '''        contexto = contexto_de_correccion(veredicto or {}, motivo)'''
+
+# (C21) LA TAREA BLOQUEADA PIERDE LO QUE INTENTO. Adjuntar el veredicto no puede costar el registro de
+# los argumentos con los que se fallo: al reanudar tras un reinicio nadie sabria con que se intento, y
+# la regla del CEO es que solo pertenece a AURORA lo que el sistema puede recuperar y continuar solo.
+# Sobrevivia en LAS DOS ramas que bloquean; van las dos.
+[[mutante]]
+id = "C21"
+garantia = "la tarea bloqueada por veredicto negativo pierde sus propios argumentos"
+fichero = "aura_skeleton/core/director.py"
+buscar = '''            args={**tarea.args, CLAVE_CONTEXTO: contexto},'''
+sustituir = '''            args={CLAVE_CONTEXTO: contexto},'''
+
+[[mutante]]
+id = "C22"
+garantia = "la tarea bloqueada por falta de ejecutor pierde sus propios argumentos"
+fichero = "aura_skeleton/core/director.py"
+buscar = '''                args={**tarea.args, CLAVE_CONTEXTO: {"motivo": f"sin ejecutor para '{tarea.responsable}'"}},'''
+sustituir = '''                args={CLAVE_CONTEXTO: {"motivo": f"sin ejecutor para '{tarea.responsable}'"}},'''
+
+# (C23) LA REGLA DE "ESTO SIRVE COMO TEXTO" VUELVE A ESTAR ESCRITA DOS VECES. Es el defecto que se
+# repitio en las auditorias 2, 3 y 4: cada vez que la regla tiene una copia, una de las dos se queda
+# atras. Aqui el punto de paso al disco vuelve a su propia version, que ignora el tipo.
+[[mutante]]
+id = "C23"
+garantia = "el ejecutor deja de usar la regla unica: un valor no textual se escribe como su repr"
+fichero = "aura_skeleton/adapters/programador.py"
+buscar = '''        if not texto_utilizable(sustituir):'''
+sustituir = '''        if not str(sustituir).strip():'''
+
+# (C24) LOS INVISIBLES QUE NO SON ESPACIO VUELVEN A PASAR. `.strip()` solo quita lo que `isspace()`
+# reconoce; un ZWSP (U+200B) o un guion blando (U+00AD) lo atraviesan. Sustituir una guarda por un
+# caracter de anchura cero es INDISTINGUIBLE de borrarla, en el fichero y en el diff, y la
+# previsualizacion que ve el humano es la misma de siempre.
+[[mutante]]
+id = "C24"
+garantia = "un caracter invisible cuenta como sustituto: el borrado se disfraza de sustitucion"
+fichero = "aura_skeleton/core/operaciones.py"
+buscar = '''    return any(not c.isspace() and unicodedata.category(c) not in ("Cf", "Cc") for c in valor)'''
+sustituir = '''    return bool(valor.strip())'''
+
+# (C25) EL FICHERO Y EL PATRON DEJAN DE COMPROBARSE COMO TEXTO. `_campos` los convierte con `str()`
+# despues, asi que sin la comprobacion de tipo el ejecutor buscaria el `repr` de una lista dentro del
+# fichero. Validar despues de convertir no valida nada.
+[[mutante]]
+id = "C25"
+garantia = "fichero y patron no se comprueban como texto: `str()` los convierte y la validacion es ciega"
+fichero = "aura_skeleton/adapters/programador.py"
+buscar = '''        if not isinstance(relativa, str) or not isinstance(buscar, str) or not relativa or not buscar:'''
+sustituir = '''        if not relativa or not buscar:'''
+
+# (C26) LA CONTENCION DE RUTA VUELVE A COMPARAR PREFIJOS DE TEXTO. Con la raiz en `.../x`, un
+# `../xyz/secreto.py` resuelve a `.../xyz/secreto.py`, que empieza por `.../x` y pasa la contencion.
+# Medido: el cambio se aplico y se CONSERVO fuera del arbol declarado. Preexistente, y no explotable
+# en la composicion real -no hay hermano de `walking-skeleton/` con ese prefijo-, pero la contencion
+# no puede depender de como se llamen los directorios vecinos.
+[[mutante]]
+id = "C26"
+garantia = "la contencion de ruta compara prefijos de texto: se escribe fuera del arbol declarado"
+fichero = "aura_skeleton/adapters/programador.py"
+buscar = '''        return ruta, not ruta.is_relative_to(self._raiz.resolve())'''
+sustituir = '''        return ruta, not str(ruta).startswith(str(self._raiz.resolve()))'''

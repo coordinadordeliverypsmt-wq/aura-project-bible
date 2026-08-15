@@ -303,6 +303,14 @@ problema del protocolo, **detenerse y corregirlo** antes de gastar la tanda de 3
 - Ollama: binario en `/usr/local/bin/ollama`, **servicio NO levantado**; pesos en disco bajo
   `/usr/share/ollama/.ollama/models` — `qwen2.5:3b` (1,93 GB) y `qwen2.5:0.5b` (398 MB).
 - Timeout del cliente: 180 s por defecto, elevable con `AURA_OLLAMA_TIMEOUT_S`.
+- **Punto de entrada real del producto para un turno**: `Orchestrator.handle_utterance(user_id,
+  audio_text, trace_id)` seguido de `Orchestrator.wait(trace_id, timeout=10)`
+  (`core/orchestrator.py:859` y `:867`). Es la ruta que hay que usar para medir el producto y no una
+  función aislada.
+- **TRAMPA YA DETECTADA, antes de gastar el ensayo:** `wait()` trae **timeout por defecto de 10 s**, y
+  en esta máquina el modelo tarda 25,8 s sólo en responder «Hola». Con el valor por defecto, TODAS las
+  mediciones darían falso HARDWARE. El arnés debe pasar un `timeout` explícito y holgado, coherente
+  con `AURA_OLLAMA_TIMEOUT_S`, y **registrar cuál usó** en la evidencia.
 
 **No autorizado mientras la medición esté pendiente:** conectar el razonador al ciclo, decidir
 hardware, abrir otro incremento, commitear código, y tocar `aura_skeleton/`.

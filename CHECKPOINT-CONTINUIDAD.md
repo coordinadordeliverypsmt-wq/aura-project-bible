@@ -11,6 +11,66 @@ aprobadas.
 ---
 
 
+## PIEZA 2 — APROBACION DIFERIDA · LISTA PARA INTEGRAR (2026-08-10)
+
+**Commit:** `975e465` · worktree limpio · **`main` = `origin/main` = `62387a6`**
+`main` es ancestro de HEAD: **el merge no puede tener conflictos**. Trae 1 commit, 9 ficheros.
+
+### METRICA DE AUTONOMIA — antes / despues
+
+| | ANTES | DESPUES |
+|---|---|---|
+| Ejecutores utilizables sin el CEO delante | **3 de 4** (solo los verdes: verificar, auditar, diagnosticar) | **4 de 4** |
+| `proponer_cambio` (el UNICO que produce trabajo nuevo) | `input()` -> EOFError -> autodenegada, **peticion perdida** | solicitud persistida; el trabajo se reanuda al aprobar |
+| Trabajo de lista roja completable en ausencia del CEO | **ninguno** | el aprobado, en el latido siguiente |
+
+**Lo que NO cambio:** la autorizacion no se presume ni se sustituye. Sin aprobacion la accion no se
+ejecuta, igual que antes. Lo que sobrevive a la ausencia del CEO es la SOLICITUD, no el permiso.
+
+### EVIDENCIA E2E — DOS PROCESOS DISTINTOS, ejecutor real del programador
+
+```
+PROCESO 1 (AURORA sin el CEO)   t-cambio (roja)  : bloqueada
+                                t-audit  (verde) : terminada   <- siguio trabajando
+                                BUZON: proponer_cambio | efecto=sustituir 1 aparicion en
+                                       demo_obra.txt y verificar | huella=ef5ae4b7... | pendiente
+EL CEO APRUEBA editando el JSON a mano, sin herramientas de AURA
+PROCESO 2 (nuevo)               t-cambio         : terminada
+                                fichero: 'contenido viejo aqui' -> 'contenido nuevo aqui'
+```
+
+### VERIFICACION
+- **16 mutantes / 0 supervivientes / 0 no aplicados** (`mutaciones/decisiones-diferidas.toml`).
+  Cuatro sobrevivian en la primera pasada. `motor-ciclo.toml` 5/5.
+- **Quality Gate PASS: 828 pruebas, 3 skipped**, ejecutado sobre `975e465`.
+- Controles negativos verdes: sin aprobacion no ejecuta · rechazo persiste · **aprobacion obsoleta
+  caduca** · fichero manipulado no autoriza · fichero corrupto no autoriza · verdes intactas · kill
+  switch por delante. Sin timeout, sin «fail open», sin aprobacion automatica.
+
+### DEFECTO REAL QUE DESTAPO LA DEMOSTRACION (no las pruebas de unidad)
+El motor identifica la unidad de trabajo con el `event_id` `"<trace>:<tarea_id>"`, y
+`reabrir_aprobadas` comparaba contra el `tarea_id` pelado. **No coincidian nunca.** Las pruebas
+pasaban el identificador ya limpio, asi que la reapertura parecia funcionar mientras en el sistema
+real **la aprobacion del CEO no producia ningun efecto**. Corregido con `_solo_tarea()` y cubierto
+por `test_reabrir_entiende_el_identificador_que_emite_el_motor`. Sin correr la cadena completa en dos
+procesos, esto se habria integrado roto.
+
+Segundo defecto, de la mutacion: una prueba mia inspeccionaba el CODIGO FUENTE buscando la cadena
+`_tarea`, asi que el mutante que la vaciaba pasaba. Era decorativa; ahora comprueba el valor real.
+
+### SIGUIENTE INCREMENTO RECOMENDADO (metrica de gobierno)
+**Capacidad 017 — usar su historial para decidir.** `Tarea.intentos` se incrementa y **nadie lo lee
+para cambiar una decision** (`NO_MEDIBLE` en el IMA). Hoy AURORA reintenta una tarea que ya fallo
+igual que la primera vez: con la Pieza 2 puede pedir permiso y seguir, pero **no aprende de lo que ya
+le paso**. Es software puro, sin dependencia de hardware.
+
+Por detras: **010-012** (los tres pasos deterministas del Traductor Operativo, que reducen lo que el
+CEO tiene que traducir a mano) y **B** (modo usuario/diagnostico: NO aumenta autonomia, cerrarlo en
+cualquier hueco). **014-016 congeladas por hardware** -- no gastar ciclos ahi.
+
+---
+
+
 ## METRICA QUE GOBIERNA LOS SIGUIENTES INCREMENTOS (CEO, 2026-08-09)
 
 > **¿Que trabajo nuevo puede completar AURORA POR SI MISMA despues de este incremento que antes no

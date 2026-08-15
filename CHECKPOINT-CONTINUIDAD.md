@@ -278,6 +278,35 @@ Incremento B (Experiencia Conversacional v1, DP escrito), 010–012 (Traductor O
 (bloqueados por hardware), la decisión de hardware o cambio de modelo, y el cableado de
 `desde_verificacion`.
 
+## 8.bis · Medición del razonador — APROBADA por el CEO, 2026-08-15. En curso
+
+DP: [`milestones/m3-entry/DP-MEDICION-RAZONADOR-LOCAL.md`](milestones/m3-entry/DP-MEDICION-RAZONADOR-LOCAL.md),
+commiteado en `f9c942d`. **Aprobados ambos brazos**, el ensayo con `qwen2.5:0.5b` como baseline
+experimental (sin implicación alguna sobre hardware), los casos 4–7 como control de veracidad, y las
+dos reglas de gobierno: **prompt congelado** y **0/7 es resultado válido**.
+
+**Orden explícita del CEO:** ejecutar **primero y sólo** el ensayo de humo con `0.5b`. Si revela un
+problema del protocolo, **detenerse y corregirlo** antes de gastar la tanda de 30.
+
+**Siguiente paso exacto:** construir el arnés en `milestones/m3-entry/medicion-razonador/` y correr
+únicamente el humo.
+
+**Hechos de cableado ya averiguados — no volver a buscarlos:**
+
+- `componer(config, confirmador=None)` (`composicion.py:220`) **acepta el confirmador por inyección**.
+  Es la pieza que hace estructural el criterio de seguridad: se pasa un confirmador que **deniega
+  siempre** y se conserva el `PermissionManager` real (`composicion.py:238`) y la lista roja real. El
+  motor simula ANTES de confirmar, así que se captura `viable` + previsualización y la ejecución no
+  ocurre porque el permiso se deniega. **No hace falta tocar `aura_skeleton/`.**
+- `Configuracion` (`composicion.py:147`): `raices_permitidas`, `usar_stack_real` (`AURA_STACK_REAL=1`),
+  `modelo` (`AURA_LLM_MODEL`, por defecto `qwen2.5:3b`).
+- Ollama: binario en `/usr/local/bin/ollama`, **servicio NO levantado**; pesos en disco bajo
+  `/usr/share/ollama/.ollama/models` — `qwen2.5:3b` (1,93 GB) y `qwen2.5:0.5b` (398 MB).
+- Timeout del cliente: 180 s por defecto, elevable con `AURA_OLLAMA_TIMEOUT_S`.
+
+**No autorizado mientras la medición esté pendiente:** conectar el razonador al ciclo, decidir
+hardware, abrir otro incremento, commitear código, y tocar `aura_skeleton/`.
+
 ## 9 · Reglas de entorno que cuestan tiempo si se olvidan
 
 - **Nada corre en paralelo con `herramientas.mutar`**: muta los ficheros **en el sitio**, así que

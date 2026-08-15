@@ -41,6 +41,7 @@ from .core.capacidades import Estado, PerfilHardware, PlanActivacion
 from .core.catalogo_capacidades import catalogo
 from .core.conectores_externos import habilitar
 from .core.contexto import RegistroContexto
+from .core.decisiones import AlmacenDecisiones, reabrir_aprobadas
 from .core.director import DirectorGeneral, RegistroEjecutores
 from .core.estado_operativo import AlmacenEstadoOperativo
 from .core.kill_switch import KillSwitch
@@ -360,7 +361,16 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
     director = DirectorGeneral(estado_operativo, motor, RegistroEjecutores(_EJECUTORES))
     # EL LATIDO. Sin esto el Director solo existe cuando alguien pide una vuelta, y AURORA depende de
     # un modelo externo para funcionar. El kill switch se comprueba ANTES de cada latido (RN-3).
-    motor_ciclo = MotorDelCiclo(director, kill_switch=kill_switch)
+    # BUZON DE DECISIONES (Pieza 2). Se cablea SIEMPRE porque es inocuo si esta vacio, y porque una
+    # aprobacion escrita por el CEO debe surtir efecto en el siguiente latido venga de donde venga la
+    # corrida. Quien PREGUNTA depende del modo: la consola en sesion interactiva, el buzon en
+    # `--servir`, donde no hay nadie a quien preguntar.
+    decisiones = AlmacenDecisiones(os.path.join(config.datos, "decisiones"))
+    motor_ciclo = MotorDelCiclo(
+        director,
+        kill_switch=kill_switch,
+        al_despertar=lambda: reabrir_aprobadas(decisiones, estado_operativo),
+    )
 
     orquestador = Orchestrator(
         InProcessEventBus(),

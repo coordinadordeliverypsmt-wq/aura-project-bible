@@ -138,6 +138,10 @@ class MotorAutomatizacion:
         contexto = dict(args)
         if plan is not None:
             contexto["_previsualizacion"] = plan.get("efecto")
+        # Identificador de la unidad de trabajo, para que una confirmacion DIFERIDA pueda decirle al
+        # CEO a que tarea pertenece la decision que le piden aprobar (Pieza 2, regla 2 del acta). Va
+        # con el resto de metadatos `_`: no es un argumento de la accion y no entra en la huella.
+        contexto["_tarea"] = event_id
         ok, motivo = await self.permisos.authorize(accion, contexto, trace_id)
         if not ok:
             return self._detener(accion, trace_id, origen, f"permisos: {motivo}")

@@ -25,6 +25,7 @@ import os
 import sys
 import uuid
 
+from .adapters.hitl_diferido import crear_confirmador_diferido
 from .composicion import Configuracion, componer
 from .core.centro_gobierno import panel, publicar
 from .core.motor_ciclo import FallosConsecutivosExcedidos
@@ -132,7 +133,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = ap.parse_args(argv)
 
-    sistema = componer(Configuracion.desde_entorno())
+    config = Configuracion.desde_entorno()
+    # QUIEN PREGUNTA DEPENDE DEL MODO (Pieza 2). En sesion interactiva el CEO esta delante y la
+    # consola es mejor: responde al instante. En `--servir` no hay nadie, y preguntar por `input()`
+    # solo producia `EOFError` -> denegada, con la peticion perdida: AURORA no podia completar NINGUN
+    # trabajo de lista roja sin el CEO presente en ese instante. El buzon deja la peticion escrita.
+    confirmador = crear_confirmador_diferido(os.path.join(config.datos, "decisiones")) if args.servir else None
+    sistema = componer(config, confirmador=confirmador)
 
     if args.verificar:
         print(_informe(sistema))

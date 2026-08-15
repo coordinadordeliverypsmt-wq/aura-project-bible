@@ -22,6 +22,23 @@ humanos.
 
 NO SE FINGE AUTONOMÍA. Cuando un dato no existe, se queda ausente: el ejecutor no puede actuar, la
 tarea se bloquea y escala con TODO el contexto delante. Eso es un resultado correcto, no un fallo.
+
+ALCANCE CONFIRMADO POR EL CEO (2026-08-15), tras medirlo:
+
+    DETECTAR -> CONSERVAR EVIDENCIA -> DERIVAR -> TRANSPORTAR CONTEXTO -> EJECUTOR / BLOQUEO / ESCALADA
+
+**No es requisito de este incremento que AURORA se corrija sin LLM.** La medición dice 0 de 7 casos
+completables sin modelo, y esa cifra es correcta y se conserva: los tres tipos que el auditor detecta
+exigen decidir un texto nuevo, y decidirlo es razonar. El propósito era eliminar la pérdida de
+contexto que impedía **incluso que el siguiente componente pudiera razonar sobre el problema**.
+
+Por eso se retiró del criterio de aceptación la condición «un caso mecánicamente resoluble ya no
+muere por `args={}`»: no existe tal caso en este dominio, y forzarlo habría exigido fabricar un valor
+o ejecutar un cambio incompleto — y lo segundo se demostró DESTRUCTIVO (ver
+`test_un_contexto_de_ejecucion_incompleto_no_llega_como_ejecutable`).
+
+**`fichero + buscar` sin `sustituir` NO es contexto ejecutable.** Esa separación es estricta y la
+protección todo-o-nada permanece.
 """
 
 from __future__ import annotations

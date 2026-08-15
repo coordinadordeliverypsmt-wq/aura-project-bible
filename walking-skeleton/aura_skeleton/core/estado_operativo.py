@@ -78,6 +78,27 @@ CLAVE_CONTEXTO = "_veredicto"
 _CAMPOS_DE_EJECUCION = ("fichero", "buscar", "sustituir")
 
 
+def solo_ejecutable_completo(contexto: dict) -> dict:
+    """Filtra un contexto para que NUNCA salga con claves de ejecucion incompletas.
+
+    La guarda vivia solo en `contexto_de_correccion`, que llama el Director. Pero el oyente copiaba
+    `args[_veredicto]` VERBATIM: la proteccion era una propiedad de un llamador, no del sistema.
+    Cualquier ruta futura que adjuntase un contexto a mano -o un `transitar` con `args` puestos por
+    otro componente- lo esquivaba y volvia a abrir el camino destructivo.
+
+    Aqui se aplica en el PUNTO DE PASO, justo antes de que el contexto se convierta en argumentos de
+    una tarea que un ejecutor va a leer. Lo incompleto no se descarta: se degrada a `*_declarado`,
+    que nadie ejecuta y el CEO si puede leer.
+    """
+    completos = {c: contexto[c] for c in _CAMPOS_DE_EJECUCION if str(contexto.get(c) or "").strip()}
+    if len(completos) == len(_CAMPOS_DE_EJECUCION):
+        return dict(contexto)
+    limpio = {k: v for k, v in contexto.items() if k not in _CAMPOS_DE_EJECUCION}
+    for campo, valor in completos.items():
+        limpio.setdefault(f"{campo}_declarado", valor)
+    return limpio
+
+
 def contexto_de_correccion(resultado: dict, motivo: str) -> dict:
     """Traduce el veredicto de un ejecutor a contexto accionable. Solo `motivo` si no hay mas.
 
@@ -99,7 +120,11 @@ def contexto_de_correccion(resultado: dict, motivo: str) -> dict:
     # conservaria: AURORA habria destruido la garantia en vez de repararla.
     #
     # Un cambio incompleto no es medio cambio: es otro cambio. Se exigen los tres.
-    completos = {c: primera[c] for c in _CAMPOS_DE_EJECUCION if primera.get(c)}
+    # `str(...).strip()` y no la veracidad a secas: `sustituir = "   "` es un valor PRESENTE y
+    # VERDADERO que pasaba la guarda y llegaba como ejecutable. Medido: el dry-run daba `viable` y el
+    # efecto era sustituir el patron por espacios -- destruir la garantia, con el QA respaldandolo
+    # porque eso no rompe ninguna prueba. Un campo en blanco no es un campo.
+    completos = {c: primera[c] for c in _CAMPOS_DE_EJECUCION if str(primera.get(c) or "").strip()}
     if len(completos) == len(_CAMPOS_DE_EJECUCION):
         contexto.update(completos)
     else:

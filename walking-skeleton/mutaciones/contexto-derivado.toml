@@ -55,7 +55,7 @@ sustituir = '''                args={},'''
 id = "C4"
 garantia = "se fabrican fichero y patron cuando el veredicto no los trae (INV-9)"
 fichero = "aura_skeleton/core/estado_operativo.py"
-buscar = '''    completos = {c: primera[c] for c in _CAMPOS_DE_EJECUCION if primera.get(c)}'''
+buscar = '''    completos = {c: primera[c] for c in _CAMPOS_DE_EJECUCION if str(primera.get(c) or "").strip()}'''
 sustituir = '''    completos = {c: primera.get(c) or "desconocido" for c in _CAMPOS_DE_EJECUCION}'''
 
 # (C5) EL MOTIVO DEJA DE VIAJAR. Aun sin datos accionables, el motivo es lo unico que convierte una
@@ -94,10 +94,10 @@ id = "C7"
 garantia = "el Director vuelve a importar de planificacion: se rompe el desacoplamiento del bucle"
 fichero = "aura_skeleton/core/director.py"
 buscar = '''from .estado_operativo import (
-    _CAMPOS_DE_EJECUCION,'''
+    CLAVE_CONTEXTO,'''
 sustituir = '''from .planificacion import admitir  # noqa: F401
 from .estado_operativo import (
-    _CAMPOS_DE_EJECUCION,'''
+    CLAVE_CONTEXTO,'''
 
 # (C8) SE REPARTEN VARIAS CORRECCIONES EN UNA SOLA TAREA. Con varias garantias rotas, mezclar todas
 # en una tarea impide que el ciclo las escale por separado: una que no se pueda resolver arrastraria
@@ -108,3 +108,49 @@ garantia = "se mezclan varias garantias rotas en una sola tarea derivada"
 fichero = "aura_skeleton/core/estado_operativo.py"
 buscar = '''    primera = rotas[0] if isinstance(rotas, list) and rotas and isinstance(rotas[0], dict) else {}'''
 sustituir = '''    primera = {k: v for r in rotas if isinstance(r, dict) for k, v in r.items()} if rotas else {}'''
+
+# ================================================================================================
+# SEGUNDA AUDITORIA (2026-08-15): tres mutantes propios sobrevivieron y una regresion de gobierno.
+# ================================================================================================
+
+# (C9) LA GUARDA VUELVE A LA VERACIDAD. `sustituir = "   "` es PRESENTE y VERDADERO: pasaria el
+# todo-o-nada, llegaria como ejecutable, y el dry-run daria `viable` con el efecto de sustituir el
+# patron POR ESPACIOS. Destruir la garantia, con el QA respaldandolo porque eso no rompe pruebas.
+[[mutante]]
+id = "C9"
+garantia = "un campo en blanco cuenta como campo: el contexto incompleto se vuelve destructivo"
+fichero = "aura_skeleton/core/estado_operativo.py"
+buscar = '''if str(primera.get(c) or "").strip()}'''
+sustituir = '''if primera.get(c)}'''
+
+# (C10) LA PROTECCION VUELVE A SER DE UN LLAMADOR, NO DEL SISTEMA. El oyente copiaba el contexto
+# VERBATIM: cualquier ruta que lo adjuntase a mano esquivaba la guarda y reabria el camino
+# destructivo. Se filtra en el PUNTO DE PASO.
+[[mutante]]
+id = "C10"
+garantia = "el oyente copia el contexto sin filtrar: la proteccion se puede esquivar"
+fichero = "aura_skeleton/core/planificacion.py"
+buscar = '''        contexto = solo_ejecutable_completo(actual.args.get(CLAVE_CONTEXTO) or {})'''
+sustituir = '''        contexto = actual.args.get(CLAVE_CONTEXTO) or {}'''
+
+# (C11) EL FILTRO DEL PUNTO DE PASO DEJA PASAR LO INCOMPLETO.
+[[mutante]]
+id = "C11"
+garantia = "`solo_ejecutable_completo` admite contextos parciales como ejecutables"
+fichero = "aura_skeleton/core/estado_operativo.py"
+buscar = '''    if len(completos) == len(_CAMPOS_DE_EJECUCION):
+        return dict(contexto)'''
+sustituir = '''    if completos:
+        return dict(contexto)'''
+
+# (C12) VUELVE LA HERENCIA DE ARGUMENTOS. Es la REGRESION DE GOBIERNO que la auditoria midio: un
+# cambio de lista roja DENEGADO por el CEO engendraba una derivada que heredaba el triple, pasaba el
+# dry-run y volvia a pedir la misma autorizacion con `intentos=0` -- presupuesto nuevo, saltandose el
+# umbral de la capacidad 017. Re-presentar lo denegado erosiona una decision del CEO.
+[[mutante]]
+id = "C12"
+garantia = "la correccion hereda los args de su causa: re-pide al CEO lo que ya denego, con presupuesto nuevo"
+fichero = "aura_skeleton/core/director.py"
+buscar = '''        contexto = contexto_de_correccion(veredicto if isinstance(veredicto, dict) else {}, motivo)'''
+sustituir = '''        contexto = contexto_de_correccion(veredicto if isinstance(veredicto, dict) else {}, motivo)
+        contexto.update({c: tarea.args[c] for c in ("fichero", "buscar", "sustituir") if tarea.args.get(c)})'''

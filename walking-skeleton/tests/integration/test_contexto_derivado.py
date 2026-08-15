@@ -69,6 +69,10 @@ class _MotorFalso:
         return {"accion": accion, "estado": "ejecutada", "resultado": self._resultado, "origen": origen}
 
 
+# LA FORMA QUE EL AUDITOR REAL PRODUCE: sin `sustituir`, porque el patron nuevo hay que DECIDIRLO.
+# La version anterior de esta fixture lo traia, y la prueba «EL DEFECTO QUE CIERRA EL INCREMENTO»
+# quedaba verde sobre una entrada que produccion no puede generar -- misma familia que el defecto D1
+# que la auditoria destapo. Ahora la fixture refleja lo que el adaptador emite de verdad.
 _VEREDICTO_CON_CONTEXTO = {
     "capacidad": "auditar_garantias",
     "ok": False,
@@ -80,7 +84,25 @@ _VEREDICTO_CON_CONTEXTO = {
             "detalle": "el patron ya no aparece",
             "fichero": "mutaciones/gobierno-cli.toml",
             "buscar": "    secciones = panel(estado=x)",
-            "sustituir": "    secciones = panel()",
+            "objetivo": "aura_skeleton/__main__.py",
+        }
+    ],
+}
+
+# Veredicto HIPOTETICO de un ejecutor futuro que si supiera el patron nuevo. Ningun adaptador de hoy
+# lo produce; existe para verificar el contrato generico de `contexto_de_correccion`, que no es solo
+# del auditor. Se marca como hipotetico para que nadie lo lea como comportamiento actual.
+_VEREDICTO_HIPOTETICO_COMPLETO = {
+    "capacidad": "auditar_garantias",
+    "ok": False,
+    "resumen": "1 rota",
+    "rotas": [
+        {
+            "mutante": "x.toml:M1",
+            "problema": "AUSENTE",
+            "fichero": "mutaciones/x.toml",
+            "buscar": "patron viejo",
+            "sustituir": "patron nuevo",
         }
     ],
 }
@@ -140,8 +162,8 @@ async def test_el_director_adjunta_el_veredicto_estructurado_en_args(estado):
     assert causa.estado == "bloqueada"
     contexto = causa.args.get(CLAVE_CONTEXTO)
     assert contexto is not None, f"el veredicto no se adjuntó a la tarea: {causa.args}"
-    assert contexto["fichero"] == "mutaciones/gobierno-cli.toml"
-    assert contexto["buscar"] == "    secciones = panel(estado=x)"
+    assert contexto["fichero_declarado"] == "mutaciones/gobierno-cli.toml"
+    assert contexto["buscar_declarado"] == "    secciones = panel(estado=x)"
     assert "AUSENTE" in str(contexto.get("motivo", "")) or "AUSENTE" in str(contexto)
 
 
@@ -180,9 +202,11 @@ async def test_la_tarea_derivada_llega_con_los_argumentos_del_ejecutor(estado):
 
     d = derivadas[0]
     assert d.responsable == "programador"
-    assert d.args.get("fichero") == "mutaciones/gobierno-cli.toml", f"sin fichero: {d.args}"
-    assert d.args.get("buscar") == "    secciones = panel(estado=x)", f"sin patrón: {d.args}"
-    assert d.args.get("sustituir") == "    secciones = panel()"
+    # Con lo que el auditor produce DE VERDAD -sin `sustituir`- el contexto llega DECLARADO, no
+    # ejecutable. Es el resultado correcto: falta el patrón nuevo, y decidirlo es razonar.
+    assert d.args.get("fichero_declarado") == "mutaciones/gobierno-cli.toml", f"sin fichero: {d.args}"
+    assert d.args.get("buscar_declarado") == "    secciones = panel(estado=x)", f"sin patrón: {d.args}"
+    assert "fichero" not in d.args, "un contexto sin `sustituir` no puede llegar como ejecutable"
 
 
 @pytest.mark.asyncio
@@ -377,23 +401,118 @@ async def test_una_tarea_sin_ejecutor_tambien_deriva_con_su_motivo(estado):
 
 
 @pytest.mark.asyncio
-async def test_la_correccion_hereda_los_argumentos_de_una_causa_que_si_los_tenia(estado):
-    """DEFECTO D2 de la auditoría. Una tarea del programador cuya verificación sale en rojo **sabe
-    perfectamente sobre qué fichero trabajaba**, y esa información se perdía: la corrección nacía
-    ciega sobre un trabajo cuyo objetivo estaba a la vista."""
+async def test_una_denegacion_del_ceo_no_se_re_presenta_con_presupuesto_nuevo(estado):
+    """REGRESIÓN DE GOBIERNO, la más grave de la segunda auditoría — y la introduje yo al corregir.
+
+    Añadí que la corrección heredara los argumentos de ejecución de su causa. Medido, hacía esto: un
+    cambio de lista roja **denegado por el CEO** engendraba una derivada que heredaba el triple
+    completo, pasaba el dry-run y **volvía a pedir la misma autorización con `intentos=0`** — un
+    presupuesto de reintentos nuevo, saltándose el umbral que la capacidad 017 introdujo justo para
+    dejar de insistir. Re-presentar lo denegado no es autonomía: erosiona una decisión del CEO.
+
+    Y ni siquiera aportaba: en el caso legítimo -verificación en rojo- la derivada re-aplicaba el
+    triple idéntico, obtenía el mismo rojo y revertía. Repetir lo que ya falló, gastando dos
+    verificaciones. La herencia se retiró entera.
+    """
     estado.registrar(
         Tarea(
             objetivo_id="obj",
-            tarea_id="t-prog",
-            descripcion="cambio",
+            tarea_id="t-rojo",
+            descripcion="cambio de lista roja",
             responsable="programador",
             args={"fichero": "a.py", "buscar": "viejo", "sustituir": "nuevo"},
         )
     )
-    rojo = {"capacidad": "proponer_cambio", "ok": False, "resumen": "la verificacion no paso"}
-    director = DirectorGeneral(estado, _MotorFalso(rojo), RegistroEjecutores({"programador": "proponer_cambio"}))
+    denegado = {"capacidad": "proponer_cambio", "ok": False, "resumen": "permisos: denegada por el usuario"}
+    director = DirectorGeneral(estado, _MotorFalso(denegado), RegistroEjecutores({"programador": "proponer_cambio"}))
     await director.ciclo("obj")
 
     d = [t for t in estado.tareas("obj") if t.origen == "derivado"][0]
-    assert d.args.get("fichero") == "a.py", f"no heredó el objetivo de la causa: {d.args}"
-    assert d.args.get("sustituir") == "nuevo"
+    for campo in ("fichero", "buscar", "sustituir"):
+        assert campo not in d.args, f"la derivada re-pide lo que el CEO denegó: {d.args}"
+    assert d.args.get("motivo"), "el motivo sí debe viajar: es lo que el CEO necesita para decidir"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("en_blanco", ["   ", "", "\n", "\t"])
+async def test_un_campo_en_blanco_no_cuenta_como_campo(estado, en_blanco):
+    """MUTANTES VIVOS X6 y E-1. La guarda usaba veracidad, así que `sustituir = "   "` era un valor
+    PRESENTE y VERDADERO: pasaba el todo-o-nada, llegaba como ejecutable, y el dry-run daba `viable`
+    con el efecto de sustituir el patrón **por espacios**. Destruir la garantía, con el QA
+    respaldándolo porque eso no rompe ninguna prueba."""
+    veredicto = {
+        "capacidad": "auditar_garantias",
+        "ok": False,
+        "resumen": "1 rota",
+        "rotas": [{"mutante": "x:M1", "fichero": "a.toml", "buscar": "p", "sustituir": en_blanco}],
+    }
+    estado.registrar(Tarea(objetivo_id="obj", tarea_id="t-audit", descripcion="auditar", responsable="auditor"))
+    director = DirectorGeneral(estado, _MotorFalso(veredicto), RegistroEjecutores({"auditor": "auditar_garantias"}))
+    await director.ciclo("obj")
+
+    d = [t for t in estado.tareas("obj") if t.origen == "derivado"][0]
+    assert "fichero" not in d.args, f"un campo en blanco pasó por completo: {d.args}"
+    assert d.args.get("fichero_declarado") == "a.toml"
+
+
+@pytest.mark.parametrize("en_blanco", ["   ", "", "\n"])
+def test_el_traductor_por_si_solo_rechaza_los_campos_en_blanco(en_blanco):
+    """LAS DOS CAPAS SE PRUEBAN POR SEPARADO, y hace falta.
+
+    La prueba de arriba pasa por el ciclo completo, donde `solo_ejecutable_completo` filtra en el
+    punto de paso — y eso ENMASCARA un fallo en `contexto_de_correccion`: el mutante que devuelve la
+    guarda a la veracidad sobrevivía porque la segunda capa lo atrapaba. La defensa en profundidad
+    protege el sistema, pero deja sin red a cada capa por separado.
+
+    `contexto_de_correccion` es contrato público del módulo: cualquiera puede llamarlo sin pasar por
+    el oyente, y entonces la única guarda es la suya.
+    """
+    from aura_skeleton.core.estado_operativo import contexto_de_correccion
+
+    ctx = contexto_de_correccion(
+        {"ok": False, "rotas": [{"fichero": "a.toml", "buscar": "p", "sustituir": en_blanco}]}, "m"
+    )
+    assert "fichero" not in ctx, f"el traductor dejó pasar un campo en blanco como ejecutable: {ctx}"
+    assert ctx.get("fichero_declarado") == "a.toml"
+
+
+@pytest.mark.asyncio
+async def test_la_proteccion_se_aplica_en_el_punto_de_paso_no_en_el_llamador(estado):
+    """MUTANTE VIVO E-2. La guarda vivía sólo en `contexto_de_correccion`, que llama el Director,
+    mientras el oyente copiaba `args[_veredicto]` VERBATIM: la protección era propiedad de UN
+    llamador, no del sistema. Cualquier ruta que adjuntase un contexto a mano la esquivaba y reabría
+    el camino destructivo. Aquí se adjunta sin pasar por el Director."""
+    estado.registrar(Tarea(objetivo_id="obj", tarea_id="t-x", descripcion="x", responsable="programador"))
+    estado.transitar(
+        "obj",
+        "t-x",
+        "bloqueada",
+        autoridad="director",
+        causa="fallo",
+        bloqueos=["fallo"],
+        args={CLAVE_CONTEXTO: {"motivo": "m", "fichero": "a.toml", "buscar": "p"}},
+    )
+
+    d = [t for t in estado.tareas("obj") if t.origen == "derivado"][0]
+    assert "fichero" not in d.args, f"el contexto incompleto esquivó la protección: {d.args}"
+    assert d.args.get("fichero_declarado") == "a.toml", "pero el dato debe seguir viajando"
+
+
+@pytest.mark.asyncio
+async def test_un_veredicto_completo_si_llega_como_ejecutable(estado):
+    """CONTROL de todo lo anterior. Sin él, «no dejar pasar lo incompleto» se cumpliría trivialmente
+    no dejando pasar nada, y el transporte quedaría inservible.
+
+    Usa el veredicto HIPOTÉTICO: ningún adaptador de hoy lo produce, y por eso esta prueba verifica
+    el contrato genérico de `contexto_de_correccion` — no un comportamiento actual.
+    """
+    estado.registrar(Tarea(objetivo_id="obj", tarea_id="t-audit", descripcion="auditar", responsable="auditor"))
+    director = DirectorGeneral(
+        estado, _MotorFalso(_VEREDICTO_HIPOTETICO_COMPLETO), RegistroEjecutores({"auditor": "auditar_garantias"})
+    )
+    await director.ciclo("obj")
+
+    d = [t for t in estado.tareas("obj") if t.origen == "derivado"][0]
+    assert d.args.get("fichero") == "mutaciones/x.toml", f"un contexto completo no llegó ejecutable: {d.args}"
+    assert d.args.get("buscar") == "patron viejo"
+    assert d.args.get("sustituir") == "patron nuevo"

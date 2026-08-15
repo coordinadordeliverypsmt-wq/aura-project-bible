@@ -22,7 +22,6 @@ trabajo ni tocan el estado global. Por eso el estado se actualiza aqui y no en e
 from __future__ import annotations
 
 from .estado_operativo import (
-    _CAMPOS_DE_EJECUCION,
     CLAVE_CONTEXTO,
     AlmacenEstadoOperativo,
     Tarea,
@@ -130,12 +129,21 @@ class DirectorGeneral:
         # la evidencia es texto para una persona -y ademas de la evidencia se deriva el identificador
         # de la tarea, asi que meterlo ahi romperia la deduplicacion-.
         contexto = contexto_de_correccion(veredicto if isinstance(veredicto, dict) else {}, motivo)
-        # Si la causa YA traia argumentos de ejecucion validos -una tarea del programador cuya
-        # verificacion salio en rojo sabe sobre que fichero trabajaba-, se heredan. Se perdian, y la
-        # correccion nacia ciega sobre un trabajo cuyo objetivo estaba a la vista.
-        heredables = {c: tarea.args[c] for c in _CAMPOS_DE_EJECUCION if tarea.args.get(c)}
-        if len(heredables) == len(_CAMPOS_DE_EJECUCION) and "fichero" not in contexto:
-            contexto.update(heredables)
+        # LA HERENCIA DE ARGUMENTOS SE RETIRO (auditoria independiente, 2026-08-15). Se anadio para
+        # que una tarea del programador con la verificacion en rojo pasara su contexto a la
+        # correccion, y resulto ser mala idea por dos motivos MEDIDOS:
+        #
+        # 1. NO APORTABA. La derivada re-aplicaba el triple identico, obtenia la misma verificacion
+        #    en rojo y revertia byte a byte: una repeticion del cambio que ya fallo, no una
+        #    correccion. Dos verificaciones gastadas para volver al mismo sitio.
+        # 2. SORTEABA EL GOBIERNO. Un cambio de lista roja DENEGADO por el CEO engendraba una
+        #    derivada que heredaba los argumentos, pasaba el dry-run y volvia a pedir la misma
+        #    autorizacion con `intentos=0` -- presupuesto nuevo, saltandose el umbral que la
+        #    capacidad 017 introdujo justo para no insistir. Re-presentar lo denegado no es
+        #    autonomia: es erosionar una decision del CEO.
+        #
+        # Sin herencia, esa derivada nace solo con el motivo y se bloquea. Es el comportamiento
+        # correcto: quien decide si se reintenta un cambio denegado es el CEO, no el ciclo.
         return self.estado.transitar(
             objetivo_id,
             tarea.tarea_id,

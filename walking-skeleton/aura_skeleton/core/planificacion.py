@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import hashlib
 
-from .estado_operativo import CLAVE_CONTEXTO, AlmacenEstadoOperativo, Tarea
+from .estado_operativo import CLAVE_CONTEXTO, AlmacenEstadoOperativo, Tarea, solo_ejecutable_completo
 
 # ORIGENES clasifica el ORIGEN DE UNA DECISION, nunca a una persona ni a una herramienta concreta
 # (CEO, 2026-08-04). Con el tiempo habra mas herramientas externas, y la metrica no puede depender del
@@ -165,7 +165,10 @@ def oyente_de_transiciones(estado: AlmacenEstadoOperativo):
         # La evidencia NO cambia: sigue siendo `{tarea}:bloqueada:{motivo}`. Es deliberado -de ella
         # sale el identificador, y si el contexto entrase ahi cada matiz del veredicto crearia una
         # tarea nueva en vez de reutilizar la misma-.
-        contexto = actual.args.get(CLAVE_CONTEXTO) or {}
+        # Se FILTRA en el punto de paso, no se confia en quien lo adjunto: `solo_ejecutable_completo`
+        # impide que un contexto con claves de ejecucion incompletas se convierta en argumentos que un
+        # ejecutor leera. La proteccion pertenece al sistema, no a un llamador concreto.
+        contexto = solo_ejecutable_completo(actual.args.get(CLAVE_CONTEXTO) or {})
         try:
             admitir(
                 estado,

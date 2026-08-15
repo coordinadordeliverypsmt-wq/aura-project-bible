@@ -49,10 +49,16 @@ class MotorDelCiclo:
         kill_switch=None,
         espera_s: float = _ESPERA_SIN_TRABAJO_S,
         dormir: Callable[[float], Awaitable[None]] | None = None,
+        al_despertar: Callable[[], int] | None = None,
     ) -> None:
         self.director = director
         self.kill_switch = kill_switch
         self.espera_s = espera_s
+        # Gancho que corre ANTES de cada latido. Existe para una sola cosa hoy: devolver al trabajo
+        # las tareas cuya decision aprobo el CEO en el buzon mientras AURORA seguia con lo demas
+        # (Pieza 2). Se inyecta en vez de importarse para que el motor siga sin conocer el buzon: su
+        # unica responsabilidad es dar el siguiente latido.
+        self._al_despertar = al_despertar
         # La espera se inyecta para que las pruebas no dependan del reloj real: un sistema cuyo
         # comportamiento solo puede observarse esperando de verdad no es auditable.
         self._dormir = dormir or asyncio.sleep
@@ -60,11 +66,27 @@ class MotorDelCiclo:
     def _detenido(self) -> bool:
         return self.kill_switch is not None and self.kill_switch.is_engaged()
 
+    def _despertar(self, trace_id: str) -> None:
+        """Aplica lo que haya cambiado fuera mientras AURORA trabajaba. Un fallo aqui no puede tumbar
+        el latido: el trabajo debe seguir aunque el buzon este ilegible."""
+        if self._al_despertar is None:
+            return
+        try:
+            reabiertas = self._al_despertar()
+        except Exception as e:  # noqa: BLE001 -- el latido sobrevive a cualquier fallo del gancho
+            obs.log("WARN", "motor-ciclo", f"el gancho de despertar fallo: {e}", trace_id, audit=True)
+            return
+        if reabiertas:
+            obs.log(
+                "CICLO", "motor-ciclo", f"{reabiertas} tarea(s) reabiertas por decision del CEO", trace_id, audit=True
+            )
+
     async def latir(self, objetivo_id: str, trace_id: str = "-"):
         """UN latido. Devuelve la tarea atendida, o None si no hubo trabajo o el sistema esta detenido."""
         if self._detenido():
             obs.log("CICLO", "motor-ciclo", "latido omitido: kill switch activo", trace_id, audit=True)
             return None
+        self._despertar(trace_id)
         return await self.director.ciclo(objetivo_id, trace_id)
 
     async def correr(self, objetivo_id: str, max_latidos: int | None = None, trace_id: str = "-") -> int:
@@ -78,6 +100,7 @@ class MotorDelCiclo:
             if self._detenido():
                 obs.log("CICLO", "motor-ciclo", "ciclo detenido: kill switch activo", trace_id, audit=True)
                 break
+            self._despertar(trace_id)
             tarea = await self.director.ciclo(objetivo_id, trace_id)
             if tarea is None:
                 break  # sin trabajo accionable: se para, no se gira en vacio
@@ -102,6 +125,7 @@ class MotorDelCiclo:
                 await self._dormir(self.espera_s)
                 continue
             try:
+                self._despertar(trace_id)
                 tarea = await self.director.ciclo(objetivo_id, trace_id)
             except Exception as e:
                 fallos_consecutivos += 1

@@ -59,5 +59,7 @@ sustituir = '''        while True:'''
 id = "M5"
 garantia = "el latido deja de cablearse en el arranque: AURORA vuelve a depender de una llamada externa"
 fichero = "aura_skeleton/composicion.py"
-buscar = '''    motor_ciclo = MotorDelCiclo(director, kill_switch=kill_switch)'''
-sustituir = '''    motor_ciclo = MotorDelCiclo(director, kill_switch=None)'''
+buscar = '''        kill_switch=kill_switch,
+        al_despertar=lambda: reabrir_aprobadas(decisiones, estado_operativo),'''
+sustituir = '''        kill_switch=None,
+        al_despertar=lambda: reabrir_aprobadas(decisiones, estado_operativo),'''

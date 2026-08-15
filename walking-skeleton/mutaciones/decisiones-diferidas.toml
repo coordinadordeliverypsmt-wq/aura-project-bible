@@ -1,0 +1,199 @@
+incremento = "Pieza 2 -- Aprobacion diferida de acciones de lista roja (acta del CEO, 2026-08-10)"
+# Junto a las pruebas del incremento van las que protegen lo que este cambio podria romper: el HITL
+# existente, el motor unico de ejecucion y el kill switch. Un mutante que solo muera contra su propia
+# prueba no demuestra que no se rompio nada.
+pruebas = [
+    "tests/integration/test_decisiones_diferidas.py",
+    "tests/unit/test_permissions.py",
+    "tests/unit/test_hitl_consola.py",
+    "tests/unit/test_kill_switch.py",
+    "tests/unit/test_automatizacion.py",
+]
+
+# ================================================================================================
+# LOS CUATRO IRRENUNCIABLES: el silencio NO puede convertirse en permiso.
+# Son las reglas 1, 6 y 7 del acta del CEO. Si alguno sobrevive, la aprobacion diferida se habria
+# convertido en aprobacion automatica, que es exactamente lo que el CEO prohibio.
+# ================================================================================================
+
+# (1) FAIL OPEN. El caso mas grave posible: sin decision del CEO, se autoriza igual.
+[[mutante]]
+id = "D1"
+garantia = "sin aprobacion del CEO la accion se autoriza igual: el silencio se convierte en permiso"
+fichero = "aura_skeleton/adapters/hitl_diferido.py"
+buscar = '''        veredicto = almacen.veredicto(huella)
+        if veredicto == "aprobada":'''
+sustituir = '''        veredicto = almacen.veredicto(huella)
+        if veredicto != "rechazada":'''
+
+# (2) LA APROBACION OBSOLETA VUELVE A VALER. La huella deja de incluir los argumentos, asi que un
+# permiso dado para escribir en /tmp/x autorizaria escribir en CUALQUIER sitio. Es la regla 5.
+[[mutante]]
+id = "D2"
+garantia = "la huella ignora los argumentos: una aprobacion sirve para una accion sobre otro objetivo"
+fichero = "aura_skeleton/core/decisiones.py"
+buscar = '''        {"accion": accion, "argumentos": argumentos_del_usuario(args), "previsualizacion": previsualizacion},'''
+sustituir = '''        {"accion": accion, "previsualizacion": previsualizacion},'''
+
+# (3) EL EFECTO PREVISTO DEJA DE CONTAR. Se aprueba CREAR un fichero y se ejecuta SOBRESCRIBIR el
+# que apareció mientras tanto. Es la garantia que hace esto mas fuerte que confirmar en vivo.
+[[mutante]]
+id = "D3"
+garantia = "la huella ignora el efecto previsto: se ejecuta un efecto distinto del que el CEO aprobo"
+fichero = "aura_skeleton/core/decisiones.py"
+buscar = '''        {"accion": accion, "argumentos": argumentos_del_usuario(args), "previsualizacion": previsualizacion},
+        sort_keys=True,'''
+sustituir = '''        {"accion": accion, "argumentos": argumentos_del_usuario(args)},
+        sort_keys=True,'''
+
+# (4) UN RECHAZO SE LEE COMO APROBACION. El "no" del CEO tiene que valer tanto como el "si".
+[[mutante]]
+id = "D4"
+garantia = "una decision RECHAZADA por el CEO autoriza la accion"
+fichero = "aura_skeleton/core/decisiones.py"
+buscar = '''        return str(estado) if estado in (_PENDIENTE, _APROBADA, _RECHAZADA) else None'''
+sustituir = '''        return _APROBADA'''
+
+# ================================================================================================
+# INTEGRIDAD DEL BUZON
+# ================================================================================================
+
+# (5) LA HUELLA SE LEE DEL FICHERO EN VEZ DE RECALCULARSE. Entonces basta con editar un fichero para
+# aprobar cualquier cosa: el contenido dejaria de tener que corresponder con lo que se ejecuta.
+[[mutante]]
+id = "D5"
+garantia = "el veredicto se decide por el contenido del fichero y no por la huella recalculada"
+fichero = "aura_skeleton/core/decisiones.py"
+buscar = '''        decision = self._leer(self._ruta(huella))
+        if decision is None:
+            return None'''
+sustituir = '''        decision = next(iter(self._todas(_APROBADA)), None) or self._leer(self._ruta(huella))
+        if decision is None:
+            return None'''
+
+# (6) UN FICHERO CORRUPTO AUTORIZA. El CEO edita estos ficheros a mano: un JSON mal cerrado es un
+# accidente probable, y el resultado seguro de un accidente es que NO se ejecute nada.
+[[mutante]]
+id = "D6"
+garantia = "un fichero de decision corrupto o ilegible se trata como aprobacion"
+fichero = "aura_skeleton/core/decisiones.py"
+buscar = '''        except (OSError, ValueError):
+            return None'''
+sustituir = '''        except (OSError, ValueError):
+            return {"estado": _APROBADA}'''
+
+# (7) LA SOLICITUD NO SE PERSISTE. La accion sigue sin ejecutarse -asi que ninguna prueba de
+# seguridad lo notaria-, pero la peticion se pierde y el CEO nunca se entera: AURORA se queda
+# bloqueada para siempre sin poder pedir ayuda. Es el defecto original, intacto.
+[[mutante]]
+id = "D7"
+garantia = "la solicitud no llega al buzon: el CEO nunca se entera de que AURORA necesita permiso"
+fichero = "aura_skeleton/adapters/hitl_diferido.py"
+buscar = '''        if veredicto is None:
+            almacen.solicitar(accion, args, previsualizacion, tarea)'''
+sustituir = '''        if False:
+            almacen.solicitar(accion, args, previsualizacion, tarea)'''
+
+# (8) CADA LATIDO DUPLICA LA SOLICITUD. El buzon del CEO se llena de copias de la misma decision y
+# deja de ser utilizable: un canal ilegible es un canal roto.
+[[mutante]]
+id = "D8"
+garantia = "cada reintento del ciclo anexa una copia nueva: el buzon se vuelve inservible"
+fichero = "aura_skeleton/core/decisiones.py"
+buscar = '''        if os.path.exists(ruta):
+            return huella'''
+sustituir = '''        if False:
+            return huella'''
+
+# (9) REESCRIBIR LA SOLICITUD PISA LA RESPUESTA DEL CEO. Si el confirmador vuelve a escribir la
+# solicitud en cada latido, un "aprobada" recien puesto por el CEO se sobrescribe con "pendiente" y
+# la aprobacion no llega a surtir efecto NUNCA.
+[[mutante]]
+id = "D9"
+garantia = "la solicitud se reescribe aunque ya exista: la respuesta del CEO se pierde"
+fichero = "aura_skeleton/core/decisiones.py"
+buscar = '''        huella = huella_de(accion, args, previsualizacion)
+        ruta = self._ruta(huella)'''
+sustituir = '''        huella = huella_de(accion, args, previsualizacion)
+        ruta = self._ruta(huella)
+        os.path.exists = lambda _p: False'''
+
+# ================================================================================================
+# LO QUE YA FUNCIONABA NO PUEDE ROMPERSE (reglas 8 y 9 del acta)
+# ================================================================================================
+
+# (10) LAS ACCIONES VERDES EMPIEZAN A PEDIR APROBACION. AURORA dejaria de poder auditarse,
+# verificarse y diagnosticarse sola: perderia las tres capacidades autonomas que YA tenia.
+[[mutante]]
+id = "D10"
+garantia = "las acciones de lista verde pasan a requerir aprobacion: AURORA pierde su autonomia actual"
+fichero = "aura_skeleton/core/permissions.py"
+buscar = '''        if action in GREEN:'''
+sustituir = '''        if action in GREEN and False:'''
+
+# (11) EL KILL SWITCH DEJA DE IR POR DELANTE. Con la parada echada se emitiria la solicitud igual, y
+# lo que es peor: una aprobacion vigente ejecutaria la accion. RN-3 dice que con el switch armado
+# NINGUNA accion se ejecuta, sin excepciones.
+[[mutante]]
+id = "D11"
+garantia = "el kill switch deja de comprobarse antes del HITL: la parada de emergencia se puede esquivar"
+fichero = "aura_skeleton/core/permissions.py"
+buscar = '''        if self._kill is not None and self._kill.is_engaged():'''
+sustituir = '''        if False:'''
+
+# (12) LA CONFIRMACION POR CONSOLA SE VUELVE PERMISIVA. El confirmador interactivo NO se toca en este
+# incremento; el mutante existe para demostrar que sigue protegido mientras se anade el otro camino.
+[[mutante]]
+id = "D12"
+garantia = "la confirmacion por consola acepta cualquier respuesta en vez de la autorizacion exacta"
+fichero = "aura_skeleton/adapters/hitl_consola.py"
+buscar = '''    return respuesta == _AUTORIZACION'''
+sustituir = '''    return True'''
+
+# ================================================================================================
+# REANUDACION: sin ella la aprobacion se queda en el disco
+# ================================================================================================
+
+# (13) NADIE REABRE LA TAREA. El CEO aprueba y no pasa nada: el trabajo sigue bloqueado para siempre.
+# Es el mutante que distingue "el buzon existe" de "el buzon SIRVE".
+[[mutante]]
+id = "D13"
+garantia = "la tarea aprobada nunca vuelve al trabajo: la aprobacion del CEO no produce ningun efecto"
+fichero = "aura_skeleton/core/decisiones.py"
+buscar = '''            estado.transitar(
+                objetivo_id,
+                tarea.tarea_id,
+                "abierta",
+                autoridad="ceo",
+                causa="decision aprobada por el CEO en el buzon",
+            )
+            reabiertas += 1'''
+sustituir = '''            reabiertas += 1'''
+
+# (14) SE REABRE TODO INDISCRIMINADAMENTE. Una tarea cuya decision sigue PENDIENTE volveria al
+# trabajo, intentaria ejecutarse y se bloquearia otra vez: el ciclo giraria en vacio sobre una
+# decision que el CEO no ha tomado.
+[[mutante]]
+id = "D14"
+garantia = "se reabren tareas cuya decision sigue pendiente: el ciclo gira en vacio"
+fichero = "aura_skeleton/core/decisiones.py"
+buscar = '''            if tarea.estado != "bloqueada" or tarea.tarea_id not in aprobadas:'''
+sustituir = '''            if tarea.estado != "bloqueada":'''
+
+# (15) EL GANCHO DEL LATIDO SE DESCONECTA. El buzon funcionaria en las pruebas de unidad y NO en el
+# sistema real: es ALERTA-005 -codigo construido, probado e inalcanzable-, aplicada a la autonomia.
+[[mutante]]
+id = "D15"
+garantia = "la composicion no cablea la reapertura en el latido: el buzon queda inalcanzable en produccion"
+fichero = "aura_skeleton/composicion.py"
+buscar = '''        al_despertar=lambda: reabrir_aprobadas(decisiones, estado_operativo),'''
+sustituir = '''        al_despertar=None,'''
+
+# (16) EL IDENTIFICADOR DE TAREA NO VIAJA. La solicitud llega al buzon sin decir a que trabajo
+# pertenece, asi que la reapertura no puede encontrar la tarea y la aprobacion no reanuda nada.
+[[mutante]]
+id = "D16"
+garantia = "el motor no propaga el identificador de tarea: la aprobacion no puede reanudar el trabajo"
+fichero = "aura_skeleton/core/automatizacion.py"
+buscar = '''        contexto["_tarea"] = event_id'''
+sustituir = '''        contexto["_tarea"] = ""'''

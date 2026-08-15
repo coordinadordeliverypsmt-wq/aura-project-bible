@@ -4,6 +4,9 @@ incremento = "Pieza 2 -- Aprobacion diferida de acciones de lista roja (acta del
 # prueba no demuestra que no se rompio nada.
 pruebas = [
     "tests/integration/test_decisiones_diferidas.py",
+    "tests/integration/test_limite_reintentos.py",
+    "tests/integration/test_gobierno_decisiones.py",
+    "tests/integration/test_centro_gobierno.py",
     "tests/unit/test_permissions.py",
     "tests/unit/test_hitl_consola.py",
     "tests/unit/test_kill_switch.py",
@@ -197,3 +200,148 @@ garantia = "el motor no propaga el identificador de tarea: la aprobacion no pued
 fichero = "aura_skeleton/core/automatizacion.py"
 buscar = '''        contexto["_tarea"] = event_id'''
 sustituir = '''        contexto["_tarea"] = ""'''
+
+# ================================================================================================
+# CAPACIDAD 017 -- EL LIMITE DE REINTENTOS (acta del CEO, 2026-08-10)
+#
+# Pieza 2 introdujo un bucle MEDIDO: una tarea aprobada que falla por otra razon se reabre en cada
+# latido, indefinidamente. Estos mutantes demuestran que el limite y la escalada son necesarios, no
+# decorativos.
+# ================================================================================================
+
+# (17a) EL LIMITE DESAPARECE. Vuelve el bucle exacto que se midio: reabiertas=1 en cada latido, para
+# siempre, con `intentos` subiendo sin que nadie lo mire. En `--servir` AURORA gira sin avanzar.
+[[mutante]]
+id = "D17"
+garantia = "el limite de reintentos desaparece: vuelve el bucle infinito medido tras Pieza 2"
+fichero = "aura_skeleton/core/decisiones.py"
+buscar = '''            if tarea.intentos >= _LIMITE_DE_REINTENTOS:'''
+sustituir = '''            if False:'''
+
+# (17b) EL LIMITE SE COMPARA CON `>`. Un intento de mas cada vez. Es el defecto clasico de frontera:
+# el bucle se cierra igual, asi que ninguna prueba de "no gira" lo notaria -- solo una que cuente.
+[[mutante]]
+id = "D18"
+garantia = "el limite usa `>` en vez de `>=`: concede un reintento de mas"
+fichero = "aura_skeleton/core/decisiones.py"
+buscar = '''            if tarea.intentos >= _LIMITE_DE_REINTENTOS:
+                _escalar(estado, objetivo_id, tarea)'''
+sustituir = '''            if tarea.intentos > _LIMITE_DE_REINTENTOS:
+                _escalar(estado, objetivo_id, tarea)'''
+
+# (17c) LA ESCALADA NO SE ANEXA. El bucle se corta, pero EN SILENCIO: AURORA deja de intentarlo y el
+# CEO nunca se entera de que hay trabajo esperandole. Pararse callado es peor que girar.
+[[mutante]]
+id = "D19"
+garantia = "la tarea agotada se para en silencio: el CEO nunca se entera de que hay trabajo esperando"
+fichero = "aura_skeleton/core/decisiones.py"
+buscar = '''    if any(_MARCA_ESCALADA in b for b in tarea.bloqueos):
+        return'''
+sustituir = '''    return
+    if any(_MARCA_ESCALADA in b for b in tarea.bloqueos):
+        return'''
+
+# (17d) LA ESCALADA SE ANEXA EN CADA LATIDO. Un servicio permanente late muchas veces: el historial
+# se llena de la misma linea y se vuelve ilegible justo cuando el CEO lo necesita para entender por
+# que algo no avanza.
+[[mutante]]
+id = "D20"
+garantia = "la escalada se repite en cada latido y ahoga el historial de la tarea"
+fichero = "aura_skeleton/core/decisiones.py"
+buscar = '''    if any(_MARCA_ESCALADA in b for b in tarea.bloqueos):
+        return
+    # Se anexa por `registrar`'''
+sustituir = '''    if False:
+        return
+    # Se anexa por `registrar`'''
+
+# (17e) LA ESCALADA BORRA EL HISTORIAL. Se conserva la marca pero se pierden los motivos de los
+# fallos anteriores: el CEO recibe "3 intentos sin exito" sin poder ver POR QUE fallaron. La
+# escalada sin historial no sirve para decidir.
+[[mutante]]
+id = "D21"
+garantia = "la escalada descarta los bloqueos anteriores: el CEO no puede ver por que fallo"
+fichero = "aura_skeleton/core/decisiones.py"
+buscar = '''            bloqueos=[*tarea.bloqueos, f"{_MARCA_ESCALADA}: {tarea.intentos} intentos sin exito, deja de reintentarse"],'''
+sustituir = '''            bloqueos=[f"{_MARCA_ESCALADA}: {tarea.intentos} intentos sin exito, deja de reintentarse"],'''
+
+# (17f) EL LIMITE SE APLICA A TODAS LAS TAREAS. Con `continue` incondicional, NINGUNA tarea aprobada
+# vuelve al trabajo: se anularia Pieza 2 entera y AURORA volveria a detenerse sin el CEO. Es el
+# control que impide cumplir "dejar de reabrir" por la via de no reabrir nunca.
+[[mutante]]
+id = "D22"
+garantia = "el limite se aplica a toda tarea: ninguna aprobacion reanuda nada y Pieza 2 queda anulada"
+fichero = "aura_skeleton/core/decisiones.py"
+buscar = '''            if tarea.intentos >= _LIMITE_DE_REINTENTOS:
+                _escalar(estado, objetivo_id, tarea)
+                continue'''
+sustituir = '''            if True:
+                _escalar(estado, objetivo_id, tarea)
+                continue'''
+
+# ================================================================================================
+# EL BUZON VISIBLE EN EL CENTRO DE GOBIERNO (acta del CEO, 2026-08-10)
+#
+# Pieza 2 y 017 funcionaban, pero por un canal que el CEO no mira: tenia que acordarse de abrir
+# ficheros JSON sueltos. Estos mutantes demuestran que la visibilidad es necesaria, no decorativa.
+# ================================================================================================
+
+# (V1) LA SECCION DESAPARECE DEL PANEL. AURORA sigue pidiendo permiso, pero por un canal que el CEO
+# no mira: el lazo de gobierno queda abierto por el lado de la notificacion. Es el defecto exacto
+# que este incremento cierra.
+[[mutante]]
+id = "V1"
+garantia = "las decisiones pendientes desaparecen del Centro de Gobierno: el CEO no ve lo que AURORA le pide"
+fichero = "aura_skeleton/core/centro_gobierno.py"
+buscar = '''    if decisiones is not None:
+        _aurora("Decisiones pendientes", _pendientes(decisiones))'''
+sustituir = '''    if False:
+        _aurora("Decisiones pendientes", _pendientes(decisiones))'''
+
+# (V2) EL PANEL NO MUESTRA EL EFECTO PREVISTO. El CEO veria QUE se le pide autorizar pero no QUE VA
+# A PASAR: aprobar asi es confirmar a ciegas, y ADR-0003 dice que eso no satisface el consentimiento
+# informado. La seccion existiria y seria inutil.
+[[mutante]]
+id = "V2"
+garantia = "el panel oculta el efecto previsto: el CEO tendria que aprobar a ciegas (ADR-0003)"
+fichero = "aura_skeleton/core/centro_gobierno.py"
+buscar = '''        f"{d.get('huella', '')[:12]} · {d.get('accion', '?')} · efecto: {d.get('previsualizacion') or 'sin previsualizacion'}"'''
+sustituir = '''        f"{d.get('huella', '')[:12]} · {d.get('accion', '?')}"'''
+
+# (V3) UNA DECISION YA RESUELTA SIGUE RECLAMANDO ATENCION. El panel acumularia todo lo aprobado y
+# rechazado hasta volverse ilegible: un canal que no se puede leer es un canal roto.
+[[mutante]]
+id = "V3"
+garantia = "el panel muestra tambien las decisiones ya resueltas y se llena de ruido"
+fichero = "aura_skeleton/core/centro_gobierno.py"
+buscar = '''    pendientes = decisiones.pendientes()
+    if not pendientes:'''
+sustituir = '''    pendientes = decisiones.pendientes() + decisiones.aprobadas()
+    if not pendientes:'''
+
+# (V4) LAS ESCALADAS NO SE DISTINGUEN. Con 017, AURORA deja de insistir; si eso no llega al panel,
+# se para EN SILENCIO. Pararse callado es peor que girar: el CEO cree que sigue trabajando.
+[[mutante]]
+id = "V4"
+garantia = "las tareas escaladas no se distinguen: AURORA deja de insistir en silencio"
+fichero = "aura_skeleton/core/centro_gobierno.py"
+buscar = '''        if t.estado == "bloqueada" and any(_MARCA_ESCALADA in b for b in t.bloqueos)'''
+sustituir = '''        if False'''
+
+# (V5) TODA TAREA BLOQUEADA FIGURA COMO ESCALADA. El CEO creeria que AURORA se rindio con tareas que
+# aun se van a reintentar solas, y acudiria a decidir cosas que no necesitan su decision.
+[[mutante]]
+id = "V5"
+garantia = "toda tarea bloqueada figura como escalada: el CEO cree que AURORA se rindio cuando sigue trabajando"
+fichero = "aura_skeleton/core/centro_gobierno.py"
+buscar = '''        if t.estado == "bloqueada" and any(_MARCA_ESCALADA in b for b in t.bloqueos)'''
+sustituir = '''        if t.estado == "bloqueada"'''
+
+# (V6) EL CABLEADO DEL CLI SE PIERDE. La seccion funcionaria en las pruebas y `--gobierno` -lo que
+# el CEO ejecuta de verdad- seguiria sin mostrarla. ALERTA-005 aplicada a la interfaz oficial.
+[[mutante]]
+id = "V7"
+garantia = "--gobierno deja de pasar el buzon: la seccion existe pero el CEO nunca la ve"
+fichero = "aura_skeleton/__main__.py"
+buscar = '''    secciones = panel(estado=sistema.estado_operativo, objetivo=activos or None, decisiones=buzon)'''
+sustituir = '''    secciones = panel(estado=sistema.estado_operativo, objetivo=activos or None)'''

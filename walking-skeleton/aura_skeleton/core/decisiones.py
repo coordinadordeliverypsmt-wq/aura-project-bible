@@ -26,6 +26,7 @@ import hashlib
 import json
 import os
 import time
+from dataclasses import replace
 from typing import Any
 
 _PENDIENTE = "pendiente"
@@ -173,6 +174,51 @@ class AlmacenDecisiones:
         os.replace(temporal, ruta)
 
 
+# CAPACIDAD 017 — EL LIMITE DE REINTENTOS (acta del CEO, 2026-08-10).
+#
+# Pieza 2 hizo que una tarea aprobada vuelva al trabajo. Si despues falla POR OTRA RAZON se bloquea, y
+# el latido siguiente vuelve a reabrirla porque su decision sigue aprobada. Medido: reabiertas=1 en
+# los cuatro latidos seguidos, con `intentos` subiendo 1,2,3,4. En `--servir` gira indefinidamente.
+#
+# POR QUE 3, y no es un numero magico. Se deriva de para que sirve reintentar: **1** no basta -el
+# primer fallo puede ser transitorio, un fichero ocupado o un OSError que el motor ya declara
+# recuperable-; **2** permite un solo reintento, que no distingue transitorio de reproducible; **3**
+# da dos reintentos, y un fallo que se repite tres veces con la misma aprobacion vigente ya no es
+# circunstancial. Insistir mas gasta latidos sin informacion nueva.
+#
+# Lo que hace defendible el numero no es su valor, sino que sea VISIBLE y AJUSTABLE: vive aqui con su
+# motivo, se documenta en `DP-017-LIMITE-DE-REINTENTOS.md` y una prueba lo fija, de modo que cambiarlo
+# obligue a declararlo (regla del CEO sobre valores numericos, 2026-08-04).
+_LIMITE_DE_REINTENTOS = 3
+
+_MARCA_ESCALADA = "escalada al CEO"
+
+
+def _escalar(estado, objetivo_id: str, tarea) -> None:
+    """Deja constancia de que AURORA dejo de insistir, UNA sola vez.
+
+    Pararse en silencio seria peor que girar: AURORA dejaria de intentarlo y el CEO no se enteraria de
+    que hay trabajo esperandole. La marca va en `bloqueos`, que es lo que el Centro de Gobierno ya
+    muestra -- no hace falta un canal nuevo para avisar.
+
+    Una sola vez porque un servicio permanente late muchas veces: anexar la escalada en cada latido
+    volveria el historial ilegible justo cuando el CEO mas lo necesita, al revisar por que algo no
+    avanza. El estado NO cambia: `bloqueada` ya es el estado correcto, y no hay que inventar uno nuevo.
+    """
+    if any(_MARCA_ESCALADA in b for b in tarea.bloqueos):
+        return
+    # Se anexa por `registrar`, NO por `transitar`: la tarea sigue `bloqueada` y `bloqueada ->
+    # bloqueada` no es una transicion valida -- el protocolo lo impide, y con razon: esto no es un
+    # cambio de estado, es informacion nueva sobre el mismo estado. `registrar` es la unica ruta de
+    # escritura y conserva el resto de la tarea, incluido `intentos`.
+    estado.registrar(
+        replace(
+            tarea,
+            bloqueos=[*tarea.bloqueos, f"{_MARCA_ESCALADA}: {tarea.intentos} intentos sin exito, deja de reintentarse"],
+        )
+    )
+
+
 def _solo_tarea(identificador: Any) -> str:
     """El `tarea_id` dentro de un `event_id` `"<trace>:<tarea_id>"`. Idempotente: si ya viene limpio,
     lo devuelve tal cual."""
@@ -202,6 +248,10 @@ def reabrir_aprobadas(almacen: AlmacenDecisiones, estado) -> int:
     for objetivo_id in estado.objetivos_activos():
         for tarea in estado.tareas(objetivo_id):
             if tarea.estado != "bloqueada" or tarea.tarea_id not in aprobadas:
+                continue
+            # CAPACIDAD 017: AURORA lee su propio historial para decidir si merece la pena insistir.
+            if tarea.intentos >= _LIMITE_DE_REINTENTOS:
+                _escalar(estado, objetivo_id, tarea)
                 continue
             estado.transitar(
                 objetivo_id,

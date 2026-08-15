@@ -24,6 +24,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from .decisiones import _MARCA_ESCALADA
+
 AURORA = "AURORA"
 CEO = "decision del CEO"
 MENTORIA = "mentoria externa (APUS-5)"
@@ -53,6 +55,7 @@ def panel(
     dependencia=None,
     estado=None,
     objetivo: str | list[str] | None = None,
+    decisiones=None,
 ) -> list[Seccion]:
     """Ensambla el panel con lo que AURORA sabe producir HOY. Lo que no, se declara ausente."""
     secciones: list[Seccion] = []
@@ -89,6 +92,19 @@ def panel(
             _aurora(f"{prefijo}Riesgos activos", _riesgos(bloqueadas))
             _aurora(f"{prefijo}Recomendaciones derivadas", _recomendaciones(bloqueadas, tareas))
 
+    # EL BUZON, VISIBLE (acta del CEO, 2026-08-10). Pieza 2 hizo que AURORA pida permiso por escrito
+    # en vez de autodenegarselo, y 017 que escale cuando deja de insistir; pero ninguna de las dos
+    # cosas llegaba AQUI, que es la interfaz oficial. El CEO tenia que acordarse de mirar ficheros
+    # JSON sueltos: AURORA pedia permiso por un canal que el CEO no mira.
+    #
+    # Es LECTURA. No decide, no aprueba, no ejecuta: los permisos, el motor y ADR-0003 no se tocan.
+    # Va DESPUES del bloque del estado operativo para no alterar el orden de las secciones que el
+    # orquestador ya filtra por sufijo de titulo al responder "¿en que estas trabajando?".
+    if decisiones is not None:
+        _aurora("Decisiones pendientes", _pendientes(decisiones))
+    if estado is not None and objetivo is not None:
+        _aurora("Escaladas al CEO", _escaladas(estado, objetivo))
+
     if garantias is not None:
         _aurora("Garantias", f"{garantias.get('vigentes')}/{garantias.get('declaradas')} vigentes")
     if ima is not None:
@@ -107,6 +123,48 @@ def panel(
         )
     )
     return secciones
+
+
+def _pendientes(decisiones) -> str:
+    """Lo que AURORA espera que el CEO autorice, con el efecto previsto DELANTE.
+
+    Sin la previsualizacion el CEO aprobaria a ciegas, y ADR-0003 dice que eso no satisface el
+    consentimiento informado. Se muestran los 12 primeros caracteres de la huella porque es lo que
+    identifica el fichero del buzon: con eso el CEO localiza la decision y actua sobre ella.
+
+    Una ausencia de decisiones es informacion util, no una seccion vacia: significa que AURORA no
+    espera nada del CEO ahora mismo.
+    """
+    pendientes = decisiones.pendientes()
+    if not pendientes:
+        return "ninguna: AURORA no espera ninguna autorizacion"
+    lineas = [
+        f"{d.get('huella', '')[:12]} · {d.get('accion', '?')} · efecto: {d.get('previsualizacion') or 'sin previsualizacion'}"
+        f" · tarea {d.get('tarea') or 'sin tarea'}"
+        for d in pendientes
+    ]
+    return f"{len(pendientes)} esperando tu decision:\n" + "\n".join(f"  - {ln}" for ln in lineas)
+
+
+def _escaladas(estado, objetivo: str | list[str]) -> str:
+    """Tareas en las que AURORA DEJO DE INSISTIR (capacidad 017).
+
+    Se distinguen de una tarea bloqueada cualquiera: una bloqueada esperando aprobacion aun se va a
+    reintentar; una escalada no. Confundirlas haria creer al CEO que AURORA se rindio cuando sigue
+    trabajando -o al reves, que sigue intentandolo cuando ya paro-.
+    """
+    objetivos = [objetivo] if isinstance(objetivo, str) else list(objetivo)
+    escaladas = [
+        t
+        for obj_id in objetivos
+        for t in estado.tareas(obj_id)
+        if t.estado == "bloqueada" and any(_MARCA_ESCALADA in b for b in t.bloqueos)
+    ]
+    if not escaladas:
+        return "ninguna: AURORA no ha agotado los reintentos de ninguna tarea"
+    return f"{len(escaladas)} tarea(s) sin mas reintentos:\n" + "\n".join(
+        f"  - {t.tarea_id}: {t.descripcion} ({t.intentos} intentos)" for t in escaladas
+    )
 
 
 def _alertas(d: dict) -> str:

@@ -92,9 +92,17 @@ def test_el_auditor_publica_el_contexto_accionable_de_cada_garantia_rota(tmp_pat
     assert resultado["ok"] is False, "guarda: la garantía sembrada debe salir rota"
 
     rota = resultado["rotas"][0]
-    assert rota["fichero"] == "objetivo.py", f"no publica el fichero afectado: {rota}"
-    assert rota["buscar"] == "patron que ya no existe", f"no publica el patrón: {rota}"
-    assert rota["sustituir"] == "otra cosa"
+    # EL ARTEFACTO A CORREGIR ES EL TOML. Cuando una garantía deja de aplicar, el código objetivo
+    # suele estar bien: lo obsoleto es el patrón DECLARADO. La primera versión publicaba el objetivo
+    # y enviaba al ejecutor a tocar el fichero equivocado -- lo destapó la auditoría, y esta misma
+    # prueba y la fixture de abajo codificaban diseños contradictorios.
+    assert rota["fichero"] == "mutaciones/x.toml", f"no apunta al artefacto a corregir: {rota}"
+    assert rota["buscar"] == "patron que ya no existe", f"no publica el patrón declarado: {rota}"
+    assert rota["objetivo"] == "objetivo.py", "el fichero objetivo se conserva como dato informativo"
+    assert "sustituir" not in rota, (
+        "el `sustituir` del mutante NO es la corrección: publicarlo lo haría pasar por un patrón "
+        "nuevo que nadie ha decidido"
+    )
 
 
 # ------------------------------------- 2 · EL DIRECTOR ADJUNTA EL CONTEXTO A LA TAREA --
@@ -213,9 +221,13 @@ async def test_un_contexto_incompleto_no_se_rellena_a_medias(estado):
     await director.ciclo("obj")
 
     d = [t for t in estado.tareas("obj") if t.origen == "derivado"][0]
-    assert d.args.get("fichero") == "a.toml"
-    assert d.args.get("buscar") == "p"
-    assert "sustituir" not in d.args, f"inventó el texto de sustitución: {d.args}"
+    # Viaja como DECLARADO, no como ejecutable: la corrección de arriba explica por qué. Lo que aquí
+    # importa es que el texto de sustitución NO se inventa bajo ninguna forma.
+    assert d.args.get("fichero_declarado") == "a.toml"
+    assert d.args.get("buscar_declarado") == "p"
+    assert "sustituir" not in d.args and "sustituir_declarado" not in d.args, (
+        f"inventó el texto de sustitución: {d.args}"
+    )
 
 
 # --------------------------------------------- 5 · SIN DUPLICADOS, SIN SEGUNDA VÍA --
@@ -278,6 +290,93 @@ async def test_con_varias_garantias_rotas_solo_se_transporta_la_primera(estado):
     await director.ciclo("obj")
 
     d = [t for t in estado.tareas("obj") if t.origen == "derivado"][0]
-    assert d.args.get("fichero") == "primero.py", f"no tomó la primera garantía rota: {d.args}"
-    assert d.args.get("buscar") == "p1"
+    assert d.args.get("fichero_declarado") == "primero.py", f"no tomó la primera garantía rota: {d.args}"
     assert "segundo.py" not in str(d.args), f"mezcló dos correcciones en una tarea: {d.args}"
+
+
+# --------------------------- DEFECTOS ENCONTRADOS DESPUÉS DE LA PRIMERA AUDITORÍA --
+
+
+@pytest.mark.asyncio
+async def test_un_contexto_de_ejecucion_incompleto_no_llega_como_ejecutable(estado):
+    """EL DEFECTO MÁS GRAVE DE ESTE INCREMENTO, y no lo vio la auditoría.
+
+    Medido sobre el dry-run REAL del Programador: con `fichero` y `buscar` pero SIN `sustituir`, el
+    plan sale `{'viable': True, 'efecto': 'sustituir 1 aparicion...'}` — es decir, **BORRAR el
+    patrón**. Y como borrar un `buscar` de un TOML no rompe ninguna prueba, el QA lo respaldaría y el
+    cambio se conservaría: AURORA habría DESTRUIDO la garantía en vez de repararla.
+
+    Un cambio incompleto no es medio cambio: es otro cambio. O van los tres campos, o ninguno viaja
+    como ejecutable.
+    """
+    parcial = {
+        "capacidad": "auditar_garantias",
+        "ok": False,
+        "resumen": "1 rota",
+        "rotas": [{"mutante": "x:M1", "problema": "AUSENTE", "fichero": "a.toml", "buscar": "patron"}],
+    }
+    estado.registrar(Tarea(objetivo_id="obj", tarea_id="t-audit", descripcion="auditar", responsable="auditor"))
+    director = DirectorGeneral(estado, _MotorFalso(parcial), RegistroEjecutores({"auditor": "auditar_garantias"}))
+    await director.ciclo("obj")
+
+    d = [t for t in estado.tareas("obj") if t.origen == "derivado"][0]
+    assert "fichero" not in d.args, f"un contexto incompleto llegó como ejecutable: {d.args}"
+    assert "buscar" not in d.args
+    assert d.args.get("fichero_declarado") == "a.toml", "pero el dato SÍ debe viajar, para el CEO"
+    assert d.args.get("buscar_declarado") == "patron"
+
+
+@pytest.mark.asyncio
+async def test_el_veredicto_no_puede_inyectar_claves_arbitrarias(estado):
+    """MUTANTE VIVO X4 de la auditoría. La lista blanca `_CAMPOS_DE_EJECUCION` es lo único que impide
+    que un veredicto meta claves cualesquiera en la ruta de ejecución, y no la protegía ninguna
+    prueba. Un adaptador comprometido o defectuoso no puede colar argumentos al Motor Único."""
+    malicioso = {
+        "capacidad": "auditar_garantias",
+        "ok": False,
+        "resumen": "1 rota",
+        "rotas": [{"mutante": "x:M1", "comando": "rm -rf /", "ruta": "/etc", "contenido": "x"}],
+    }
+    estado.registrar(Tarea(objetivo_id="obj", tarea_id="t-audit", descripcion="auditar", responsable="auditor"))
+    director = DirectorGeneral(estado, _MotorFalso(malicioso), RegistroEjecutores({"auditor": "auditar_garantias"}))
+    await director.ciclo("obj")
+
+    d = [t for t in estado.tareas("obj") if t.origen == "derivado"][0]
+    for clave in ("comando", "ruta", "contenido"):
+        assert clave not in d.args, f"el veredicto inyectó la clave {clave!r} en la ejecución: {d.args}"
+
+
+@pytest.mark.asyncio
+async def test_una_tarea_sin_ejecutor_tambien_deriva_con_su_motivo(estado):
+    """DEFECTO D2 de la auditoría. Es la ÚNICA derivada que aparece en el log de producción real del
+    CEO, y nacía sin nada. No hay veredicto —no se llegó a ejecutar—, pero el motivo es justo lo que
+    hace falta para saber que la corrección no es de código sino de CABLEADO."""
+    estado.registrar(Tarea(objetivo_id="obj", tarea_id="t-huerfana", descripcion="x", responsable="inexistente"))
+    director = DirectorGeneral(estado, _MotorFalso({}), RegistroEjecutores({"auditor": "auditar_garantias"}))
+    await director.ciclo("obj")
+
+    d = [t for t in estado.tareas("obj") if t.origen == "derivado"][0]
+    assert "inexistente" in str(d.args.get("motivo", "")), f"la derivada nació sin motivo: {d.args}"
+
+
+@pytest.mark.asyncio
+async def test_la_correccion_hereda_los_argumentos_de_una_causa_que_si_los_tenia(estado):
+    """DEFECTO D2 de la auditoría. Una tarea del programador cuya verificación sale en rojo **sabe
+    perfectamente sobre qué fichero trabajaba**, y esa información se perdía: la corrección nacía
+    ciega sobre un trabajo cuyo objetivo estaba a la vista."""
+    estado.registrar(
+        Tarea(
+            objetivo_id="obj",
+            tarea_id="t-prog",
+            descripcion="cambio",
+            responsable="programador",
+            args={"fichero": "a.py", "buscar": "viejo", "sustituir": "nuevo"},
+        )
+    )
+    rojo = {"capacidad": "proponer_cambio", "ok": False, "resumen": "la verificacion no paso"}
+    director = DirectorGeneral(estado, _MotorFalso(rojo), RegistroEjecutores({"programador": "proponer_cambio"}))
+    await director.ciclo("obj")
+
+    d = [t for t in estado.tareas("obj") if t.origen == "derivado"][0]
+    assert d.args.get("fichero") == "a.py", f"no heredó el objetivo de la causa: {d.args}"
+    assert d.args.get("sustituir") == "nuevo"

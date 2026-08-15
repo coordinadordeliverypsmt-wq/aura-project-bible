@@ -65,7 +65,19 @@ def auditar_garantias(raiz: str, trace_id: str = "-") -> dict:
             # `m`, y se descartaban: solo salia el identificador y un detalle en prosa. Publicarlos
             # es lo que permite que la correccion derivada llegue al ejecutor con algo que usar en
             # vez de morir en el dry-run por `args={}`. No se infiere nada: es lo que el TOML declara.
-            accionable = {"fichero": str(m.get("fichero", "")), "buscar": buscar, "sustituir": sustituir}
+            # EL ARTEFACTO A CORREGIR ES EL TOML, no el fichero objetivo (defecto detectado en
+            # auditoria, 2026-08-15). Cuando una garantia deja de aplicar, el codigo objetivo suele
+            # estar BIEN: lo que quedo obsoleto es el patron DECLARADO en `mutaciones/*.toml`.
+            # Publicar el objetivo enviaba al ejecutor a tocar el fichero equivocado.
+            #
+            # `sustituir` del mutante NO se publica como correccion: es el texto de la mutacion, no
+            # el patron nuevo que hay que escribir en el TOML. Ese hay que DECIDIRLO -- y decidirlo
+            # es razonar, no transportar. Se deja ausente a proposito (INV-9).
+            accionable = {
+                "fichero": str(toml.relative_to(base)),
+                "buscar": buscar,
+                "objetivo": str(m.get("fichero", "")),
+            }
 
             if not fichero.is_file():
                 rotos.append(

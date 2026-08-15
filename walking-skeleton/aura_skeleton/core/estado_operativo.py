@@ -91,10 +91,23 @@ def contexto_de_correccion(resultado: dict, motivo: str) -> dict:
     contexto: dict = {"motivo": motivo}
     rotas = resultado.get("rotas") or []
     primera = rotas[0] if isinstance(rotas, list) and rotas and isinstance(rotas[0], dict) else {}
-    for campo in _CAMPOS_DE_EJECUCION:
-        valor = primera.get(campo)
-        if valor:
-            contexto[campo] = valor
+
+    # TODO O NADA en las claves de ejecucion. Publicar `fichero` y `buscar` SIN `sustituir` no deja
+    # la tarea a medias: la vuelve DESTRUCTIVA. Medido: el dry-run del Programador da `viable` y el
+    # efecto es "sustituir 1 aparicion", con `sustituir` vacio -- es decir, BORRAR el patron. Y como
+    # borrar un patron de un TOML no rompe ninguna prueba, el QA lo respaldaria y el cambio se
+    # conservaria: AURORA habria destruido la garantia en vez de repararla.
+    #
+    # Un cambio incompleto no es medio cambio: es otro cambio. Se exigen los tres.
+    completos = {c: primera[c] for c in _CAMPOS_DE_EJECUCION if primera.get(c)}
+    if len(completos) == len(_CAMPOS_DE_EJECUCION):
+        contexto.update(completos)
+    else:
+        # Incompleto: viaja igual, pero bajo claves que NINGUN ejecutor consume. El CEO -y manana un
+        # modelo- ven el fichero y el patron; nadie los ejecuta a ciegas.
+        for campo, valor in completos.items():
+            contexto[f"{campo}_declarado"] = valor
+
     if primera.get("mutante"):
         contexto["referencia"] = primera["mutante"]
     return contexto

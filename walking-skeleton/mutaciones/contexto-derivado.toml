@@ -19,7 +19,11 @@ pruebas = [
 id = "C1"
 garantia = "el auditor deja de publicar fichero y patron: la informacion se pierde en el origen"
 fichero = "aura_skeleton/adapters/auditor.py"
-buscar = '''            accionable = {"fichero": str(m.get("fichero", "")), "buscar": buscar, "sustituir": sustituir}'''
+buscar = '''            accionable = {
+                "fichero": str(toml.relative_to(base)),
+                "buscar": buscar,
+                "objetivo": str(m.get("fichero", "")),
+            }'''
 sustituir = '''            accionable = {}'''
 
 # (C2) EL DIRECTOR NO ADJUNTA EL VEREDICTO. El unico punto donde coexisten el resultado del ejecutor
@@ -51,12 +55,8 @@ sustituir = '''                args={},'''
 id = "C4"
 garantia = "se fabrican fichero y patron cuando el veredicto no los trae (INV-9)"
 fichero = "aura_skeleton/core/estado_operativo.py"
-buscar = '''    for campo in _CAMPOS_DE_EJECUCION:
-        valor = primera.get(campo)
-        if valor:
-            contexto[campo] = valor'''
-sustituir = '''    for campo in _CAMPOS_DE_EJECUCION:
-        contexto[campo] = primera.get(campo) or "desconocido"'''
+buscar = '''    completos = {c: primera[c] for c in _CAMPOS_DE_EJECUCION if primera.get(c)}'''
+sustituir = '''    completos = {c: primera.get(c) or "desconocido" for c in _CAMPOS_DE_EJECUCION}'''
 
 # (C5) EL MOTIVO DEJA DE VIAJAR. Aun sin datos accionables, el motivo es lo unico que convierte una
 # escalada en informacion util para el CEO. Sin el, la tarea derivada vuelve a ser opaca.
@@ -93,9 +93,11 @@ sustituir = '''                evidencia=f"{actual.tarea_id}:bloqueada:{motivo}:
 id = "C7"
 garantia = "el Director vuelve a importar de planificacion: se rompe el desacoplamiento del bucle"
 fichero = "aura_skeleton/core/director.py"
-buscar = '''from .estado_operativo import CLAVE_CONTEXTO, AlmacenEstadoOperativo, Tarea, contexto_de_correccion'''
+buscar = '''from .estado_operativo import (
+    _CAMPOS_DE_EJECUCION,'''
 sustituir = '''from .planificacion import admitir  # noqa: F401
-from .estado_operativo import CLAVE_CONTEXTO, AlmacenEstadoOperativo, Tarea, contexto_de_correccion'''
+from .estado_operativo import (
+    _CAMPOS_DE_EJECUCION,'''
 
 # (C8) SE REPARTEN VARIAS CORRECCIONES EN UNA SOLA TAREA. Con varias garantias rotas, mezclar todas
 # en una tarea impide que el ciclo las escale por separado: una que no se pueda resolver arrastraria

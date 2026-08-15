@@ -21,7 +21,13 @@ trabajo ni tocan el estado global. Por eso el estado se actualiza aqui y no en e
 
 from __future__ import annotations
 
-from .estado_operativo import CLAVE_CONTEXTO, AlmacenEstadoOperativo, Tarea, contexto_de_correccion
+from .estado_operativo import (
+    _CAMPOS_DE_EJECUCION,
+    CLAVE_CONTEXTO,
+    AlmacenEstadoOperativo,
+    Tarea,
+    contexto_de_correccion,
+)
 
 
 class ResponsableDuplicado(Exception):
@@ -80,6 +86,11 @@ class DirectorGeneral:
                 autoridad="director",
                 causa=f"ningun ejecutor atiende al responsable '{tarea.responsable}'",
                 bloqueos=[*tarea.bloqueos, f"ningun ejecutor atiende al responsable '{tarea.responsable}'"],
+                # Tambien aqui viaja el contexto: es la unica derivada que aparece en el log real de
+                # produccion, y nacia sin nada. No hay veredicto -no se llego a ejecutar-, asi que
+                # solo hay motivo; pero el motivo es justo lo que el CEO necesita para saber que la
+                # correccion no es de codigo sino de CABLEADO.
+                args={**tarea.args, CLAVE_CONTEXTO: {"motivo": f"sin ejecutor para '{tarea.responsable}'"}},
             )
 
         res = await self.motor.ejecutar(
@@ -119,6 +130,12 @@ class DirectorGeneral:
         # la evidencia es texto para una persona -y ademas de la evidencia se deriva el identificador
         # de la tarea, asi que meterlo ahi romperia la deduplicacion-.
         contexto = contexto_de_correccion(veredicto if isinstance(veredicto, dict) else {}, motivo)
+        # Si la causa YA traia argumentos de ejecucion validos -una tarea del programador cuya
+        # verificacion salio en rojo sabe sobre que fichero trabajaba-, se heredan. Se perdian, y la
+        # correccion nacia ciega sobre un trabajo cuyo objetivo estaba a la vista.
+        heredables = {c: tarea.args[c] for c in _CAMPOS_DE_EJECUCION if tarea.args.get(c)}
+        if len(heredables) == len(_CAMPOS_DE_EJECUCION) and "fichero" not in contexto:
+            contexto.update(heredables)
         return self.estado.transitar(
             objetivo_id,
             tarea.tarea_id,

@@ -21,7 +21,7 @@ trabajo ni tocan el estado global. Por eso el estado se actualiza aqui y no en e
 
 from __future__ import annotations
 
-from .estado_operativo import AlmacenEstadoOperativo, Tarea
+from .estado_operativo import CLAVE_CONTEXTO, AlmacenEstadoOperativo, Tarea, contexto_de_correccion
 
 
 class ResponsableDuplicado(Exception):
@@ -110,6 +110,15 @@ class DirectorGeneral:
             if not (res.get("estado") == "ejecutada")
             else f"veredicto negativo: {(veredicto or {}).get('resumen', 'el ejecutor no lo respalda')}"
         )
+        # EL VEREDICTO ESTRUCTURADO VIAJA CON LA TAREA (acta del CEO, 2026-08-15). El director es el
+        # unico punto donde coexisten el resultado del ejecutor -con sus datos accionables- y la
+        # tarea que se va a bloquear. Hasta aqui se conservaba solo `motivo`, una linea de prosa, y
+        # la correccion derivada nacia sin nada que ejecutar.
+        #
+        # Va en `args` bajo una clave declarada, NO en `evidencias`: el contexto es dato de maquina y
+        # la evidencia es texto para una persona -y ademas de la evidencia se deriva el identificador
+        # de la tarea, asi que meterlo ahi romperia la deduplicacion-.
+        contexto = contexto_de_correccion(veredicto if isinstance(veredicto, dict) else {}, motivo)
         return self.estado.transitar(
             objetivo_id,
             tarea.tarea_id,
@@ -117,6 +126,7 @@ class DirectorGeneral:
             autoridad="director",
             causa=motivo,
             bloqueos=[*tarea.bloqueos, motivo],
+            args={**tarea.args, CLAVE_CONTEXTO: contexto},
         )
 
     def _siguiente_distinta(self, objetivo_id: str, actual: str) -> str:

@@ -1,0 +1,108 @@
+incremento = "El contexto del fallo viaja hasta el ejecutor (acta del CEO, 2026-08-15)"
+# Junto a las pruebas del incremento van las que protegen lo que este cambio podria romper: el
+# desacoplamiento Director/planificacion, el corte de ciclos y la deduplicacion por evidencia.
+pruebas = [
+    "tests/integration/test_contexto_derivado.py",
+    "tests/integration/test_ciclo_completo.py",
+    "tests/integration/test_planificacion.py",
+    "tests/integration/test_veredicto_del_ejecutor.py",
+]
+
+# ================================================================================================
+# EL CONTEXTO VIAJA -- o AURORA vuelve a perder lo que ya sabe
+# ================================================================================================
+
+# (C1) EL AUDITOR VUELVE A DESCARTAR LO ACCIONABLE. Sabe el fichero y el patron, y solo publica el
+# identificador y una linea de prosa. Es el defecto original: la informacion se pierde en el primer
+# eslabon y ya no hay nada que transportar.
+[[mutante]]
+id = "C1"
+garantia = "el auditor deja de publicar fichero y patron: la informacion se pierde en el origen"
+fichero = "aura_skeleton/adapters/auditor.py"
+buscar = '''            accionable = {"fichero": str(m.get("fichero", "")), "buscar": buscar, "sustituir": sustituir}'''
+sustituir = '''            accionable = {}'''
+
+# (C2) EL DIRECTOR NO ADJUNTA EL VEREDICTO. El unico punto donde coexisten el resultado del ejecutor
+# y la tarea que se va a bloquear deja de unirlos: la derivada vuelve a nacer con `args={}`.
+[[mutante]]
+id = "C2"
+garantia = "el director no adjunta el veredicto a la tarea: la derivada vuelve a nacer sin argumentos"
+fichero = "aura_skeleton/core/director.py"
+buscar = '''            args={**tarea.args, CLAVE_CONTEXTO: contexto},'''
+sustituir = '''            args=dict(tarea.args),'''
+
+# (C3) EL OYENTE NO TRANSPORTA. El contexto llega a la tarea bloqueada y se queda ahi: la derivada
+# no lo hereda y muere igual en el dry-run. El eslabon roto se mueve, no desaparece.
+[[mutante]]
+id = "C3"
+garantia = "el oyente no traslada el contexto a la tarea derivada: se queda en la causa"
+fichero = "aura_skeleton/core/planificacion.py"
+buscar = '''                args=dict(contexto) or {"motivo": motivo},'''
+sustituir = '''                args={},'''
+
+# ================================================================================================
+# NO SE FINGE: lo ausente sigue ausente (INV-9)
+# ================================================================================================
+
+# (C4) SE INVENTA EL CONTEXTO CUANDO NO LO HAY. Un veredicto sin datos accionables -el QA solo da
+# prosa- produciria un fichero y un patron fabricados. El ejecutor intentaria un cambio sobre algo
+# que nadie declaro: es exactamente lo que INV-9 prohibe, y peor que no poder actuar.
+[[mutante]]
+id = "C4"
+garantia = "se fabrican fichero y patron cuando el veredicto no los trae (INV-9)"
+fichero = "aura_skeleton/core/estado_operativo.py"
+buscar = '''    for campo in _CAMPOS_DE_EJECUCION:
+        valor = primera.get(campo)
+        if valor:
+            contexto[campo] = valor'''
+sustituir = '''    for campo in _CAMPOS_DE_EJECUCION:
+        contexto[campo] = primera.get(campo) or "desconocido"'''
+
+# (C5) EL MOTIVO DEJA DE VIAJAR. Aun sin datos accionables, el motivo es lo unico que convierte una
+# escalada en informacion util para el CEO. Sin el, la tarea derivada vuelve a ser opaca.
+[[mutante]]
+id = "C5"
+garantia = "el motivo del fallo no viaja: la escalada al CEO vuelve a ser opaca"
+fichero = "aura_skeleton/core/estado_operativo.py"
+buscar = '''    contexto: dict = {"motivo": motivo}'''
+sustituir = '''    contexto: dict = {}'''
+
+# ================================================================================================
+# LO QUE NO PUEDE ROMPERSE
+# ================================================================================================
+
+# (C6) EL CONTEXTO SE CUELA EN LA EVIDENCIA. Dos efectos, ambos malos: `evidencias` es texto para que
+# lo lea una persona, y de la evidencia se deriva el IDENTIFICADOR de la tarea derivada -- asi que
+# cada matiz del veredicto crearia una tarea nueva en vez de reutilizar la misma. Es el criterio 8
+# del acta y la garantia de deduplicacion, rotos de una sola vez.
+[[mutante]]
+id = "C6"
+garantia = "el contexto entra en la evidencia: rompe el criterio 8 y duplica tareas por cada matiz"
+fichero = "aura_skeleton/core/planificacion.py"
+buscar = '''                evidencia=f"{actual.tarea_id}:bloqueada:{motivo}",
+                prioridad=1,'''
+sustituir = '''                evidencia=f"{actual.tarea_id}:bloqueada:{motivo}:{contexto}",
+                prioridad=1,'''
+
+# (C7) EL DIRECTOR VUELVE A CONOCER LA PLANIFICACION. Este mutante existe porque el defecto SE
+# COMETIO durante este incremento: la primera version importaba `contexto_de_correccion` desde
+# `planificacion` y rompio un desacoplamiento deliberado. Lo detecto
+# `test_el_director_NO_conoce_la_planificacion`, que existe justo para eso. El traductor vive ahora
+# en el modelo de datos, donde le corresponde: el contexto viaja DENTRO de la tarea.
+[[mutante]]
+id = "C7"
+garantia = "el Director vuelve a importar de planificacion: se rompe el desacoplamiento del bucle"
+fichero = "aura_skeleton/core/director.py"
+buscar = '''from .estado_operativo import CLAVE_CONTEXTO, AlmacenEstadoOperativo, Tarea, contexto_de_correccion'''
+sustituir = '''from .planificacion import admitir  # noqa: F401
+from .estado_operativo import CLAVE_CONTEXTO, AlmacenEstadoOperativo, Tarea, contexto_de_correccion'''
+
+# (C8) SE REPARTEN VARIAS CORRECCIONES EN UNA SOLA TAREA. Con varias garantias rotas, mezclar todas
+# en una tarea impide que el ciclo las escale por separado: una que no se pueda resolver arrastraria
+# a las demas.
+[[mutante]]
+id = "C8"
+garantia = "se mezclan varias garantias rotas en una sola tarea derivada"
+fichero = "aura_skeleton/core/estado_operativo.py"
+buscar = '''    primera = rotas[0] if isinstance(rotas, list) and rotas and isinstance(rotas[0], dict) else {}'''
+sustituir = '''    primera = {k: v for r in rotas if isinstance(r, dict) for k, v in r.items()} if rotas else {}'''

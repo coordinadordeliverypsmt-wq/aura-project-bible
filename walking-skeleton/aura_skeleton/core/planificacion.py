@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import hashlib
 
-from .estado_operativo import AlmacenEstadoOperativo, Tarea
+from .estado_operativo import CLAVE_CONTEXTO, AlmacenEstadoOperativo, Tarea
 
 # ORIGENES clasifica el ORIGEN DE UNA DECISION, nunca a una persona ni a una herramienta concreta
 # (CEO, 2026-08-04). Con el tiempo habra mas herramientas externas, y la metrica no puede depender del
@@ -156,6 +156,16 @@ def oyente_de_transiciones(estado: AlmacenEstadoOperativo):
             # El corte estructural sigue vigente: el trabajo derivado no engendra mas trabajo.
             return
         motivo = actual.bloqueos[-1] if actual.bloqueos else "bloqueo sin motivo declarado"
+        # EL CONTEXTO VIAJA (acta del CEO, 2026-08-15). Hasta aqui la tarea derivada nacia con
+        # `args={}` y moria en el dry-run con "un cambio necesita fichero y patron a sustituir",
+        # aunque AURORA supiera perfectamente cual era el fichero: lo habia descartado el auditor y
+        # lo que quedaba era prosa. Ahora el director adjunta el veredicto en `args` y aqui se
+        # traslada a la tarea derivada, con las MISMAS claves que el ejecutor lee.
+        #
+        # La evidencia NO cambia: sigue siendo `{tarea}:bloqueada:{motivo}`. Es deliberado -de ella
+        # sale el identificador, y si el contexto entrase ahi cada matiz del veredicto crearia una
+        # tarea nueva en vez de reutilizar la misma-.
+        contexto = actual.args.get(CLAVE_CONTEXTO) or {}
         try:
             admitir(
                 estado,
@@ -166,6 +176,7 @@ def oyente_de_transiciones(estado: AlmacenEstadoOperativo):
                 prioridad=1,
                 origen=DERIVADO,
                 causa=actual,
+                args=dict(contexto) or {"motivo": motivo},
             )
         except AdmisionRechazada:
             # Que la admision rechace es una decision legitima, no un fallo del ciclo.

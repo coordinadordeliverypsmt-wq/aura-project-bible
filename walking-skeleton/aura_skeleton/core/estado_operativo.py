@@ -61,6 +61,45 @@ class TransicionInvalida(Exception):
     """La transicion no esta permitida, o no declara autoridad y causa."""
 
 
+# CLAVE bajo la que el veredicto estructurado de un ejecutor viaja dentro de `Tarea.args` (acta del
+# CEO, 2026-08-15). Vive AQUI, con el modelo de datos, y no en el planificador: el contexto viaja
+# DENTRO de la tarea, asi que su clave pertenece al contrato de la tarea. Ponerla en `planificacion`
+# obligaba al Director a importar de alli y rompia un desacoplamiento deliberado -lo detecto
+# `test_el_director_NO_conoce_la_planificacion`, que existe justo para eso-.
+#
+# Va en `args` y NO en `evidencias`: aquello es una lista de texto para que la lea una persona, y
+# ademas de la evidencia se deriva el identificador de la tarea derivada, de modo que meter datos de
+# maquina ahi romperia la deduplicacion.
+CLAVE_CONTEXTO = "_veredicto"
+
+# Lo que el `EjecutorProgramador` lee de `args`. Solo se transporta lo que el veredicto TRAIGA: lo
+# ausente se queda ausente y el ejecutor bloquea con un motivo concreto, en vez de que alguien
+# invente un valor (INV-9).
+_CAMPOS_DE_EJECUCION = ("fichero", "buscar", "sustituir")
+
+
+def contexto_de_correccion(resultado: dict, motivo: str) -> dict:
+    """Traduce el veredicto de un ejecutor a contexto accionable. Solo `motivo` si no hay mas.
+
+    Hoy solo el auditor publica datos accionables (`rotas`). El QA devuelve un resumen en prosa: de
+    ahi no sale un fichero ni un patron, y **no se inventa** -- la tarea derivada nacera sin
+    argumentos de ejecucion y se bloqueara, que es el resultado correcto y no un fallo.
+
+    Se toma la PRIMERA garantia rota, no todas: una tarea derivada es una unidad de trabajo, y
+    repartir varias correcciones en una sola impediria que el ciclo las escale por separado.
+    """
+    contexto: dict = {"motivo": motivo}
+    rotas = resultado.get("rotas") or []
+    primera = rotas[0] if isinstance(rotas, list) and rotas and isinstance(rotas[0], dict) else {}
+    for campo in _CAMPOS_DE_EJECUCION:
+        valor = primera.get(campo)
+        if valor:
+            contexto[campo] = valor
+    if primera.get("mutante"):
+        contexto["referencia"] = primera["mutante"]
+    return contexto
+
+
 @dataclass(frozen=True)
 class Tarea:
     """Una unidad de trabajo del ciclo, con todo lo necesario para retomarla sin contexto externo."""

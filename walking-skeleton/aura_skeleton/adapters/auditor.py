@@ -61,16 +61,28 @@ def auditar_garantias(raiz: str, trace_id: str = "-") -> dict:
             buscar, sustituir = str(m.get("buscar", "")), str(m.get("sustituir", ""))
             ident = f"{toml.name}:{m.get('id')}"
 
+            # CONTEXTO ACCIONABLE (acta del CEO, 2026-08-15). Estos tres datos ya estaban aqui, en
+            # `m`, y se descartaban: solo salia el identificador y un detalle en prosa. Publicarlos
+            # es lo que permite que la correccion derivada llegue al ejecutor con algo que usar en
+            # vez de morir en el dry-run por `args={}`. No se infiere nada: es lo que el TOML declara.
+            accionable = {"fichero": str(m.get("fichero", "")), "buscar": buscar, "sustituir": sustituir}
+
             if not fichero.is_file():
-                rotos.append({"mutante": ident, "problema": "AUSENTE", "detalle": f"no existe {m.get('fichero')}"})
+                rotos.append(
+                    {"mutante": ident, "problema": "AUSENTE", "detalle": f"no existe {m.get('fichero')}", **accionable}
+                )
                 continue
             apariciones = fichero.read_text(encoding="utf-8").count(buscar)
             if apariciones == 0:
-                rotos.append({"mutante": ident, "problema": "AUSENTE", "detalle": "el patron ya no aparece"})
+                rotos.append(
+                    {"mutante": ident, "problema": "AUSENTE", "detalle": "el patron ya no aparece", **accionable}
+                )
             elif apariciones > 1:
-                rotos.append({"mutante": ident, "problema": "AMBIGUO", "detalle": f"aparece {apariciones} veces"})
+                rotos.append(
+                    {"mutante": ident, "problema": "AMBIGUO", "detalle": f"aparece {apariciones} veces", **accionable}
+                )
             elif buscar == sustituir:
-                rotos.append({"mutante": ident, "problema": "DEGENERADO", "detalle": "no degrada nada"})
+                rotos.append({"mutante": ident, "problema": "DEGENERADO", "detalle": "no degrada nada", **accionable})
 
     ok = not rotos
     obs.log("AUDIT", "ejecutor-auditor", f"garantias: {total - len(rotos)}/{total} vigentes", trace_id, audit=True)

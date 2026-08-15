@@ -288,8 +288,26 @@ dos reglas de gobierno: **prompt congelado** y **0/7 es resultado válido**.
 **Orden explícita del CEO:** ejecutar **primero y sólo** el ensayo de humo con `0.5b`. Si revela un
 problema del protocolo, **detenerse y corregirlo** antes de gastar la tanda de 30.
 
-**Siguiente paso exacto:** construir el arnés en `milestones/m3-entry/medicion-razonador/` y correr
-únicamente el humo.
+**Siguiente paso exacto:** terminar el lanzador y correr **únicamente** el humo.
+
+**Estado del arnés (2026-08-15):**
+
+- **`milestones/m3-entry/medicion-razonador/humo.py` — ESCRITO.** Es el script que corre DENTRO del
+  laboratorio. Sin commitear: es instrumentación, y el CEO sólo autorizó commits de documentación.
+  Contiene ya: las dos aserciones de aislamiento bloqueantes (paquete importado y raíz que usarán los
+  ejecutores, ambas exigidas bajo el lab) más una tercera que lee la raíz **real de las instancias
+  compuestas**; el prompt congelado del brazo A; el confirmador que deniega y conserva la
+  previsualización; el envoltorio de `OllamaProvider.infer` para registrar prompt y respuesta crudos;
+  el ciclo real con `motor_ciclo.correr(max_latidos=1)` y la extracción **literal** de los `args` de
+  la tarea derivada; la ruta real `handle_utterance()` → `wait(timeout=…)`; y muestras de recursos.
+  Cada modo de fallo devuelve un código distinto: **2 = aislamiento**, **3 = protocolo**, 0 = ok.
+- **`lanzar.py` — PENDIENTE.** Debe: crear el lab con `git archive --format=tar --output=<f> HEAD` y
+  `tar -xf` (dos comandos simples: el sandbox rechaza las tuberías complejas); sembrar el caso
+  AUSENTE con verdad de referencia conocida; copiar `humo.py` dentro de `<lab>/walking-skeleton/`;
+  calcular SHA-256 de **los dos lados** antes y después; y ejecutar el script con `cwd` en el lab.
+- **CUIDADO CON `AURA_DATOS`:** debe apuntar **fuera del laboratorio**. Si apunta dentro, el estado, la
+  memoria y el log de auditoría se escriben en el lab y su huella SHA-256 cambia por razones legítimas,
+  arruinando la prueba de no ejecución.
 
 **Hechos de cableado ya averiguados — no volver a buscarlos:**
 

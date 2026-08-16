@@ -1,13 +1,14 @@
 # CHECKPOINT DE CONTINUIDAD
 
-**Cerrado:** 2026-08-15 · **Rama:** `worktree-m3-entry` · **HEAD:** `c202de5` · **Árbol limpio**
+**Actualizado:** 2026-08-15 · **Rama:** `worktree-m3-entry`
+**HEAD:** `86980356904cb21aa81cf4370dace5cbc68d41c0` (`8698035`)
 **`main` = `origin/main` = `d933a08`** — el incremento **NO está integrado**, y así debe permanecer
 hasta que el CEO lo ordene.
 
-> **Este fichero se escribió por orden expresa del CEO y NO está commiteado**, porque en el mismo
-> mensaje prohibió nuevos commits. Existe en disco y sobrevive al cambio de conversación. Para
-> hacerlo durable basta:
-> `git add CHECKPOINT-CONTINUIDAD.md && git commit -m "docs(checkpoint): cierre del tramo"`
+> **Este fichero está versionado.** Se commiteó por primera vez en `6db8302` y esta actualización
+> reconcilia su contenido con el estado real tras `8698035`. Los únicos elementos no rastreados del
+> árbol son `milestones/m3-entry/medicion-razonador/__pycache__/` y `esperar_umbral.sh`, excluidos
+> deliberadamente del commit por decisión del CEO.
 
 ---
 
@@ -183,6 +184,16 @@ revienta ante una tarea bloqueada sin motivo. No alcanzable en producción hoy.
 son redundantes cuando se mida cómo escala el conjunto (la decisión de no meter mutación en el Quality
 Gate ya se tomó por este motivo, CEO 2026-08-02).
 
+**D-5 · La limpieza del laboratorio de medición depende del camino feliz.**
+`milestones/m3-entry/medicion-razonador/lanzar.py` crea el laboratorio como copia completa del
+repositorio y lo borra **al final** de la función. Los experimentos abortados nunca llegan a esa
+línea: durante la campaña quedaron copias huérfanas que **llenaron el disco y bloquearon el shell**.
+La corrección es proteger la limpieza con `finally`.
+
+**No se ha creado DP ni se ha modificado el arnés.** Por decisión del CEO será un cambio aparte, con
+su propio **RED/GREEN y Quality Gate**, y no debe mezclarse con la evidencia de la campaña. Registrado
+también en el mensaje del commit `8698035`.
+
 ---
 
 ## 5 · E · IMPACTO REAL SOBRE LA AUTONOMÍA DE AURORA
@@ -278,33 +289,62 @@ Incremento B (Experiencia Conversacional v1, DP escrito), 010–012 (Traductor O
 (bloqueados por hardware), la decisión de hardware o cambio de modelo, y el cableado de
 `desde_verificacion`.
 
-## 8.bis · Medición del razonador — APROBADA por el CEO, 2026-08-15. En curso
+## 8.bis · Campaña diagnóstica del razonador local — **EJECUTADA Y CERRADA EN EVIDENCIA**
 
-DP: [`milestones/m3-entry/DP-MEDICION-RAZONADOR-LOCAL.md`](milestones/m3-entry/DP-MEDICION-RAZONADOR-LOCAL.md),
-commiteado en `f9c942d`. **Aprobados ambos brazos**, el ensayo con `qwen2.5:0.5b` como baseline
-experimental (sin implicación alguna sobre hardware), los casos 4–7 como control de veracidad, y las
-dos reglas de gobierno: **prompt congelado** y **0/7 es resultado válido**.
+Registrada en el commit **`8698035`** (21 ficheros, 3.137 inserciones): seis Decision Packages, ocho
+artefactos JSON de evidencia, seis scripts reproducibles y el registro del servidor, todo bajo
+`milestones/m3-entry/` y `milestones/m3-entry/medicion-razonador/`.
 
-**Orden explícita del CEO:** ejecutar **primero y sólo** el ensayo de humo con `0.5b`. Si revela un
-problema del protocolo, **detenerse y corregirlo** antes de gastar la tanda de 30.
+> **NOTA DE CONTINUIDAD.** La campaña diagnóstica del razonador local queda cerrada en evidencia. La
+> autonomía permanece en 0/7. El resultado no autoriza construcción de producto ni extrapolación a
+> otros modelos o recursos. Cualquier nueva exploración de capacidad requiere un Decision Package
+> específico y aprobación previa.
 
-**Siguiente paso exacto:** terminar el lanzador y correr **únicamente** el humo.
+### Qué se ejecutó
 
-**Estado del arnés (2026-08-15):**
+| Actividad | Estado |
+|---|---|
+| Humos 1, 2 y 3 con `qwen2.5:0.5b` | **ejecutados** |
+| Comprobación de denegación estructural, sin modelo | **verificada** — A y B en verde, 54 pruebas |
+| Diagnóstico del instrumento 3B (¿confunde la forma de invocación?) | **cerrado** — era la ventana de carga, no la invocación |
+| Comparación `0.5b` vs `3b`, mismos bytes de entrada | **ejecutada** |
+| Experimento de aislamiento de `sustituir` | **ejecutado y cerrado** (§13 de su DP) |
 
-- **`milestones/m3-entry/medicion-razonador/humo.py` — ESCRITO.** Es el script que corre DENTRO del
-  laboratorio. Sin commitear: es instrumentación, y el CEO sólo autorizó commits de documentación.
-  Contiene ya: las dos aserciones de aislamiento bloqueantes (paquete importado y raíz que usarán los
-  ejecutores, ambas exigidas bajo el lab) más una tercera que lee la raíz **real de las instancias
-  compuestas**; el prompt congelado del brazo A; el confirmador que deniega y conserva la
-  previsualización; el envoltorio de `OllamaProvider.infer` para registrar prompt y respuesta crudos;
-  el ciclo real con `motor_ciclo.correr(max_latidos=1)` y la extracción **literal** de los `args` de
-  la tarea derivada; la ruta real `handle_utterance()` → `wait(timeout=…)`; y muestras de recursos.
-  Cada modo de fallo devuelve un código distinto: **2 = aislamiento**, **3 = protocolo**, 0 = ok.
-- **`lanzar.py` — PENDIENTE.** Debe: crear el lab con `git archive --format=tar --output=<f> HEAD` y
-  `tar -xf` (dos comandos simples: el sandbox rechaza las tuberías complejas); sembrar el caso
-  AUSENTE con verdad de referencia conocida; copiar `humo.py` dentro de `<lab>/walking-skeleton/`;
-  calcular SHA-256 de **los dos lados** antes y después; y ejecutar el script con `cwd` en el lab.
+### Resultado
+
+**Ambos modelos FAIL.** Ninguno produjo una propuesta ejecutable ni, en el experimento de aislamiento,
+el patrón correcto. **La rama de representación/estructura del problema no explica suficientemente el
+fallo observado.**
+
+**Lo que el resultado NO permite:** no se extrapola a otros modelos, cuantizaciones, ficheros reales
+ni a la capacidad general de razonamiento local. **No autoriza construir producto sobre el razonador
+local actual.** **Autonomía = 0/7, sin cambio.**
+
+### Estado formal de los seis DP — ninguno pasa a aprobado
+
+Todos figuran como **`PROPUESTO`** en su propio encabezado, y **este checkpoint no altera ese estado**.
+Que un DP se haya ejecutado no lo convierte en aprobación arquitectónica.
+
+| DP | Estado formal | Situación |
+|---|---|---|
+| `DP-MEDICION-RAZONADOR-LOCAL` | PROPUESTO | **La tanda de 30 NO se ejecutó.** Cualquier continuación exige aprobación |
+| `DP-COMPARACION-RAZONADORES` | PROPUESTO | Ejecutado; **su ejecución no es aprobación arquitectónica** |
+| `DP-DIAGNOSTICO-INSTRUMENTO-3B` | PROPUESTO | Cerrado; **su resultado no autoriza implementar** |
+| `DP-EXPERIMENTO-AISLAMIENTO-SUSTITUIR` | PROPUESTO | Resultado ejecutado y documentado en §13; se respeta su estado formal |
+| `DP-RECURSO-MINIMO-RAZONADOR` | PROPUESTO | **Permanece abierto**: la restricción de memoria bloquea la medición de capacidad |
+| `DP-FRONTERA-RAZONAMIENTO-DETERMINISMO` | PROPUESTO | Conclusión conservada; **no se convierte en implementación** |
+
+### Decisiones arquitectónicas todavía ABIERTAS
+
+- **Capacidad del razonador** — otro modelo, cuantización o recurso. **Sin DP.** Requiere uno propio.
+- **Recurso mínimo** — sin responder: la memoria impide medir la capacidad, y la capacidad determina
+  el recurso.
+- **Integración de este incremento a `main`** — sigue sin autorizar.
+
+**Cualquier siguiente experimento requiere su propio Decision Package y aprobación previa.**
+
+### Reglas de entorno del arnés, conservadas por su valor operativo
+
 - **CUIDADO CON `AURA_DATOS`:** debe apuntar **fuera del laboratorio**. Si apunta dentro, el estado, la
   memoria y el log de auditoría se escriben en el lab y su huella SHA-256 cambia por razones legítimas,
   arruinando la prueba de no ejecución.

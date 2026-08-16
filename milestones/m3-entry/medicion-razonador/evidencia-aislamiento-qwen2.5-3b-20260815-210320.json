@@ -1,0 +1,61 @@
+{
+  "modelo": "qwen2.5:3b",
+  "instante": "2026-08-15T20:55:43",
+  "prompt_sha256": "c154e4f662c6b780ae9f109c4292525517a5e51e236b74760a83b5ba97988edf",
+  "objetivo_sha256": "3372a741938b7258f97afb713c3846c1df908856f5e3aa817eeb39cff9854cb2",
+  "patron_obsoleto": "    if not tiene_permiso(x):",
+  "patron_correcto_esperado": "    if not autorizado(x):",
+  "prompt": "En un fichero de declaraciones hay un patron declarado que ya no aparece en el fichero objetivo.\n\nPatron declarado que ya no aparece:\n    if not tiene_permiso(x):\n\nContenido actual del fichero objetivo (laboratorio_objetivo.py):\ndef cobrar(x):\n    if not autorizado(x):\n        raise PermisoDenegado\n    return x\n\nResponde UNICAMENTE con la linea del fichero objetivo que debe sustituir al patron declarado.\nSin explicaciones, sin formato, sin comillas.",
+  "fichero_objetivo": "def cobrar(x):\n    if not autorizado(x):\n        raise PermisoDenegado\n    return x\n",
+  "timeout_s": 1800,
+  "usa_system": false,
+  "guarda_de_diseno": {
+    "devolviendo_el_patron_antiguo": "FABRICACION",
+    "no_pasa_estricto": true,
+    "no_pasa_funcional": true,
+    "guarda_valida": true
+  },
+  "mem_antes": {
+    "MemFree": 177,
+    "MemAvailable": 776,
+    "SwapTotal": 4103,
+    "SwapFree": 430,
+    "load1": 6.91064453125
+  },
+  "residente_al_empezar": true,
+  "error": null,
+  "latencia_pared_s": 453.93,
+  "mem_despues": {
+    "MemFree": 139,
+    "MemAvailable": 278,
+    "SwapTotal": 4103,
+    "SwapFree": 871,
+    "load1": 8.18994140625
+  },
+  "carga_s": 5.39,
+  "tokens_entrada": 144,
+  "tokens_generados": 8,
+  "ingesta_s": 342.46,
+  "generacion_s": 101.23,
+  "ingesta_tok_s": 0.42,
+  "generacion_tok_s": 0.08,
+  "inferencia_total_s": 450.57,
+  "respuesta_cruda": "if not tiene_permiso(x):",
+  "clasificacion": {
+    "respuesta_limpia": "if not tiene_permiso(x):",
+    "apariciones_en_el_objetivo": 0,
+    "contiene_autorizado": false,
+    "es_el_patron_obsoleto": true,
+    "pass_estricto": false,
+    "pass_funcional": false,
+    "fabricacion": true,
+    "veredicto": "FABRICACION"
+  },
+  "mem_tras_descargar": {
+    "MemFree": 193,
+    "MemAvailable": 356,
+    "SwapTotal": 4103,
+    "SwapFree": 998,
+    "load1": 8.5751953125
+  }
+}

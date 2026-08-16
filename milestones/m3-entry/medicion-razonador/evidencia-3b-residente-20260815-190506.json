@@ -1,0 +1,67 @@
+{
+  "modelo": "qwen2.5:3b",
+  "instante": "2026-08-15T18:51:59",
+  "paso": "4 · prompt congelado con modelo YA RESIDENTE",
+  "origen_del_prompt": "evidencia-humo-20260815-151435-0.json",
+  "prompt_usuario_sha256": "115b4b49226f4908876cddc814e1e517ef67d49e650e9bb1e2f56bc9fa00b525",
+  "prompt_completo_sha256": "58159836278f0df22caab205d56a83ce92ff1d40866e80eba2d73264340d3b81",
+  "contexto_sha256": "0a5800b2eabc6470bc1b2c15b09b635c29d17a3737e58bffbc05b5c802860963",
+  "contexto": {
+    "motivo": "veredicto negativo: 1 garantia(s) declaradas que NO protegen nada: laboratorio-humo.toml:H1 (AUSENTE)",
+    "fichero_declarado": "mutaciones/laboratorio-humo.toml",
+    "buscar_declarado": "    if not tiene_permiso(x):",
+    "referencia": "laboratorio-humo.toml:H1"
+  },
+  "timeout_s": 1800,
+  "ollama_ps": "NAME          ID              SIZE      PROCESSOR    CONTEXT    UNTIL               \nqwen2.5:3b    357c53fb659c    2.2 GB    100% CPU     4096       38 minutes from now",
+  "residente": true,
+  "mem_antes": {
+    "MemFree": 173,
+    "MemAvailable": 365,
+    "SwapTotal": 4103,
+    "SwapFree": 1617,
+    "load1": 3.19287109375
+  },
+  "error": null,
+  "latencia_pared_s": 786.42,
+  "mem_despues": {
+    "MemFree": 162,
+    "MemAvailable": 226,
+    "SwapTotal": 4103,
+    "SwapFree": 1762,
+    "load1": 2.1435546875
+  },
+  "tokens_entrada": 727,
+  "tokens_generados": 72,
+  "ingesta_s": 638.45,
+  "generacion_s": 146.22,
+  "ingesta_tok_s": 1.14,
+  "generacion_tok_s": 0.49,
+  "inferencia_total_s": 786.17,
+  "carga_en_esta_llamada_s": 0.81,
+  "respuesta_cruda": "{\n  \"intent\": \"modificar_configuracion\",\n  \"action\": \"modificar_configuracion\",\n  \"args\": {\n    \"ruta\": \"mutaciones/laboratorio-humo.toml\"\n  },\n  \"say\": \"Voy a modificar la configuración de tu fichero para corregir el problema con la garantía.\"\n}",
+  "validacion": {
+    "json_valido": true,
+    "action": "modificar_configuracion",
+    "args": {
+      "ruta": "mutaciones/laboratorio-humo.toml"
+    },
+    "accion_existe_en_catalogo": true,
+    "es_proponer_cambio": false,
+    "campos_presentes": [],
+    "campos_faltantes": [
+      "fichero",
+      "buscar",
+      "sustituir"
+    ],
+    "fichero_es_el_declarado": false,
+    "tiene_los_tres_campos": false
+  },
+  "mem_tras_descargar": {
+    "MemFree": 147,
+    "MemAvailable": 218,
+    "SwapTotal": 4103,
+    "SwapFree": 1762,
+    "load1": 2.21240234375
+  }
+}

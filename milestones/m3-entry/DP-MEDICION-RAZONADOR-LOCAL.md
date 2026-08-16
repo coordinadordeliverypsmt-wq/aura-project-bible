@@ -307,6 +307,72 @@ clasificador de veredictos y el registro de evidencia.
 
 ---
 
+## 10.bis · Registro de ejecuciones y cambios de protocolo
+
+Se anota **antes** de cada ejecución, nunca después. Un cambio de protocolo decidido a mitad de una
+tanda invalida la tanda (§4.6).
+
+### Humo 1 — 2026-08-15, `qwen2.5:0.5b`
+Máquina cargada (load 2,60). Corte por timeout a los 301,06 s. Instrumento **válido**: las tres
+aserciones de aislamiento pasaron y las huellas SHA-256 de ambos lados quedaron idénticas.
+
+### Humo 2 — 2026-08-15, `qwen2.5:0.5b`
+Idéntico protocolo, máquina en reposo (load 1,59). Corte por timeout a los 300,18 s. **La carga previa
+queda descartada como causa:** con un 40 % menos de carga y cuatro veces menos swap consumido, el
+tiempo fue el mismo con menos de un segundo de diferencia.
+
+**Hallazgo que corrige la lectura del humo 1:** el prompt son 727 tokens y el servidor cortó con
+`n_tokens = 512`, `truncated = 0`, en las dos ejecuciones. 512 es el tamaño de lote por defecto de
+llama.cpp, y **512 < 727**, así que el modelo seguía INGIRIENDO el prompt y no había empezado a
+generar. Ritmo de evaluación ≈ 1,9 tokens/s. En el humo 1 se interpretó como generación desbocada;
+era incorrecto y queda corregido `[INFER]`.
+
+### Comprobación de denegación estructural — 2026-08-15, sin modelo
+Cierra el punto que los dos humos dejaron sin validar: el confirmador nunca se ejercitó porque el
+modelo jamás emitió una acción. Ejecutada con el stack de mockups —el gobierno no depende del
+razonador— e invocando el **motor real**. Resultado: **A y B en verde**, y 54 pruebas de gobierno,
+aprobación diferida, permisos y kill switch en verde.
+
+### Cambio del ARNÉS — 2026-08-15 (defecto del instrumento, no del protocolo)
+Los humos 1 y 2 escribieron su evidencia en el **mismo fichero** y el segundo sobrescribió al primero.
+Con 30 ejecuciones habría sido fatal. Corregido: identificador único por ejecución
+(`evidencia-<modo>-<marca>-<n>.json`), y se registran además el **SHA-256 del arnés** y el **SHA-256
+del prompt congelado**, para poder demostrar a posteriori que el prompt no cambió entre ejecuciones.
+**El protocolo del experimento no se toca:** mismo caso, mismo prompt, mismos parámetros.
+
+### Humo 3 — PROTOCOLO REGISTRADO ANTES DE EJECUTAR
+
+**Se cambia UNA sola cosa: el timeout.** Todo lo demás permanece idéntico y verificable por SHA:
+mismo modelo (`qwen2.5:0.5b`), mismo prompt congelado, mismo caso sembrado, mismo hardware, misma
+configuración de Ollama, mismo contexto extraído del ciclo real, misma condición de máquina en reposo.
+
+| Parámetro | Humos 1–2 | **Humo 3** |
+|---|---|---|
+| Timeout de Ollama | 300 s | **1800 s** |
+| Timeout de `wait()` | 330 s | **1830 s** |
+
+**Justificación del valor, no elegido a ojo:** a 1,9 tokens/s la ingesta de 727 tokens necesita ≈380 s,
+y sólo después empezaría a generar. 1800 s deja margen de sobra para ingesta **más** generación
+completa. Si con 1800 s tampoco termina, eso ya es un dato definitivo y no una cuestión de umbral.
+
+**El objetivo NO es que el resultado salga favorable.** Es distinguir cinco desenlaces, todos válidos:
+
+- **A** · ingesta lentísima pero generación eventual
+- **B** · ingesta completa pero generación inviable
+- **C** · timeout persistente sin generación
+- **D** · respuesta útil
+- **E** · respuesta insegura o inventada
+
+### Continuación fuera de este DP
+
+La línea siguió con un **experimento de aislamiento** que ya no pertenece a este Decision Package: se
+definió y se registró en [`DP-EXPERIMENTO-AISLAMIENTO-SUSTITUIR.md`](DP-EXPERIMENTO-AISLAMIENTO-SUSTITUIR.md),
+y su resultado consta en la §13 de ese documento. Evidencia en `medicion-razonador/`:
+`evidencia-aislamiento-qwen2.5-0.5b-20260815-204634.json` y
+`evidencia-aislamiento-qwen2.5-3b-20260815-210320.json`.
+
+**§10.bis se mantiene como registro histórico de ESTE DP** y no se reescribe con aquellos resultados.
+
 ## 11 · Método, y en qué punto estamos
 
 ```

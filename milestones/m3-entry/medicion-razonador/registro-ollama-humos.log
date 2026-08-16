@@ -1,0 +1,49 @@
+load_tensors:          CPU model buffer size =   373.71 MiB
+time=2026-08-15T13:00:29.853-05:00 level=INFO source=llama_server.go:1315 msg="llama-server started in 23.76 seconds"
+time=2026-08-15T13:00:30.205-05:00 level=INFO source=llama_server.go:1315 msg="llama-server started in 24.13 seconds"
+[GIN] 2026/08/15 - 13:05:04 | 500 |          5m0s |       127.0.0.1 | POST     "/api/generate"
+slot      release: id  0 | task 0 | stop processing: n_tokens = 512, truncated = 0
+load_tensors:          CPU model buffer size =   373.71 MiB
+time=2026-08-15T13:18:05.349-05:00 level=INFO source=llama_server.go:1315 msg="llama-server started in 23.66 seconds"
+time=2026-08-15T13:18:05.500-05:00 level=INFO source=llama_server.go:1315 msg="llama-server started in 23.82 seconds"
+[GIN] 2026/08/15 - 13:22:40 | 500 |          5m0s |       127.0.0.1 | POST     "/api/generate"
+slot      release: id  0 | task 0 | stop processing: n_tokens = 512, truncated = 0
+load_tensors:          CPU model buffer size =   373.71 MiB
+time=2026-08-15T14:00:13.433-05:00 level=INFO source=llama_server.go:1315 msg="llama-server started in 19.97 seconds"
+time=2026-08-15T14:00:13.578-05:00 level=INFO source=llama_server.go:1315 msg="llama-server started in 20.12 seconds"
+slot print_timing: id  0 | task 0 | prompt eval time =  189736.00 ms /   727 tokens (  260.98 ms per token,     3.83 tokens per second)
+slot print_timing: id  0 | task 0 |       total time =  210779.19 ms /   774 tokens
+slot      release: id  0 | task 0 | stop processing: n_tokens = 773, truncated = 0
+[GIN] 2026/08/15 - 14:03:44 | 200 |         3m51s |       127.0.0.1 | POST     "/api/generate"
+load_tensors:          CPU model buffer size =  1834.82 MiB
+time=2026-08-15T14:46:25.127-05:00 level=WARN source=llama_server.go:1254 msg="client connection closed before llama-server finished loading, aborting load"
+time=2026-08-15T14:46:25.144-05:00 level=INFO source=sched.go:651 msg="Load failed" model=/media/majo1230/AURORA_EXT/ollama_models/blobs/sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 error="timed out waiting for llama-server to start: context canceled"
+[GIN] 2026/08/15 - 14:46:25 | 499 |         1m17s |       127.0.0.1 | POST     "/api/generate"
+load_tensors:          CPU model buffer size =  1834.82 MiB
+time=2026-08-15T14:48:42.241-05:00 level=WARN source=llama_server.go:1254 msg="client connection closed before llama-server finished loading, aborting load"
+time=2026-08-15T14:48:42.264-05:00 level=INFO source=sched.go:651 msg="Load failed" model=/media/majo1230/AURORA_EXT/ollama_models/blobs/sha256-5ee4f07cdb9beadbbb293e85803c569b01bd37ed059d2715faa7bb405f31caa6 error="timed out waiting for llama-server to start: context canceled"
+[GIN] 2026/08/15 - 14:48:42 | 499 | 50.259635131s |       127.0.0.1 | POST     "/api/generate"
+load_tensors:          CPU model buffer size =  1834.82 MiB
+time=2026-08-15T14:52:37.968-05:00 level=INFO source=llama_server.go:1315 msg="llama-server started in 152.11 seconds"
+time=2026-08-15T14:52:38.410-05:00 level=INFO source=llama_server.go:1315 msg="llama-server started in 152.56 seconds"
+slot print_timing: id  0 | task 0 | prompt eval time =   38908.86 ms /    32 tokens ( 1215.90 ms per token,     0.82 tokens per second)
+slot print_timing: id  0 | task 0 |       total time =   55297.66 ms /    37 tokens
+slot      release: id  0 | task 0 | stop processing: n_tokens = 36, truncated = 0
+[GIN] 2026/08/15 - 14:53:33 | 200 |         3m28s |       127.0.0.1 | POST     "/api/generate"
+load_tensors:          CPU model buffer size =  1834.82 MiB
+time=2026-08-15T15:01:46.034-05:00 level=INFO source=llama_server.go:1315 msg="llama-server started in 149.45 seconds"
+time=2026-08-15T15:01:46.321-05:00 level=INFO source=llama_server.go:1315 msg="llama-server started in 149.74 seconds"
+slot print_timing: id  0 | task 0 | prompt eval time =   37366.21 ms /    30 tokens ( 1245.54 ms per token,     0.80 tokens per second)
+slot print_timing: id  0 | task 0 |       total time =   37366.21 ms /    31 tokens
+slot      release: id  0 | task 0 | stop processing: n_tokens = 30, truncated = 0
+[GIN] 2026/08/15 - 15:02:23 | 200 |          3m8s |       127.0.0.1 | POST     "/api/generate"
+[GIN] 2026/08/15 - 15:03:48 | 500 |  9.683802248s |       127.0.0.1 | POST     "/api/generate"
+[GIN] 2026/08/15 - 15:04:32 | 200 |  1.343391021s |       127.0.0.1 | POST     "/api/show"
+[GIN] 2026/08/15 - 15:04:32 | 200 |  217.015455ms |       127.0.0.1 | POST     "/api/generate"
+load_tensors:          CPU model buffer size =   373.71 MiB
+time=2026-08-15T15:14:57.043-05:00 level=INFO source=llama_server.go:1315 msg="llama-server started in 19.56 seconds"
+time=2026-08-15T15:14:57.152-05:00 level=INFO source=llama_server.go:1315 msg="llama-server started in 19.67 seconds"
+slot print_timing: id  0 | task 0 | prompt eval time =  206515.43 ms /   727 tokens (  284.07 ms per token,     3.52 tokens per second)
+slot print_timing: id  0 | task 0 |       total time =  231361.84 ms /   773 tokens
+slot      release: id  0 | task 0 | stop processing: n_tokens = 772, truncated = 0
+[GIN] 2026/08/15 - 15:18:48 | 200 |         4m12s |       127.0.0.1 | POST     "/api/generate"

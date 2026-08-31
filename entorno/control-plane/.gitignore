@@ -3,3 +3,5 @@ __pycache__/
 *.pyc
 # La parada es un mecanismo fuera de banda: su presencia es estado operativo, no codigo.
 PARADA
+# El centinela del flock: se crea al primer bloqueo y nunca se borra. Es estado, no codigo.
+.control-plane.lock

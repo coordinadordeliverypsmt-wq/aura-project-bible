@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "actualizado": "2026-08-31T23:59:00",
+  "actualizado": "2026-08-31T23:59:59",
   "status": "WAITING_FOR_NEXT_TASK",
   "tarea_actual": null,
   "git": {
@@ -111,6 +111,21 @@
       ],
       "impacto_hoy": "NINGUNO. F2 y F3 no usan ese estado [EJEC], asi que la decision se aisla y no detiene ningun trabajo autorizado.",
       "cumple_criterio_de_elevacion": "Si: (A) ninguna fuente aprobada lo determina, y (B) la eleccion afecta al flujo de gobierno y a quien puede parar una tarea, que es autoridad."
+    },
+    {
+      "id": "D-INT-1",
+      "titulo": "Integrar la rama worktree-m3-entry a main arrastra 17 commits ajenos a este alcance",
+      "estado": "DECISION_REQUIRED",
+      "registrada": "2026-08-31",
+      "por_que_no_la_resuelvo": "la autorizacion decia integrar UNICAMENTE los cambios validados de autonomia. `merge --no-ff` —el procedimiento que fija CLAUDE.md §3— llevaria a main los 19 commits de la rama, 17 de los cuales son trabajo previo de otros frentes que yo no he revisado y que tocan el producto. Eso excede el alcance autorizado, y decidir por mi cuenta que main los reciba seria tomar una decision de integracion que no me corresponde",
+      "por_que_no_sirve_un_cherry_pick": "3319aed toca CHECKPOINT-CONTINUIDAD.md, que los 17 commits previos tambien modifican. Aplicarlo sobre main, que no los tiene, produce conflicto en el fichero que precisamente narra la historia: resolverlo a mano arriesga tergiversar el registro",
+      "opciones": [
+        "(a) integrar la rama entera a main con merge --no-ff, asumiendo los 17 commits previos, y repuntar el cron a la ruta de main",
+        "(b) dejar main intacto y el cron sobre el worktree, que ya es reproducible desde git",
+        "(c) revisar antes los 17 commits y decidir despues"
+      ],
+      "impacto_hoy": "NINGUNO sobre el funcionamiento: AURA trabaja igual. Solo afecta a donde vive el codigo y a que pasaria si alguien retira el worktree sin restaurarlo",
+      "cumple_criterio_de_elevacion": "Si: (A) la autorizacion acota el alcance a los cambios de autonomia, y (B) que main reciba trabajo de otros frentes es una decision de integracion del CEO, no una consecuencia tecnica"
     }
   ],
   "aprobaciones": [
@@ -751,8 +766,22 @@
       "el_despertador_no_decidio": "el orden de los eventos lo demuestra: motor_iniciado -> descubrimiento_realizado -> ciclo_detenido -> aura_despertada. El evento del despertador es el ULTIMO: registra el resultado despues de que AURA ya descubrio y decidio. 0 tareas planificadas por el",
       "como_pararla": "touch entorno/control-plane/PARADA (fuera de banda; no hace falta tocar el cron)",
       "como_desinstalar": "crontab -e y borrar el bloque marcado «AURA · despertador»",
-      "riesgo_declarado": "la ruta apunta al WORKTREE y el codigo esta SIN COMMITEAR (0 commits, todo untracked). Si el worktree se retira antes de integrar a main, el cron disparara cada 30 min contra una ruta inexistente y el fallo sera silencioso salvo por /tmp/aura-despertar.log. Es la unica ruta donde el codigo existe hoy",
+      "riesgo_declarado": "CERRADO PARCIALMENTE. El codigo ya NO se pierde si desaparece el worktree: esta en la rama worktree-m3-entry y el worktree se restaura en la MISMA ruta con `git -C <main> worktree add <ruta> worktree-m3-entry`, tras lo cual el cron vuelve a funcionar sin tocarlo. Lo que sigue abierto es que el cron depende de esa ruta: cerrarlo del todo exigiria integrar a main, y eso arrastraria 17 commits ajenos a este alcance. Ver DECISION_REQUIRED D-INT-1",
       "el_rastro_durable_no_es_el_log_de_tmp": "/tmp/aura-despertar.log es captura de stdout y se pierde al reiniciar. El historial auditable es eventos.jsonl, que si es durable y encadenado"
+    },
+    "integracion": {
+      "fecha": "2026-08-31",
+      "que_se_integro": "el plano de desarrollo entero dejo de existir solo como ficheros sueltos. 2 commits en la rama worktree-m3-entry: 3319aed (el sistema) y 5d84b1b (el centinela del flock, que es estado y no codigo)",
+      "alcance": "50 ficheros de entorno/control-plane/ + entorno/scripts/despertar-aura.sh + los 13 arneses que lo protegen + CHECKPOINT + el DP y los 6 cierres del stream",
+      "lo_que_NO_entro": "24 ficheros modificados y 73 sin seguimiento de OTROS frentes —investigacion del razonador, producto en walking-skeleton/, planos de comunicacion y agente externo—. Mezclarlos habria hecho irreversible lo que hoy es separable",
+      "verificado_antes": "574 pruebas, ruff PASS, 253 mutantes en 13 arneses, 0 supervivientes",
+      "eventos_jsonl": "commiteado a proposito: es el historial encadenado sobre el que descansa la auditabilidad. Aparecera como modificado tras cada despertar, y esa modificacion es evidencia de que AURA trabajo, no ruido",
+      "gitignore": [
+        "__pycache__/",
+        "*.pyc",
+        "PARADA",
+        ".control-plane.lock"
+      ]
     }
   }
 }

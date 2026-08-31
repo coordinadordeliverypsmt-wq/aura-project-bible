@@ -3844,3 +3844,66 @@ código existe hoy.
 
 Y una precisión sobre el rastro: `/tmp/aura-despertar.log` es captura de `stdout` y se pierde al
 reiniciar. **El historial auditable es `eventos.jsonl`**, que sí es durable y encadenado.
+
+---
+
+## 10.unetvicies · CONSOLIDACIÓN — el plano ya vive en git (2026-08-31)
+
+`entorno/control-plane/` estaba **entero sin commitear**, y el propio DP lo tenía anotado como riesgo
+(`§26`, O-1): *«si se perdiera el árbol de trabajo, el checkpoint describiría algo que no está»*. No se
+commiteaba **por orden expresa**; el CEO la levantó para este alcance.
+
+### Lo que se integró — y lo que no, a propósito
+
+Dos commits en `worktree-m3-entry`: **`3319aed`** (el sistema) y **`5d84b1b`** (el centinela del
+`flock`, que es estado y no código).
+
+| Entra | No entra |
+|---|---|
+| 50 ficheros de `entorno/control-plane/` | 24 modificados y 73 sin seguimiento de **otros frentes** |
+| `entorno/scripts/despertar-aura.sh` | investigación del razonador · producto en `walking-skeleton/` |
+| los 13 arneses que lo protegen | planos de comunicación y agente externo |
+| el DP y los 6 cierres del stream | |
+
+Mezclarlos habría hecho irreversible lo que hoy es separable.
+
+`eventos.jsonl` **sí** entra: es el historial encadenado del que depende la auditabilidad. Aparecerá
+como modificado tras cada despertar, y esa modificación **es evidencia de que AURA trabajó**, no ruido.
+
+### Verificación posterior — los diez puntos
+
+574 pruebas · `ruff` PASS · punto de entrada bajo seguimiento y ejecutable · despertar real en entorno
+de `cron` limpio (`env -i`, `PATH` mínimo): **salida 0**, descubrió 7, decidió, terminó, 0 actos
+humanos · el `cron` apunta a ruta válida · **0 referencias a Claude** en toda la cadena
+(`python3` = `/usr/bin/python3`) · OpenCode, Codex y Ollama ausentes · **0 procesos residentes** ·
+0 credenciales · 0 residuos.
+
+### El riesgo del worktree, ahora acotado
+
+**El código ya no se pierde.** Si el worktree desaparece, se restaura **en la misma ruta**:
+
+```bash
+git -C <main> worktree add .claude/worktrees/m3-entry worktree-m3-entry
+```
+
+…y el `cron` vuelve a funcionar sin tocarlo. Lo que sigue abierto es que el `cron` depende de esa ruta.
+
+### `D-INT-1` — DECISIÓN REQUERIDA
+
+Cerrar del todo esa dependencia exige integrar a `main`, y `merge --no-ff` —el procedimiento de
+`CLAUDE.md §3`— llevaría los **19 commits** de la rama: 17 son trabajo previo de otros frentes, tocan
+el producto, y no los he revisado. **Eso excede el alcance autorizado.**
+
+Un `cherry-pick` tampoco sirve: `3319aed` toca `CHECKPOINT-CONTINUIDAD.md`, que esos 17 commits también
+modifican; aplicarlo sobre `main` produce conflicto **en el fichero que narra la historia**, y
+resolverlo a mano arriesga tergiversar el registro.
+
+Opciones: **(a)** integrar la rama entera asumiendo los 17 · **(b)** dejar `main` intacto y el `cron`
+sobre el worktree, ya reproducible · **(c)** revisar los 17 antes de decidir.
+
+**Impacto hoy: ninguno sobre el funcionamiento.** AURA trabaja igual.
+
+### Estado final
+
+`main` intacto en `d933a08`, limpio y alineado con `origin/main`. Rama 19 commits por delante,
+**0 push**. Cron activo cada 30 min. AURA operativa.

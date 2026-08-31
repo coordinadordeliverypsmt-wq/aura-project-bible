@@ -1,0 +1,128 @@
+incremento = "3.a auditoria (puerta interna + orden de sesion) + §8.3 en la ruta real + §11 (2026-08-30)"
+pruebas = ["test_red_auditoria_3.py", "test_red_review_enchufado.py", "test_red_criterios_22.py",
+           "test_red_auditoria_2.py"]
+timeout_s = 300
+
+[[mutante]]
+id = "A3-M1"
+garantia = "GRAVE: la puerta interna NO escribe un estado_de_tarea. El bypass estaba un piso mas abajo"
+fichero = "control_plane.py"
+pruebas = ["test_red_auditoria_3.py::test_la_puerta_interna_NO_escribe_un_estado_de_tarea",
+           "test_red_auditoria_3.py::test_la_puerta_interna_solo_admite_los_eventos_de_SU_puerta"]
+buscar = '''    if tipo not in _EVENTOS_DE_ESTA_PUERTA:
+        raise EventoNoGobernado('''
+sustituir = '''    if False:
+        raise EventoNoGobernado('''
+
+[[mutante]]
+id = "A3-M2"
+garantia = "la puerta interna no se abre a estado_de_tarea ni anadiendolo a su lista"
+fichero = "control_plane.py"
+pruebas = ["test_red_auditoria_3.py::test_la_puerta_interna_NO_escribe_un_estado_de_tarea"]
+buscar = '''_EVENTOS_DE_ESTA_PUERTA = frozenset({"criterio_fijado", "criterio_verificado",
+                                     "cuota_observada"})'''
+sustituir = '''_EVENTOS_DE_ESTA_PUERTA = frozenset({"criterio_fijado", "criterio_verificado",
+                                     "cuota_observada", "estado_de_tarea"})'''
+
+[[mutante]]
+id = "A3-M3"
+garantia = "el meta-control mira TODOS los modulos del plano, no solo control_plane"
+fichero = "control_plane.py"
+pruebas = ["test_red_auditoria_3.py::test_el_metacontrol_MIRA_todos_los_modulos_no_solo_el_suyo"]
+# Reapuntado: la lista de modulos sale ahora del directorio (4.a auditoria).
+buscar = '''        if not f.name.startswith(("test_", "conftest")) and "-" not in f.name))'''
+sustituir = '''        if f.stem == "control_plane"))'''
+
+[[mutante]]
+id = "A3-M4"
+garantia = "el meta-control mira las PRIVADAS: la via que abrio la 3.a auditoria era una privada"
+fichero = "control_plane.py"
+pruebas = ["test_red_auditoria_3.py::test_el_metacontrol_MIRA_las_privadas_y_los_metodos",
+           "test_red_auditoria_3.py::test_NINGUN_invocable_del_plano_concede_COMPLETED_sin_estar_clasificado"]
+# Reapuntado: el barrido se reescribio para ver partials y clases anidadas.
+buscar = '''            if es_invocable_vigilable(objeto) and (propio or not inspect.isfunction(objeto)):'''
+sustituir = '''            if (es_invocable_vigilable(objeto) and propio
+                    and not nombre.startswith("_")):'''
+
+[[mutante]]
+id = "A3-M5"
+garantia = "el meta-control mira los METODOS de clase, no solo las funciones sueltas"
+fichero = "control_plane.py"
+pruebas = ["test_red_auditoria_3.py::test_el_metacontrol_MIRA_las_privadas_y_los_metodos"]
+buscar = '''            elif inspect.isclass(objeto) and propio:'''
+sustituir = '''            elif False:'''
+
+[[mutante]]
+id = "A3-M6"
+garantia = "el barrido busca el estado por su CONSTANTE ademas de por el literal"
+fichero = "control_plane.py"
+pruebas = ["test_red_auditoria_3.py::test_el_barrido_reconoce_el_estado_ESCONDIDO_EN_UNA_CONSTANTE"]
+# Reapuntado: el predicado salio del bucle para poder ejercitarlo con fuente sintetica — dentro,
+# solo se probaba contra el codigo que hubiera ese dia y el mutante sobrevivia por eso.
+buscar = '''SEÑALES_DE_CONCESION = ("COMPLETED", "ESTADO_FINAL",
+                        "_registrar_evento_gobernado", "_registrar_sin_lock")'''
+sustituir = '''SEÑALES_DE_CONCESION = ("COMPLETED",)'''
+
+[[mutante]]
+id = "A3-M7"
+garantia = "GRAVE: la sesion se marca DESPUES de invocar. Antes quemaba toda tarea AUTO en el 1.er intento"
+fichero = "orquestador.py"
+pruebas = ["test_red_auditoria_3.py::test_una_invocacion_DENEGADA_no_marca_la_sesion_como_ejecutada",
+           "test_red_auditoria_3.py::test_tras_una_invocacion_DENEGADA_la_tarea_SE_PUEDE_REINTENTAR"]
+buscar = '''                self.worker.invocar(tarea)
+                # **Despues**, y solo si la invocacion salio adelante.'''
+sustituir = '''                registrar_sesion(self.directorio, tarea["id"], self.worker.session_id(tarea))
+                self.worker.invocar(tarea)
+                # **Despues**, y solo si la invocacion salio adelante.'''
+
+[[mutante]]
+id = "A3-M8"
+garantia = "la huella la deriva la PUERTA: aceptarla como parametro separaba criterio y huella"
+fichero = "control_plane.py"
+pruebas = ["test_red_auditoria_2.py::test_NINGUNA_funcion_gobernada_cierra_a_COMPLETED_sin_autoridad_humana_ni_criterio",
+           "test_red_auditoria_3.py::test_las_puertas_legitimas_siguen_funcionando"]
+buscar = '''                                       {"id": id_tarea, "criterio": criterio,
+                                        "huella": huella_de_criterio(criterio)})'''
+sustituir = '''                                       {"id": id_tarea, "criterio": criterio,
+                                        "huella": "b" * 64})'''
+
+[[mutante]]
+id = "A3-M9"
+garantia = "§8.3 en la ruta REAL: sin revisor capaz, REVIEW espera y el fichero no se toca"
+fichero = "review.py"
+pruebas = ["test_red_review_enchufado.py::test_sin_revisor_capaz_la_ruta_REAL_de_review_ESPERA",
+           "test_red_review_enchufado.py::test_sin_revisor_capaz_el_fichero_NO_se_toca"]
+buscar = '''    if not capaces:'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "A3-M10"
+garantia = "la capacidad del revisor se MIDE (su ficha existe), no se declara"
+fichero = "review.py"
+pruebas = ["test_red_auditoria_3.py::test_un_revisor_SIN_ficha_no_es_capaz",
+           "test_red_review_enchufado.py::test_con_revisor_capaz_la_ruta_real_SIGUE_funcionando"]
+buscar = '''    return tuple(n for n in REVISORES if (ac.RAIZ_AGENTES / f"{n}.md").exists())'''
+sustituir = '''    return tuple(REVISORES)'''
+
+[[mutante]]
+id = "A3-M11"
+garantia = "§11: UNKNOWN nunca se convierte en WAITING_FOR_QUOTA"
+fichero = "control_plane.py"
+# Reapuntado: sobrevivia por DOBLE COBERTURA —el motor tambien rechaza desde la 4.a auditoria—, asi
+# que el estado final no cambiaba. Lo que solo cubre esta capa es que no quede una observacion falsa
+# escrita en el historial.
+pruebas = ["test_red_auditoria_4.py::test_una_observacion_de_cuota_FALSA_no_llega_a_escribirse"]
+buscar = '''    if ventana == "UNKNOWN":
+        raise VentanaIndeterminada('''
+sustituir = '''    if False:
+        raise VentanaIndeterminada('''
+
+[[mutante]]
+id = "A3-M12"
+garantia = "§11: esperar por cuota exige la EVIDENCIA observada; sin ella la ventana se deduciria"
+fichero = "control_plane.py"
+pruebas = ["test_red_auditoria_4.py::test_una_observacion_de_cuota_FALSA_no_llega_a_escribirse"]
+buscar = '''    if not (evidencia or "").strip():
+        raise ValueError('''
+sustituir = '''    if False:
+        raise ValueError('''

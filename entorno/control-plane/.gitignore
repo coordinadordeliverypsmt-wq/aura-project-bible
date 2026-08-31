@@ -1,0 +1,5 @@
+# Artefactos de ejecucion, no del sistema.
+__pycache__/
+*.pyc
+# La parada es un mecanismo fuera de banda: su presencia es estado operativo, no codigo.
+PARADA

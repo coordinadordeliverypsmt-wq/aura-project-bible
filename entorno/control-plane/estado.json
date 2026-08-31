@@ -1,0 +1,758 @@
+{
+  "version": 1,
+  "actualizado": "2026-08-31T23:59:00",
+  "status": "WAITING_FOR_NEXT_TASK",
+  "tarea_actual": null,
+  "git": {
+    "rama": null,
+    "ultimo_commit": null,
+    "ficheros_modificados": [],
+    "limpio": null
+  },
+  "verificacion": {
+    "tests": null,
+    "quality_gate": null
+  },
+  "defectos": [
+    {
+      "id": "DEF-CUERPO-LIBRE",
+      "descripcion": "Defecto historico anterior al mecanismo de propuestas. Registrado sin `fichero` ni `prueba`: es el caso que motivo la contencion de DEC-DEFECTO-ESTADO-ESTRUCTURADO, porque la falta de informacion actuaba como permiso y `clasificar()` lo devolvia AUTO_EXECUTABLE.",
+      "procedencia_del_registro": "RECONSTRUIDO 2026-08-26 desde CHECKPOINT-CONTINUIDAD.md (seccion DEC-DEFECTO-ESTADO-ESTRUCTURADO). El registro original se perdio: ver `perdida_de_datos` en la raiz."
+    },
+    {
+      "id": "DEF-FLAKY-P2",
+      "apertura": "OBSERVACION",
+      "descripcion": "La prueba de concurrencia del modelo del orquestador era intermitente porque aseveraba el accidente («se pierde exactamente una escritura»), que depende del planificador, en vez de la garantia.",
+      "procedencia_del_registro": "RECONSTRUIDO 2026-08-26 desde CHECKPOINT-CONTINUIDAD.md lineas 1842 y 1899, que lo registran como OBSERVACION.",
+      "nota": "CERRADO por F1 del DP-DEVELOPMENT-ORCHESTRATOR: la prueba pasa a medir la garantia. No se marca CERRADO aqui porque cambiar la apertura de un defecto es una decision de registro que no corresponde a la reconstruccion."
+    },
+    {
+      "id": "DEF-ZONA-PUERTA-TMP",
+      "apertura": "CERRADO 2026-08-30",
+      "descripcion": "autoconstruccion.zona_permitida aceptaba incondicionalmente cualquier ruta bajo /tmp/ o con /pytest-. Era un agujero en un guardarrail de PRODUCCION que existia para que las pruebas pasaran. 17 pruebas de la bateria pasaban por el y creian ejercitar la regla real.",
+      "como_se_encontro": "una prueba de A11 intento una violacion real de zona y la zona la acepto [EJEC]",
+      "cierre": "sin `raiz`, la zona es exactamente la declarada; un sandbox se declara visiblemente en la llamada, y una prueba vigila que ningun modulo de produccion escriba ahi una ruta a mano"
+    },
+    {
+      "id": "DEF-ACCEPTEDITS-ANULA-ALLOWLIST",
+      "apertura": "CERRADO 2026-08-30",
+      "descripcion": "--permission-mode acceptEdits anula --allowedTools para las herramientas de edicion. Medido con claude 2.1.251: con allowedTools=Read y sin Write, el fichero NO se crea en default ni en plan, y SI se crea en acceptEdits.",
+      "impacto_real": "NINGUNO hoy: permisos_de() devuelve siempre 'plan'. Pero nada lo impedia — bypassPermissions estaba prohibido por su nombre y acceptEdits hace lo mismo",
+      "cierre": "MODOS_QUE_NO_ANULAN_LA_ALLOWLIST = ('plan','default'); permisos_de() se niega ante otro"
+    },
+    {
+      "id": "DEF-SESSION-ID-SIN-SOBRE",
+      "apertura": "CERRADO 2026-08-30",
+      "descripcion": "§13 mec.2 declara uuid5(namespace, tarea_id + sha256(sobre)) y el modelo conceptual lo modela igual. La implementacion derivaba solo del tarea_id, y no con uuid5.",
+      "impacto": "dos ejecuciones de la misma tarea con sobres distintos —otros permisos, otro presupuesto, otro criterio de finalizacion, otra version de politica— recibian el MISMO identificador de sesion. Lo contrario de lo que el mecanismo existe para conseguir",
+      "como_sobrevivio": "las pruebas que habia fijaban lo IMPLEMENTADO en vez de lo ACORDADO: test_c4_el_session_id_se_DERIVA_de_la_tarea pasaba el id como cadena"
+    },
+    {
+      "id": "DEF-LOG-ILEGIBLE-POR-LINEA-TRUNCADA",
+      "apertura": "CERRADO 2026-08-30",
+      "descripcion": "§12 declara «linea descartada del log» ante una escritura de evidencia interrumpida. No estaba implementado: leer_eventos, proyectar, verificar_integridad_log y registrar_evento lanzaban JSONDecodeError con una sola linea truncada [EJEC]",
+      "impacto": "Control Plane completamente ilegible y sin poder registrar que se cayo. Para un componente cuya razon de ser es sobrevivir a un SIGKILL (criterio A4), el fallo exacto que tenia que soportar",
+      "cierre": "cola truncada -> se descarta y queda registrada; linea rota EN MEDIO -> LogCorrupto, porque eso es manipulacion y no una caida"
+    },
+    {
+      "id": "DEF-A12-RUTA-ALTERNATIVA",
+      "apertura": "CERRADO 2026-08-30",
+      "descripcion": "la puerta del criterio mecanico vivia en el llamante y no en el motor unico",
+      "encontrado_por": "auditoria independiente (auditor-consistencia), NO por el implementador",
+      "clase": "ALERTA-005 · «ninguna ruta alternativa»"
+    },
+    {
+      "id": "DEF-A12-APARATO-INERTE",
+      "apertura": "CERRADO 2026-08-30",
+      "descripcion": "el mecanismo del §14.bis existia, tenia pruebas propias en verde y no estaba conectado a ninguna ruta de produccion",
+      "encontrado_por": "auditoria independiente (auditor-consistencia), NO por el implementador",
+      "clase": "«la composicion no enciende las automatizaciones» · declarado != real n.º 10"
+    },
+    {
+      "id": "DEF-BARRIDO-ESCRITO-A-MANO",
+      "apertura": "CERRADO 2026-08-30",
+      "descripcion": "la prueba que decia recorrer «todas las vias publicas a COMPLETED» enumeraba tres a mano y omitia dos que estaban declaradas GOBERNADAS desde F1",
+      "encontrado_por": "SEGUNDA auditoria independiente, NO por el implementador",
+      "clase": "ALERTA-005 · el mismo error dos veces en el mismo incremento",
+      "cierre_estructural": "FUNCIONES_GOBERNADAS y NO_CONCEDEN_ESTADO viven en control_plane.py, son DISJUNTAS, y un meta-control detecta cualquier funcion que nombre COMPLETED sin estar clasificada"
+    },
+    {
+      "id": "DEF-PUERTA-INTERNA-SIN-CERRADURA",
+      "apertura": "CERRADO 2026-08-30",
+      "descripcion": "_registrar_evento_gobernado aceptaba cualquier tipo de evento, incluido estado_de_tarea",
+      "encontrado_por": "TERCERA auditoria independiente",
+      "clase": "ALERTA-005 · tercera vez, cada una un nivel mas abajo"
+    },
+    {
+      "id": "DEF-SESION-MARCADA-ANTES-DE-OCURRIR",
+      "apertura": "CERRADO 2026-08-30",
+      "descripcion": "registrar_sesion se escribia antes de invocar; con invocar() negandose siempre, quemaba toda tarea AUTO en su primer intento",
+      "encontrado_por": "TERCERA auditoria independiente",
+      "impacto": "defecto FUNCIONAL vivo, no teorico: el ciclo no habria podido reintentar ninguna tarea"
+    }
+  ],
+  "decisiones_pendientes": [
+    {
+      "id": "D-ORCH-6",
+      "titulo": "WAITING_FOR_HUMAN es inalcanzable en la tabla de transiciones del §6",
+      "estado": "DECISION_REQUIRED",
+      "registrada": "2026-08-26",
+      "por_que_no_la_resuelvo": "Anadir un destino a la tabla de estados del DP es decidir sobre el flujo de gobierno, y el CEO prohibe modificar la tabla por iniciativa propia. La implementacion previa lo habia anadido a WORKING SIN declararlo; eso se revirtio.",
+      "contradiccion_documental_verificada": {
+        "el_DP_dice_que_se_conserva": "DP §139: el vocabulario de estados «Se conserva integro», y WAITING_FOR_HUMAN forma parte de el",
+        "el_DP_le_da_salidas": "DP §351: 'WAITING_FOR_HUMAN': ('WORKING','FAILED')",
+        "pero_ningun_estado_lo_declara_destino": "la tabla del §6 no lo lista como destino de ningun origen: es inalcanzable desde el flujo",
+        "otras_fuentes": "sin menciones en adr/, docs/ ni decisiones/ [EJEC]"
+      },
+      "opciones": [
+        "(a) anadirlo como destino de WORKING, junto a DECISION_REQUIRED",
+        "(b) retirarlo del vocabulario si DECISION_REQUIRED ya lo cubre",
+        "(c) dejarlo inalcanzable a proposito, reservado a fases posteriores"
+      ],
+      "impacto_hoy": "NINGUNO. F2 y F3 no usan ese estado [EJEC], asi que la decision se aisla y no detiene ningun trabajo autorizado.",
+      "cumple_criterio_de_elevacion": "Si: (A) ninguna fuente aprobada lo determina, y (B) la eleccion afecta al flujo de gobierno y a quien puede parar una tarea, que es autoridad."
+    }
+  ],
+  "aprobaciones": [
+    {
+      "id": "DEC-ORCH-2",
+      "estado": "APROBADA",
+      "por": "ceo",
+      "fecha": "2026-08-26",
+      "acta": "DEC-ORCH-2 · acta del CEO 2026-08-26: habilita REVIEW bajo el mecanismo ya construido y auditado. Alcance: tareas tecnicas de desarrollo, solo entorno/control-plane/, solo reversibles y verificables, solo con veredicto de revisor distinto del proponente que apruebe los cuatro criterios de D22. Sin acta individual por tarea. Sin capacidad sobre D24, Bible, ADR, roadmap, decisiones, producto ni autoridad. AURA no puede ampliar este alcance por si misma.",
+      "alcance": [
+        "eliminar_codigo_muerto"
+      ],
+      "no_alcanza": [
+        "D24",
+        "Bible",
+        "ADR",
+        "roadmap",
+        "decisiones estrategicas",
+        "producto",
+        "autoridad",
+        "ampliar su propio alcance"
+      ],
+      "mecanismo": "entorno/control-plane/review.py — sin cambios respecto de lo auditado"
+    }
+  ],
+  "siguiente_tarea": null,
+  "trabajo_completado": [
+    {
+      "id": "CP-1",
+      "resultado": "Development Control Plane construido, auditado y documentado",
+      "evidencia": {
+        "tests": 42,
+        "ruff": "PASS",
+        "ficheros": [
+          "control_plane.py",
+          "test_control_plane.py",
+          "README.md",
+          "estado.json"
+        ]
+      },
+      "cuando": "2026-08-17T09:59:58",
+      "duracion_s": null,
+      "procedencia_del_registro": "RESTAURADO 2026-08-26 desde el transcript de la sesion que leyo estado.json antes de la perdida. Contenido literal, no reconstruido."
+    },
+    {
+      "id": "CP-2",
+      "resultado": "Vocabulario de estados alineado con el CEO y WAITING_FOR_QUOTA condicionado a evidencia observada",
+      "evidencia": {
+        "tests": 42
+      },
+      "cuando": "2026-08-17T09:59:58",
+      "duracion_s": null,
+      "procedencia_del_registro": "RESTAURADO 2026-08-26 desde el transcript de la sesion que leyo estado.json antes de la perdida. Contenido literal, no reconstruido."
+    },
+    {
+      "id": "CP-3",
+      "resultado": "Registro de trabajo completado, lectura del checkpoint y deteccion de cambios",
+      "evidencia": {
+        "requisitos": [
+          1,
+          2,
+          13,
+          14
+        ]
+      },
+      "cuando": "2026-08-17T09:59:58",
+      "duracion_s": null,
+      "procedencia_del_registro": "RESTAURADO 2026-08-26 desde el transcript de la sesion que leyo estado.json antes de la perdida. Contenido literal, no reconstruido."
+    },
+    {
+      "id": "EXP-1",
+      "resultado": "Instrumento A/B construido, auditado y congelado",
+      "evidencia": {
+        "tests": 152,
+        "quality_gate": "PASS",
+        "inferencias": 0
+      },
+      "cuando": "2026-08-17T09:59:58",
+      "duracion_s": null,
+      "procedencia_del_registro": "RESTAURADO 2026-08-26 desde el transcript de la sesion que leyo estado.json antes de la perdida. Contenido literal, no reconstruido."
+    },
+    {
+      "id": "CP-4",
+      "resultado": "Ocho puntos de continuidad verificados: estado sobrevive a proceso nuevo, handoff autosuficiente, WAITING_FOR_ENVIRONMENT persiste sin volverse cuota, completadas no se repiten, decisiones bloquean solo su tarea",
+      "evidencia": {
+        "tests": 50,
+        "ruff": "PASS"
+      },
+      "cuando": "2026-08-17T10:25:58",
+      "duracion_s": null,
+      "procedencia_del_registro": "RESTAURADO 2026-08-26 desde el transcript de la sesion que leyo estado.json antes de la perdida. Contenido literal, no reconstruido."
+    },
+    {
+      "id": "CP-5",
+      "resultado": "Estado por tarea, bloqueo de cuota con dos ventanas independientes y registro de interrupciones sin COMPLETED falso",
+      "evidencia": {
+        "tests": 66,
+        "ruff": "PASS"
+      },
+      "cuando": "2026-08-17T11:32:12",
+      "duracion_s": null,
+      "procedencia_del_registro": "RESTAURADO 2026-08-26 desde el transcript de la sesion que leyo estado.json antes de la perdida. Contenido literal, no reconstruido."
+    },
+    {
+      "id": "EXP-REPRO",
+      "resultado": "2 inferencias reales ejecutadas (qwen2.5:0.5b, caso D, brazo A, rep 1 y 2). Ambas VALIDO con respuesta_cruda. Respuestas IDENTICAS byte a byte (251 bytes). El dato NO decide n=3.",
+      "evidencia": {
+        "inferencias_reales": 2,
+        "clase": [
+          "VALIDO",
+          "VALIDO"
+        ],
+        "http": [
+          200,
+          200
+        ],
+        "identicas_byte_a_byte": true,
+        "longitud_bytes": 251,
+        "tokens_entrada": [
+          775,
+          775
+        ],
+        "tokens_generados": [
+          74,
+          74
+        ],
+        "latencia_pared_s": [
+          307.57,
+          44.89
+        ],
+        "carga_s": [
+          20.94,
+          0.63
+        ],
+        "ingesta_s": [
+          234.69,
+          0.61
+        ],
+        "generacion_s": [
+          51.74,
+          43.62
+        ],
+        "mem_antes_mb": [
+          1468,
+          1377
+        ],
+        "umbral_post_carga_respetado": [
+          true,
+          true
+        ],
+        "veredicto_de_clasificacion": "NO_VIABLE en ambas (accion propuesta 'verificar_patron', fuera de catalogo; no produjo 'sustituir')",
+        "artefacto": "milestones/m3-entry/medicion-razonador/evidencia-exp-repro-qwen2.5-0.5b.json",
+        "prompt_sha256": "38487595c4cda205107b52667e716525e275e2a010e43a04baad4ad78693f755"
+      },
+      "cuando": "2026-08-17T14:10:45",
+      "duracion_s": null,
+      "procedencia_del_registro": "RESTAURADO 2026-08-26 desde el transcript de la sesion que leyo estado.json antes de la perdida. Contenido literal, no reconstruido."
+    },
+    {
+      "id": "DP-ORCH-DISENO",
+      "resultado": "Decision Package del AURORA Development Orchestrator escrito y auditado. FASE DE DISENO: nada implementado, ningun daemon, ninguna API externa, ninguna inferencia.",
+      "evidencia": {
+        "documento": "milestones/m3-entry/DP-DEVELOPMENT-ORCHESTRATOR.md",
+        "pruebas_modelo_conceptual": "entorno/control-plane/test_modelo_orquestador.py",
+        "tests": {
+          "modelo_orquestador": 39,
+          "control_plane": 66,
+          "total": 105,
+          "resultado": "PASS",
+          "ruff": "PASS"
+        },
+        "defectos_demostrados_por_ejecucion": [
+          "P2: dos escritores concurrentes pierden una escritura (sin lock)",
+          "P4: fijar_estado_tarea permite COMPLETED -> WORKING sin validar el estado previo"
+        ],
+        "defecto_documentado_no_demostrable_por_test": "P3: no existe event log; estado.json se sobrescribe",
+        "verificado_por_ejecucion": [
+          "claude 2.1.233: --session-id, --max-budget-usd, --json-schema, --worktree existen",
+          "claude 2.1.233: --max-turns NO existe (documentado pero ausente)",
+          "claude agents --json devuelve sesiones vivas sin TTY",
+          "control_plane.py no tiene lock (grep flock/fcntl = 0)",
+          "no hay .github/ ni CI remoto; no hay claves de terceros en el repo"
+        ],
+        "producto_intacto": true,
+        "autonomia_aurora": "0/7 sin cambios",
+        "auditoria_independiente": {
+          "bloqueantes": 0,
+          "importantes": 3,
+          "menor": 1,
+          "deuda": 2,
+          "importantes_corregidos": true,
+          "hallazgo_principal": "El Worker se autocertificaba: nadie contrastaba su evidencia contra el criterio de finalizacion. Cerrado en DP §14.bis con criterio mecanico."
+        }
+      },
+      "cuando": "2026-08-17T14:50:25",
+      "duracion_s": null,
+      "procedencia_del_registro": "RESTAURADO 2026-08-26 desde el transcript de la sesion que leyo estado.json antes de la perdida. Contenido literal, no reconstruido."
+    },
+    {
+      "id": "DP-CP-DISENO",
+      "resultado": "DP-COMMUNICATION-PLANE-AURORA escrito + 35 pruebas RED. NADA implementado: no existe communication_plane.py y GREEN no esta autorizado (DP vigente en PROPUESTO).",
+      "evidencia": {
+        "documento": "milestones/m3-entry/DP-COMMUNICATION-PLANE-AURORA.md",
+        "pruebas_RED": "entorno/communication-plane/test_red_communication_plane.py",
+        "red": {
+          "pruebas": 35,
+          "estado": "TODAS FALLAN a proposito",
+          "motivo_unico": "ModuleNotFoundError: communication_plane",
+          "ruff": "PASS"
+        },
+        "medido_por_ejecucion": [
+          "flock se libera tras SIGKILL -> seguro ante muerte subita",
+          "4 procesos x 800 lineas concurrentes -> 0 corruptas (append atomico <4KB)",
+          "PC_PIPE_BUF = 4096 -> cuerpos mayores van por referencia",
+          "quality-gate.sh hace cd a walking-skeleton: NO recoge entorno/"
+        ],
+        "hallazgo_central": "ChatGPT (producto de chat) NO puede leer ni escribir un canal local sin clave de API ni endpoint publico. Codex CLI SI (login de suscripcion, codex exec --json), pero el CEO ordeno no integrar Codex todavia.",
+        "autonomia_aurora": "0/7 sin cambios"
+      },
+      "cuando": "2026-08-17T16:01:39",
+      "duracion_s": null,
+      "procedencia_del_registro": "RESTAURADO 2026-08-26 desde el transcript de la sesion que leyo estado.json antes de la perdida. Contenido literal, no reconstruido."
+    },
+    {
+      "id": "CONTROLES-14-Y-CRITERIOS-22",
+      "fecha": "2026-08-30",
+      "que": "cerrados los 4 controles del §14 que estaban DECLARADOS y no implementados (kill switch en cada iteracion, huella de tarea equivalente, exclusion mutua con herramientas.mutar, y el criterio mecanico A12), los criterios §22 A6-A12 que F2-F4 desbloquearon sin que nadie los reabriera, y la deuda declarada del §21 (la prueba del veredicto ya apunta a la clase real)",
+      "autorizado_por": "DP-DEVELOPMENT-ORCHESTRATOR aprobado — §14, §14.bis, §21, §22. Ninguna decision nueva",
+      "evidencia": "439 passed (antes 382) · ruff PASS · 159 mutantes en 8 arneses, 0 supervivientes, 0 NO_APLICADO · Quality Gate FAIL 5/1139/3 = baseline · estado.json intacto [EJEC]",
+      "hallazgos": [
+        "zona_permitida aceptaba INCONDICIONALMENTE cualquier ruta bajo /tmp: agujero del guardarrail de produccion abierto para que las pruebas pasaran. 17 pruebas existentes pasaban por el. CERRADO",
+        "--permission-mode acceptEdits ANULA --allowedTools para herramientas de edicion, medido contra el binario claude 2.1.251. El §14 llama a --allowedTools 'control primario [EJEC]' sin decirlo. El orquestador emite siempre 'plan', asi que nunca estuvo expuesto, pero nada lo impedia. CERRADO",
+        "prueba decorativa propia: test_A9_un_porcentaje_SIN_fuente verdeaba por una ventana invalida, no por la garantia. La encontro la mutacion (C22-M11 sobrevivio), no yo. CORREGIDA"
+      ]
+    },
+    {
+      "id": "IDEMPOTENCIA-13-Y-RECUPERACION-12",
+      "fecha": "2026-08-30",
+      "que": "dos divergencias mas entre el DP y el codigo, encontradas siguiendo la misma cola: (§13 mec.2) el --session-id derivaba solo del tarea_id y no del sobre, asi que dos ejecuciones con permisos/presupuesto/criterio distintos compartian identificador; (§12) una sola linea truncada hacia que TODAS las entradas del Control Plane lanzaran JSONDecodeError, incluida registrar_evento, dejando el sistema sin poder anotar que estaba roto",
+      "autorizado_por": "DP-DEVELOPMENT-ORCHESTRATOR aprobado — §12, §13, §5/C1. Ninguna decision nueva",
+      "evidencia": "457 passed (antes 439) · ruff PASS · 45 mutantes declarados en el arnes del bloque [EJEC]",
+      "nota_de_diseno": "la reparacion TRUNCA el log, no lo reescribe: §5 dice de C1 «nunca borrarse ni reescribirse», y regenerarlo bastaria con que la serializacion diera un byte distinto para alterar la historia en silencio. Una prueba lo comprueba POR BYTES. Y truncada != alterada: una linea rota EN MEDIO lanza LogCorrupto, porque solo la ultima puede partirse por una caida"
+    },
+    {
+      "id": "CORRECCION-AUDITORIA-A12",
+      "fecha": "2026-08-30",
+      "que": "una auditoria independiente refuto mi propio cierre: A12 NO estaba cerrado. Dos GRAVE y dos MEDIO, corregidos",
+      "grave_1": "control_plane.transicion() cerraba a COMPLETED sin criterio mecanico. Mi puerta vivia SOLO en agentes.cerrar_tarea, y transicion() es la primitiva que usa toda la base —incluida agentes.py—. ALERTA-005 literal. Mis 34 pruebas no lo veian porque TODAS entraban por cerrar_tarea: probe la puerta que habia puesto, no el edificio",
+      "grave_2": "el aparato del §14.bis no estaba cableado a ninguna ruta de produccion: nadie llamaba a fijar_criterio antes de invocar, asi que criterio_registrado() devolvia None para toda tarea real y la rama de proteccion quedaba INERTE. Es el defecto que CLAUDE.md pone como ejemplo: «la composicion no enciende las automatizaciones»",
+      "medio_1": "zona_permitida(ruta, raiz=...) dejaba de mirar la zona cuando se pasaba raiz: con raiz=<raiz del repo> concedia walking-skeleton/. Ahora producto y gobernanza se rechazan SIEMPRE por segmento de ruta: lo sostiene la funcion, no un grep",
+      "medio_2": "el docstring y las excepciones de orquestador.py afirmaban «el catalogo AUTO esta vacio», falso desde D-ORCH-3 (2026-08-26). INV-9 va en las dos direcciones",
+      "como_se_corrigio": "la regla del criterio vive ahora SOLO en el motor unico (cp.transicion): escribirla dos veces era ademas el defecto del §0 del CHECKPOINT, y la copia que faltaba era una ruta abierta. El bucle y el circuito D-ORCH-3 fijan el criterio ANTES de invocar y registran criterio_verificado",
+      "evidencia": "472 passed · ruff PASS · 176 mutantes en 8 arneses, 0 supervivientes, 0 NO_APLICADO [EJEC] · 3 mutantes retirados con motivo (la regla que mutaban ya no vive ahi)",
+      "leccion": "una garantia probada sobre su propia funcion NO es una garantia del sistema. Hay que probarla desde la primitiva que cualquiera usaria, recorriendo TODAS las vias publicas"
+    },
+    {
+      "id": "CORRECCION-AUDITORIA-2-Y-RECUPERACION-12B",
+      "fecha": "2026-08-30",
+      "que": "una SEGUNDA auditoria independiente encontro que habia cometido el mismo error dos veces, y despues se consumio la cola restante del §12",
+      "grave_repetido": "mi prueba «TODAS las vias publicas a COMPLETED» enumeraba TRES rutas a mano y omitia completar_tarea y fijar_estado_tarea, listadas GOBERNADAS desde F1. La auditoria cerro una tarea con autoridad no humana en un intento. Corregido en la raiz: FUNCIONES_GOBERNADAS vive en el modulo, el barrido la consume entera y una gobernada sin cubrir ROMPE la prueba",
+      "grave_forja": "registrar_evento solo bloqueaba estado_de_tarea; forjando criterio_fijado y criterio_verificado a mano se cerraba la tarea. Ahora los tres son EVENTOS_GOBERNADOS, con su puerta gobernada correspondiente",
+      "medio_symlink": "zona_permitida sin raiz no resolvia enlaces: un symlink a producto pasaba",
+      "decorativas_corregidas": [
+        "test_un_veredicto_..._otro_origen: nadie lee veredicto['origen']; reescrita sobre lo que si vale",
+        "test_A9_...: referenciaba cp.informe(), funcion inexistente, tras un if siempre falso: media 3 de 4"
+      ],
+      "cola_12b_consumida": [
+        "§12 tarea ejecutada dos veces: sesion_ejecutada + sesion_ya_ejecutada; el bucle no reejecuta",
+        "§12 respuesta duplicada: review_id derivado; la segunda se descarta y manda la primera",
+        "§12 respuesta perdida: reintento acotado -> DECISION_REQUIRED. Escalar NO es aprobar (1.1:85)"
+      ],
+      "evidencia": "493 passed (antes 472) · ruff PASS · 193 mutantes en 9 arneses, 0 supervivientes, 0 NO_APLICADO [EJEC] · Quality Gate FAIL 5/1139/3 = baseline · estado.json intacto",
+      "leccion": "una lista escrita a mano NO es un barrido. La correccion de fondo no fue anadir las dos rutas que faltaban —eso solo aplaza la tercera vez— sino DERIVAR la lista del codigo"
+    },
+    {
+      "id": "CORRECCION-AUDITORIA-3-Y-CUOTA-11",
+      "fecha": "2026-08-30",
+      "que": "tercera auditoria independiente: dos GRAVE mas, ambos mios, y ambos un nivel mas abajo",
+      "grave_puerta_interna": "_registrar_evento_gobernado aceptaba CUALQUIER tipo: escribiendo un estado_de_tarea con valor COMPLETED se cerraba una tarea sin autoridad ni criterio, con la cadena de hashes intacta. El bypass estaba un piso por debajo de donde lo cerre la vez anterior",
+      "grave_sesion": "registrar_sesion se llamaba ANTES de invocar. Como invocar() se niega SIEMPRE hoy, toda tarea AUTO quedaba marcada «ya ejecutada» en su primer intento sin haberse ejecutado nunca, y sin vuelta atras. Defecto vivo que introduje yo mismo",
+      "metacontrol_ciego": "mi barrido descartaba lo que empieza por _, lo que no fuese funcion suelta, y todo lo que no estuviera en control_plane.py. La via que abrio la auditoria era EXACTAMENTE una funcion privada. Ahora recorre los 7 modulos del plano, privadas y metodos incluidos, y busca el estado tambien por su constante",
+      "hallazgo_del_propio_barrido": "al ampliarlo destapo que registrar_criterio_fijado aceptaba la HUELLA como parametro: dos llamadas legitimas encadenadas fijaban un criterio con huella arbitraria y verificaban esa misma. La puerta la deriva ahora",
+      "medio_review": "revisores.pedir_revision (§8.2/§8.3, con degradacion y escalada) no lo llamaba ningun modulo de produccion: el aparato no estaba enchufado, otra vez. Se cableo la DEGRADACION del §8.3 a la ruta real (review.ejecutar_bajo_review), que antes fabricaba un veredicto sin comprobar que hubiera revisor capaz",
+      "cola_11_consumida": "§11: «UNKNOWN nunca se convierte en WAITING_FOR_QUOTA». Nueva via unica esperar_por_cuota(), que exige ventana determinada Y evidencia observada",
+      "defecto_propio_corregido": "mi barrido llamaba a registrar_bloqueo_de_cuota con los argumentos desordenados: se negaba por firma invalida, no por la garantia. Decorativa",
+      "evidencia": "514 passed (antes 493) · ruff PASS · 205 mutantes en 10 arneses, 0 supervivientes, 0 NO_APLICADO [EJEC] · Quality Gate FAIL 5/1139/3 = baseline · arbol limpio tras mutar",
+      "residual_declarado": "_registrar_sin_lock escribe el fichero y NO se puede gobernar desde dentro del proceso: quien puede importarla puede abrir eventos.jsonl con un editor. Lo que SI se garantiza: ninguna ruta publica concede estado sin gobierno; la cadena sha256 es verificable; y el worker NO tiene permiso de escritura (A6, medido)"
+    },
+    {
+      "id": "CORRECCION-AUDITORIA-4",
+      "fecha": "2026-08-30",
+      "que": "cuarta auditoria independiente: dos afirmaciones mias eran falsas, y estaban en el CHECKPOINT",
+      "grave_cuota": "dije que esperar_por_cuota era «la unica via» y transicion() aceptaba WAITING_FOR_QUOTA con solo autoridad y causa. ALERTA-005 con otro estado: puse un envoltorio donde la leccion de tres auditorias era «la puerta va en el motor»",
+      "grave_persistencia": "dije «ninguna ruta publica concede estado sin gobierno — probado» y guardar()/actualizar_estado() persistian un COMPLETED fabricado: validar_tareas comprobaba que los campos de gobierno ESTUVIERAN, no lo que decian. render_handoff() lee de ahi, asi que un relevo habria presentado como terminado un trabajo fabricado",
+      "por_que_este_si_era_cerrable": "a diferencia de _registrar_sin_lock, bastaba que validar_tareas exigiera lo mismo que ya exigen completar_tarea y fijar_estado_tarea. Declarar irreducible lo que se puede cerrar es la forma comoda del declarado != real",
+      "medios": [
+        "el revisor nombrado a mano no se validaba: veredicto en nombre de quien no existe",
+        "el barrido seguia ciego a functools.partial y a las clases anidadas",
+        "MODULOS_DEL_PLANO era una tupla escrita a mano — el defecto exacto, otra vez"
+      ],
+      "evidencia": "527 passed (antes 514) · ruff PASS · 215 mutantes en 11 arneses, 0 supervivientes, 0 NO_APLICADO [EJEC] · Quality Gate FAIL 5/1139/3 = baseline",
+      "leccion": "cuatro auditorias, cuatro veces la misma clase de agujero, cada una un piso mas abajo: el llamante -> la lista escrita a mano -> la puerta interna -> el borde de persistencia. Ninguna la encontro el implementador"
+    },
+    {
+      "id": "MOTOR-DE-AUTONOMIA",
+      "fecha": "2026-08-31",
+      "que": "construido y validado el motor que permite a AURA descubrir su propio trabajo en vez de recibirlo. Claude deja de ser quien entrega la siguiente tarea",
+      "evidencia_e2e_real": "sobre el plano real: 7 oportunidades descubiertas, 0 ejecutables, 6 bloqueadas, 1 elevada (D-ORCH-6) -> COLA_AGOTADA con codigo de salida 0",
+      "evidencia_e2e_encadenado": "sobre un arbol real de 3 modulos: descubrio 3 oportunidades por su cuenta, ejecuto las 3, borro las funciones muertas, conservo las vivas, 4 vueltas, actos_humanos_durante_el_ciclo = 0 [EJEC]",
+      "defecto_encontrado_ejecutando": "el descubridor leia decision_pendiente del log pero NO las decisiones_pendientes de estado.json: D-ORCH-6 le pasaba desapercibida. Lo destapo ejecutarlo contra el plano real, no leerlo",
+      "verificacion": "558 passed (antes 527) · ruff PASS · 238 mutantes en 12 arneses, 0 supervivientes, 0 NO_APLICADO [EJEC] · Quality Gate FAIL 5/1139/3 = baseline",
+      "supervivientes_diagnosticados": "4: dos por redundancia mutua entre las comprobaciones del constructor —solo se distinguen con una fuente hecha de espacios—, uno EQUIVALENTE demostrado por ejecucion (MOT-M6, retirado con su prueba) y uno hueco real de cobertura: ninguna prueba del motor corria sin revisor capaz, asi que la rama del §8.3 no se ejercitaba"
+    },
+    {
+      "id": "CORRECCION-AUDITORIA-DEL-MOTOR",
+      "fecha": "2026-08-31",
+      "que": "auditoria independiente del motor: tres GRAVE, todos mios, todos ciertos",
+      "grave_fuente_no_verificada": "el meta-control decia que la fuente «apunta a algo que se puede ir a mirar» y SOLO comprobaba que la cadena no estuviera en blanco: fuente='de la nada' producia una oportunidad EJECUTABLE. La barrera real estaba en la disciplina de las 5 fuentes incluidas, no en la clase. Ahora `fuente_verificable()` exige un fichero que exista o un mecanismo DECLARADO cuyo atributo se comprueba",
+      "grave_prueba_decorativa": "test_la_fuente_APUNTA_a_algo... no habilitaba REVIEW, asi que nunca habia OPORTUNIDAD_REAL, el `continue` se disparaba siempre y el assert NO SE EJECUTABA NUNCA. La auditoria lo demostro sustituyendo la fuente por basura en una copia: seguia en verde. SEPTIMA decorativa de la serie",
+      "grave_raiz_ampliaba": "zona_permitida(x, raiz=<raiz del repo>) concedia planos vecinos como entorno/agente-externo/. El docstring decia «raiz solo puede ESTRECHAR» y era falso. Ahora, si la ruta entra en entorno/, el plano tiene que ser el declarado y ningun otro",
+      "medios": [
+        "test_el_plan_ordena_por_RIESGO solo medía pertenencia: invertir _peso lo dejaba verde",
+        "assert descubiertas >= 0 era trivialmente cierto para cualquier entero",
+        "actos_humanos_durante_el_ciclo se inicializaba a 0 y NO SE INCREMENTABA NUNCA: una constante que las pruebas leian como medicion, y es LA cifra que decide si esto es autonomia. Ahora se cuenta del historial, desde el arranque del ciclo",
+        "descubrimiento.py importaba autoconstruccion y review sin usarlos — ironico en el modulo que detecta codigo muerto, y su detector solo mira funciones, no importes"
+      ],
+      "evidencia": "564 passed (antes 558) · ruff PASS · 244 mutantes en 12 arneses, 0 supervivientes, 0 NO_APLICADO, 0 ambiguos [EJEC] · Quality Gate FAIL 5/1139/3 = baseline",
+      "nota_del_arnes": "un mutante salio AMBIGUO y tenia razon: yo habia declarado una prueba que no existia en ese fichero. AMBIGUO nunca cuenta como exito, y aqui evito que diera por buena una garantia que nadie medía"
+    },
+    {
+      "id": "AUTONOMIA-OPERATIVA",
+      "fecha": "2026-08-31",
+      "que": "construido el despertador: la ultima pieza para que AURA trabaje sin Claude",
+      "no_existia_nada": "crontab vacio, sin timers de systemd, sin hooks, sin nada que invocara aura.py [EJEC]",
+      "la_trampa_evitada": "es facilisimo que el que despierta acabe decidiendo. Un despertador que consulta la cola para saber si merece la pena arrancar es un planificador externo, y la autonomia se habria mudado fuera de AURA sin declararlo. Por eso sus garantias son NEGATIVAS y se prueban por AST",
+      "evidencia": "3 despertares seguidos como haria un cron: descubiertas=7, ejecutadas=0, actos_humanos=0, cola agotada, salida 0 · PARADA fuera de banda: rechaza con salida 2 y lo registra · retirada: vuelve a despertar [EJEC]",
+      "verificacion": "574 passed (antes 564) · ruff PASS · 253 mutantes en 13 arneses, 0 supervivientes, 0 NO_APLICADO, 0 ambiguos · Quality Gate FAIL 5/1139/3 = baseline",
+      "lo_que_NO_hice": "instalar la linea de cron. Programar trabajo en la maquina del CEO es una decision de operacion, no de codigo, y la FASE 8 del propio encargo exige 0 residuos. La linea esta impresa y lista"
+    },
+    {
+      "id": "DESPERTADOR-INSTALADO",
+      "fecha": "2026-08-31",
+      "que": "instalado el despertar recurrente. AURA queda operativa sin Claude",
+      "comprobaciones_previas": [
+        "punto de entrada = el probado (10/10 pruebas)",
+        "la instalacion NO modifica codigo: solo una linea de crontab",
+        "§23 respetado: 0 bucles, sin sleep/Thread/Timer/fork",
+        "--max-tareas 3 <= TOPE_MAXIMO 10 <= motor.MAX_TAREAS 25",
+        "crontab estaba VACIO: no se piso nada"
+      ],
+      "verificacion_posterior": [
+        "ejecutado en entorno de cron real: salida 0",
+        "AURA arranco y descubrio de sus 5 fuentes por su cuenta",
+        "termino: cola agotada, 0 actos humanos",
+        "el despertador no planifico ni ejecuto ninguna tarea",
+        "0 procesos residentes"
+      ]
+    }
+  ],
+  "checkpoint": {
+    "documento": "CHECKPOINT-CONTINUIDAD.md",
+    "commit": null
+  },
+  "sesion_claude": null,
+  "estado_ejecucion": null,
+  "motivo_pausa": null,
+  "cuota": {
+    "usage_known": false,
+    "por_que": "Claude Code no publica consumo ni cuota restante. `policy-limits.json` contiene restricciones de politica; `history.jsonl` contiene marcas de actividad, no consumo. La unica evidencia de agotamiento es el error devuelto al fallar, que es posterior al hecho.",
+    "rolling_window": {
+      "estado": "UNKNOWN",
+      "duracion_declarada_min": 270,
+      "fuente": "declarada por el CEO, no medida",
+      "observado_en": null,
+      "senal": null
+    },
+    "weekly": {
+      "estado": "UNKNOWN",
+      "fuente": "sin senal observable",
+      "observado_en": null,
+      "senal": null
+    },
+    "monthly_spend": {
+      "estado": "UNKNOWN",
+      "fuente": "solo observable en el error devuelto al fallar",
+      "observado_en": null,
+      "senal": null,
+      "renovacion": "UNKNOWN"
+    },
+    "senales_observadas": []
+  },
+  "tareas": {
+    "T": {
+      "estado": "WORKING",
+      "motivo": "empieza",
+      "autoridad": "ceo",
+      "previo": "UNKNOWN",
+      "actualizado": "2026-08-26T12:51:38"
+    }
+  },
+  "perdida_de_datos": {
+    "cuando": "2026-08-26",
+    "causa": "Una prueba de F1 (`test_ninguna_funcion_FUERA_de_las_gobernadas...`) recorria todas las funciones publicas del modulo llamandolas con el estado, incluida `guardar()`, cuyo `destino` por defecto es este fichero. Lo sobrescribio.",
+    "que_se_perdio": [
+      "defectos (contenido original)",
+      "trabajo_completado (49 entradas historicas)",
+      "tareas (6)",
+      "aprobaciones",
+      "decisiones_pendientes",
+      "siguiente_tarea",
+      "git",
+      "verificacion",
+      "checkpoint.commit",
+      "sesion_claude"
+    ],
+    "que_se_reconstruyo": [
+      "defectos: DEF-CUERPO-LIBRE y DEF-FLAKY-P2, desde CHECKPOINT-CONTINUIDAD.md",
+      "trabajo_completado: 9 de 51 entradas RESTAURADAS literalmente desde transcript"
+    ],
+    "que_NO_se_reconstruyo": "42 de 51 entradas de `trabajo_completado`; el CONTENIDO de las 6 `tareas_AUTO` (sus ids si constan, abajo); las 14 `propuestas`. Ninguna fuente local los contiene. Fabricarlos es lo que D34 e INV-9 prohiben.",
+    "prevencion": "La prueba culpable excluye ahora las funciones que escriben en disco, y `test_el_detector_de_rutas_NUNCA_escribe_en_el_estado_real` fija ese contrato.",
+    "conteos_originales_verificados": {
+      "trabajo_completado": 51,
+      "tareas_AUTO": 6,
+      "propuestas": 14,
+      "promociones": 0,
+      "fuente": "salidas de verificacion en transcripts de sesiones anteriores [EJEC]"
+    },
+    "tareas_AUTO_ids_conocidos_NO_restaurables": [
+      "CP-G4-BLOQUEADO-POR",
+      "CP-DCP8-ENTREGAR",
+      "AUTO-01-IDEMPOTENCIA-ENTREGA",
+      "SECCION-E-ALINEAR-DCP5",
+      "CP-G4B-APROBAR",
+      "DCP8-E2-NO-PROCEDENTE"
+    ],
+    "nota_tareas_AUTO": "Los 6 ids se recuperaron de una salida de verificacion, pero NO su contenido. NO se recrea `tareas_AUTO`: crear entradas ejecutables con contenido inventado seria fabricar estado, y el CEO prohibe alterar tareas_AUTO sin decision aprobada. Se registran aqui como hecho verificable para que una restauracion futura sepa que buscar.",
+    "busqueda_agotada": [
+      "git fsck --unreachable",
+      "git log --all -- estado.json",
+      "*.tmp",
+      "find / estado.json",
+      "transcripts de todas las sesiones y subagentes",
+      "volcados numerados de la herramienta de lectura"
+    ]
+  },
+  "capacidades_de_autoconstruccion": {
+    "registrado": "2026-08-26",
+    "puede_sola": [
+      "observar",
+      "diagnosticar",
+      "proponer"
+    ],
+    "requiere_acta_humana": [
+      "autorizar"
+    ],
+    "tras_la_autorizacion": [
+      "ejecutar",
+      "verificar",
+      "registrar",
+      "continuar"
+    ],
+    "zona_de_escritura": "entorno/control-plane/ (plano de desarrollo)",
+    "nunca": [
+      "D24",
+      "Bible",
+      "ADR",
+      "roadmap",
+      "decisiones",
+      "producto walking-skeleton/",
+      "crear autoridad nueva",
+      "ampliar AUTO"
+    ],
+    "primera_tarea_ejecutada": "elimino la funcion muerta `_sin_usar` de orquestador.py, verificada con la bateria real (330 passed) [EJEC]"
+  },
+  "autonomia_de_desarrollo": {
+    "actualizado": "2026-08-26",
+    "review_habilitado": true,
+    "alcance": [
+      "eliminar_codigo_muerto"
+    ],
+    "ciclo": "entorno/control-plane/ciclo_autonomo.py :: ciclo_autonomo()",
+    "puede_encadenar_sin_acto_humano": true,
+    "demostrado": "3 tareas encadenadas con 0 actos humanos, efecto verificado por definicion y bateria real en verde tras cada una [EJEC]; y 1 tarea real del repositorio (_escritor en test_modelo_orquestador.py) eliminada bajo REVIEW",
+    "causas_de_parada": [
+      "cola agotada",
+      "tarea HUMAN",
+      "verificacion fallida",
+      "agente no disponible",
+      "limite de seguridad",
+      "zona prohibida"
+    ],
+    "trabajo_real_disponible_ahora": [],
+    "siguiente_accion_ejecutable": "ciclo_autonomo(BASE, sorted(BASE.glob('*.py')), verificacion=<bateria>, max_tareas=5) — hoy devuelve 0 propuestas: el plano de desarrollo no tiene codigo muerto pendiente",
+    "para_ampliar": "otra acta del CEO. AURA no puede ampliar su alcance (probado)"
+  },
+  "oportunidades_bloqueadas": [
+    {
+      "id": "OB-1",
+      "que": "F5 · RevisorExterno",
+      "por_que": "el §20 del DP la marca Bloqueada: exige §25.1 (D-ORCH-1) + enmienda documentada de D24",
+      "quien_desbloquea": "CEO",
+      "ejecutable_hoy": false
+    },
+    {
+      "id": "OB-2",
+      "que": "defecto del auditor de garantias: no resuelve rutas bajo entorno/",
+      "detalle": "declara AUSENTE los mutantes del Control Plane porque solo busca bajo walking-skeleton/",
+      "por_que": "vive en walking-skeleton/ — FUERA del perimetro que DEC-ORCH-2 autoriza",
+      "quien_desbloquea": "CEO (ampliar alcance o acta especifica)",
+      "ejecutable_hoy": false
+    },
+    {
+      "id": "OB-3",
+      "que": "G-1 x3 en el Quality Gate",
+      "por_que": "deuda ACEPTADA por DEC-G1-MANIFIESTO-TRAS-F4 = C; no es trabajo pendiente",
+      "quien_desbloquea": "nadie: esta cerrada como deuda aceptada",
+      "ejecutable_hoy": false
+    },
+    {
+      "id": "OB-4",
+      "que": "D-ORCH-6 · WAITING_FOR_HUMAN inalcanzable en la tabla del §6",
+      "por_que": "tocar la tabla de estados es decidir sobre el flujo de gobierno",
+      "quien_desbloquea": "CEO",
+      "ejecutable_hoy": false
+    },
+    {
+      "id": "OB-5",
+      "que": "lock cooperativo del arnes de mutacion",
+      "detalle": "mutacion_en_curso() DETECTA por barrido de /proc, pero no BLOQUEA: la mitad cooperativa —que herramientas.mutar tomara un lock al arrancar— vive en walking-skeleton/herramientas/mutar.py",
+      "por_que": "walking-skeleton/ esta FUERA del perimetro que DEC-ORCH-2 autoriza",
+      "quien_desbloquea": "CEO",
+      "ejecutable_hoy": false
+    },
+    {
+      "id": "OB-6",
+      "que": "dos contratos de Veredicto para lo mismo (3 campos en autoconstruccion, 5 en revisores/§8.2)",
+      "por_que": "unificarlos toca el circuito de REVIEW que el CEO aprobo con DEC-ORCH-2 y vio funcionar. El riesgo de romper lo que opera supera el de la duplicacion. INV-7 queda tensionado",
+      "condicion_que_lo_promueve": "el dia que una tarea REVIEW necesite algo que solo da el contrato de 5 campos —evidencia citada obligatoria, o los 4 veredictos de §8.2—",
+      "quien_desbloquea": "CEO",
+      "ejecutable_hoy": false
+    }
+  ],
+  "ventana_de_trabajo_autonomo": {
+    "ventana": "2026-08-26 19:30 -> 2026-08-30 04:00",
+    "bloques_ejecutados": [
+      "F4 · C5 con RevisorSubagente/RevisorHumano (§8.2 + §8.3)"
+    ],
+    "por_que_se_detiene": "trabajo autorizado AGOTADO: F1-F4 completas, F5 bloqueada por decision, cola REVIEW real vacia (0 oportunidades), y las 4 oportunidades restantes estan fuera del perimetro o requieren acta",
+    "no_se_invento_trabajo": true,
+    "siguiente_trabajo_real": "desbloquear F5 (D-ORCH-1 + enmienda D24), ampliar el alcance de REVIEW por acta, o cerrar D-ORCH-6"
+  },
+  "criterios_de_aceptacion_dp": {
+    "actualizado": "2026-08-30",
+    "fuente": "DP-DEVELOPMENT-ORCHESTRATOR §22",
+    "A1_a_A5": "CUMPLIDOS en F1 [EJEC]",
+    "A6": "CUMPLIDO [EJEC] — intento real: escribir la politica se bloquea y el fichero no cambia",
+    "A7": "CUMPLIDO [EJEC] — sin revisor capaz, REVIEW espera en WAITING_FOR_REVIEW; AUTO sigue",
+    "A8": "CUMPLIDO [EJEC] — ciclo completo con socket/create_connection/getaddrinfo lanzando",
+    "A9": "CUMPLIDO [EJEC] — ningun informe emite '%'; usage_known sigue False; sin procedencia se rechaza",
+    "A10": "CUMPLIDO [EJEC] — ningun modulo del plano importa el producto; autonomia de AURORA sigue 0/7",
+    "A11": "CUMPLIDO [EJEC] — las 3 capas medidas con intento real de violacion. Ver medicion-a11.py",
+    "A12": "CUMPLIDO [EJEC] — criterio mecanico fijado antes, atado por huella Y origen",
+    "pendiente": "ninguno de A1-A12. Lo unico abierto depende de F5, bloqueada por decision del CEO"
+  },
+  "motor_de_autonomia": {
+    "actualizado": "2026-08-31",
+    "que_es": "el tramo que faltaba encima del ciclo: DESCUBRIR -> CLASIFICAR -> VALIDAR AUTORIDAD -> PLANIFICAR -> CREAR TAREA -> [circuito gobernado] -> VERIFICAR -> REGISTRAR -> SIGUIENTE",
+    "por_que_hacia_falta": "ciclo_autonomo(directorio, FICHEROS, ...) recibia la lista desde fuera. Ese parametro ERA el traspaso manual: alguien decidia donde mirar",
+    "modulos": {
+      "descubrimiento.py": "5 fuentes mecanicas; 4 clases; 8 piezas obligatorias por oportunidad",
+      "planificador.py": "oportunidad autorizada -> tarea; id derivado; sin duplicados; orden por riesgo",
+      "motor_autonomia.py": "encadena y para; NO ejecuta: eso sigue en review.ejecutar_bajo_review",
+      "aura.py": "punto de entrada acotado que TERMINA (§23 prohibe todo demonio)"
+    },
+    "como_lo_usa_AURA_sin_Claude": {
+      "diagnosticar": "cd entorno/control-plane && python3 aura.py diagnosticar",
+      "trabajar": "cd entorno/control-plane && python3 aura.py trabajar --max-tareas 5",
+      "codigos_de_salida": {
+        "0": "trabajo hecho o cola agotada",
+        "2": "parada que alguien debe mirar",
+        "3": "arranque roto"
+      },
+      "quien_lo_invoca": "cualquier cosa de fuera —cron, un hook, una persona—. NO Claude: si Claude fuera el planificador, la autonomia no residiria en AURA"
+    },
+    "clases": {
+      "OPORTUNIDAD_REAL": "dentro del perimetro -> se ejecuta",
+      "BLOQUEADA": "real pero exige acta -> se registra y NO se ejecuta",
+      "DECISION_REQUIRED": "ninguna fuente aprobada la determina -> se eleva",
+      "FALSO_HUECO": "parece hueco y no lo es -> se descarta CON su motivo"
+    },
+    "meta_control": "toda oportunidad trae 8 piezas y la fuente apunta a algo que se puede ir a mirar. Sin procedencia se rechaza en el constructor: un descubridor que puede inventar trabajo produce actividad que parece progreso",
+    "no_existe_la_rama": "«si no hay tareas -> inventar una». siguiente() devuelve None y eso es completo"
+  },
+  "siguiente_trabajo_auto_executable": {
+    "hay": false,
+    "motivo": "NO_HAY_TRABAJO_AUTORIZADO",
+    "medido": "11 ficheros de produccion y 33 funciones privadas examinadas en entorno/control-plane/: 0 muertas. El cero es del detector corriendo, no de un detector roto [EJEC]",
+    "que_hay_en_cambio": "6 oportunidades BLOQUEADAS (OB-1..OB-6) y 1 DECISION_REQUIRED (D-ORCH-6)",
+    "como_se_tomara_la_proxima": "automaticamente: `python3 aura.py trabajar` descubre, clasifica, planifica y ejecuta sin que nadie entregue la tarea"
+  },
+  "autonomia_operativa": {
+    "actualizado": "2026-08-31",
+    "estado": "INSTALADA Y OPERATIVA",
+    "quien_decide": "AURA. El despertador NO decide: no mira la cola, no crea tareas, no tiene autoridad",
+    "como_se_despierta": {
+      "manual": "entorno/scripts/despertar-aura.sh --max-tareas 3",
+      "instrucciones": "entorno/scripts/despertar-aura.sh --instrucciones  (imprime la linea de cron)",
+      "programado": "*/30 * * * * <ruta>/despertar-aura.sh --max-tareas 3 >> /tmp/aura-despertar.log 2>&1 — NO instalada: programar trabajo en la maquina del CEO es decision suya, y dejarla puesta seria un residuo de los que el propio encargo prohibe"
+    },
+    "parada_fuera_de_banda": {
+      "activar": "touch entorno/control-plane/PARADA",
+      "retirar": "rm entorno/control-plane/PARADA",
+      "por_que_asi": "no hace falta que AURA colabore: el caso que justifica un kill switch es precisamente aquel en que el sistema esta comprometido"
+    },
+    "por_que_no_es_un_demonio": "§23 del DP aprobado los prohibe. Cada invocacion hace UNA vuelta acotada y termina. El despertador no tiene bucles, esperas ni reprogramacion, y una prueba lo comprueba leyendo su AST",
+    "garantias_negativas_del_despertador": [
+      "no importa descubrimiento ni planificador: no puede mirar la cola",
+      "no llama a transicion, guardar ni actualizar_estado: no tiene autoridad",
+      "no interpreta el informe de AURA: lo devuelve tal cual",
+      "el tope viene de fuera pero esta ACOTADO a 10: un despertador mal configurado no es un demonio"
+    ],
+    "comprueba_antes_de_despertar": [
+      "kill switch",
+      "que no corra herramientas.mutar (el arbol mutado no contiene el codigo real)"
+    ],
+    "codigos_de_salida": {
+      "0": "trabajo hecho o cola agotada",
+      "2": "parada que mirar / no se desperto",
+      "3": "arranque roto"
+    },
+    "despertar_programado": {
+      "instalado": "2026-08-31, por autorizacion expresa del CEO",
+      "donde": "crontab del usuario majo1230",
+      "linea": "*/30 * * * * <worktree>/entorno/scripts/despertar-aura.sh --max-tareas 3 >> /tmp/aura-despertar.log 2>&1",
+      "servicio_cron": "active [EJEC]",
+      "verificado": "ejecutado LITERALMENTE en un entorno de cron (env -i, PATH minimo): salida 0, AURA arranco, descubrio de sus 5 fuentes, decidio, y termino. 0 procesos residentes",
+      "el_despertador_no_decidio": "el orden de los eventos lo demuestra: motor_iniciado -> descubrimiento_realizado -> ciclo_detenido -> aura_despertada. El evento del despertador es el ULTIMO: registra el resultado despues de que AURA ya descubrio y decidio. 0 tareas planificadas por el",
+      "como_pararla": "touch entorno/control-plane/PARADA (fuera de banda; no hace falta tocar el cron)",
+      "como_desinstalar": "crontab -e y borrar el bloque marcado «AURA · despertador»",
+      "riesgo_declarado": "la ruta apunta al WORKTREE y el codigo esta SIN COMMITEAR (0 commits, todo untracked). Si el worktree se retira antes de integrar a main, el cron disparara cada 30 min contra una ruta inexistente y el fallo sera silencioso salvo por /tmp/aura-despertar.log. Es la unica ruta donde el codigo existe hoy",
+      "el_rastro_durable_no_es_el_log_de_tmp": "/tmp/aura-despertar.log es captura de stdout y se pierde al reiniciar. El historial auditable es eventos.jsonl, que si es durable y encadenado"
+    }
+  }
+}

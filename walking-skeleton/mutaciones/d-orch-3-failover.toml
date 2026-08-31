@@ -1,0 +1,181 @@
+incremento = "D-ORCH-3 · catalogo AUTO + failover gobernado Claude -> OpenCode (2026-08-26)"
+# Degrada las garantias del circuito: catalogo derivado, taxonomia de fallos, verificacion externa
+# del efecto, trazabilidad y ciclo del agente externo.
+pruebas = ["test_red_d_orch_3.py"]
+timeout_s = 240
+
+[[mutante]]
+id = "D3-M1"
+garantia = "solo la indisponibilidad del AGENTE releva: relevar ante TAREA_FALLIDA oculta el fallo rotando agentes"
+fichero = "agentes.py"
+pruebas = ["test_red_d_orch_3.py::test_solo_la_indisponibilidad_del_AGENTE_justifica_el_relevo",
+           "test_red_d_orch_3.py::test_una_TAREA_FALLIDA_no_dispara_failover_y_la_tarea_queda_FAILED"]
+buscar = '''_RELEVABLES = (AGENTE_SIN_CUOTA, AGENTE_NO_DISPONIBLE)'''
+sustituir = '''_RELEVABLES = (AGENTE_SIN_CUOTA, AGENTE_NO_DISPONIBLE, TAREA_FALLIDA, SIN_EFECTO)'''
+
+[[mutante]]
+id = "D3-M2"
+garantia = "la falta de cuota se reconoce: sin ella, un agente agotado se confunde con una tarea rota y no hay relevo"
+fichero = "agentes.py"
+pruebas = ["test_red_d_orch_3.py::test_se_distingue_AGENTE_NO_DISPONIBLE_de_TAREA_FALLIDA",
+           "test_red_d_orch_3.py::test_circuito_con_FAILOVER_cuando_claude_no_tiene_cuota"]
+buscar = '''    if any(s in texto for s in _SENALES_DE_CUOTA):
+        return AGENTE_SIN_CUOTA'''
+sustituir = '''    if False:
+        return AGENTE_SIN_CUOTA'''
+
+[[mutante]]
+id = "D3-M3"
+garantia = "la cadena es FINITA: sin el fin, el fallback recorre agentes indefinidamente"
+fichero = "agentes.py"
+pruebas = ["test_red_d_orch_3.py::test_el_fallback_es_FINITO_y_no_repite_agente"]
+buscar = '''    return CADENA_DE_AGENTES[i + 1] if i + 1 < len(CADENA_DE_AGENTES) else None'''
+sustituir = '''    return CADENA_DE_AGENTES[(i + 1) % len(CADENA_DE_AGENTES)]'''
+
+[[mutante]]
+id = "D3-M4"
+garantia = "la cadena es CERRADA: Codex esta excluido por decision del CEO y Ollama no participa"
+fichero = "agentes.py"
+pruebas = ["test_red_d_orch_3.py::test_un_agente_fuera_de_la_cadena_no_se_usa_jamas"]
+buscar = '''    if agente not in CADENA_DE_AGENTES:
+        raise AgenteNoAutorizado('''
+sustituir = '''    if False:
+        raise AgenteNoAutorizado('''
+
+[[mutante]]
+id = "D3-M5"
+garantia = "PUNTO CRITICO · el veredicto sale del EFECTO, no de lo que el agente afirma"
+fichero = "agentes.py"
+pruebas = ["test_red_d_orch_3.py::test_un_agente_que_AFIRMA_sin_producir_efecto_no_obtiene_VERIFIED",
+           "test_red_d_orch_3.py::test_la_verificacion_NO_lee_la_afirmacion_del_agente",
+           "test_red_d_orch_3.py::test_e2e_el_mismo_proceso_SIN_efecto_no_cierra_la_tarea"]
+buscar = '''        ok = ruta.exists() and ruta.stat().st_size > 0'''
+sustituir = '''        ok = bool(afirmacion) and "correctamente" in afirmacion'''
+
+[[mutante]]
+id = "D3-M6"
+garantia = "una evidencia que no se sabe comprobar NUNCA da VERIFIED: ante la duda, no"
+fichero = "agentes.py"
+pruebas = ["test_red_d_orch_3.py::test_una_evidencia_que_no_se_puede_comprobar_NUNCA_da_VERIFIED"]
+buscar = '''    return {"verificado": False, "resultado": "NO_VERIFICABLE",'''
+sustituir = '''    return {"verificado": True, "resultado": "VERIFIED",'''
+
+[[mutante]]
+id = "D3-M7"
+garantia = "COMPLETED exige efecto verificado: es A12 aplicado a lo que hoy se puede aplicar"
+fichero = "agentes.py"
+pruebas = ["test_red_d_orch_3.py::test_una_tarea_sin_efecto_verificado_NO_llega_a_COMPLETED",
+           "test_red_d_orch_3.py::test_e2e_el_mismo_proceso_SIN_efecto_no_cierra_la_tarea"]
+buscar = '''    if not veredicto.get("verificado"):
+        raise SinEvidencia('''
+sustituir = '''    if False:
+        raise SinEvidencia('''
+
+[[mutante]]
+id = "D3-M8"
+garantia = "una accion fuera de AUTO no se ejecuta jamas: es la politica aplicada en el punto de ejecucion"
+fichero = "agentes.py"
+pruebas = ["test_red_d_orch_3.py::test_una_accion_que_no_esta_en_AUTO_no_se_ejecuta_jamas"]
+buscar = '''    if orq.nivel_de(accion) != "AUTO":
+        raise AccionNoAutorizada('''
+sustituir = '''    if False:
+        raise AccionNoAutorizada('''
+
+[[mutante]]
+id = "D3-M9"
+garantia = "se registran TODOS los intentos, no solo el que salio bien: si no, el relevo es invisible"
+fichero = "agentes.py"
+pruebas = ["test_red_d_orch_3.py::test_circuito_con_FAILOVER_cuando_claude_no_tiene_cuota",
+           "test_red_d_orch_3.py::test_e2e_circuito_completo_con_PROCESO_REAL"]
+buscar = '''        registrar_intento(directorio, tarea["id"], Intento('''
+sustituir = '''        _ = lambda *a, **k: None; _(directorio, tarea["id"], Intento('''
+
+[[mutante]]
+id = "D3-M10"
+garantia = "el intento registra los nueve campos exigidos por el CEO"
+fichero = "agentes.py"
+pruebas = ["test_red_d_orch_3.py::test_cada_intento_registra_los_NUEVE_campos_exigidos"]
+buscar = '''                "effect_verified": self.efecto_verificado, "duration": self.duracion_s,'''
+sustituir = '''                "duration": self.duracion_s,'''
+
+[[mutante]]
+id = "D3-M11"
+garantia = "el ciclo del agente externo TERMINA comprobando que no queda nada: sin ese paso, «bajo demanda» es «instalado»"
+fichero = "agentes.py"
+pruebas = ["test_red_d_orch_3.py::test_opencode_es_BAJO_DEMANDA_y_su_ciclo_incluye_la_retirada"]
+buscar = '''PASOS_AGENTE_EXTERNO = ("instalar", "verificar", "ejecutar", "medir", "retirar", "limpiar",
+                        "comprobar_residuos")'''
+sustituir = '''PASOS_AGENTE_EXTERNO = ("instalar", "verificar", "ejecutar", "medir")'''
+
+[[mutante]]
+id = "D3-M12"
+garantia = "el agente externo NO recibe secretos ni acceso innecesario"
+fichero = "agentes.py"
+pruebas = ["test_red_d_orch_3.py::test_opencode_NO_recibe_secretos_ni_acceso_innecesario"]
+buscar = '''    return {k: v for k, v in sobre.items() if "secret" not in k and "key" not in k}'''
+sustituir = '''    sobre["api_key"] = "heredada-del-entorno"
+    return sobre'''
+
+[[mutante]]
+id = "D3-M13"
+garantia = "la disponibilidad se COMPRUEBA, no se presupone: presuponerla convierte al externo en dependencia"
+fichero = "agentes.py"
+pruebas = ["test_red_d_orch_3.py::test_el_agente_externo_no_queda_como_dependencia_permanente"]
+buscar = '''    return shutil.which(binario) is not None'''
+sustituir = '''    return True'''
+
+[[mutante]]
+id = "D3-M14"
+garantia = "AUTO se DERIVA de fuentes aprobadas: cada entrada cita su origen y ninguna modifica nada"
+fichero = "politica-orquestador.toml"
+pruebas = ["test_red_d_orch_3.py::test_ninguna_accion_AUTO_modifica_nada",
+           "test_red_d_orch_3.py::test_toda_entrada_AUTO_declara_el_contrato_completo"]
+buscar = '''limites_de_modificacion = "ninguna"
+origen = "permissions.py:47 ejecutar_pruebas verde/lectura + DP §10.2"'''
+sustituir = '''limites_de_modificacion = "escritura"
+origen = "permissions.py:47 ejecutar_pruebas verde/lectura + DP §10.2"'''
+
+[[mutante]]
+id = "D3-M15"
+garantia = "ninguna accion ROJA se cuela en AUTO: si entrara, ADR-0003 quedaria roto"
+fichero = "politica-orquestador.toml"
+pruebas = ["test_red_d_orch_3.py::test_una_accion_ROJA_jamas_puede_colarse_en_AUTO"]
+buscar = '''acciones = ["ejecutar_pruebas", "verificar_calidad", "auditar_garantias", "diagnosticar_estado"]'''
+sustituir = '''acciones = ["ejecutar_pruebas", "verificar_calidad", "auditar_garantias", "diagnosticar_estado", "modificar_adr"]'''
+
+[[mutante]]
+id = "D3-M16"
+garantia = "la tarea pasa por WORKING antes de cerrarse: una tarea que aparece COMPLETED sin haber estado en curso es indistinguible de una fabricada"
+fichero = "agentes.py"
+pruebas = ["test_red_d_orch_3.py::test_circuito_AUTO_a_cierre_con_el_agente_principal",
+           "test_red_d_orch_3.py::test_e2e_circuito_completo_con_PROCESO_REAL"]
+buscar = '''    if cp.estado_de(directorio, tarea["id"]) == "WAITING_FOR_NEXT_TASK":
+        cp.transicion(directorio, tarea["id"], "WORKING", autoridad=autoridad,'''
+sustituir = '''    if False:
+        cp.transicion(directorio, tarea["id"], "WORKING", autoridad=autoridad,'''
+
+[[mutante]]
+id = "D3-M17"
+garantia = "continuidad NO inventa tareas: solo ejecuta lo ya registrado y en AUTO"
+fichero = "agentes.py"
+pruebas = ["test_red_d_orch_3.py::test_continuidad_IGNORA_las_tareas_que_no_estan_en_AUTO",
+           "test_red_d_orch_3.py::test_continuidad_NO_inventa_tareas",
+           "test_red_d_orch_3.py::test_continuidad_encadena_tareas_AUTO_sin_intervencion"]
+buscar = '''        if estado == "WAITING_FOR_NEXT_TASK" and orq.nivel_de(datos.get("accion", "")) == "AUTO":'''
+sustituir = '''        if estado == "WAITING_FOR_NEXT_TASK":'''
+
+[[mutante]]
+id = "D3-M18"
+garantia = "continuidad es FINITA: un bucle nocturno sin tope es un demonio"
+fichero = "agentes.py"
+pruebas = ["test_red_d_orch_3.py::test_continuidad_es_FINITA"]
+buscar = '''    for tarea in tareas_auto_pendientes(directorio)[:max_tareas]:'''
+sustituir = '''    for tarea in tareas_auto_pendientes(directorio):'''
+
+[[mutante]]
+id = "D3-M19"
+garantia = "continuidad se DETIENE si ningun agente puede seguir: vaciar la cola marcando FAILED destruiria trabajo por un motivo ajeno a el"
+fichero = "agentes.py"
+pruebas = ["test_red_d_orch_3.py::test_continuidad_se_DETIENE_si_ningun_agente_puede_seguir"]
+buscar = '''        if justifica_fallback(resultado.get("clase", "")):'''
+sustituir = '''        if False:'''

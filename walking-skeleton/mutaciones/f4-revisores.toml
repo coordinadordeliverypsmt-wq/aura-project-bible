@@ -1,0 +1,150 @@
+incremento = "F4 · C5 con RevisorSubagente / RevisorHumano — §8.2 y §8.3 del DP (2026-08-26)"
+pruebas = ["test_red_f4_revisores.py"]
+timeout_s = 240
+
+[[mutante]]
+id = "F4-M1"
+garantia = "SIN CITA NO CUENTA (§8.2): un veredicto sin evidencia es una opinion, y una opinion no mueve una tarea"
+fichero = "revisores.py"
+pruebas = ["test_red_f4_revisores.py::test_SIN_CITA_no_cuenta",
+           "test_red_f4_revisores.py::test_el_RevisorSubagente_emite_veredicto_CON_evidencia_citada"]
+buscar = '''    return veredicto is not None and bool(veredicto.evidencia_citada)'''
+sustituir = '''    return veredicto is not None'''
+
+[[mutante]]
+id = "F4-M2"
+garantia = "solo los CUATRO veredictos del contrato son validos"
+fichero = "revisores.py"
+pruebas = ["test_red_f4_revisores.py::test_solo_los_CUATRO_veredictos_del_contrato_son_validos"]
+buscar = '''        if self.veredicto not in VEREDICTOS:
+            raise ValueError('''
+sustituir = '''        if False:
+            raise ValueError('''
+
+[[mutante]]
+id = "F4-M3"
+garantia = "ningun veredicto AUTORIZA: 1.1:93, la autoridad final no es delegable"
+fichero = "revisores.py"
+pruebas = ["test_red_f4_revisores.py::test_ningun_veredicto_AUTORIZA"]
+buscar = '''def autoriza(_veredicto) -> bool:'''
+sustituir = '''def autoriza(_veredicto) -> bool:
+    return getattr(_veredicto, "veredicto", "") == "conforme"'''
+
+[[mutante]]
+id = "F4-M4"
+garantia = "§8.3 · NO SE AUTOAPRUEBA JAMAS: sin revisor la tarea espera, no pasa"
+fichero = "revisores.py"
+pruebas = ["test_red_f4_revisores.py::test_sin_revisor_JAMAS_se_autoaprueba",
+           "test_red_f4_revisores.py::test_sin_revisor_la_tarea_ESPERA_en_WAITING_FOR_REVIEW"]
+buscar = '''    return {"veredicto": None, "estado": cp.ESTADO_REVISION}'''
+sustituir = '''    return {"veredicto": Veredicto("conforme", (), ("auto",), "sistema", _ahora()),
+            "estado": "REVISADA"}'''
+
+[[mutante]]
+id = "F4-M5"
+garantia = "§8.3 · sin revisor la tarea pasa a WAITING_FOR_REVIEW y ESPERA: sin ese paso queda en el limbo"
+fichero = "revisores.py"
+pruebas = ["test_red_f4_revisores.py::test_sin_revisor_la_tarea_ESPERA_en_WAITING_FOR_REVIEW"]
+buscar = '''    if cp.estado_de(directorio, expediente.tarea_id) == "WORKING":
+        cp.transicion(directorio, expediente.tarea_id, cp.ESTADO_REVISION, autoridad=autoridad,'''
+sustituir = '''    if False:
+        cp.transicion(directorio, expediente.tarea_id, cp.ESTADO_REVISION, autoridad=autoridad,'''
+
+[[mutante]]
+id = "F4-M6"
+garantia = "§8.3 · las tareas AUTO siguen avanzando sin revisor: el sistema no se detiene entero"
+fichero = "revisores.py"
+pruebas = ["test_red_f4_revisores.py::test_las_tareas_AUTO_siguen_avanzando_sin_revisor"]
+buscar = '''    return accion not in _SIN_REVISION'''
+sustituir = '''    return True'''
+
+[[mutante]]
+id = "F4-M7"
+garantia = "el RevisorExterno esta BLOQUEADO: §25.1 sin resolver y D24 sin enmendar"
+fichero = "revisores.py"
+pruebas = ["test_red_f4_revisores.py::test_el_revisor_EXTERNO_esta_bloqueado_y_lanza_si_se_le_invoca",
+           "test_red_f4_revisores.py::test_los_cuatro_revisores_previstos_existen_con_su_estado"]
+buscar = '''    nombre = "externo"
+
+    def disponible(self) -> bool:
+        return False'''
+sustituir = '''    nombre = "externo"
+
+    def disponible(self) -> bool:
+        return True'''
+
+[[mutante]]
+id = "F4-M8"
+garantia = "el RevisorLocal NO finge capacidad (INV-9): esta previsto, no construido"
+fichero = "revisores.py"
+pruebas = ["test_red_f4_revisores.py::test_el_revisor_LOCAL_no_finge_capacidad",
+           "test_red_f4_revisores.py::test_los_cuatro_revisores_previstos_existen_con_su_estado"]
+buscar = '''    def revisar(self, _expediente: Expediente) -> Veredicto:
+        raise RevisorSinCapacidad('''
+sustituir = '''    def revisar(self, _expediente: Expediente) -> Veredicto:
+        return Veredicto("conforme", (), ("local",), "local", _ahora())
+        raise RevisorSinCapacidad('''
+
+[[mutante]]
+id = "F4-M9"
+garantia = "lo reservado o fuera de zona se declara FUERA DE ALCANCE, no conforme"
+fichero = "revisores.py"
+pruebas = ["test_red_f4_revisores.py::test_el_RevisorSubagente_declara_FUERA_DE_ALCANCE_lo_reservado"]
+buscar = '''        if rv.es_materia_reservada(expediente.accion) or not ac.zona_permitida(expediente.fichero):'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "F4-M10"
+garantia = "el revisor OBJETA cuando un criterio de D22 falla: si no, revisar no filtra nada"
+fichero = "revisores.py"
+pruebas = ["test_red_f4_revisores.py::test_el_RevisorSubagente_OBJETA_cuando_un_criterio_falla"]
+buscar = '''        if juicio["cumple"]:
+            return Veredicto("conforme", (), cita, self.nombre, _ahora())'''
+sustituir = '''        if True:
+            return Veredicto("conforme", (), cita, self.nombre, _ahora())'''
+
+[[mutante]]
+id = "F4-M11"
+garantia = "el buzon humano NO responde solo: pedir revision a una persona produce una espera, no un veredicto"
+fichero = "revisores.py"
+pruebas = ["test_red_f4_revisores.py::test_el_RevisorHumano_deja_la_peticion_en_un_BUZON_y_no_responde_solo",
+           "test_red_f4_revisores.py::test_sin_revisor_JAMAS_se_autoaprueba"]
+buscar = '''        with open(ruta, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps({**expediente.como_dict(), "pedido_en": _ahora(),
+                                 "review_id": review_id(expediente),
+                                 "respondido": False}, ensure_ascii=False) + "\n")
+        return None'''
+sustituir = '''        with open(ruta, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps({**expediente.como_dict(), "pedido_en": _ahora(),
+                                 "respondido": True}, ensure_ascii=False) + "\n")
+        return Veredicto("conforme", (), ("buzon",), "humano", _ahora())'''
+
+[[mutante]]
+id = "F4-M12"
+garantia = "solo un HUMANO responde el buzon humano"
+fichero = "revisores.py"
+pruebas = ["test_red_f4_revisores.py::test_el_buzon_solo_lo_responde_un_HUMANO"]
+buscar = '''    if por not in ac.AUTORIDADES_HUMANAS:
+        raise RevisorNoHumano('''
+sustituir = '''    if False:
+        raise RevisorNoHumano('''
+
+[[mutante]]
+id = "F4-M13"
+garantia = "una respuesta del buzon SIN cita no cuenta"
+fichero = "revisores.py"
+pruebas = ["test_red_f4_revisores.py::test_una_respuesta_del_buzon_SIN_cita_no_cuenta"]
+buscar = '''    if not evidencia_citada:
+        raise ValueError("sin cita, no cuenta'''
+sustituir = '''    if False:
+        raise ValueError("sin cita, no cuenta'''
+
+[[mutante]]
+id = "F4-M14"
+garantia = "un veredicto sin cita NO se acepta en la cadena: se sigue buscando revisor"
+fichero = "revisores.py"
+pruebas = ["test_red_f4_revisores.py::test_un_revisor_que_emite_SIN_CITA_es_saltado_y_se_busca_otro"]
+buscar = '''        if not cuenta(veredicto):
+            continue                     # sin cita no cuenta: se sigue buscando'''
+sustituir = '''        if False:
+            continue                     # sin cita no cuenta: se sigue buscando'''

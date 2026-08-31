@@ -1,0 +1,317 @@
+incremento = "Motor de autonomia: descubrir -> planificar -> ejecutar -> encadenar (2026-08-31)"
+pruebas = ["test_red_motor_autonomia.py", "test_red_auditoria_a12.py"]
+timeout_s = 300
+
+# --------- INVENTAR TRABAJO ---------
+
+# MOT-M1 RETIRADO — su garantia la absorbio `MOT-M25`, que muta la misma comprobacion y exige mas:
+#   que la fuente sea **verificable**, no solo que el campo no este en blanco. Mantener los dos seria
+#   tener la misma regla mutada dos veces, y la mas debil solo diria que la fuerte esta puesta.
+
+[[mutante]]
+id = "MOT-M2"
+garantia = "INVENTAR TRABAJO: faltar una sola de las ocho piezas invalida la oportunidad"
+fichero = "descubrimiento.py"
+# Reapuntado: la otra mitad de la pareja. Se distingue faltando una pieza QUE NO ES la fuente.
+pruebas = ["test_red_motor_autonomia.py::test_falta_una_pieza_QUE_NO_ES_LA_FUENTE_y_tambien_se_rechaza"]
+buscar = '''        for pieza in PIEZAS_OBLIGATORIAS:
+            if not getattr(self, pieza):
+                raise OportunidadSinProcedencia(f"{self.id!r} no trae {pieza}")'''
+sustituir = '''        pass'''
+
+[[mutante]]
+id = "MOT-M3"
+garantia = "NO INVENTAR: sin oportunidades autorizadas, siguiente() devuelve None y no fabrica nada"
+fichero = "planificador.py"
+pruebas = ["test_red_motor_autonomia.py::test_sin_oportunidades_autorizadas_NO_se_inventa_ninguna",
+           "test_red_motor_autonomia.py::test_la_segunda_vuelta_encuentra_la_cola_AGOTADA"]
+buscar = '''    pendientes = cola(directorio, oportunidades)
+    return pendientes[0] if pendientes else None'''
+sustituir = '''    pendientes = cola(directorio, oportunidades)
+    if pendientes:
+        return pendientes[0]
+    return a_tarea(des.Oportunidad(
+        id="OP-INVENTADA", fuente="inventada", justificacion="algo habra que hacer",
+        alcance="x.py", accion="eliminar_codigo_muerto", autoridad="REVIEW",
+        criterio_de_finalizacion={"capacidad": "ejecutar_pruebas"},
+        evidencia_requerida={"tipo": "fichero_existe", "ruta": "x.py"},
+        riesgo="bajo", estado=des.OPORTUNIDAD_REAL))'''
+
+# --------- SALTARSE LA AUTORIDAD / EJECUTAR LO BLOQUEADO ---------
+
+[[mutante]]
+id = "MOT-M4"
+garantia = "AUTORIDAD: la clase sale de clasificar(), que consulta zona, materia reservada y acta"
+fichero = "descubrimiento.py"
+pruebas = ["test_red_motor_autonomia.py::test_lo_que_exige_ACTA_se_marca_BLOQUEADA_y_no_se_ejecuta",
+           "test_red_motor_autonomia.py::test_las_CUATRO_clases_se_distinguen"]
+buscar = '''    if nivel == "REVIEW":
+        return nivel, OPORTUNIDAD_REAL
+    return nivel, BLOQUEADA'''
+sustituir = '''    return nivel, OPORTUNIDAD_REAL'''
+
+[[mutante]]
+id = "MOT-M5"
+garantia = "EJECUTAR LO BLOQUEADO: solo una OPORTUNIDAD_REAL se convierte en tarea"
+fichero = "planificador.py"
+pruebas = ["test_red_motor_autonomia.py::test_una_decision_pendiente_se_eleva_y_NO_se_ejecuta",
+           "test_red_motor_autonomia.py::test_lo_que_exige_ACTA_se_marca_BLOQUEADA_y_no_se_ejecuta"]
+buscar = '''    if oportunidad.estado != des.OPORTUNIDAD_REAL:
+        return None'''
+sustituir = '''    if False:
+        return None'''
+
+# MOT-M6 RETIRADO — **EQUIVALENTE DEMOSTRADO POR EJECUCION**, no superviviente aceptado.
+#   Mutaba el filtro `estado == OPORTUNIDAD_REAL` de `cola()`. Es redundante con la puerta de
+#   `a_tarea()`, que devuelve `None` para toda clase no ejecutable, y el bucle salta los `None`.
+#   Demostrado ejecutando en `test_NINGUNA_clase_distinta_de_OPORTUNIDAD_REAL_produce_tarea`, que
+#   recorre las tres clases no ejecutables y comprueba que ninguna llega a tarea ni a la cola.
+#   Se conserva el filtro como defensa en profundidad: si algun dia una clase produjera tarea, esa
+#   prueba lo veria y el mutante dejaria de ser equivalente.
+
+[[mutante]]
+id = "MOT-M7"
+garantia = "DUPLICAR: el id de la tarea se DERIVA de la oportunidad, no es correlativo"
+fichero = "planificador.py"
+pruebas = ["test_red_motor_autonomia.py::test_el_id_de_la_tarea_es_DERIVADO_de_la_oportunidad",
+           "test_red_motor_autonomia.py::test_la_segunda_vuelta_encuentra_la_cola_AGOTADA"]
+buscar = '''    return "TA-" + hashlib.sha256(oportunidad.id.encode("utf-8")).hexdigest()[:12]'''
+sustituir = '''    import uuid
+    return "TA-" + uuid.uuid4().hex[:12]'''
+
+[[mutante]]
+id = "MOT-M8"
+garantia = "DUPLICAR: una tarea ya planificada no vuelve a la cola"
+fichero = "planificador.py"
+pruebas = ["test_red_motor_autonomia.py::test_no_se_planifica_DOS_VECES_la_misma_tarea",
+           "test_red_motor_autonomia.py::test_la_segunda_vuelta_encuentra_la_cola_AGOTADA"]
+buscar = '''        if tarea is None or tarea["id"] in vistos or ya_planificada(directorio, tarea["id"]):'''
+sustituir = '''        if tarea is None:'''
+
+[[mutante]]
+id = "MOT-M9"
+garantia = "TRAZABILIDAD: la tarea sabe de que oportunidad viene"
+fichero = "planificador.py"
+pruebas = ["test_red_motor_autonomia.py::test_una_oportunidad_autorizada_se_convierte_en_TAREA_ejecutable",
+           "test_red_motor_autonomia.py::test_cada_tarea_del_encadenado_deja_su_RASTRO"]
+buscar = '''        "origen": oportunidad.id,'''
+sustituir = '''        "origen": "desconocido",'''
+
+[[mutante]]
+id = "MOT-M10"
+garantia = "TRAZABILIDAD: el descubrimiento deja rastro en el log"
+fichero = "descubrimiento.py"
+pruebas = ["test_red_motor_autonomia.py::test_cada_tarea_del_encadenado_deja_su_RASTRO"]
+buscar = '''    cp.registrar_evento(pathlib.Path(directorio), "descubrimiento_realizado", {'''
+sustituir = '''    _ = lambda *a, **k: None
+    _(pathlib.Path(directorio), "descubrimiento_realizado", {'''
+
+[[mutante]]
+id = "MOT-M11"
+garantia = "TRAZABILIDAD: la planificacion queda registrada ANTES de ejecutar"
+fichero = "motor_autonomia.py"
+pruebas = ["test_red_motor_autonomia.py::test_cada_tarea_del_encadenado_deja_su_RASTRO",
+           "test_red_motor_autonomia.py::test_no_se_planifica_DOS_VECES_la_misma_tarea"]
+buscar = '''        plan.registrar_planificada(directorio, tarea)'''
+sustituir = '''        pass'''
+
+# --------- PARADA OBLIGATORIA ---------
+
+[[mutante]]
+id = "MOT-M12"
+garantia = "CONTINUAR TRAS UNA PARADA: una verificacion fallida detiene el ciclo y revierte"
+fichero = "motor_autonomia.py"
+pruebas = ["test_red_motor_autonomia.py::test_una_VERIFICACION_fallida_detiene_y_revierte",
+           "test_red_motor_autonomia.py::test_la_parada_deja_escrito_el_MOTIVO_EXACTO"]
+# Reapuntado: `_detener` gano el parametro `desde` al pasar a CONTAR los actos humanos.
+buscar = '''                return _detener(directorio, informe, "verificacion fallida", tarea["id"], desde=arranque)'''
+sustituir = '''                continue'''
+
+[[mutante]]
+id = "MOT-M13"
+garantia = "CONTINUAR TRAS UNA PARADA: el kill switch se consulta en CADA vuelta"
+fichero = "motor_autonomia.py"
+pruebas = ["test_red_motor_autonomia.py::test_el_kill_switch_detiene_el_motor"]
+buscar = '''        if orq.parada_solicitada(directorio):'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "MOT-M14"
+garantia = "§14: el ciclo esta ACOTADO. Un bucle sin cota es un demonio, y no hay ninguno autorizado"
+fichero = "motor_autonomia.py"
+pruebas = ["test_red_motor_autonomia.py::test_el_limite_de_seguridad_acota_el_ciclo"]
+buscar = '''        if informe["ejecutadas"] >= tope:'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "MOT-M15"
+garantia = "PARADA CON MOTIVO: una parada silenciosa obliga al siguiente a reconstruir por que se paro"
+fichero = "motor_autonomia.py"
+pruebas = ["test_red_motor_autonomia.py::test_la_parada_deja_escrito_el_MOTIVO_EXACTO"]
+buscar = '''    cp.registrar_evento(pathlib.Path(directorio), "ciclo_detenido",'''
+sustituir = '''    _ = lambda *a, **k: None
+    _(pathlib.Path(directorio), "ciclo_detenido",'''
+
+# --------- ROMPER LA CADENA / MARCAR ANTES DE EJECUTAR ---------
+
+[[mutante]]
+id = "MOT-M16"
+garantia = "ROMPER LA CADENA: cada vuelta REDESCUBRE; el arbol cambia con cada tarea ejecutada"
+fichero = "motor_autonomia.py"
+pruebas = ["test_red_motor_autonomia.py::test_TRES_tareas_encadenadas_sin_UN_SOLO_acto_humano",
+           "test_red_motor_autonomia.py::test_la_segunda_vuelta_encuentra_la_cola_AGOTADA"]
+buscar = '''        oportunidades = des.descubrir(raiz, directorio)
+        informe["vueltas"] += 1'''
+sustituir = '''        oportunidades = [] if informe["vueltas"] else des.descubrir(raiz, directorio)
+        informe["vueltas"] += 1'''
+
+[[mutante]]
+id = "MOT-M17"
+garantia = "MARCAR ANTES DE EJECUTAR: solo cuenta como ejecutada si el circuito dice que se ejecuto"
+fichero = "motor_autonomia.py"
+pruebas = ["test_red_motor_autonomia.py::test_una_VERIFICACION_fallida_detiene_y_revierte",
+           "test_red_motor_autonomia.py::test_TRES_tareas_encadenadas_sin_UN_SOLO_acto_humano"]
+buscar = '''        if not resultado.get("ejecutado"):'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "MOT-M18"
+garantia = "§8.3: sin revisor capaz la tarea ESPERA; esperar no es fracasar y sobre todo no es aprobar"
+fichero = "motor_autonomia.py"
+# Reapuntado: hueco real de cobertura — ninguna prueba del motor corria sin revisor capaz.
+pruebas = ["test_red_motor_autonomia.py::test_SIN_REVISOR_CAPAZ_el_motor_espera_y_no_toca_nada"]
+buscar = '''        if resultado.get("estado") == cp.ESTADO_REVISION:'''
+sustituir = '''        if False:'''
+
+# --------- FALSOS HUECOS ---------
+
+[[mutante]]
+id = "MOT-M19"
+garantia = "FALSO HUECO: una privada usada desde otro modulo NO es codigo muerto"
+fichero = "descubrimiento.py"
+pruebas = ["test_red_motor_autonomia.py::test_un_FALSO_HUECO_se_descarta_CON_SU_MOTIVO"]
+buscar = '''            usada_fuera = any(simbolo in texto for otro, texto in fuera.items() if otro != fichero)'''
+sustituir = '''            usada_fuera = False'''
+
+[[mutante]]
+id = "MOT-M20"
+garantia = "VARIAS FUENTES: una sola fuente vuelve a ser una lista escrita a mano, mas corta"
+fichero = "descubrimiento.py"
+pruebas = ["test_red_motor_autonomia.py::test_el_descubridor_recorre_VARIAS_fuentes_no_solo_el_codigo_muerto",
+           "test_red_motor_autonomia.py::test_las_CUATRO_clases_se_distinguen"]
+buscar = '''FUENTES = {
+    "codigo_muerto": codigo_muerto,'''
+sustituir = '''FUENTES = {
+    "codigo_muerto": codigo_muerto,
+}
+_FUENTES_RETIRADAS = {'''
+
+# --------- EL PUNTO DE ENTRADA (§23: se invoca y termina) ---------
+
+[[mutante]]
+id = "MOT-M21"
+garantia = "COLA AGOTADA SALE 0: si saliera con error, quien lo automatice fabricaria trabajo para que pase"
+fichero = "aura.py"
+pruebas = ["test_red_motor_autonomia.py::test_la_cola_agotada_SALE_CON_CERO",
+           "test_red_motor_autonomia.py::test_una_parada_que_alguien_debe_MIRAR_no_sale_con_cero"]
+buscar = '''PARADAS_NORMALES = ("cola agotada", "limite de seguridad")'''
+sustituir = '''PARADAS_NORMALES = ()'''
+
+[[mutante]]
+id = "MOT-M22"
+garantia = "una parada que alguien debe MIRAR no puede confundirse con una terminacion normal"
+fichero = "aura.py"
+pruebas = ["test_red_motor_autonomia.py::test_una_parada_que_alguien_debe_MIRAR_no_sale_con_cero"]
+buscar = '''    return SALIDA_OK if informe.get("motivo_de_parada") in PARADAS_NORMALES else SALIDA_PARADA'''
+sustituir = '''    return SALIDA_OK'''
+
+[[mutante]]
+id = "MOT-M23"
+garantia = "§23: el punto de entrada se invoca y TERMINA. Ningun demonio, ningun bucle sin cota"
+fichero = "aura.py"
+pruebas = ["test_red_motor_autonomia.py::test_el_punto_de_entrada_NO_es_un_demonio"]
+buscar = '''    print(json.dumps(informe, ensure_ascii=False, indent=2))
+    if not informe["ejecutadas"] and informe["motivo_de_parada"] == "cola agotada":'''
+sustituir = '''    while False:
+        pass
+    print(json.dumps(informe, ensure_ascii=False, indent=2))
+    if not informe["ejecutadas"] and informe["motivo_de_parada"] == "cola agotada":'''
+
+[[mutante]]
+id = "MOT-M24"
+garantia = "la zona de trabajo NO la elige quien invoca: se deriva del propio fichero"
+fichero = "aura.py"
+pruebas = ["test_red_motor_autonomia.py::test_la_zona_de_trabajo_NO_la_elige_quien_invoca"]
+buscar = '''def _base() -> pathlib.Path:'''
+sustituir = '''def _base(raiz=None) -> pathlib.Path:
+    if raiz is not None:
+        return pathlib.Path(raiz)'''
+
+# --------- LO QUE ENCONTRO LA AUDITORIA DEL MOTOR ---------
+
+[[mutante]]
+id = "MOT-M25"
+garantia = "GRAVE: la fuente se VERIFICA, no basta con que el campo este relleno"
+fichero = "descubrimiento.py"
+pruebas = ["test_red_motor_autonomia.py::test_una_fuente_INVENTADA_no_construye_oportunidad",
+           "test_red_motor_autonomia.py::test_la_fuente_APUNTA_a_algo_que_se_puede_ir_a_mirar"]
+buscar = '''        if not fuente_verificable(self.fuente):'''
+sustituir = '''        if not (self.fuente or "").strip():'''
+
+[[mutante]]
+id = "MOT-M26"
+garantia = "una fuente apunta a un FICHERO, no a un directorio: `fuente='.'` colaba"
+fichero = "descubrimiento.py"
+pruebas = ["test_red_motor_autonomia.py::test_una_fuente_INVENTADA_no_construye_oportunidad"]
+buscar = '''    return pathlib.Path(candidato).is_file()'''
+sustituir = '''    return pathlib.Path(candidato).exists()'''
+
+[[mutante]]
+id = "MOT-M27"
+garantia = "nombrar un mecanismo que NO existe tampoco cuela: se comprueba el atributo"
+fichero = "descubrimiento.py"
+pruebas = ["test_red_motor_autonomia.py::test_una_fuente_que_nombra_un_MECANISMO_declarado_si_vale"]
+buscar = '''            return hasattr(cp, atributo)'''
+sustituir = '''            return True'''
+
+[[mutante]]
+id = "MOT-M28"
+garantia = "GRAVE: los actos humanos se CUENTAN del historial, no son una constante a 0"
+fichero = "motor_autonomia.py"
+pruebas = ["test_red_motor_autonomia.py::test_los_actos_humanos_se_CUENTAN_no_se_declaran",
+           "test_red_motor_autonomia.py::test_TRES_tareas_encadenadas_sin_UN_SOLO_acto_humano"]
+buscar = '''    informe["actos_humanos_durante_el_ciclo"] = _actos_humanos_desde(directorio, desde)'''
+sustituir = '''    informe["actos_humanos_durante_el_ciclo"] = 0'''
+
+[[mutante]]
+id = "MOT-M29"
+garantia = "la cuenta mira los eventos POSTERIORES al arranque, no el historial entero"
+fichero = "motor_autonomia.py"
+# Reapuntado: sobrevivia porque en las pruebas no habia ningun acto humano ANTES del ciclo, y el
+# caso real es justo ese — el acta la firma el CEO antes de que el motor arranque.
+pruebas = ["test_red_motor_autonomia.py::test_los_actos_humanos_ANTERIORES_al_ciclo_no_cuentan"]
+buscar = '''               if e["seq"] > seq_inicial'''
+sustituir = '''               if True'''
+
+[[mutante]]
+id = "MOT-M30"
+garantia = "GRAVE: `raiz` ESTRECHA y no amplia — con raiz=repo concedia planos vecinos"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_motor_autonomia.py::test_la_raiz_declarada_no_concede_planos_VECINOS",
+           "test_red_auditoria_a12.py::test_la_raiz_declarada_NO_puede_conceder_el_producto"]
+# Acotado con su contexto: `if False:\n            return False` aparecia dos veces en el fichero y el
+# arnes lo reporto AMBIGUO — que es lo correcto: un patron que no identifica un punto unico mutaria
+# algo distinto de lo declarado, y el resultado no diria nada de la garantia que dice medir.
+buscar = '''        partes = [p.lower() for p in relativa.parts]
+        if "entorno" in partes:'''
+sustituir = '''        partes = [p.lower() for p in relativa.parts]
+        if False:'''
+
+[[mutante]]
+id = "MOT-M31"
+garantia = "la cola se ORDENA por riesgo: la prueba anterior solo medía pertenencia"
+fichero = "planificador.py"
+# Reapuntado: sobrevivia porque todas las oportunidades de codigo muerto traen el MISMO riesgo.
+pruebas = ["test_red_motor_autonomia.py::test_la_cola_ordena_riesgos_DISTINTOS"]
+buscar = '''    return (_ORDEN_DE_RIESGO.get(cabeza, 9), oportunidad.id)'''
+sustituir = '''    return (99 - _ORDEN_DE_RIESGO.get(cabeza, 9), oportunidad.id)'''

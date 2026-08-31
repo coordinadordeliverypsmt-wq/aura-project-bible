@@ -1,0 +1,106 @@
+# Politica del Development Orchestrator — **fichero versionado, C6**.
+#
+# `DP-DEVELOPMENT-ORCHESTRATOR §10.2`: *«La politica vive en un fichero versionado que **ningun
+# componente del orquestador puede escribir**. Si no hay regla para una accion, la accion es HUMAN.
+# Es la aplicacion literal de "ante la duda, roja".»*
+#
+# ## Por que las listas AUTO y REVIEW estan VACIAS
+#
+# **No es un descuido ni un fichero a medio rellenar.** `§25.3` (`D-ORCH-3`) dice: *«La matriz de
+# §10.2 es una **propuesta**. La lista exacta la fija el CEO. **Sin lista aprobada, todo es
+# `HUMAN`**»*. Esa decision **no consta tomada**, asi que el catalogo AUTO nace vacio.
+#
+# Y `REVIEW` esta vacia por una razon distinta y mas fuerte: **el nivel no existe**. `§10.3`:
+# *«`REVIEW` no existe hoy como nivel: ADR-0003 define **dos** listas, no tres»*, y su creacion es
+# `D-ORCH-2`, reservada al CEO —*«los niveles superiores de autonomia solo se habilitan por politica y
+# decision del usuario/CEO, **nunca automaticamente**»*—.
+#
+# Consecuencia practica, y es la correcta: **el orquestador arranca sin nada que ejecutar.**
+# Rellenar esto para que "funcione" seria concederle autonomia por la puerta de atras.
+#
+# Para habilitar una accion: el CEO la anade a `[auto]` con su acta. Ningun agente puede hacerlo.
+
+version = "2.0.0-d-orch-3"
+decision = "D-ORCH-3 resuelta — la lista AUTO se DERIVA de fuentes aprobadas, no se inventa"
+
+# ## De donde sale cada entrada, y por que no hay ninguna mas
+#
+# `DP §10.2` fija el origen: **AUTO <- lista verde de ADR-0003**, *«tests, lint, formato, analisis,
+# documentacion»*. El catalogo verde ya existe y esta aprobado en
+# `walking-skeleton/aura_skeleton/core/permissions.py`, asi que no hay nada que inventar: se filtra.
+#
+# **El filtro es el efecto declarado.** De las acciones verdes se toman **solo las de efecto
+# `lectura`** y que pertenezcan al plano de desarrollo. Las verdes de efecto `interno` o
+# `reversible` —`automatizacion`, `encender_dispositivo`, `organizacion`— son del **producto**, no
+# del trabajo sobre el, y no tienen sentido para un orquestador de desarrollo.
+#
+# Resultado: cuatro acciones, **ninguna de las cuales modifica nada**. Una accion AUTO que
+# escribiera seria autonomia de escritura concedida sin acta, y ADR-0003 dice que los niveles
+# superiores *«solo se habilitan por politica y decision del usuario/CEO, nunca automaticamente»*.
+
+[auto]
+acciones = ["ejecutar_pruebas", "verificar_calidad", "auditar_garantias", "diagnosticar_estado"]
+
+[auto.ejecutar_pruebas]
+tipo = "lectura"
+objetivo = "ejecutar la bateria de pruebas y devolver su resultado"
+autoridad = "ADR-0003 lista verde (acta D4) + permissions.py: efecto lectura"
+precondiciones = ["el arnes de mutacion NO esta corriendo", "arbol de trabajo legible"]
+agentes_permitidos = ["claude", "opencode"]
+evidencia_requerida = "informe de pytest con conteo, verificado por AURA"
+criterio_de_exito = "existe un informe con conteo de pruebas"
+ante_fallo = "registrar FAILED y detener la tarea; no reintentar con otro agente"
+permite_fallback = true
+limites_de_modificacion = "ninguna"
+origen = "permissions.py:47 ejecutar_pruebas verde/lectura + DP §10.2"
+
+[auto.verificar_calidad]
+tipo = "lectura"
+objetivo = "verificar la calidad del codigo sin modificarlo"
+autoridad = "ADR-0003 lista verde + permissions.py: efecto lectura"
+precondiciones = ["arbol de trabajo legible"]
+agentes_permitidos = ["claude", "opencode"]
+evidencia_requerida = "salida del verificador"
+criterio_de_exito = "existe salida del verificador"
+ante_fallo = "registrar FAILED; el fallo de calidad es informacion, no error del agente"
+permite_fallback = true
+limites_de_modificacion = "ninguna"
+origen = "permissions.py:48 verificar_calidad verde/lectura + DP §10.2"
+
+[auto.auditar_garantias]
+tipo = "lectura"
+objetivo = "revisar que las garantias declaradas siguen vigentes"
+autoridad = "ADR-0003 lista verde + permissions.py: efecto lectura"
+precondiciones = ["arbol de trabajo legible"]
+agentes_permitidos = ["claude", "opencode"]
+evidencia_requerida = "informe de garantias vigentes"
+criterio_de_exito = "existe informe con conteo de garantias"
+ante_fallo = "registrar FAILED"
+permite_fallback = true
+limites_de_modificacion = "ninguna"
+origen = "permissions.py:49 auditar_garantias verde/lectura + DP §10.2"
+
+[auto.diagnosticar_estado]
+tipo = "lectura"
+objetivo = "producir un informe del propio estado del sistema"
+autoridad = "ADR-0003 lista verde + permissions.py: efecto lectura"
+precondiciones = []
+agentes_permitidos = ["claude", "opencode"]
+evidencia_requerida = "fichero de informe existente y no vacio"
+criterio_de_exito = "el informe existe y tiene contenido"
+ante_fallo = "registrar FAILED"
+permite_fallback = true
+limites_de_modificacion = "ninguna"
+origen = "permissions.py:50 diagnosticar_estado verde/lectura + DP §10.2"
+
+[review]
+# VACIA. El nivel REVIEW **no existe** hasta D-ORCH-2 (§25.2).
+
+[human]
+# Documental: HUMAN es el **valor por defecto** de toda accion sin regla, no una lista que haya que
+# mantener al dia. Se enumeran las que el DP cita expresamente (`§10.2`) para que quede constancia.
+acciones = [
+    "modificar_adr", "modificar_bible", "modificar_politica", "modificar_roadmap",
+    "cambiar_arquitectura", "protocolo_experimental", "benchmark_congelado",
+    "promover_propuesta", "enmendar_d24",
+]

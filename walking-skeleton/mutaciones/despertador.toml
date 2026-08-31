@@ -1,0 +1,86 @@
+incremento = "Despertador: el mecanismo externo que llama a AURA sin decidir nada (2026-08-31)"
+pruebas = ["test_red_despertador.py"]
+timeout_s = 240
+
+[[mutante]]
+id = "DES-M1"
+garantia = "SCHEDULER CON AUTORIDAD PROPIA: el kill switch impide despertar, y va ANTES de llamar"
+fichero = "despertador.py"
+pruebas = ["test_red_despertador.py::test_el_kill_switch_impide_despertar",
+           "test_red_despertador.py::test_despertar_INVOCA_el_ciclo_de_AURA"]
+buscar = '''    if orq.parada_solicitada(directorio):
+        return False, "kill switch activado"'''
+sustituir = '''    if False:
+        return False, "kill switch activado"'''
+
+[[mutante]]
+id = "DES-M2"
+garantia = "NO despertar con el arbol mutado: AURA trabajaria sobre mutantes y lo registraria como hecho"
+fichero = "despertador.py"
+pruebas = ["test_red_despertador.py::test_NO_despierta_mientras_corre_el_ARNES_de_mutacion",
+           "test_red_despertador.py::test_una_negativa_a_despertar_tambien_deja_RASTRO"]
+buscar = '''    if orq.mutacion_en_curso():
+        return False, "arnés de mutación en curso"'''
+sustituir = '''    if False:
+        return False, "arnés de mutación en curso"'''
+
+[[mutante]]
+id = "DES-M3"
+garantia = "SCHEDULER BYPASS DEL MOTOR: despertar es LLAMAR a AURA, no hacer el trabajo"
+fichero = "despertador.py"
+pruebas = ["test_red_despertador.py::test_despertar_INVOCA_el_ciclo_de_AURA"]
+buscar = '''    informe = _ciclo_de_aura(tope)'''
+sustituir = '''    informe = {"motivo_de_parada": "cola agotada", "ejecutadas": 0}'''
+
+[[mutante]]
+id = "DES-M4"
+garantia = "el despertador NO decide cuantas tareas: pasa el tope tal cual"
+fichero = "despertador.py"
+pruebas = ["test_red_despertador.py::test_despertar_INVOCA_el_ciclo_de_AURA",
+           "test_red_despertador.py::test_el_tope_esta_ACOTADO_aunque_lo_pidan_enorme"]
+buscar = '''    tope = min(int(max_tareas), TOPE_MAXIMO)'''
+sustituir = '''    tope = 1'''
+
+[[mutante]]
+id = "DES-M5"
+garantia = "§14: el tope esta ACOTADO aunque lo pidan enorme. Un despertador mal configurado no es un demonio"
+fichero = "despertador.py"
+pruebas = ["test_red_despertador.py::test_el_tope_esta_ACOTADO_aunque_lo_pidan_enorme"]
+buscar = '''TOPE_MAXIMO = 10'''
+sustituir = '''TOPE_MAXIMO = 10 ** 9'''
+
+[[mutante]]
+id = "DES-M6"
+garantia = "un tope absurdo no pasa de largo: un tope de 0 no acota, paraliza"
+fichero = "despertador.py"
+pruebas = ["test_red_despertador.py::test_un_tope_absurdo_no_pasa_de_largo"]
+buscar = '''    if int(max_tareas) < 1:
+        raise ValueError('''
+sustituir = '''    if False:
+        raise ValueError('''
+
+[[mutante]]
+id = "DES-M7"
+garantia = "PERDER TRAZABILIDAD: cada despertar consta, con su resultado"
+fichero = "despertador.py"
+pruebas = ["test_red_despertador.py::test_cada_despertar_deja_RASTRO"]
+buscar = '''    cp.registrar_evento(directorio, "aura_despertada", {'''
+sustituir = '''    _ = lambda *a, **k: None
+    _(directorio, "aura_despertada", {'''
+
+[[mutante]]
+id = "DES-M8"
+garantia = "PERDER TRAZABILIDAD: una negativa a despertar tambien consta, y con su motivo"
+fichero = "despertador.py"
+pruebas = ["test_red_despertador.py::test_una_negativa_a_despertar_tambien_deja_RASTRO"]
+buscar = '''        cp.registrar_evento(directorio, "despertar_rechazado", {"motivo": motivo, "tope": tope})'''
+sustituir = '''        pass'''
+
+[[mutante]]
+id = "DES-M9"
+garantia = "el despertador NO interpreta el informe de AURA: lo devuelve tal cual"
+fichero = "despertador.py"
+pruebas = ["test_red_despertador.py::test_despertar_INVOCA_el_ciclo_de_AURA",
+           "test_red_despertador.py::test_cada_despertar_deja_RASTRO"]
+buscar = '''    return {"despertado": True, "motivo": "", "informe": informe}'''
+sustituir = '''    return {"despertado": True, "motivo": "", "informe": {"motivo_de_parada": "ok"}}'''

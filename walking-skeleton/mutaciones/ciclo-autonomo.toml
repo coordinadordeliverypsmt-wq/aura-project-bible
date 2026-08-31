@@ -1,0 +1,121 @@
+incremento = "Ciclo autonomo de desarrollo — DEC-ORCH-2 operativa (2026-08-26)"
+pruebas = ["test_red_ciclo_autonomo.py"]
+timeout_s = 240
+
+[[mutante]]
+id = "CA-M1"
+garantia = "ante la duda HUMAN: fuera del alcance del acta NO es REVIEW"
+fichero = "ciclo_autonomo.py"
+pruebas = ["test_red_ciclo_autonomo.py::test_cada_propuesta_se_CLASIFICA_antes_de_ejecutarse",
+           "test_red_ciclo_autonomo.py::test_sin_REVIEW_habilitado_el_ciclo_no_ejecuta_nada"]
+buscar = '''    if rv.habilitado(pathlib.Path(directorio)) and rv.en_alcance(pathlib.Path(directorio), accion):
+        return "REVIEW"
+    return "HUMAN"'''
+sustituir = '''    return "REVIEW"'''
+
+[[mutante]]
+id = "CA-M2"
+garantia = "la ZONA se comprueba antes que el alcance: una accion delegable sobre gobernanza sigue siendo HUMAN"
+fichero = "ciclo_autonomo.py"
+pruebas = ["test_red_ciclo_autonomo.py::test_una_tarea_fuera_de_ZONA_se_clasifica_HUMAN_aunque_la_accion_este_en_alcance",
+           "test_red_ciclo_autonomo.py::test_una_tarea_FUERA_DE_ZONA_nunca_se_ejecuta"]
+# Reapuntado el 2026-08-30: la llamada declara ahora su raiz (`raiz=directorio`).
+buscar = '''    if not ac.zona_permitida(tarea.get("fichero", ""), raiz=directorio):
+        return "HUMAN"'''
+sustituir = '''    if False:
+        return "HUMAN"'''
+
+# **CA-M3 retirado: EQUIVALENTE DEMOSTRADO POR EJECUCION.** El mutante degradaba la comprobacion de
+# materia reservada dentro de `clasificar()`. Esa rama es **inalcanzable**: `rv.habilitar()` rechaza
+# cualquier alcance que incluya materia reservada [EJEC], asi que una accion reservada nunca puede
+# estar en alcance y siempre cae a HUMAN por esa via. Se conserva en el codigo como defensa en
+# profundidad —si manana el alcance pudiera contenerla, esa rama la pararia—, pero hoy no existe
+# entrada que la ejercite, y declararla «detectada» seria falso.
+
+[[mutante]]
+id = "CA-M4"
+garantia = "una tarea HUMAN DETIENE el ciclo: continuar la convertiria en un olvido"
+fichero = "ciclo_autonomo.py"
+pruebas = ["test_red_ciclo_autonomo.py::test_una_tarea_HUMAN_DETIENE_el_ciclo_y_queda_registrada",
+           "test_red_ciclo_autonomo.py::test_sin_REVIEW_habilitado_el_ciclo_no_ejecuta_nada"]
+buscar = '''            informe["motivo_de_parada"] = "tarea HUMAN"
+            informe["detenida_en"] = tarea["id"]
+            break'''
+sustituir = '''            informe["motivo_de_parada"] = "tarea HUMAN"
+            informe["detenida_en"] = tarea["id"]
+            continue'''
+
+[[mutante]]
+id = "CA-M5"
+garantia = "una tarea HUMAN queda REGISTRADA: saltarla en silencio impide retomarla"
+fichero = "ciclo_autonomo.py"
+pruebas = ["test_red_ciclo_autonomo.py::test_una_tarea_HUMAN_DETIENE_el_ciclo_y_queda_registrada"]
+buscar = '''            cp.registrar_evento(directorio, "decision_requerida",
+                                {"id": tarea["id"], "nivel": nivel, "fichero": tarea["fichero"],
+                                 "motivo": f"clasificada {nivel}: requiere acto humano"})'''
+sustituir = '''            pass'''
+
+[[mutante]]
+id = "CA-M6"
+garantia = "el LIMITE DE SEGURIDAD acota el ciclo"
+fichero = "ciclo_autonomo.py"
+pruebas = ["test_red_ciclo_autonomo.py::test_el_LIMITE_DE_SEGURIDAD_acota_el_ciclo"]
+buscar = '''        if informe["ejecutadas"] >= max_tareas:'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "CA-M7"
+garantia = "una VERIFICACION fallida detiene el ciclo: seguir seria propagar el fallo a las demas tareas"
+fichero = "ciclo_autonomo.py"
+pruebas = ["test_red_ciclo_autonomo.py::test_una_VERIFICACION_fallida_detiene_el_ciclo_y_revierte"]
+buscar = '''        if resultado["revertido"] or not resultado["efecto_verificado"]:'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "CA-M8"
+garantia = "un ejecutor caido NO produce exito fingido: la tarea queda pendiente y se registra la clase"
+fichero = "ciclo_autonomo.py"
+pruebas = ["test_red_ciclo_autonomo.py::test_un_EJECUTOR_NO_DISPONIBLE_no_produce_exito_fingido"]
+buscar = '''            informe.update({"motivo_de_parada": "agente no disponible", "clase": clase,
+                            "detenida_en": tarea["id"]})
+            break'''
+sustituir = '''            informe["ejecutadas"] += 1
+            break'''
+
+[[mutante]]
+id = "CA-M9"
+garantia = "se distingue SIN CUOTA de NO DISPONIBLE: son estados distintos del agente"
+fichero = "ciclo_autonomo.py"
+pruebas = ["test_red_ciclo_autonomo.py::test_un_EJECUTOR_NO_DISPONIBLE_no_produce_exito_fingido"]
+buscar = '''    if any(s in texto for s in _SENALES_DE_INDISPONIBILIDAD):
+        return "AGENTE_SIN_CUOTA"
+    return "AGENTE_NO_DISPONIBLE"'''
+sustituir = '''    return "OTRO"'''
+
+[[mutante]]
+id = "CA-M10"
+garantia = "el SIGUIENTE trabajo se mide sobre el estado POSTERIOR: sobre la lista inicial describiria un repositorio que ya no existe"
+fichero = "ciclo_autonomo.py"
+pruebas = ["test_red_ciclo_autonomo.py::test_al_terminar_queda_escrito_el_SIGUIENTE_TRABAJO",
+           "test_red_ciclo_autonomo.py::test_el_informe_no_declara_trabajo_que_no_existe"]
+buscar = '''    restantes = ac.observar(ficheros)'''
+sustituir = '''    restantes = hallazgos'''
+
+[[mutante]]
+id = "CA-M11"
+garantia = "no se inventa trabajo: sin oportunidades reales, propuestas = 0"
+fichero = "ciclo_autonomo.py"
+pruebas = ["test_red_ciclo_autonomo.py::test_se_detiene_con_la_COLA_VACIA",
+           "test_red_ciclo_autonomo.py::test_el_informe_no_declara_trabajo_que_no_existe"]
+buscar = '''    hallazgos = ac.diagnosticar(ac.observar(ficheros))'''
+sustituir = '''    hallazgos = ac.diagnosticar(ac.observar(ficheros)) or [
+        {"simbolo": "_inventada", "fichero": str(directorio / "x.py"), "motivo": "inventada"}]'''
+
+[[mutante]]
+id = "CA-M12"
+garantia = "nada queda a medias si la verificacion revienta: se revierte antes de propagar"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_ciclo_autonomo.py::test_un_EJECUTOR_NO_DISPONIBLE_no_produce_exito_fingido"]
+buscar = '''        ruta.write_text(original, encoding="utf-8")
+        cp.registrar_evento(directorio, "cambio_revertido_por_error",'''
+sustituir = '''        cp.registrar_evento(directorio, "cambio_revertido_por_error",'''

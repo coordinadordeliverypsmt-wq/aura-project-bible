@@ -1,0 +1,386 @@
+incremento = "DP-DEVELOPMENT-ORCHESTRATOR · F1 = C1 + C2 (2026-08-26)"
+# Degrada las garantias que F1 anade a entorno/control-plane/control_plane.py: event log
+# append-only encadenado (C1, cierra P3), lock (C2, cierra P2) y transiciones gobernadas
+# (C2, cierra P4).
+#
+# Se ejecuta con --raiz apuntando a entorno/control-plane, porque el Control Plane vive fuera de
+# walking-skeleton **a proposito**: es infraestructura de desarrollo y no importa producto.
+pruebas = [
+    "test_red_f1_orquestador.py",
+    "test_modelo_orquestador.py::test_p2_la_via_GOBERNADA_conserva_las_dos_escrituras",
+    "test_modelo_orquestador.py::test_p2_la_primitiva_CRUDA_sigue_sin_ser_una_actualizacion_atomica",
+    "test_modelo_orquestador.py::test_p4_ya_NO_se_puede_pasar_de_completed_a_working",
+]
+timeout_s = 180
+
+# ------------------------------------------------------------------ C1 · event log --
+
+[[mutante]]
+id = "F1-M1"
+garantia = "`seq` es monotonico: sin el, dos eventos comparten numero y la historia deja de tener orden"
+fichero = "control_plane.py"
+pruebas = ["test_red_f1_orquestador.py::test_c1_el_log_es_append_only_y_la_secuencia_es_monotonica"]
+buscar = '''        "seq": previos[-1]["seq"] + 1 if previos else 1,'''
+sustituir = '''        "seq": 1,'''
+
+[[mutante]]
+id = "F1-M2"
+garantia = "la cadena enlaza: firmar cada linea por separado detectaria una alterada, pero NO una eliminada"
+fichero = "control_plane.py"
+pruebas = ["test_red_f1_orquestador.py::test_c1_cada_linea_lleva_su_sha256_y_encadena_con_la_anterior",
+           "test_red_f1_orquestador.py::test_c1_una_linea_ELIMINADA_tambien_rompe_la_integridad"]
+buscar = '''        "hash_anterior": previos[-1]["hash"] if previos else None,'''
+sustituir = '''        "hash_anterior": None,'''
+
+[[mutante]]
+id = "F1-M3"
+garantia = "el log es APPEND-only: abrir en modo escritura lo reescribe entero, que es el defecto P3"
+fichero = "control_plane.py"
+pruebas = ["test_red_f1_orquestador.py::test_c1_el_log_NUNCA_se_reescribe"]
+buscar = '''    with open(ruta, "a", encoding="utf-8") as fh:
+        fh.write(_canonico(evento) + "\n")'''
+sustituir = '''    with open(ruta, "w", encoding="utf-8") as fh:
+        fh.write(_canonico(evento) + "\n")'''
+
+[[mutante]]
+id = "F1-M4"
+garantia = "la integridad comprueba el CONTENIDO contra su hash, no solo que el campo exista"
+fichero = "control_plane.py"
+pruebas = ["test_red_f1_orquestador.py::test_c1_una_linea_alterada_rompe_la_integridad"]
+buscar = '''        if evento.get("hash") != _hash_de(evento):'''
+sustituir = '''        if not evento.get("hash"):'''
+
+[[mutante]]
+id = "F1-M5"
+garantia = "la integridad comprueba el ENLACE: sin el, borrar una linea intermedia pasa inadvertido"
+fichero = "control_plane.py"
+pruebas = ["test_red_f1_orquestador.py::test_c1_una_linea_SUSTITUIDA_con_seq_correcto_rompe_el_enlace"]
+buscar = '''        if evento.get("hash_anterior") != anterior:'''
+sustituir = '''        if False:'''
+
+# ---------------------------------------------------------------- C2 · proyeccion --
+
+[[mutante]]
+id = "F1-M6"
+garantia = "la proyeccion se reconstruye del LOG: si leyese estado.json, no seria una proyeccion sino una segunda fuente de verdad"
+fichero = "control_plane.py"
+pruebas = ["test_red_f1_orquestador.py::test_a1_la_proyeccion_es_desechable_no_una_segunda_fuente_de_verdad",
+           "test_red_f1_orquestador.py::test_a1_el_estado_se_reconstruye_tras_BORRAR_estado_json"]
+buscar = '''    proyeccion = _base_proyeccion()
+    for evento in leer_eventos(directorio):
+        _aplicar(proyeccion, evento)
+    return proyeccion
+
+
+def estado_de('''
+sustituir = '''    proyeccion = _base_proyeccion()
+    ruta = pathlib.Path(directorio) / "estado.json"
+    if ruta.exists():
+        return json.loads(ruta.read_text(encoding="utf-8"))
+    for evento in leer_eventos(directorio):
+        _aplicar(proyeccion, evento)
+    return proyeccion
+
+
+def estado_de('''
+
+[[mutante]]
+id = "F1-M7"
+garantia = "la proyeccion es DETERMINISTA: meter un reloj la haria distinta en cada reconstruccion"
+fichero = "control_plane.py"
+pruebas = ["test_red_f1_orquestador.py::test_la_proyeccion_no_depende_del_reloj"]
+buscar = '''    return {"version": VERSION, "status": ESTADO_INICIAL_DE_TAREA, "tareas": {},
+            "eventos_aplicados": 0, "eventos_ignorados": []}'''
+sustituir = '''    return {"version": VERSION, "status": ESTADO_INICIAL_DE_TAREA, "tareas": {},
+            "eventos_aplicados": 0, "eventos_ignorados": [], "reconstruido_en": _ahora()}'''
+
+# ------------------------------------------------------ C2 · transiciones (P4) --
+
+[[mutante]]
+id = "F1-M8"
+garantia = "la tabla decide: sin ella cualquier salto es legal y P4 vuelve"
+fichero = "control_plane.py"
+pruebas = ["test_red_f1_orquestador.py::test_p4_ya_NO_se_puede_pasar_de_completed_a_working",
+           "test_modelo_orquestador.py::test_p4_ya_NO_se_puede_pasar_de_completed_a_working"]
+buscar = '''    if valor not in TRANSICIONES[previo]:'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "F1-M9"
+garantia = "COMPLETED es FINAL: basta anadirle una salida para reabrir tareas cerradas"
+fichero = "control_plane.py"
+pruebas = ["test_modelo_orquestador.py::test_p4_ya_NO_se_puede_pasar_de_completed_a_working",
+           "test_red_f1_orquestador.py::test_p4_la_ruta_EN_MEMORIA_tampoco_permite_reabrir_un_COMPLETED"]
+buscar = '''    "COMPLETED": (),'''
+sustituir = '''    "COMPLETED": ("WORKING",),'''
+
+[[mutante]]
+id = "F1-M10"
+garantia = "toda transicion exige AUTORIDAD: sin quien la ordena, no es auditable"
+fichero = "control_plane.py"
+pruebas = ["test_red_f1_orquestador.py::test_una_transicion_exige_autoridad_Y_causa",
+           "test_red_f1_orquestador.py::test_la_ruta_en_memoria_exige_autoridad_y_causa",
+           "test_red_f1_orquestador.py::test_auditoria_h1_completar_tarea_exige_autoridad_y_respeta_la_tabla"]
+buscar = '''    if not (autoridad or "").strip():
+        raise TransicionInvalida("toda transicion exige autoridad: quien la ordena")'''
+sustituir = '''    if False:
+        raise TransicionInvalida("toda transicion exige autoridad: quien la ordena")'''
+
+[[mutante]]
+id = "F1-M11"
+garantia = "salir de DECISION_REQUIRED exige autoridad HUMANA: ningun adaptador puede producirla"
+fichero = "control_plane.py"
+pruebas = ["test_red_f1_orquestador.py::test_a5_DECISION_REQUIRED_no_se_resuelve_sin_acto_humano",
+           "test_red_f1_orquestador.py::test_salir_de_DECISION_REQUIRED_en_memoria_exige_humano"]
+buscar = '''    if previo in ESTADOS_SOLO_HUMANO and autoridad not in AUTORIDADES_HUMANAS:'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "F1-M12"
+garantia = "AUTORIDADES_HUMANAS es una lista CERRADA: si bastara declararse humano, la garantia no existiria"
+fichero = "control_plane.py"
+pruebas = ["test_red_f1_orquestador.py::test_a5_DECISION_REQUIRED_no_se_resuelve_sin_acto_humano",
+           "test_red_f1_orquestador.py::test_salir_de_DECISION_REQUIRED_en_memoria_exige_humano"]
+buscar = '''AUTORIDADES_HUMANAS = ("ceo", "humano")'''
+sustituir = '''AUTORIDADES_HUMANAS = ("ceo", "humano", "orquestador")'''
+
+[[mutante]]
+id = "F1-M13"
+garantia = "el estado previo se lee con estado_de_tarea: mirar solo el diccionario deja COMPLETED-por-completar_tarea reabrible"
+fichero = "control_plane.py"
+pruebas = ["test_red_f1_orquestador.py::test_p4_completar_por_completar_tarea_TAMBIEN_cierra_la_puerta"]
+buscar = '''    previo = estado_de_tarea(estado, id_tarea)["estado"]
+    causa_efectiva = causa or motivo'''
+sustituir = '''    previo = (estado.get("tareas") or {}).get(id_tarea, {}).get("estado", "UNKNOWN")
+    causa_efectiva = causa or motivo'''
+
+[[mutante]]
+id = "F1-M14"
+garantia = "una tarea NUEVA se crea, no transiciona: sin esa distincion el gobierno rompe interrumpir() y registrar_bloqueo_de_cuota()"
+fichero = "control_plane.py"
+pruebas = ["test_red_f1_orquestador.py::test_registrar_una_tarea_NUEVA_no_es_una_transicion",
+           "test_red_f1_orquestador.py::test_interrumpir_sigue_funcionando_bajo_gobierno"]
+buscar = '''    if previo == ESTADO_SIN_REGISTRAR:'''
+sustituir = '''    if previo == "NUNCA_OCURRE":'''
+
+[[mutante]]
+id = "F1-M15"
+garantia = "re-afirmar el mismo estado es idempotente: prohibirlo rompe registrar dos veces el mismo bloqueo"
+fichero = "control_plane.py"
+pruebas = ["test_red_f1_orquestador.py::test_reafirmar_el_mismo_estado_es_idempotente_no_una_transicion"]
+buscar = '''    if valor == previo:'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "F1-M16"
+garantia = "la transicion registra QUIEN y POR QUE en el estado en memoria"
+fichero = "control_plane.py"
+pruebas = ["test_red_f1_orquestador.py::test_el_estado_en_memoria_registra_QUIEN_y_POR_QUE"]
+buscar = '''        "estado": valor, "motivo": causa_efectiva, "autoridad": autoridad,'''
+sustituir = '''        "estado": valor, "motivo": causa_efectiva, "autoridad": "",'''
+
+# ----------------------------------------------------- C2 · lock (P2) y A3/A4 --
+
+[[mutante]]
+id = "F1-M17"
+garantia = "el lock es EXCLUSIVO: uno compartido deja pasar a los dos escritores a la vez"
+fichero = "control_plane.py"
+pruebas = ["test_red_f1_orquestador.py::test_a2_dos_procesos_reales_actualizando_el_mismo_estado_no_se_pisan",
+           "test_red_f1_orquestador.py::test_a2_dos_procesos_concurrentes_NO_pierden_escrituras",
+           "test_modelo_orquestador.py::test_p2_la_via_GOBERNADA_conserva_las_dos_escrituras"]
+buscar = '''        fcntl.flock(descriptor, fcntl.LOCK_EX)'''
+sustituir = '''        fcntl.flock(descriptor, fcntl.LOCK_SH)'''
+
+[[mutante]]
+id = "F1-M18"
+garantia = "actualizar_estado envuelve leer-modificar-escribir COMPLETO: escribir dentro del lock y leer fuera es P2 disfrazado"
+fichero = "control_plane.py"
+pruebas = ["test_red_f1_orquestador.py::test_a2_dos_procesos_reales_actualizando_el_mismo_estado_no_se_pisan",
+           "test_modelo_orquestador.py::test_p2_la_via_GOBERNADA_conserva_las_dos_escrituras",
+           "test_modelo_orquestador.py::test_p2_la_primitiva_CRUDA_sigue_sin_ser_una_actualizacion_atomica"]
+buscar = '''    destino = pathlib.Path(destino)
+    with lock_estado(destino.parent):
+        estado = cargar(destino) or estado_inicial()
+        nuevo = cambio(estado)
+        if nuevo is None:
+            raise ValueError("la funcion de cambio debe devolver el estado, no None")
+        guardar(nuevo, destino)
+        return nuevo'''
+sustituir = '''    destino = pathlib.Path(destino)
+    estado = cargar(destino) or estado_inicial()
+    nuevo = cambio(estado)
+    if nuevo is None:
+        raise ValueError("la funcion de cambio debe devolver el estado, no None")
+    with lock_estado(destino.parent):
+        guardar(nuevo, destino)
+    return nuevo'''
+
+[[mutante]]
+id = "F1-M19"
+garantia = "la reconciliacion concluye FAILED, NUNCA COMPLETED: seria fabricar evidencia de un trabajo que nadie vio terminar"
+fichero = "control_plane.py"
+pruebas = ["test_red_f1_orquestador.py::test_a4_una_tarea_interrumpida_queda_FAILED_nunca_COMPLETED"]
+buscar = '''                    "id": id_tarea, "valor": "FAILED", "previo": tarea["estado"],'''
+sustituir = '''                    "id": id_tarea, "valor": "COMPLETED", "previo": tarea["estado"],'''
+
+[[mutante]]
+id = "F1-M20"
+garantia = "esperar cuota o decision NO es haber muerto: incluirlas convierte cada reinicio en una masacre de tareas sanas"
+fichero = "control_plane.py"
+pruebas = ["test_red_f1_orquestador.py::test_la_reconciliacion_no_toca_a_quien_espera_legitimamente"]
+buscar = '''ESTADOS_EN_VUELO = ("WORKING",)'''
+sustituir = '''ESTADOS_EN_VUELO = ("WORKING", "WAITING_FOR_QUOTA", "DECISION_REQUIRED")'''
+
+[[mutante]]
+id = "F1-M21"
+garantia = "la reconciliacion NO toca lo ya cerrado: seria P4 entrando por la puerta de la recuperacion"
+fichero = "control_plane.py"
+pruebas = ["test_red_f1_orquestador.py::test_a3_una_tarea_COMPLETED_no_la_toca_la_reconciliacion"]
+buscar = '''            if tarea["estado"] in ESTADOS_EN_VUELO:'''
+sustituir = '''            if tarea["estado"] not in ("FAILED",):'''
+
+# --------------------------------------- hallazgos de la auditoria independiente --
+# Cuatro rutas al estado que no pasaban por el gobierno. El cierre llego a afirmar que estaban
+# «ambas» gobernadas cuando eran cuatro: ALERTA-005 dentro de la propia herramienta que la vigila.
+
+[[mutante]]
+id = "F1-M22"
+garantia = "H1 · completar_tarea NO cierra una tarea parada en DECISION_REQUIRED: era la tercera ruta, y A5 exige intentarlo por TODAS las vias del codigo"
+fichero = "control_plane.py"
+pruebas = ["test_red_f1_orquestador.py::test_auditoria_h1_completar_tarea_NO_puede_cerrar_una_decision_pendiente",
+           "test_red_f1_orquestador.py::test_salir_de_DECISION_REQUIRED_en_memoria_exige_humano",
+           "test_red_f1_orquestador.py::test_a5_DECISION_REQUIRED_no_se_resuelve_sin_acto_humano"]
+# Reapuntado 2026-08-30: el mutante SOBREVIVIO porque la garantia quedo cubierta por DOS capas —
+# `validar_transicion` y el gate humano de `_exigir_humano_para_completar`, anadido tras la 2.a
+# auditoria—. Defensa en profundidad hace sobrevivir a un mutante sin que falte una prueba, pero un
+# superviviente sin explicacion es indistinguible de un hueco: se apunta a la comprobacion que
+# **solo** cubre esta capa, que es la tabla de estados (salir de DECISION_REQUIRED sin humano).
+buscar = '''    if previo in ESTADOS_SOLO_HUMANO and autoridad not in AUTORIDADES_HUMANAS:'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "F1-M23"
+garantia = "H4 · un evento `estado_de_tarea` crudo no fabrica estado: aceptarlo haria decorativo el gobierno de transicion(), porque bastaria rodearlo"
+fichero = "control_plane.py"
+pruebas = ["test_red_f1_orquestador.py::test_auditoria_h4_un_evento_crudo_no_puede_fabricar_un_estado"]
+# Reapuntado 2026-08-30: el bloqueo cubre ahora los tres eventos que conceden estado.
+buscar = '''    if tipo in EVENTOS_GOBERNADOS:'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "F1-M24"
+garantia = "H3 · el control de autoridad humana va ANTES del atajo de idempotencia: detras, un adaptador reescribe quien sostiene una espera"
+fichero = "control_plane.py"
+pruebas = ["test_red_f1_orquestador.py::test_auditoria_h3_reafirmar_un_estado_SOLO_HUMANO_tambien_exige_humano"]
+buscar = '''    if previo in ESTADOS_SOLO_HUMANO and autoridad not in AUTORIDADES_HUMANAS:'''
+sustituir = '''    if previo in ESTADOS_SOLO_HUMANO and autoridad not in AUTORIDADES_HUMANAS and valor != previo:'''
+
+[[mutante]]
+id = "F1-M25"
+garantia = "H2 · la tabla implementada es LITERALMENTE la de §6: la prueba anterior comparaba solo las claves y dejo viajar una divergencia real"
+fichero = "control_plane.py"
+pruebas = ["test_red_f1_orquestador.py::test_auditoria_h2_la_tabla_implementada_es_LITERALMENTE_la_del_DP"]
+buscar = '''    "WORKING": (ESTADO_REVISION, "WAITING_FOR_ENVIRONMENT", "WAITING_FOR_QUOTA",
+                "DECISION_REQUIRED", "FAILED", "COMPLETED"),'''
+sustituir = '''    "WORKING": (ESTADO_REVISION, "WAITING_FOR_ENVIRONMENT", "WAITING_FOR_QUOTA",
+                "DECISION_REQUIRED", "WAITING_FOR_HUMAN", "FAILED", "COMPLETED"),'''
+
+[[mutante]]
+id = "F1-M26"
+garantia = "el atajo de creacion se aplica SOLO cuando no consta estado previo: extenderlo a otro estado convierte lo cerrado en creable y reabre P4"
+fichero = "control_plane.py"
+pruebas = ["test_red_f1_orquestador.py::test_p4_la_ruta_EN_MEMORIA_tampoco_permite_reabrir_un_COMPLETED",
+           "test_red_f1_orquestador.py::test_p4_completar_por_completar_tarea_TAMBIEN_cierra_la_puerta",
+           "test_modelo_orquestador.py::test_p4_ya_NO_se_puede_pasar_de_completed_a_working"]
+buscar = '''    if previo == ESTADO_SIN_REGISTRAR:'''
+sustituir = '''    if previo in (ESTADO_SIN_REGISTRAR, "COMPLETED"):'''
+
+[[mutante]]
+id = "F1-M27"
+garantia = "2a auditoria · crear no es empezar en cualquier estado: sin la lista, cualquier id nunca visto aparece en COMPLETED con cualquier cadena por autoridad"
+fichero = "control_plane.py"
+pruebas = ["test_red_f1_orquestador.py::test_auditoria2_no_se_puede_CREAR_una_tarea_ya_completada",
+           "test_red_f1_orquestador.py::test_auditoria2_no_se_puede_CREAR_una_tarea_en_un_estado_que_exige_humano"]
+buscar = '''        if valor not in ESTADOS_CREABLES:'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "F1-M28"
+garantia = "2a auditoria · ningun estado creable puede ser terminal ni exigir acto humano: anadir uno reabre el agujero entero"
+fichero = "control_plane.py"
+pruebas = ["test_red_f1_orquestador.py::test_auditoria2_ningun_estado_creable_es_terminal_ni_exige_humano",
+           "test_red_f1_orquestador.py::test_auditoria2_no_se_puede_CREAR_una_tarea_ya_completada"]
+buscar = '''ESTADOS_CREABLES = (ESTADO_INICIAL_DE_TAREA, "WORKING", "WAITING_FOR_ENVIRONMENT",
+                    "WAITING_FOR_QUOTA", "FAILED")'''
+sustituir = '''ESTADOS_CREABLES = (ESTADO_INICIAL_DE_TAREA, "WORKING", "WAITING_FOR_ENVIRONMENT",
+                    "WAITING_FOR_QUOTA", "FAILED", "COMPLETED", "DECISION_REQUIRED")'''
+
+[[mutante]]
+id = "F1-M29"
+garantia = "2a auditoria · el uso legitimo de crear sigue vivo: si la lista se vaciara, interrumpir() y registrar_bloqueo_de_cuota() dejarian de poder registrar nada"
+fichero = "control_plane.py"
+pruebas = ["test_red_f1_orquestador.py::test_auditoria2_el_uso_LEGITIMO_de_crear_sigue_intacto",
+           "test_red_f1_orquestador.py::test_registrar_una_tarea_NUEVA_no_es_una_transicion",
+           "test_red_f1_orquestador.py::test_interrumpir_sigue_funcionando_bajo_gobierno"]
+buscar = '''ESTADOS_CREABLES = (ESTADO_INICIAL_DE_TAREA, "WORKING", "WAITING_FOR_ENVIRONMENT",
+                    "WAITING_FOR_QUOTA", "FAILED")'''
+sustituir = '''ESTADOS_CREABLES = (ESTADO_INICIAL_DE_TAREA,)'''
+
+[[mutante]]
+id = "F1-M30"
+garantia = "el detector encuentra una QUINTA ruta al estado si alguien la anade: H1 y H4 fueron el mismo error dos veces, y enumerar rutas a mano no escala"
+fichero = "control_plane.py"
+pruebas = ["test_red_f1_orquestador.py::test_ninguna_funcion_FUERA_de_las_gobernadas_cambia_el_estado_de_una_tarea"]
+buscar = '''    estado["tarea_actual"] = {"id": id_tarea, "descripcion": descripcion,
+                              "iniciada_en": _ahora(), **extra}
+    estado["status"] = "WORKING"'''
+sustituir = '''    estado["tarea_actual"] = {"id": id_tarea, "descripcion": descripcion,
+                              "iniciada_en": _ahora(), **extra}
+    estado["status"] = "WORKING"
+    estado.setdefault("tareas", {})[id_tarea] = {"estado": "COMPLETED", "motivo": "ruta clandestina"}'''
+
+# ---------------------------------- tercera auditoria independiente (3 GRAVES) --
+
+[[mutante]]
+id = "F1-M31"
+garantia = "3a auditoria G1 · guardar() rechaza una tarea sin procedencia: sin esto se fabrica cualquier estado escribiendo el dict a mano y persistiendo"
+fichero = "control_plane.py"
+pruebas = ["test_red_blindaje_estado.py::test_auditoria3_g1_guardar_RECHAZA_una_tarea_fabricada_a_mano"]
+buscar = '''        faltan = [c for c in _CAMPOS_DE_GOBIERNO if c not in tarea]
+        if faltan:'''
+sustituir = '''        faltan = []
+        if faltan:'''
+
+[[mutante]]
+id = "F1-M32"
+garantia = "3a auditoria G1 · el borde de persistencia se aplica: llamar a validar_tareas es lo que lo hace real"
+fichero = "control_plane.py"
+pruebas = ["test_red_blindaje_estado.py::test_auditoria3_g1_guardar_RECHAZA_una_tarea_fabricada_a_mano",
+           "test_red_blindaje_estado.py::test_auditoria3_g1_el_estado_gobernado_SI_se_persiste"]
+buscar = '''    validar(estado)
+    validar_tareas(estado)'''
+sustituir = '''    validar(estado)'''
+
+[[mutante]]
+id = "F1-M33"
+garantia = "3a auditoria G2 · la tarea creada de la nada queda MARCADA, y la honesta no: sin el segundo termino la marca no distingue nada"
+fichero = "control_plane.py"
+pruebas = ["test_red_blindaje_estado.py::test_auditoria3_g2_una_tarea_creada_de_la_nada_queda_MARCADA"]
+buscar = '''        previo == ESTADO_SIN_REGISTRAR and valor != ESTADO_INICIAL_DE_TAREA)'''
+sustituir = '''        False)'''
+
+[[mutante]]
+id = "F1-M34"
+garantia = "3a auditoria G2 · la marca SOBREVIVE a completar_tarea: si se perdiera al cerrar, el registro final mentiria"
+fichero = "control_plane.py"
+pruebas = ["test_red_blindaje_estado.py::test_auditoria3_g2_una_tarea_creada_de_la_nada_queda_MARCADA"]
+buscar = '''    marca = (estado.get("tareas") or {}).get(id_tarea, {}).get("creada_sin_origen", False)'''
+sustituir = '''    marca = False'''
+
+[[mutante]]
+id = "F1-M35"
+garantia = "3a auditoria G3 · el destino se resuelve al LLAMAR: horneado en la firma, quien se aisla reasignando la global sigue escribiendo el fichero real"
+fichero = "control_plane.py"
+pruebas = ["test_red_blindaje_estado.py::test_auditoria3_g3_el_destino_por_defecto_se_resuelve_al_LLAMAR_no_al_importar"]
+buscar = '''def guardar(estado: dict, destino: pathlib.Path | None = None) -> pathlib.Path:'''
+sustituir = '''def guardar(estado: dict, destino: pathlib.Path = ESTADO_POR_DEFECTO) -> pathlib.Path:'''

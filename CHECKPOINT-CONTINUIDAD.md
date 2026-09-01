@@ -3907,3 +3907,75 @@ sobre el worktree, ya reproducible · **(c)** revisar los 17 antes de decidir.
 
 `main` intacto en `d933a08`, limpio y alineado con `origin/main`. Rama 19 commits por delante,
 **0 push**. Cron activo cada 30 min. AURA operativa.
+
+---
+
+## 10.duoetvicies · VENTANA AUTÓNOMA — qué hizo AURA sola (2026-08-31)
+
+**Primera ventana en que AURA operó sin Claude.** Esta sección existe para que quien vuelva no rehaga
+lo que ya está hecho ni reabra lo que ya está cerrado.
+
+### La ventana
+
+| | |
+|---|---|
+| Inicio | `2026-08-31 07:11:00` — último acto manual de Claude |
+| Fin de la observación | `2026-08-31 21:00:02` |
+| Duración | **13 h 49 min** |
+| Ciclos autónomos | **28**, uno cada 30 min, **sin un solo hueco** |
+
+### Qué hizo, con evidencia
+
+Los 28 ciclos son idénticos y todos terminaron igual:
+
+```
+motor_iniciado → descubrimiento_realizado → ciclo_detenido → aura_despertada
+descubiertas=8 · OPORTUNIDAD_REAL=0 · BLOQUEADA=6 · DECISION_REQUIRED=2 · FALSO_HUECO=0
+motivo_de_parada = «cola agotada» · ejecutadas=0 · actos_humanos=0
+```
+
+Recorrió sus **cinco fuentes** en cada vuelta, **sin un solo error de fuente**.
+
+### Trabajo ejecutado: ninguno, y es el resultado correcto
+
+`OPORTUNIDAD_REAL = 0` en las 28 vueltas. El perímetro (`eliminar_codigo_muerto` en
+`entorno/control-plane/`) sigue limpio. **AURA no inventó nada para parecer ocupada** — que era
+justamente el fallo que el diseño existe para impedir.
+
+Elevó **2 decisiones** (`D-ORCH-6`, `D-INT-1`) y registró **6 bloqueos** (`OB-1`…`OB-6`) en cada
+vuelta. Que reaparezcan siempre es deliberado: impide que un bloqueo se convierta en un olvido.
+
+### Cómo se comprobó que fue AURA y no Claude
+
+Cuatro evidencias independientes, y ninguna se apoya en que un campo diga `0`:
+
+1. **El reloj.** El cron dispara a `:00` y `:30` en punto. Los 28 despertares de la ventana caen en
+   esos instantes (±2 s); los 11 manuales de Claude caen en instantes arbitrarios y **todos son
+   anteriores a las 07:11**.
+2. **El sistema operativo.** `journalctl -u cron` registra **28 disparos** — el mismo número, desde
+   una fuente que AURA no escribe.
+3. **Ningún evento ajeno.** En la ventana hay **112 eventos y los 112 son del ciclo**: 28 de cada
+   tipo. Cero eventos de otra procedencia.
+4. **Cero autoridad humana.** Ningún evento de la ventana lleva `autoridad` en `AUTORIDADES_HUMANAS`.
+   Eso corrobora `actos_humanos=0` **desde el historial**, no desde el informe.
+
+### Qué cambió en el árbol
+
+**Un solo fichero: `entorno/control-plane/eventos.jsonl`** — el historial creciendo. Nada más fue
+tocado en toda la ventana. 0 commits, 0 push. `main` sigue en `d933a08`, limpio y alineado con
+`origin/main`.
+
+### Estado al cerrar la observación
+
+**`ESPERANDO` · cola agotada.** El cron sigue activo, el último ciclo fue a las 21:00:02 y el
+siguiente entrará a las 21:30. No hay procesos residentes: cada ciclo arranca, hace su vuelta y muere.
+
+### Para quien vuelva
+
+- **No rehacer**: el motor, el despertador, la integración del plano a git, ni las cuatro auditorías.
+  Todo está cerrado y protegido por 253 mutantes.
+- **No reabrir**: `DEC-ORCH-2`, `D-CP-1`, `D-M8`, `DEC-B3-QUE-AGENTE`. Cerradas.
+- **Abiertas**: `D-ORCH-6` y `D-INT-1` (esta última con la opción **B** ya elegida por el CEO:
+  `main` intacto, cron sobre el worktree).
+- **Siguiente trabajo autorizado: ninguno.** Lo será en cuanto un acta abra perímetro; el siguiente
+  despertar lo tomará solo, sin que nadie se lo entregue.

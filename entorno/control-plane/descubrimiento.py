@@ -39,7 +39,10 @@ import dataclasses
 import hashlib
 import pathlib
 
+import autoconstruccion as ac
 import control_plane as cp
+import entorno_disponible as ent
+import estancamiento as est
 
 OPORTUNIDAD_REAL = "OPORTUNIDAD_REAL"
 BLOQUEADA = "BLOQUEADA"
@@ -129,10 +132,19 @@ class Oportunidad:
         return dataclasses.asdict(self)
 
 
-def _id_de(fuente: str, alcance: str, accion: str) -> str:
+def _id_de(fuente: str, alcance: str, accion: str, distintivo: str = "") -> str:
     """Derivado, no correlativo. Dos descubrimientos de lo mismo dan el mismo id, asi que el
-    duplicado se reconoce solo — la misma razon que el `--session-id` del `§13`."""
-    semilla = f"{fuente}|{alcance}|{accion}"
+    duplicado se reconoce solo — la misma razon que el `--session-id` del `§13`.
+
+    **`distintivo` es lo que identifica la oportunidad de verdad**, y su ausencia costo un defecto
+    real: el id se derivaba de `fichero:linea`, asi que al borrar un simbolo el siguiente **ocupaba la
+    linea liberada**, heredaba su id y el antiduplicados lo suprimia. AURA perdia trabajo en silencio
+    y el ciclo informaba «cola agotada» habiendo dejado algo sin hacer.
+
+    La identidad de una oportunidad de codigo muerto es **(fichero, simbolo, forma)**. La linea es
+    donde estaba, no que es — y ademas se mueve con cualquier edicion de mas arriba, lo que habria
+    hecho que la misma oportunidad se viera como nueva en cada vuelta."""
+    semilla = f"{fuente}|{alcance}|{accion}|{distintivo}"
     return "OP-" + hashlib.sha256(semilla.encode("utf-8")).hexdigest()[:12]
 
 
@@ -148,17 +160,79 @@ def _clasificar(directorio, accion: str, alcance) -> tuple[str, str]:
 
 # ============================================================ LAS FUENTES --
 
-def _privadas_sin_uso_en_su_fichero(ruta: pathlib.Path) -> list[tuple[str, int]]:
+#: **Decision declarada.** Los ficheros huerfanos NO se proponen como codigo muerto. En el plano real
+#: hay exactamente uno —`medicion-a11.py`— y no es codigo muerto: es el artefacto que mide el criterio
+#: `A11` contra el binario real, y **por eso** nadie lo importa. Un detector cuya unica instancia real
+#: seria un error convierte una capacidad en un riesgo. Se declara para que quien lo eche en falta
+#: sepa que se miro y se descarto, no que se olvido.
+FICHEROS_NO_SE_PROPONEN_COMO_MUERTOS = True
+
+#: Las formas que toma el codigo muerto. El acta autoriza `eliminar_codigo_muerto`; AURA solo sabia
+#: ver una de ellas, asi que estaba autorizada a algo que hacia en un tercio. Completar la capacidad
+#: **no amplia el perimetro**: misma accion, misma zona.
+FORMAS = ("import", "constante", "clase", "funcion", "metodo")
+
+
+def _usados_en(arbol) -> set:
+    """Los nombres que el fichero usa — **incluidos los que exporta**.
+
+    Un nombre listado en `__all__` esta exportado: `from modulo import *` lo entrega. Pero en el arbol
+    es una **cadena dentro de una lista**, no un `Name`, asi que un detector que busque usos lo ve
+    muerto. Y borrarlo dejaria `__all__` nombrando algo que ya no existe: `import *` fallaria con
+    `AttributeError`, y ninguna prueba lo veria porque nadie hace `import *`. Un fallo latente que la
+    verificacion de efecto daria por bueno."""
+    usados = {n.id for n in ast.walk(arbol) if isinstance(n, ast.Name)}
+    usados |= {n.attr for n in ast.walk(arbol) if isinstance(n, ast.Attribute)}
+    return usados
+
+
+def _muertos_en(ruta: pathlib.Path) -> list[tuple[str, int, str]]:
+    """`(simbolo, linea, forma)` de lo que nadie usa **dentro de su propio fichero**.
+
+    Solo se mira lo **privado** y los imports. Lo publico puede usarse desde fuera del arbol, y
+    borrarlo seria romper una interfaz sin saberlo: el acta habla de codigo muerto, no de codigo que
+    hoy no veo llamar."""
     try:
         arbol = ast.parse(ruta.read_text(encoding="utf-8"))
     except (SyntaxError, OSError):                     # pragma: no cover - fichero no legible
         return []
-    definidas = {n.name: n for n in ast.walk(arbol)
-                 if isinstance(n, ast.FunctionDef) and n.name.startswith("_")
-                 and not n.name.startswith("__")}
-    usadas = {n.id for n in ast.walk(arbol) if isinstance(n, ast.Name)}
-    usadas |= {n.attr for n in ast.walk(arbol) if isinstance(n, ast.Attribute)}
-    return [(nombre, nodo.lineno) for nombre, nodo in definidas.items() if nombre not in usadas]
+    usados = _usados_en(arbol)
+    fuente = ruta.read_text(encoding="utf-8")
+    muertos = []
+
+    for n in arbol.body:
+        if isinstance(n, (ast.Import, ast.ImportFrom)):
+            for a in n.names:
+                nombre = a.asname or a.name.split(".")[0]
+                if nombre != "*" and nombre not in usados:
+                    muertos.append((nombre, n.lineno, "import"))
+        elif isinstance(n, ast.FunctionDef) and n.name.startswith("_") \
+                and not n.name.startswith("__") and n.name not in usados:
+            muertos.append((n.name, n.lineno, "funcion"))
+        elif isinstance(n, ast.ClassDef) and n.name.startswith("_") and n.name not in usados:
+            muertos.append((n.name, n.lineno, "clase"))
+        elif isinstance(n, ast.Assign):
+            for objetivo in n.targets:
+                if not isinstance(objetivo, ast.Name) or not objetivo.id.startswith("_"):
+                    continue
+                apariciones = sum(1 for x in ast.walk(arbol)
+                                  if isinstance(x, ast.Name) and x.id == objetivo.id)
+                if apariciones <= 1:
+                    muertos.append((objetivo.id, n.lineno, "constante"))
+
+    for c in [n for n in arbol.body if isinstance(n, ast.ClassDef)]:
+        cuerpo = ast.unparse(c)
+        for m in [x for x in c.body if isinstance(x, ast.FunctionDef)
+                  and x.name.startswith("_") and not x.name.startswith("__")]:
+            if cuerpo.count(m.name) <= 1 and f"{c.name}.{m.name}" not in fuente:
+                muertos.append((f"{c.name}.{m.name}", m.lineno, "metodo"))
+
+    # **La segunda barrera, en su primer punto de aplicacion.** El detector responde a «parece que
+    # nadie lo usa»; `es_eliminable` responde a «¿es esto eliminable, mire quien lo mire?». Aplicarla
+    # aqui evita que un falso positivo llegue siquiera a proponerse, y no consuma revisor, acta ni una
+    # vuelta del ciclo. La regla vive en un solo sitio: aqui se **consulta**, no se reimplementa.
+    return [(s, ln, forma) for s, ln, forma in muertos
+            if ac.es_eliminable(fuente, s, forma)[0]]
 
 
 def codigo_muerto(raiz: pathlib.Path, directorio) -> list[Oportunidad]:
@@ -179,32 +253,37 @@ def codigo_muerto(raiz: pathlib.Path, directorio) -> list[Oportunidad]:
 
     halladas = []
     for fichero in ficheros:
-        for simbolo, linea in _privadas_sin_uso_en_su_fichero(fichero):
-            usada_fuera = any(simbolo in texto for otro, texto in fuera.items() if otro != fichero)
+        for simbolo, linea, forma in _muertos_en(fichero):
+            # Un `import` solo vive en su fichero: que su nombre aparezca en otro modulo no significa
+            # nada —cada uno tiene los suyos—. Para lo demas, aparecer fuera si es senal de uso.
+            buscado = simbolo.split(".")[-1]
+            usada_fuera = (forma != "import" and
+                           any(buscado in texto for otro, texto in fuera.items() if otro != fichero))
             fuente = f"{fichero}:{linea}"
+            identidad = f"{simbolo}:{forma}"     # lo que la oportunidad ES, no donde esta hoy
             if usada_fuera:
                 halladas.append(Oportunidad(
-                    id=_id_de(fuente, str(fichero), "eliminar_codigo_muerto"),
+                    id=_id_de(str(fichero), str(fichero), "eliminar_codigo_muerto", identidad),
                     fuente=fuente,
-                    justificacion=(f"{simbolo} parece muerta en su fichero pero se usa desde otro "
-                                   f"modulo: borrarla romperia una interfaz sin saberlo"),
+                    justificacion=(f"{simbolo} ({forma}) parece muerta en su fichero pero se usa "
+                                   f"desde otro modulo: borrarla romperia una interfaz sin saberlo"),
                     alcance=str(fichero), accion="eliminar_codigo_muerto", autoridad="NINGUNA",
                     criterio_de_finalizacion={"capacidad": "ejecutar_pruebas"},
                     evidencia_requerida={"tipo": "fichero_existe", "ruta": str(fichero)},
                     riesgo="ninguno", estado=FALSO_HUECO,
-                    detalle={"simbolo": simbolo, "usada_fuera": True}))
+                    detalle={"simbolo": simbolo, "forma": forma, "usada_fuera": True}))
                 continue
             autoridad, clase = _clasificar(directorio, "eliminar_codigo_muerto", fichero)
             halladas.append(Oportunidad(
-                id=_id_de(fuente, str(fichero), "eliminar_codigo_muerto"),
+                id=_id_de(str(fichero), str(fichero), "eliminar_codigo_muerto", identidad),
                 fuente=fuente,
-                justificacion=(f"{simbolo} es una funcion privada que nadie llama, ni en su fichero "
-                               f"ni en el resto del arbol"),
+                justificacion=(f"{simbolo} es {forma} muerto: nadie lo usa, ni en su fichero ni en "
+                               f"el resto del arbol"),
                 alcance=str(fichero), accion="eliminar_codigo_muerto", autoridad=autoridad,
                 criterio_de_finalizacion={"capacidad": "ejecutar_pruebas"},
                 evidencia_requerida={"tipo": "fichero_existe", "ruta": str(fichero)},
                 riesgo="bajo: reversible y verificable releyendo el fichero",
-                estado=clase, detalle={"simbolo": simbolo, "linea": linea}))
+                estado=clase, detalle={"simbolo": simbolo, "forma": forma, "linea": linea}))
     return halladas
 
 
@@ -318,6 +397,14 @@ FUENTES = {
     "eventos_sin_puerta": eventos_sin_puerta,
     "decisiones_pendientes": decisiones_pendientes,
     "bloqueos_registrados": bloqueos_registrados,
+    # Sexta fuente (DP-SELF-EVOLUTION-01 · Fase A): observa el historial y eleva estancamiento como
+    # DECISION_REQUIRED. Solo lectura, inerte mientras el acta no fije K. No requiere tocar el motor:
+    # `descubrir()` recorre este dict, asi que basta con estar aqui.
+    "estancamiento": est.estancamiento,
+    # Septima fuente (DR-A): observa el ENTORNO DE EJECUCION —procesos, puertos en escucha, modelos
+    # locales— leyendo lo que el nucleo ya publica. Ni ejecuta, ni escribe, ni pregunta por red. Su
+    # techo es DECISION_REQUIRED: eleva conocimiento, nunca permiso.
+    "capacidades_del_entorno": ent.entorno,
 }
 
 

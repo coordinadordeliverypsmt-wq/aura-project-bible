@@ -104,16 +104,26 @@ def autoriza(_veredicto) -> bool:
 
 @dataclasses.dataclass(frozen=True)
 class Expediente:
-    """Lo que el revisor necesita, y nada mas. No viaja ninguna credencial."""
+    """Lo que el revisor necesita, y nada mas. No viaja ninguna credencial.
+
+    `DR-F-3a` anade `evidencia`: las citas que **AURA ya localizo y verifico** contra el disco. Es
+    opcional porque el expediente sin ella sigue siendo valido —lo usan `RevisorSubagente` y
+    `RevisorHumano`, que localizan a su manera—, y porque `review_id` deriva de `como_dict()`: si el
+    campo apareciese siempre, cambiarian todos los identificadores ya emitidos y `RevisorHumano`
+    dejaria de reconocer sus propias peticiones."""
     tarea_id: str
     accion: str
     fichero: str
     diagnostico: str
     criterios: dict
+    evidencia: tuple = ()
 
     def como_dict(self) -> dict:
-        return {"tarea_id": self.tarea_id, "accion": self.accion, "fichero": self.fichero,
+        base = {"tarea_id": self.tarea_id, "accion": self.accion, "fichero": self.fichero,
                 "diagnostico": self.diagnostico, "criterios": dict(self.criterios)}
+        if self.evidencia:
+            base["evidencia"] = [dict(cita) for cita in self.evidencia]
+        return base
 
 
 def exige_revision(accion: str) -> bool:
@@ -123,26 +133,69 @@ def exige_revision(accion: str) -> bool:
 # --------------------------------------------------------------- los revisores --
 
 class RevisorSubagente:
-    """Usa los agentes que **ya existen**. `§275`: *«Se usan esos. No se crea un revisor nuevo ni se
-    contrata un proveedor»*."""
+    """Aplica los criterios de `D22` de forma mecanica. `§275` decide **reutilizar** los agentes que
+    ya existen —*«Se usan esos. No se crea un revisor nuevo ni se contrata un proveedor»*— en lugar
+    de construir un revisor propio.
 
-    def __init__(self, nombre: str = "auditor-consistencia") -> None:
+    **No invoca al agente.** Conviene decirlo donde se lee, porque el nombre sugiere lo contrario:
+    este camino no lanza `auditor-consistencia`, aplica su catalogo de criterios. Invocarlo seria
+    **ejecutar**, y un revisor que ejecuta deja de ser un revisor. `disponible()` mira la ficha del
+    agente porque es la senal de que ese catalogo sigue vigente, no de que vaya a llamarse.
+
+    `DR-F-3d-2` reparo la evidencia. Antes citaba `fichero:0` —una linea que no existe en ningun
+    fichero— y `cuenta()` la aceptaba porque solo miraba que la tupla no estuviese vacia. Ahora cada
+    cita se comprueba contra el disco, y **sin evidencia verificable no hay veredicto**: devuelve
+    `None`, que es una espera (`§8.3`), nunca una aprobacion."""
+
+    #: La raiz por defecto: el repositorio que contiene este plano.
+    _RAIZ = pathlib.Path(__file__).resolve().parents[2]
+
+    def __init__(self, nombre: str = "auditor-consistencia", raiz=None) -> None:
         self.nombre = nombre
+        self._raiz = pathlib.Path(raiz) if raiz else self._RAIZ
 
     def disponible(self) -> bool:
         return (pathlib.Path(RAIZ_AGENTES) / f"{self.nombre}.md").exists()
 
-    def revisar(self, expediente: Expediente) -> Veredicto:
+    def _citas(self, expediente: Expediente) -> tuple:
+        """Solo lo que se puede abrir y leer. Una cita que no se sostiene se descarta entera."""
+        import revision_local as _rl   # tardio: `revision_local` importa este modulo
+        verificadas = []
+        for cita in expediente.evidencia or ():
+            actuales = _rl.localizar(self._raiz, cita.get("fichero", ""),
+                                     lineas=(cita.get("linea"),))
+            if actuales and actuales[0]["texto"] == cita.get("texto"):
+                verificadas.append(f"{actuales[0]['fichero']}:{actuales[0]['linea']}")
+        if not expediente.evidencia:
+            # Sin evidencia previa, la unica cita honesta es el propio fichero, si existe.
+            actuales = _rl.localizar(self._raiz, expediente.fichero, lineas=(1,))
+            if actuales:
+                verificadas.append(f"{actuales[0]['fichero']}:1")
+        return tuple(verificadas)
+
+    def revisar(self, expediente: Expediente):
+        citas = self._citas(expediente)
+        #: El rechazo por catalogo va **primero**: es un hecho de la gobernanza, no del disco, y no
+        #: puede depender de que la evidencia se sostenga. Si se comprobase despues, un expediente
+        #: sobre materia reservada con un fichero inexistente saldria como espera en vez de como
+        #: rechazo, y perder esa senal es peor que quedarse sin cita.
         if rv.es_materia_reservada(expediente.accion) or not ac.zona_permitida(expediente.fichero):
             return Veredicto("fuera_de_alcance",
                              (f"{expediente.accion} sobre {expediente.fichero} no es delegable",),
-                             (f"{expediente.fichero}:0",), self.nombre, _ahora())
-        juicio = rv.aplicar_criterios({"accion": expediente.accion, **expediente.criterios})
-        cita = (f"{expediente.fichero}:0", f"criterios D22: {','.join(rv.CRITERIOS_D22)}")
+                             citas, self.nombre, _ahora())
+        if not citas:
+            return None          # sin evidencia verificable no hay veredicto: se espera (`§8.3`)
+        juicio = rv.aplicar_criterios({"accion": expediente.accion, "fichero": expediente.fichero,
+                                       **expediente.criterios})
+        #: El veredicto dice sobre que se pronuncia: `DR-F-3d` encontro que `cumple` mezclaba lo
+        #: comprobado con lo declarado, y quien lo leia no podia distinguirlo.
+        alcance = (f"criterios D22 verificados: {','.join(juicio['verificados'])}",
+                   f"criterios D22 declarados: {','.join(juicio['declarados'])}")
         if juicio["cumple"]:
-            return Veredicto("conforme", (), cita, self.nombre, _ahora())
-        return Veredicto("objeciones", tuple(f"incumple {f} (D22)" for f in juicio["fallos"]),
-                         cita, self.nombre, _ahora())
+            return Veredicto("conforme", alcance, citas, self.nombre, _ahora())
+        return Veredicto("objeciones",
+                         tuple(f"incumple {f} (D22)" for f in juicio["fallos"]) + alcance,
+                         citas, self.nombre, _ahora())
 
 
 class RevisorHumano:
@@ -170,17 +223,47 @@ class RevisorHumano:
 
 
 class RevisorLocal:
-    """Previsto sobre Ollama, **hoy sin capacidad** (`§8.2`). No se finge (INV-9)."""
+    """Sobre un razonador local (`§8.2`). `DR-F-3a`: **clasifica, no investiga**.
+
+    El expediente le llega cerrado, con la evidencia que AURA ya localizo y verifico. Lo unico que
+    aporta el razonador es **una palabra de cuatro**; las citas y los motivos del `Veredicto` los
+    pone AURA. Por eso una cita inventada no hace falta filtrarla: no existe campo por donde entre.
+
+    **Apagado por defecto y sin transporte propio.** `RevisorLocal()` se comporta exactamente como
+    antes de `DR-F-3a` —no disponible, `revisar()` levanta—, asi que la degradacion de `§8.3` se
+    sigue midiendo con este revisor. Y como el transporte se inyecta, este plano no importa nada de
+    red: `A8 · §16` no necesita excepcion. Es el mismo trato que `agentes._EJECUTORES`, que por
+    defecto no ejecuta nada porque fingir capacidad es `INV-9`.
+
+    No autoriza —`Veredicto` no tiene ese campo—, no ejecuta y no esta cableado a
+    `review.ejecutar_bajo_review`. Si no hay juicio sostenible devuelve `None`: eso es una espera,
+    no una aprobacion (`1.1:85`)."""
 
     nombre = "local"
 
-    def disponible(self) -> bool:
-        return False
+    def __init__(self, *, habilitado: bool = False, raiz=None, transporte=None) -> None:
+        self._habilitado = habilitado
+        self._raiz = raiz
+        self._transporte = transporte
 
-    def revisar(self, _expediente: Expediente) -> Veredicto:
-        raise RevisorSinCapacidad(
-            "el revisor local esta previsto pero hoy no tiene capacidad; devolver un veredicto "
-            "inventado seria fingir una capacidad no construida (INV-9)")
+    def disponible(self) -> bool:
+        """Hace falta las tres cosas: permiso explicito, transporte inyectado y una raiz contra la
+        que volver a comprobar la evidencia. Cualquier duda es `False`."""
+        return bool(self._habilitado and self._transporte is not None and self._raiz is not None)
+
+    def revisar(self, expediente: Expediente):
+        if not self.disponible():
+            raise RevisorSinCapacidad(
+                "el revisor local esta construido pero no habilitado, o no se le ha inyectado un "
+                "transporte; devolver un veredicto inventado seria fingir capacidad (INV-9)")
+        import revision_local as _rl   # tardio: `revision_local` importa este modulo (evita el ciclo)
+        if not _rl.vigente(expediente, self._raiz):
+            return None              # la evidencia ya no dice lo que decia: se espera, no se aprueba
+        veredicto = _rl.clasificar(expediente, self._transporte)
+        if veredicto is None:
+            return None
+        return Veredicto(veredicto, _rl.motivos(expediente, veredicto), _rl.citas(expediente),
+                         self.nombre, _ahora())
 
 
 class RevisorExterno:

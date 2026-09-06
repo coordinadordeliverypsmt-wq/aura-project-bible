@@ -46,6 +46,17 @@ def id_de_tarea(oportunidad) -> str:
     return "TA-" + hashlib.sha256(oportunidad.id.encode("utf-8")).hexdigest()[:12]
 
 
+#: Las decisiones que **de verdad** aplican a borrar codigo muerto en el plano de desarrollo, y que
+#: el revisor puede comprobar por si mismo. Ni una mas: enumerar decisiones que no aplican es tan
+#: falso como declarar que se respetan todas.
+DECISIONES_DE_CODIGO_MUERTO = (
+    "D22-materia-reservada",
+    "D22-alcance-delegable",
+    "separacion-de-planos",
+    "gobernanza-intocable",
+)
+
+
 def a_tarea(oportunidad) -> dict | None:
     """La tarea, o `None` si la oportunidad no es ejecutable.
 
@@ -60,18 +71,24 @@ def a_tarea(oportunidad) -> dict | None:
         "accion": oportunidad.accion,
         "fichero": oportunidad.alcance,
         "simbolo": oportunidad.detalle.get("simbolo", ""),
+        # La **forma** del simbolo viaja con la tarea: sin ella el ejecutor solo sabria borrar
+        # funciones, que es lo unico que sabia antes de completar la capacidad.
+        "forma": oportunidad.detalle.get("forma", "funcion"),
         "objetivo": oportunidad.justificacion,
         "criterio_de_finalizacion": dict(oportunidad.criterio_de_finalizacion),
         "evidencia_requerida": dict(oportunidad.evidencia_requerida),
         "riesgo": oportunidad.riesgo,
-        # Los cuatro criterios de D22 viajan con la tarea porque el revisor los necesita para
-        # juzgarla. Se declaran aqui y no se deducen en la ejecucion: `INV-7`, el plan se interpreta
-        # en un solo punto.
-        "cambia_alcance": False,
-        "respeta_decisiones": True,
-        "d21_afirmativas": True,
-        "reversible": True,
-        "materia_reservada": False,
+        # `DR-F-3d-4` (`A3`). Antes viajaban aqui cinco **constantes literales** —`cambia_alcance:
+        # False`, `respeta_decisiones: True`, `d21_afirmativas: True`...— y el revisor las leia como
+        # si fueran comprobaciones: sobre cualquier tarea real el juicio salia `cumple: True`. No
+        # eran criterios, eran una firma en blanco.
+        #
+        # Ya no hacen falta. `alcance` y `materia_reservada` los deriva el revisor de sus propias
+        # fuentes (`TODO_LO_DELEGABLE`, `_MATERIA_RESERVADA`), y `D21` no se le exige a una tarea
+        # tecnica acotada (`B2`). Lo unico que el proponente sigue aportando es lo que solo el sabe:
+        # **que decisiones aplican a este cambio**, enumeradas, para que el revisor verifique las
+        # que tengan fuente objetiva y marque el resto. Es el patron de `5.3:113`.
+        "decisiones_aplicables": DECISIONES_DE_CODIGO_MUERTO,
     }
 
 

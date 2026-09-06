@@ -1,0 +1,69 @@
+incremento = "DR-E · representacion generica Oportunidad -> Propuesta (2026-09-05)"
+# La garantia de DR-E no es «producir una propuesta»: es producirla SIN inventar lo que nadie ha
+# pensado. Cada mutante abre una via para rellenar un hueco de juicio con un default plausible,
+# autorizar sola, ascender una accion HUMAN, o confundir un hecho con un desconocimiento.
+pruebas = ["test_red_propuesta.py"]
+timeout_s = 120
+
+[[mutante]]
+id = "DE-M1"
+descripcion = "se inventa el riesgo: un hueco de juicio trae un default plausible («bajo»)"
+fichero = "propuesta.py"
+buscar = '''        "requiere_juicio_humano": {campo: REQUIERE_REVISION_HUMANA for campo in CAMPOS_DE_JUICIO},'''
+sustituir = '''        "requiere_juicio_humano": {campo: ("bajo" if campo == "riesgo_de_actuar" else REQUIERE_REVISION_HUMANA) for campo in CAMPOS_DE_JUICIO},'''
+
+[[mutante]]
+id = "DE-M2"
+descripcion = "la propuesta nace AUTORIZADA: el silencio aprobaria (1.1:85)"
+fichero = "propuesta.py"
+buscar = '''        "autorizada": False,'''
+sustituir = '''        "autorizada": True,'''
+
+[[mutante]]
+id = "DE-M3"
+descripcion = "una accion HUMAN se representa como AUTO: la propuesta se concede autoridad"
+fichero = "propuesta.py"
+buscar = '''        "nivel_de_autorizacion": orq.nivel_de(oportunidad.accion),'''
+sustituir = '''        "nivel_de_autorizacion": "AUTO",'''
+
+[[mutante]]
+id = "DE-M4"
+descripcion = "fail-closed roto: cualquier cosa se representa «lo mejor que se pueda»"
+fichero = "propuesta.py"
+buscar = '''    if not isinstance(oportunidad, des.Oportunidad):'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "DE-M5"
+descripcion = "el limite se invierte: lo no ejecutable se declara ejecutable hoy"
+fichero = "propuesta.py"
+buscar = '''            "es_ejecutable_hoy": plan.a_tarea(oportunidad) is not None,'''
+sustituir = '''            "es_ejecutable_hoy": plan.a_tarea(oportunidad) is None,'''
+
+[[mutante]]
+id = "DE-M6"
+descripcion = "la justificacion se reescribe en vez de transcribirse: eso ya es interpretar"
+fichero = "propuesta.py"
+buscar = '''        "justificacion": oportunidad.justificacion,'''
+sustituir = '''        "justificacion": f"conviene revisar {oportunidad.accion}",'''
+
+[[mutante]]
+id = "DE-M7"
+descripcion = "un objeto ausente se marca como hueco de juicio: se confunde un hecho con un no-se"
+fichero = "propuesta.py"
+buscar = '''    return presentes or None'''
+sustituir = '''    return presentes or REQUIERE_REVISION_HUMANA'''
+
+[[mutante]]
+id = "DE-M8"
+descripcion = "deja de marcarse un campo de juicio: la decision ya no exige revision humana"
+fichero = "propuesta.py"
+buscar = '''CAMPOS_DE_JUICIO = ("riesgo_de_actuar", "criterio_de_rollback", "pruebas_necesarias", "decision")'''
+sustituir = '''CAMPOS_DE_JUICIO = ("riesgo_de_actuar", "criterio_de_rollback", "pruebas_necesarias")'''
+
+[[mutante]]
+id = "DE-M9"
+descripcion = "el riesgo declarado por la fuente se presenta como riesgo evaluado de actuar"
+fichero = "propuesta.py"
+buscar = '''            "riesgo_declarado_por_la_fuente": oportunidad.riesgo,'''
+sustituir = '''            "riesgo_de_actuar": oportunidad.riesgo,'''

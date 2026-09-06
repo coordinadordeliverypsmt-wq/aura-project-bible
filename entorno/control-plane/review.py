@@ -139,21 +139,183 @@ def es_materia_reservada(accion: str) -> bool:
     return accion in _MATERIA_RESERVADA
 
 
+# ------------------------------------- A3 · las decisiones aplicables, enumeradas --
+#
+# `DR-F-3d-3` demostro que **no existe** fuente de verdad para *«respeta todas las decisiones
+# previas»*: `adr/` y `decisiones/` solo aparecen en el codigo como zona prohibida de escritura, no
+# hay indice consultable, y los *«principios»* que `D22` menciona no estan enumerados en ninguna
+# parte. El CEO aprobo `A3`: quien propone **enumera que decisiones aplican a este cambio**, como
+# hizo el CTO en `5.3:113` acreditando consistencia contra *«ADR-0001/0004, guardrails de 2.4,
+# permisos D4/D9 y P-ARQ»* — una lista concreta, no el universo entero.
+#
+# Aqui no se interpreta ningun Markdown. Una decision se **verifica** solo si ya existe una funcion
+# que la comprueba; si existe como documento pero es prosa, se **marca**; y si no existe, **falla**:
+# citar una autoridad inexistente es peor que no citar ninguna.
+
+VERIFICADO = "VERIFICADO"
+INCUMPLIDA = "INCUMPLIDA"
+#: Mismo literal que `propuesta.REQUIERE_REVISION_HUMANA` (`DR-E`): un solo vocabulario para «esto
+#: no lo decide una maquina».
+REQUIERE_REVISION_HUMANA = "REQUIERE_REVISION_HUMANA"
+NO_APLICA = "NO_APLICA"
+
+#: La raiz del repositorio, para comprobar que una decision citada **existe** de verdad.
+RAIZ_GOBERNANZA = pathlib.Path(__file__).resolve().parents[2]
+
+#: Las decisiones que **ya** tienen una comprobacion ejecutable. Ninguna es nueva: todas estaban
+#: codificadas antes de `DR-F-3d-4`, solo que nadie podia nombrarlas al pedir una revision.
+_COMPROBACIONES = {
+    "D22-materia-reservada":
+        lambda t: not es_materia_reservada(t.get("accion", "")),
+    "D22-alcance-delegable":
+        lambda t: t.get("accion", "") in TODO_LO_DELEGABLE,
+    "ADR-0003-review-no-habilitado":
+        lambda _t: REVIEW_HABILITADO is False,
+    "separacion-de-planos":
+        lambda t: not (set(pathlib.Path(t.get("fichero", "")).parts) & ac._DIRS_PRODUCTO),
+    "gobernanza-intocable":
+        lambda t: not (set(pathlib.Path(t.get("fichero", "")).parts) & ac._DIRS_GOBERNANZA),
+}
+
+
+def _documento_existe(nombre: str, raiz) -> bool:
+    """Si la decision citada **esta** en el repositorio. Solo lectura, y sin interpretar el texto.
+
+    Dos formas, las dos que el proyecto usa: `ADR-00NN` es un fichero de `adr/`, y `D<n>` es un
+    epigrafe `## D<n>` dentro de un acta. Nombrar algo que no esta en ninguna de las dos no es una
+    decision: es una cita inventada."""
+    raiz = pathlib.Path(raiz)
+    nombre = nombre.strip()
+    if nombre.upper().startswith("ADR-"):
+        numero = nombre[4:].split("-")[0]
+        return any((raiz / "adr").glob(f"{numero}-*.md"))
+    if len(nombre) > 1 and nombre[0].upper() == "D" and nombre[1:].isdigit():
+        cabecera = f"## {nombre.upper()} "
+        for acta in (raiz / "decisiones").glob("*.md"):
+            try:
+                if cabecera in acta.read_text(encoding="utf-8", errors="replace"):
+                    return True
+            except OSError:
+                continue
+    return False
+
+
+def evaluar_decisiones(decisiones, tarea: dict, *, raiz=None) -> dict:
+    """Cada decision citada, con su estado. **Fail-closed por defecto.**
+
+    `VERIFICADO`/`INCUMPLIDA` cuando hay funcion que lo comprueba · `REQUIERE_REVISION_HUMANA`
+    cuando el documento existe pero es prosa · `INCUMPLIDA` cuando la referencia no lleva a ningun
+    sitio. Una decision verificada **no legitima** a las demas: se evaluan una por una."""
+    raiz = RAIZ_GOBERNANZA if raiz is None else raiz
+    resultado = {}
+    for nombre in decisiones or ():
+        if not isinstance(nombre, str) or not nombre.strip():
+            continue
+        comprobacion = _COMPROBACIONES.get(nombre)
+        if comprobacion is not None:
+            try:
+                resultado[nombre] = VERIFICADO if comprobacion(tarea) else INCUMPLIDA
+            except Exception:            # noqa: BLE001 — una comprobacion que revienta no aprueba
+                resultado[nombre] = INCUMPLIDA
+        elif _documento_existe(nombre, raiz):
+            resultado[nombre] = REQUIERE_REVISION_HUMANA
+        else:
+            resultado[nombre] = INCUMPLIDA
+    return resultado
+
+
+def es_tarea_tecnica_acotada(tarea: dict, *, directorio=None) -> bool:
+    """`B2`. **True solo si puede demostrarse**; lo que no se demuestra acotado, no lo es.
+
+    La fuente no se inventa: `TODO_LO_DELEGABLE` esta definido en este mismo modulo como *«acciones
+    tecnicas, reversibles y del plano de desarrollo»*, que son exactamente las tres propiedades que
+    `B2` exige. `permissions.CATALOGO` dice lo mismo por reversibilidad, pero vive en el plano
+    PRODUCTO y este plano no lo importa.
+
+    No amplia autoridad: una tarea acotada sigue sometida a alcance, materia reservada, zona y
+    permisos. Lo unico que cambia es que **no se le exige el gate de las cinco preguntas**, que `D21`
+    y `D22` escribieron para capitulos y decisiones estrategicas."""
+    accion = tarea.get("accion", "")
+    if es_materia_reservada(accion):
+        return False
+    if accion not in TODO_LO_DELEGABLE:
+        return False
+    if directorio is not None and not en_alcance(directorio, accion):
+        return False
+    return True
+
+
 # ------------------------------------------------- los criterios de D22, aplicados --
 
-def aplicar_criterios(tarea: dict) -> dict:
+def aplicar_criterios(tarea: dict, *, directorio=None, raiz=None) -> dict:
     """Los cuatro se comprueban. Basta que uno falle para que no cumpla, y el juicio **dice cual**:
-    un rechazo sin motivo no es revisable."""
-    fallos = []
-    if tarea.get("cambia_alcance"):
+    un rechazo sin motivo no es revisable.
+
+    `DR-F-3d-2`. Antes los cuatro se leian del **propio dict de la tarea**, y `planificador.a_tarea`
+    los escribia como constantes literales: sobre cualquier tarea real esto devolvia `cumple: True`
+    salvo materia reservada. El revisor no comprobaba, **transcribia**.
+
+    Ahora cada criterio se mide contra la fuente de verdad que ya existe —`TODO_LO_DELEGABLE` o el
+    acta registrada para el alcance, `zona_permitida` para la consistencia, `_MATERIA_RESERVADA` para
+    lo reservado— y la bandera del proponente **solo puede anadir fallos, nunca quitarlos**. Una
+    declaracion pesimista se respeta; una optimista no sobreescribe una comprobacion objetiva.
+
+    `D21` son cinco preguntas cualitativas de largo plazo —*«¿escala durante los proximos 10 anos?»*—
+    y **ninguna funcion puede responderlas**. No se finge que se comprueban: el resultado distingue
+    `verificados` de `declarados`, para que nadie vuelva a confundir lo uno con lo otro."""
+    accion = tarea.get("accion", "")
+    fallos, verificados, declarados, no_aplica = [], [], [], []
+
+    # -- alcance: contra el acta si la hay, y si no contra lo maximo que un acta podria delegar.
+    if directorio is not None:
+        verificados.append("alcance")
+        if not en_alcance(directorio, accion):
+            fallos.append("alcance")
+    elif accion in TODO_LO_DELEGABLE:
+        verificados.append("alcance")
+    else:
+        verificados.append("alcance")
         fallos.append("alcance")
-    if not tarea.get("respeta_decisiones"):
+    if tarea.get("cambia_alcance") and "alcance" not in fallos:
+        fallos.append("alcance")
+
+    # -- consistencia (`A3`): contra la **lista enumerada** de decisiones aplicables. Se verifica
+    #    solo si TODAS las citadas tienen fuente objetiva y la superan; una sola que exija juicio
+    #    humano deja el criterio en «declarado», y una referencia invalida lo hace fallar. Sin lista,
+    #    se conserva el comportamiento anterior: declarado, y la bandera solo puede anadir fallos.
+    decisiones = evaluar_decisiones(tarea.get("decisiones_aplicables"), tarea, raiz=raiz)
+    if decisiones:
+        if any(estado == INCUMPLIDA for estado in decisiones.values()):
+            fallos.append("consistencia")
+            declarados.append("consistencia")
+        elif all(estado == VERIFICADO for estado in decisiones.values()):
+            verificados.append("consistencia")
+        else:
+            declarados.append("consistencia")
+    else:
+        declarados.append("consistencia")
+    if not tarea.get("respeta_decisiones", True) and "consistencia" not in fallos:
         fallos.append("consistencia")
-    if not tarea.get("d21_afirmativas"):
-        fallos.append("cinco_preguntas_d21")
-    if tarea.get("materia_reservada") or es_materia_reservada(tarea.get("accion", "")):
+
+    # -- D21 (`B2`): las cinco preguntas siguen siendo el gate de las decisiones estrategicas. Una
+    #    tarea tecnica acotada dentro de un alcance ya aprobado **no las exige** —`D21` y `D22` se
+    #    escribieron para capitulos, y asi se han aplicado siempre (`2.5`, `5.3`, `5.6`)—. Lo que no
+    #    puede demostrarse acotado, no lo es: la clasificacion no se presume.
+    if es_tarea_tecnica_acotada(tarea, directorio=directorio):
+        no_aplica.append("cinco_preguntas_d21")
+    else:
+        declarados.append("cinco_preguntas_d21")
+        if not tarea.get("d21_afirmativas"):
+            fallos.append("cinco_preguntas_d21")
+
+    # -- materia reservada: ya era objetivo antes, y sigue siendolo.
+    verificados.append("materia_reservada")
+    if tarea.get("materia_reservada") or es_materia_reservada(accion):
         fallos.append("materia_reservada")
-    return {"cumple": not fallos, "fallos": tuple(fallos), "criterios": CRITERIOS_D22}
+
+    return {"cumple": not fallos, "fallos": tuple(fallos), "criterios": CRITERIOS_D22,
+            "verificados": tuple(verificados), "declarados": tuple(declarados),
+            "no_aplica": tuple(no_aplica), "decisiones": decisiones}
 
 
 def revisores_capaces() -> tuple[str, ...]:
@@ -236,6 +398,7 @@ def ejecutar_bajo_review(directorio, tarea: dict, propuesto_por: str, autoridad:
     # La ejecucion reutiliza la maquinaria ya probada: misma reversibilidad, misma verificacion de
     # efecto releyendo el fichero, mismas zonas prohibidas.
     propuesta = ac.proponer(directorio, {"simbolo": tarea["simbolo"], "fichero": tarea["fichero"],
+                                         "forma": tarea.get("forma", "funcion"),
                                          "motivo": f"{accion} bajo REVIEW"})
     cp.registrar_evento(directorio, "propuesta_autorizada",
                         {"id": propuesta["id"], "autorizada_por": f"REVIEW:{revisor}",

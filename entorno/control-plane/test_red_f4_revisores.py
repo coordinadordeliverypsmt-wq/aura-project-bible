@@ -57,7 +57,7 @@ def test_SIN_CITA_no_cuenta():
     sin_cita = rev.Veredicto(veredicto="conforme", motivos=(), evidencia_citada=(),
                              revisor="r", instante="2026-08-26T00:00:00")
     assert rev.cuenta(sin_cita) is False
-    con_cita = rev.Veredicto(veredicto="conforme", motivos=(), evidencia_citada=("entorno/control-plane/m.py:12",),
+    con_cita = rev.Veredicto(veredicto="conforme", motivos=(), evidencia_citada=("entorno/control-plane/review.py:12",),
                              revisor="r", instante="2026-08-26T00:00:00")
     assert rev.cuenta(con_cita) is True
 
@@ -79,7 +79,7 @@ def test_ningun_veredicto_AUTORIZA():
 
 
 def test_el_expediente_lleva_lo_que_el_revisor_necesita_y_nada_mas():
-    e = rev.Expediente(tarea_id="T-1", accion="eliminar_codigo_muerto", fichero="entorno/control-plane/m.py",
+    e = rev.Expediente(tarea_id="T-1", accion="eliminar_codigo_muerto", fichero="entorno/control-plane/review.py",
                        diagnostico="codigo muerto", criterios={"cambia_alcance": False})
     assert e.tarea_id == "T-1"
     import json
@@ -102,14 +102,14 @@ def test_los_cuatro_revisores_previstos_existen_con_su_estado():
 
 def test_el_revisor_EXTERNO_esta_bloqueado_y_lanza_si_se_le_invoca():
     """`§25.1` sin resolver y D24 sin enmendar. Que exista la clase no es que pueda usarse."""
-    e = rev.Expediente("T", "eliminar_codigo_muerto", "entorno/control-plane/m.py", "x", {})
+    e = rev.Expediente("T", "eliminar_codigo_muerto", "entorno/control-plane/review.py", "x", {})
     with pytest.raises(rev.RevisorBloqueado, match="D24|25.1"):
         rev.RevisorExterno().revisar(e)
 
 
 def test_el_revisor_LOCAL_no_finge_capacidad():
     """INV-9. El DP lo prevé «sin capacidad»; devolver un veredicto inventado sería fingirla."""
-    e = rev.Expediente("T", "eliminar_codigo_muerto", "entorno/control-plane/m.py", "x", {})
+    e = rev.Expediente("T", "eliminar_codigo_muerto", "entorno/control-plane/review.py", "x", {})
     with pytest.raises(rev.RevisorSinCapacidad):
         rev.RevisorLocal().revisar(e)
 
@@ -122,7 +122,7 @@ def test_el_RevisorSubagente_usa_los_agentes_que_YA_existen():
 
 def test_el_RevisorSubagente_emite_veredicto_CON_evidencia_citada():
     r = rev.RevisorSubagente()
-    e = rev.Expediente("T-1", "eliminar_codigo_muerto", "entorno/control-plane/m.py", "codigo muerto",
+    e = rev.Expediente("T-1", "eliminar_codigo_muerto", "entorno/control-plane/review.py", "codigo muerto",
                        {"cambia_alcance": False, "respeta_decisiones": True,
                         "d21_afirmativas": True, "materia_reservada": False})
     v = r.revisar(e)
@@ -133,7 +133,7 @@ def test_el_RevisorSubagente_emite_veredicto_CON_evidencia_citada():
 
 def test_el_RevisorSubagente_OBJETA_cuando_un_criterio_falla():
     r = rev.RevisorSubagente()
-    e = rev.Expediente("T-1", "eliminar_codigo_muerto", "entorno/control-plane/m.py", "x",
+    e = rev.Expediente("T-1", "eliminar_codigo_muerto", "entorno/control-plane/review.py", "x",
                        {"cambia_alcance": True, "respeta_decisiones": True,
                         "d21_afirmativas": True, "materia_reservada": False})
     v = r.revisar(e)
@@ -154,7 +154,7 @@ def test_el_RevisorHumano_deja_la_peticion_en_un_BUZON_y_no_responde_solo(tmp_pa
     veredicto, produce una espera."""
     d = pathlib.Path(tmp_path)
     r = rev.RevisorHumano(directorio=d)
-    e = rev.Expediente("T-1", "eliminar_codigo_muerto", "entorno/control-plane/m.py", "x", {})
+    e = rev.Expediente("T-1", "eliminar_codigo_muerto", "entorno/control-plane/review.py", "x", {})
     assert r.revisar(e) is None, "sin respuesta humana todavía no hay veredicto"
     pendientes = rev.buzon_pendientes(d)
     assert [p["tarea_id"] for p in pendientes] == ["T-1"]
@@ -163,20 +163,20 @@ def test_el_RevisorHumano_deja_la_peticion_en_un_BUZON_y_no_responde_solo(tmp_pa
 def test_el_buzon_solo_lo_responde_un_HUMANO(tmp_path):
     d = pathlib.Path(tmp_path)
     r = rev.RevisorHumano(directorio=d)
-    r.revisar(rev.Expediente("T-1", "eliminar_codigo_muerto", "entorno/control-plane/m.py", "x", {}))
+    r.revisar(rev.Expediente("T-1", "eliminar_codigo_muerto", "entorno/control-plane/review.py", "x", {}))
     for no_humano in ("aura", "orquestador", "auditor-consistencia"):
         with pytest.raises(rev.RevisorNoHumano):
             rev.responder_buzon(d, "T-1", veredicto="conforme", por=no_humano,
-                               evidencia_citada=("entorno/control-plane/m.py:1",))
+                               evidencia_citada=("entorno/control-plane/review.py:1",))
     v = rev.responder_buzon(d, "T-1", veredicto="conforme", por="ceo",
-                            evidencia_citada=("entorno/control-plane/m.py:1",))
+                            evidencia_citada=("entorno/control-plane/review.py:1",))
     assert v.revisor == "ceo" and rev.cuenta(v) is True
     assert rev.buzon_pendientes(d) == []
 
 
 def test_una_respuesta_del_buzon_SIN_cita_no_cuenta(tmp_path):
     d = pathlib.Path(tmp_path)
-    rev.RevisorHumano(directorio=d).revisar(rev.Expediente("T-1", "eliminar_codigo_muerto", "entorno/control-plane/m.py", "x", {}))
+    rev.RevisorHumano(directorio=d).revisar(rev.Expediente("T-1", "eliminar_codigo_muerto", "entorno/control-plane/review.py", "x", {}))
     with pytest.raises(ValueError, match="cita|evidencia"):
         rev.responder_buzon(d, "T-1", veredicto="conforme", por="ceo", evidencia_citada=())
 
@@ -189,7 +189,7 @@ def test_sin_revisor_la_tarea_ESPERA_en_WAITING_FOR_REVIEW(tmp_path):
     d = pathlib.Path(tmp_path)
     cp.registrar_evento(d, "tarea_registrada", {"id": "T-1", "accion": "eliminar_codigo_muerto"})
     cp.transicion(d, "T-1", "WORKING", autoridad="orquestador", causa="empieza")
-    resultado = rev.pedir_revision(d, rev.Expediente("T-1", "eliminar_codigo_muerto", "entorno/control-plane/m.py", "x", {}),
+    resultado = rev.pedir_revision(d, rev.Expediente("T-1", "eliminar_codigo_muerto", "entorno/control-plane/review.py", "x", {}),
                                    revisores=[rev.RevisorLocal(), rev.RevisorExterno()],
                                    autoridad="orquestador")
     assert resultado["veredicto"] is None
@@ -202,7 +202,7 @@ def test_sin_revisor_JAMAS_se_autoaprueba(tmp_path):
     d = pathlib.Path(tmp_path)
     cp.registrar_evento(d, "tarea_registrada", {"id": "T-1", "accion": "eliminar_codigo_muerto"})
     cp.transicion(d, "T-1", "WORKING", autoridad="orquestador", causa="empieza")
-    resultado = rev.pedir_revision(d, rev.Expediente("T-1", "eliminar_codigo_muerto", "entorno/control-plane/m.py", "x", {}),
+    resultado = rev.pedir_revision(d, rev.Expediente("T-1", "eliminar_codigo_muerto", "entorno/control-plane/review.py", "x", {}),
                                    revisores=[rev.RevisorLocal(), rev.RevisorExterno()],
                                    autoridad="orquestador")
     assert resultado["veredicto"] is None
@@ -222,7 +222,7 @@ def test_se_usa_el_PRIMER_revisor_disponible_de_la_cadena(tmp_path):
     cp.registrar_evento(d, "tarea_registrada", {"id": "T-1", "accion": "eliminar_codigo_muerto"})
     cp.transicion(d, "T-1", "WORKING", autoridad="orquestador", causa="empieza")
     resultado = rev.pedir_revision(
-        d, rev.Expediente("T-1", "eliminar_codigo_muerto", "entorno/control-plane/m.py", "x",
+        d, rev.Expediente("T-1", "eliminar_codigo_muerto", "entorno/control-plane/review.py", "x",
                           {"cambia_alcance": False, "respeta_decisiones": True,
                            "d21_afirmativas": True, "materia_reservada": False}),
         revisores=[rev.RevisorLocal(), rev.RevisorExterno(), rev.RevisorSubagente()],
@@ -249,7 +249,7 @@ def test_un_revisor_que_emite_SIN_CITA_es_saltado_y_se_busca_otro(tmp_path):
         def revisar(self, _e):
             return rev.Veredicto("conforme", (), (), self.nombre, "2026-08-26T00:00:00")
 
-    expediente = rev.Expediente("T-1", "eliminar_codigo_muerto", "entorno/control-plane/m.py", "x",
+    expediente = rev.Expediente("T-1", "eliminar_codigo_muerto", "entorno/control-plane/review.py", "x",
                                 {"cambia_alcance": False, "respeta_decisiones": True,
                                  "d21_afirmativas": True, "materia_reservada": False})
 

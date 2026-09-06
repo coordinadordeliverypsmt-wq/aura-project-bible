@@ -3979,3 +3979,1302 @@ siguiente entrará a las 21:30. No hay procesos residentes: cada ciclo arranca, 
   `main` intacto, cron sobre el worktree).
 - **Siguiente trabajo autorizado: ninguno.** Lo será en cuanto un acta abra perímetro; el siguiente
   despertar lo tomará solo, sin que nadie se lo entregue.
+
+---
+
+## 10.tresetvicies · AUTONOMÍA DE EJECUCIÓN — AURA hizo trabajo real sola (2026-08-31)
+
+### El diagnóstico primero
+
+El perímetro estaba vacío, y **no por falta de trabajo sino por falta de vista**: el acta autoriza
+`eliminar_codigo_muerto`, y AURA solo sabía ver y borrar **una** de las formas que toma.
+
+| Forma | ¿La veía? |
+|---|---|
+| función privada sin uso | **sí** |
+| import sin usar · constante privada · clase privada · método privado | **no** |
+
+Completar eso **no amplía el perímetro**: misma acción, misma zona. Ampliar el perímetro exige acta;
+completar una capacidad ya autorizada, no.
+
+### Lo que hizo Claude
+
+Detector de las cinco formas · borrado por **`ast`** en vez de expresión regular —lo que el parser
+dice que ocupa el nodo, ni una línea más— · la `forma` viajando por toda la cadena · comprobante de
+efecto releyendo el árbol · **21 pruebas**, **20 mutantes**.
+
+### Lo que hizo AURA, sola
+
+Por su propio punto de entrada, en entorno de `cron` limpio:
+
+```
+descubiertas=8 · ejecutadas=1 · vueltas=2 · actos_humanos=0 · cola agotada
+```
+
+Y la cadena entera consta en el historial:
+
+```
+descubrimiento_realizado → tarea_planificada → veredicto_emitido
+→ propuesta_registrada → propuesta_autorizada → cambio_aplicado (efecto_verificado=True)
+→ descubrimiento_realizado → ciclo_detenido → aura_despertada
+```
+
+Borró `_quitar_funcion` de `autoconstruccion.py` — el resto de compatibilidad que yo mismo había
+dejado muerto. **Efecto real en disco, fichero sigue compilando, 595 pruebas en verde.**
+
+### Tres falsos positivos míos, destapados por AURA en producción
+
+Antes de la corrección, AURA borró `from __future__ import annotations` de **tres ficheros**. Hizo
+exactamente lo que se le pidió; **el fallo era del detector**:
+
+1. **`__future__` es una directiva del compilador.** Su uso no aparece jamás en el árbol.
+2. **Lo exportado en `__all__` se usa.** Borrarlo dejaría `import *` roto con `AttributeError`, y
+   ninguna prueba lo vería porque nadie hace `import *`. **Fallo latente que la verificación daría
+   por bueno.**
+3. **Los `__dunder__` no son constantes privadas.** `__all__` llegó a señalarse a sí mismo.
+
+Las tres líneas fueron restauradas y los tres casos están cerrados con prueba y mutante.
+
+**La lección, y es la que importa:** *la verificación de efecto comprueba que el símbolo desapareció,
+no que debiera desaparecer*. Contra un falso positivo del detector, la verificación **no protege**.
+
+### Lo que deliberadamente no se detecta
+
+**Ficheros huérfanos.** El único real es `medicion-a11.py`, que no es código muerto sino la evidencia
+del criterio `A11` —y por eso nadie lo importa—. Un detector cuya única instancia real sería un error
+convierte una capacidad en un riesgo.
+
+### Un susto operativo, y su regla
+
+El arnés de `f4-revisores` se cortó por un límite de tiempo **con un fichero mutado**, y `revisores.py`
+quedó con `if True:` en lugar de `if juicio["cumple"]:`. Lo delató la batería (1 fallo) antes que
+ninguna otra cosa. Restaurado y verificado idéntico al commit. Es exactamente lo que `CLAUDE.md`
+advierte: **si el proceso muere con el árbol mutado, el árbol se queda mutado.**
+
+### Verificación
+
+**595 passed** (antes 574) · 180/5 · 20 · `ruff` PASS · **273 mutantes en 14 arneses, 0
+supervivientes, 0 `NO_APLICADO`, 0 ambiguos** · Quality Gate **FAIL 5/1139/3 = baseline** ·
+gobernanza 0 cambios · producto 0 tocados · **0 push**.
+
+### Estado
+
+**`NO_HAY_TRABAJO_AUTORIZADO`** — 0 ejecutables · 6 bloqueadas · 2 elevadas. El perímetro quedó limpio
+**porque AURA lo limpió**. Ambas dimensiones —acción y zona— están agotadas; abrir más exige acta.
+
+---
+
+## 10.quattuoretvicies · SEGUNDA BARRERA — el detector propone, otra cosa decide (2026-08-31)
+
+### Por qué hacía falta
+
+AURA ejecutó tres falsos positivos en producción e hizo **exactamente lo que se le pidió**. Lo que
+aquello destapó es mayor que los tres nombres:
+
+> **La verificación de efecto comprueba que el símbolo desapareció, no que debiera desaparecer.**
+
+Contra un falso positivo del detector, el revisor, el acta, la verificación y la reversión **no
+protegen**: todos dan por buena la premisa. El único punto que puede refutarla es uno que vuelva a
+mirar el árbol y pregunte **otra cosa**.
+
+### Lo construido
+
+`autoconstruccion.es_eliminable(fuente, simbolo, forma) -> (puede, motivo)`, con cinco comprobaciones:
+
+| # | Comprueba | Por qué |
+|---|---|---|
+| 1 | `__dunder__` | protocolo del lenguaje — **por la propiedad**, no por una lista de tres nombres |
+| 2 | `__future__` | directiva del compilador: su efecto no es un uso contable |
+| 3 | `__all__` | el módulo lo exporta aunque nadie lo llame aquí dentro |
+| 4 | existe | fail-closed: borrar «aproximadamente» es peor que no borrar |
+| 5 | **compila al quitarlo** | la única que protege de errores **aún no cometidos** |
+
+**Una sola regla, dos puntos de aplicación:** la consultan el **descubridor** —para que un falso
+positivo no llegue ni a proponerse, ni consuma revisor ni una vuelta del ciclo— y el **ejecutor**
+—porque por ahí pasa cualquier ruta: `ALERTA-005` aplicada al contenido en vez de al estado—.
+
+### Un defecto grave encontrado de paso
+
+**El id de la oportunidad se derivaba de `fichero:línea`.** Al borrar un símbolo, el siguiente
+**ocupa la línea liberada**, hereda su id, y el antiduplicados lo suprime: **AURA perdía trabajo real
+en silencio** e informaba «cola agotada» habiendo dejado algo sin hacer.
+
+Lo delató una prueba intermitente — que es la forma que tienen estos fallos de avisar. La identidad de
+una oportunidad es **(fichero, símbolo, forma)**; la línea es dónde estaba, no qué es.
+
+### Y la regla escrita dos veces, otra vez
+
+`__future__` quedó en la barrera **y** en el borrador; cada guardia tapaba al otro, así que un mutante
+sobrevivía **sin que faltara ninguna prueba**. Ahora `quitar_simbolo` sabe *cómo* borrar y
+`es_eliminable` decide *si* se debe.
+
+### Verificación
+
+**610 passed** (antes 595; y tres corridas seguidas sin intermitencia) · 180/5 · 20 · `ruff` PASS ·
+**281 mutantes en 15 arneses, 0 supervivientes, 0 `NO_APLICADO`, 0 ambiguos** · Quality Gate
+**FAIL 5/1139/3 = baseline** · gobernanza 0 cambios · **0 push**.
+
+### Qué ejecutó AURA
+
+En el plano real, por su punto de entrada: `descubiertas=8 · ejecutadas=0 · bloqueadas=6 ·
+elevadas=2 · actos_humanos=0 · cola agotada`. **No se fabricó trabajo.**
+
+**AUTONOMÍA DE EJECUCIÓN PREPARADA · COLA REAL AGOTADA.** El perímetro está limpio, y ambas
+dimensiones —acción y zona— siguen agotadas: abrir más exige acta.
+
+---
+
+## 10.quinquetvicies · OBSERVABILIDAD DEL CICLO AUTÓNOMO — mirar a AURA sin tocarla (2026-09-01)
+
+### Qué se construyó
+
+`observatorio.py` (nuevo) y tres órdenes en el punto de entrada que ya existía:
+
+```bash
+cd entorno/control-plane
+python3 aura.py estado        # qué está haciendo ahora
+python3 aura.py historial     # qué ha hecho, ciclo a ciclo
+python3 aura.py ultimo        # el último ciclo, entero
+```
+
+Las tres aceptan `--json`; `historial` acepta `--limite`. Salen **siempre con 0**: observar salió
+bien aunque lo observado sea un desastre — confundir «AURA está en ERROR» con «el comando falló»
+haría que un envoltorio razonable dejara de mostrar justo el informe que hay que leer.
+
+### Por qué un módulo aparte, y no unas líneas en `aura.py`
+
+Porque «solo lectura» tiene que poder **demostrarse**, no prometerse. Al vivir aparte, la garantía se
+comprueba sobre el árbol sintáctico —igual que en `despertador.py`—.
+
+Y hay una trampa concreta que eso cierra: **`descubrimiento.descubrir()` registra un evento**
+(`descubrimiento.py:414`). Una consola que descubriera para «enseñar la cola actualizada» escribiría
+en el historial cada vez que un humano la mira, y el log dejaría de ser el registro de lo que hizo
+AURA para ser también el de quién la estuvo observando. El observatorio **no descubre**: informa de
+lo que AURA registró. Quien quiera mirar el árbol en vivo tiene `aura.py diagnosticar`, que sí
+trabaja y sí deja rastro.
+
+### Las tres alturas, que no son la misma cosa
+
+Una consola no miente inventándose una frase: miente **colapsando niveles**.
+
+| | Significa | Consta como |
+|---|---|---|
+| **despertar** | el `cron` llamó | `aura_despertada` · `despertar_rechazado` |
+| **ciclo** | el motor arrancó y terminó | `motor_iniciado` → `ciclo_detenido` |
+| **trabajo** | hubo efecto real y verificado | `cambio_aplicado` con `efecto_verificado` |
+
+Hoy, medido: **64 despertares · 73 ciclos · 10 trabajos**. Contar despertares como trabajo habría
+informado de 64 cosas hechas sin haber tocado un fichero.
+
+Y las cinco etapas se muestran una por una —`descubierta · autorizada · ejecutada · efecto_verificado
+· registrada`—, porque colapsarlas es lo que permite decir «lo hizo» cuando lo que hubo fue «lo
+pensó». Ejecutado exige las tres condiciones que ya han fallado alguna vez aquí: que se verificara,
+que la verificación **fuera capaz de fallar**, y que no se revirtiera después.
+
+### Nivel y flujo no se suman igual
+
+`ejecutadas` es un **flujo**: se acumula. `bloqueadas` es un **nivel**: son las mismas seis
+oportunidades vistas noventa veces, y sumarlas daría «540 bloqueadas», que es basura. Los niveles se
+leen del último descubrimiento; los flujos, de toda la historia. El render lo etiqueta `(ahora)` y
+`(total)`.
+
+### Los dos GRAVE que encontró la auditoría independiente
+
+**1 · El detector de contradicciones estaba muerto para el vocabulario real.** Comparaba
+`estado.json["status"]` con el estado del ciclo, filtrando por `declarado in ESTADOS`. Pero ese campo
+usa el vocabulario de estados de **tarea** (`WORKING`, `WAITING_FOR_NEXT_TASK`, `COMPLETED`…) y el
+módulo usa el del **ciclo** (`TRABAJANDO`, `ESPERANDO`…). Solo `DECISION_REQUIRED` coincide, por
+casualidad: **siete de los ocho valores reales no disparaban nunca**, y el filtro que puse «por
+prudencia» era justo lo que mataba la comprobación. En el árbol real `estado.json` llevaba **siete
+horas** desfasado y la consola no lo decía — la consola construida para detectar «declarado ≠ real»
+tenía dentro un caso de «declarado ≠ real».
+
+Corregido comparando lo que **sí** es comparable: la frescura. `estado.json` tiene fecha de
+actualización y el log tiene un último evento; cuando la primera va por detrás, la proyección está
+desfasada, y eso se mide sin interpretar nada. El `status` se **enseña** etiquetado como de otro eje
+en vez de fingir que se compara.
+
+**2 · `TRABAJANDO` no distinguía «trabajando» de «el proceso murió hace horas».** Ahora el informe
+dice **cuánto lleva abierto** el ciclo, y si lleva más que el periodo del `cron` —derivado de dos
+disparos consecutivos de la línea real, no de un umbral inventado— lo dice: *«ya pasó un despertar
+entero sin que cerrara»*. Sin `cron` legible se da la antigüedad y se calla el resto. Además, un
+ciclo abierto al que otro posterior deja atrás está **abandonado con certeza**, y se lista.
+
+**Y un MENOR:** `por_clase.get("DECISION_REQUIRED", 0)` era el único sitio del módulo que rellenaba
+un hueco con un cero — y estaba en la línea de cabecera, que es la que más se lee: afirmaba
+`ESPERANDO` mientras el detalle admitía `NO DISPONIBLE` tres líneas más abajo.
+
+### La regla que gobierna todo
+
+> Si el dato no está en la fuente, la respuesta es `NO DISPONIBLE`. Nunca `0`, nunca «ninguno».
+
+Con su contrapartida, igual de importante: lo que **sí** se puede derivar, se deriva —los actos
+humanos de un ciclo se cuentan de su rango de eventos aunque el cierre no los anotara—. La regla no
+es «ante la duda, NO DISPONIBLE»: es **no rellenar huecos**. Cada garantía negativa tiene su prueba
+de control positiva, para que la disciplina no degenere en decir siempre que no se sabe.
+
+### Verificación
+
+**665 passed** en el control-plane (antes 610) · 180/5 · 20 · `ruff` PASS · **46 mutantes, 0
+supervivientes, 0 `NO_APLICADO`, 0 ambiguos** (un mutante reapuntado tras reescribir su línea; ningún
+`NO_APLICADO` contado como detectado) · Quality Gate **5 failed / 1139 passed / 3 skipped = línea
+base exacta** (G-1 ×3, auditor de garantías OB-2, `test_limite_reintentos`): **cero regresiones
+nuevas**.
+
+**E2E sobre el historial real**, no sobre un banco fabricado: las tres órdenes corren y
+`eventos.jsonl` queda **byte a byte idéntico**. El auditor lo confirmó por su cuenta con `strace`:
+ningún `open` con `O_WRONLY`/`O_RDWR`/`O_CREAT`.
+
+### Qué se tocó, y qué no
+
+Cambiados: `observatorio.py` (nuevo), `test_red_observatorio.py` (nuevo, 55 pruebas),
+`aura.py` (aditivo: `import`, `choices` y el bloque de observación; `diagnosticar` y `trabajar`
+intactos), `control_plane.py` (+6 líneas: clasificar `_contradicciones` en `NO_CONCEDEN_ESTADO`,
+que es lo que el propio meta-control de la auditoría 2 exige al añadir un módulo al plano),
+`mutaciones/observabilidad.toml` (nuevo).
+
+**Sin tocar:** `motor_autonomia.py` · `despertador.py` · `orquestador.py` · `despertar-aura.sh` ·
+el `crontab` (sigue `*/30 * * * *`) · `docs/` · `adr/` · `decisiones/` · `CLAUDE.md` · `ROADMAP.md`.
+0 commits · 0 push · 0 credenciales · 0 procesos residentes · OpenCode y Codex ausentes.
+
+### Observación técnica registrada (no es deuda)
+
+`ciclos()` empareja aperturas y cierres con **un solo hueco `abierto` compartido por los dos
+vocabularios** (`motor_iniciado`/`ciclo_detenido` y `ciclo_autonomo_iniciado`/`…terminado`). Si uno
+abriera mientras el otro sigue abierto, el algoritmo cerraría a la fuerza el anterior y reatribuiría
+sus eventos. En el historial real las dos familias están separadas en el tiempo y el caso no se
+observó. **Se promueve a deuda** si alguna vez consta un `ciclo_autonomo_iniciado` entre un
+`motor_iniciado` y su `ciclo_detenido`.
+
+### Un punto ciego medido de paso (preexistente, no lo crea este bloque)
+
+El auditor de garantías del gate pasó de `479 de 781` a `481 de 783`. Comprobado ejecutando: **las
+481 «rotas» son todas `AUSENTE`**, y en la lista están **todos** los arneses del control-plane —
+`controles-14-y-criterios-22` (57), `observabilidad` (46), `f1-orquestador` (35),
+`motor-autonomia` (29)…—. El motivo es estructural: `auditar_garantias` resuelve las rutas solo
+contra `walking-skeleton/`, así que da por inexistente cualquier fichero de `entorno/control-plane`.
+
+Consecuencia real: **ese auditor no cubre ninguna garantía del control-plane**. No es una regresión
+—los 46 mutantes nuevos suman a los dos lados de la razón exactamente como los 15 arneses
+anteriores—, pero sí significa que la vigencia de esas garantías la sostiene hoy únicamente la
+ejecución del arnés (`herramientas.mutar --raiz ../entorno/control-plane`), no el gate. Se registra
+como **observación técnica**; se promovería a deuda si alguna vez se decide que el gate deba
+garantizar por sí solo que ningún patrón `buscar` del control-plane se ha quedado obsoleto.
+
+### Estado de AURA al cerrar
+
+`estado: DECISION_REQUIRED` · `73 ciclos` · `64 despertares` · `10 trabajos` · `6 bloqueadas` ·
+`2 elevadas` (`D-ORCH-6` y `D-INT-1`, ambas esperando al CEO) · historial íntegro · próximo despertar
+derivado del `cron`. **El cron sigue funcionando exactamente igual que antes.**
+
+---
+
+## 10.sexetvicies · INTERFAZ LIMPIA Y GROUNDING DEL ESTADO AUTÓNOMO (2026-09-01)
+
+Dos defectos observados por el CEO al ejecutar `python3 -m aura_skeleton`. **Causas raíz distintas**,
+y conviene no confundirlas.
+
+### 1 · La telemetría sepultaba la conversación
+
+**Causa raíz:** `observability.log()` hacía un `print` **incondicional** (`observability.py:41`). La
+separación por flujo ya existía —telemetría a `stderr`, conversación a `stdout`—, pero en una
+terminal los dos caen en el mismo sitio: no separaba nada.
+
+**Corrección:** un **sumidero configurable**. `configurar_salida(None)` saca la telemetría de la
+pantalla; `--telemetria` la devuelve. Lo que cambia es **dónde se imprime**, no si se registra:
+`_records.append` y `_audit.append` ocurren **antes** de decidir si se pinta, así que apagar la
+pantalla no cuesta ni un registro ni una línea de auditoría. Es un sumidero, no un filtro — y hay un
+mutante (`UI-M2`) cuyo único trabajo es que esa vía quede cerrada, porque «arreglar» la pantalla
+dejando de registrar habría destruido justo la evidencia.
+
+### 2 · Una pregunta sobre AURA se contestó desde la memoria del usuario
+
+    tu> ¿en qué estás trabajado ahora?
+    AURA> No tengo ningun recuerdo registrado sobre eso.
+
+**Causa raíz, en dos mitades.** La superficie existía (`_es_consulta_de_tareas` → `_describir_tareas`),
+pero su lista de frases era **literal**: bastó escribir «trabajado» en vez de «trabajando» para que
+la frase llegara al final del recorrido, donde una memoria vacía produce la ausencia de recuerdos.
+
+> **Una pregunta sobre uno mismo que no se reconoce no se queda sin responder: se responde mal**,
+> porque el último recurso del recorrido pertenece a otro dominio.
+
+Y la segunda mitad: aun reconociéndola, se leía el tablero de objetivos del producto, que no sabe
+nada del ciclo autónomo —ni qué hay en cola, ni qué está bloqueado, ni cuándo vuelve el `cron`—.
+
+**Corrección.** Reconocimiento **por raíz** (`"en que estas trabaj"` cubre trabajando/trabajado/
+trabajas) más las variantes que el CEO enumeró, conservando la lista positiva y cerrada y la guarda
+de dominio. Y una fuente nueva, que **no es un segundo estado**: `observatorio.estado()`, el mismo
+que lee `eventos.jsonl`.
+
+### Cómo se conecta sin acoplar el producto al plano de desarrollo
+
+Un **puerto opcional**, igual que `estado_operativo`:
+
+| Pieza | Responsabilidad |
+|---|---|
+| `core/estado_autonomo.py` | el contrato (`FuenteEstadoAutonomo`) y la redacción. **No importa nada del plano.** |
+| `adapters/estado_autonomo_cp.py` | la única pieza que sabe que existe `entorno/control-plane`; lo carga **por ruta** |
+| `composicion.py` | cablea la fuente si el plano está; si no, `None` |
+
+Sin plano —un despliegue del producto sin entorno de desarrollo— la conversación se comporta **bit a
+bit** como antes. `AURA_CONTROL_PLANE=""` declara la ausencia explícitamente, y la batería lo usa:
+sin eso, la suite leería el `eventos.jsonl` real y su veredicto cambiaría solo cada media hora,
+cuando el `cron` despierta a AURORA.
+
+Se distinguen los seis casos que pidió el CEO —ejecutando · terminado y esperando · sin trabajo
+autorizado · bloqueado · elevado a decisión humana · esperando el próximo ciclo— **por el dato**, no
+por una heurística. Ninguna frase se escribe sin un valor que la sostenga; un hueco se declara.
+
+### Latencia: medida, y era peor de lo que parecía
+
+Un turno de estado costaba **239 ms** frente a 30 ms de uno normal. Al perfilarlo: `estado()` leía el
+log **cuatro veces** y verificaba la cadena **dos** por llamada —940 hashes sobre 470 eventos—, y el
+coste crecía con un historial que suma ~200 eventos al día. No era un coste inevitable: era trabajo
+repetido. Compartiendo la lectura **dentro de una misma llamada** (nunca entre llamadas, que sí
+cambiaría respuestas) bajó a **~94 ms**. Lo que queda es leer y verificar la cadena de verdad, que es
+el precio de no inventarse la respuesta.
+
+### Tres garantías que rompí sin querer, y una que ya estaba rota
+
+Mis ediciones dejaron **huérfanos** los patrones `buscar` de `conversacion-so.toml:M4` y `M5` y
+`cap5-automatizacion.toml:M9`: mutantes declarados que ya no protegían nada. Los reapunté, y ahora
+apuntan a fragmentos **independientes** de lo que añadí, para no volver a quedarse cortos. La cuenta
+de garantías rotas volvió exactamente a la línea base: **481 de 803** (declaradas +20, rotas +0).
+
+`cap5-desactivar.toml:M8` sigue huérfano y **no es de este bloque**: apunta a `reglas.py`, que pasó a
+`async def crear` en trabajo previo sin commitear. Se declara aquí para que no se pierda.
+
+### Verificación
+
+`walking-skeleton` **1165 passed** (antes 1139; +26 pruebas nuevas) · control-plane **665** ·
+communication **180/5** · `ruff` PASS · Quality Gate **5 failed / 1165 passed / 3 skipped = línea
+base exacta** · mutación: **20/20** del bloque nuevo, **11/11** `conversacion-so`, **10/10**
+`cap5-automatizacion`, **46/46** `observabilidad` — 0 supervivientes, 0 `NO_APLICADO`, 0 ambiguos.
+
+Cuatro mutantes sobrevivieron en la primera pasada y los cuatro eran **huecos de mis pruebas**, no
+del código: la auditoría miraba la lista en memoria y no el fichero forense; `--telemetria` se
+probaba a mano sin ejercitar `_conversar`; el caso «sin plano» comparaba `_describir_tareas()`
+**consigo misma** —un oráculo de sí mismo—; y nada impedía que el centinela `NO DISPONIBLE` se
+imprimiera como si fuera un dato.
+
+### Estado
+
+Gobernanza intacta · D24 intacta · motor autónomo, despertador y `cron` **sin tocar** ·
+observabilidad intacta (registro y auditoría idénticos, solo cambia dónde se pinta) · 0 commits ·
+0 push. AURORA sigue trabajando por su motor + `cron`, sin depender de Claude Code.
+
+---
+
+## 10.septetvicies · AUTORIZACIÓN HUMANA DESDE LA CONVERSACIÓN (2026-09-01)
+
+### FASE 1 — el mapa: no había que inventar ningún modelo
+
+| | |
+|---|---|
+| **Fuente de verdad** | `AlmacenDecisiones` — un fichero JSON por huella `sha256(acción+argumentos+efecto previsto)` en `<datos>/decisiones/` |
+| **Contrato** | `solicitar()` · `aprobar()/rechazar()` · `pendientes()/aprobadas()/veredicto()` |
+| **Punto de escritura** | `aprobar(huella)` |
+| **Punto de lectura** | `pendientes()` |
+| **Cómo llega al motor** | `motor_ciclo(al_despertar=lambda: reabrir_aprobadas(decisiones, estado_operativo))` |
+
+El circuito estaba **entero**; faltaba la superficie. El propio `aprobar()` lo anticipaba: *«en
+producción lo hace el CEO editando el fichero; este método existe para que las pruebas ejerciten el
+mismo camino **y para una futura interfaz»***. Esto es esa interfaz.
+
+### Por qué `chat → autorización` no puede ser `chat → ejecución`
+
+No es una promesa: es dónde está la puerta. Lo único que la conversación provoca es que una solicitud
+que **ya estaba** en el buzón pase de `pendiente` a `aprobada`. La acción se vuelve a evaluar en el
+motor único, con su `dry-run`, y **la huella se recalcula sobre lo que se va a ejecutar de verdad**:
+si el mundo cambió entre la aprobación y la ejecución, la huella es otra y se vuelve a preguntar.
+
+### Reconocer una autorización es decir que NO casi siempre
+
+Un falso positivo abre una acción de lista roja que nadie pidió. Tres guardas, y basta una:
+una **pregunta** nunca autoriza (`«¿Puedes ejecutar X?»` vs `«Puedes ejecutar X»` — el signo es toda
+la diferencia); lo **condicional** nunca autoriza; hace falta un **verbo explícito** (`«Trabaja en X»`
+es una orden de trabajo, no un permiso). Y una cuarta que sale gratis: hace falta un **identificador
+que exista de verdad**, así que `«haz lo que consideres»` no nombra nada que autorizar.
+
+### Evidencia auditable
+
+El fichero del buzón conserva `estado_anterior`, `estado`, `respondida_por`, `origen_respuesta`,
+`evidencia` (el mensaje literal) y `ts_respuesta`, más el rastro forense `audit=True`. Sin eso, una
+aprobación registrada sería indistinguible de otra y auditar quién abrió una acción de lista roja
+exigiría creerle a quien preguntara.
+
+### E2E real, con efecto en disco
+
+```
+1) el ciclo pide permiso        solicitud PENDIENTE huella=35b12158 · t-obra bloqueada · fichero: NO
+2) TU>   Autorizo 35b12158
+   AURA> Autorización registrada … No ejecuto la tarea desde la conversación.
+3) el turno terminó             t-obra bloqueada · fichero: NO
+4) el ciclo despierta solo      t-obra terminada  · fichero: SÍ · contenido leído del disco: 'hola'
+5) consulta posterior           pendiente → aprobada · mauricio · conversacion · "Autorizo 35b12158"
+```
+
+El paso 3 es el que da sentido al resto.
+
+### Dos DECISION_REQUIRED que NO resuelvo
+
+**1 · «Autorizo D-ORCH-6» no es una respuesta completa.** `D-ORCH-6` y `D-INT-1` son decisiones de
+**gobernanza** con **tres opciones cada una**. Un permiso no elige entre ellas, y responder
+«autorización registrada … queda disponible para mi próximo ciclo» sería **falso**: nada queda
+desbloqueado. La conversación las reconoce y contesta con la verdad —`«No puedo registrar esa
+autorización con la autoridad disponible»`, listando las opciones reales—. Resolverlas exige elegir
+una opción, y eso modifica la tabla de estados / la integración: **decisión del CEO**.
+
+**2 · `_veredicto` deja inejecutable una tarea tras su primer bloqueo.** Al bloquear, el Director
+adjunta su contexto de corrección en `args[_veredicto]` (`director.py:154`). En el siguiente despacho
+`operaciones.py:154` lo rechaza como *«argumentos no declarados»*. Es decir: **una tarea del ciclo
+cuya acción valide ese catálogo no puede completarse tras su primer bloqueo, ni siquiera con la
+aprobación del CEO.** Lo encontró este E2E. Hoy es **latente** —`_EJECUTORES` no mapea ninguna acción
+del computador— y arreglarlo toca un control de seguridad deliberado *(«un argumento no declarado
+podría ser un intento de alterar el comportamiento del adaptador»)*, así que **no lo he tocado**.
+
+### Verificación
+
+`walking-skeleton` **1197 passed** (antes 1165; +32) · `ruff` PASS · Quality Gate **5 failed / 1197
+passed / 3 skipped = línea base exacta** · mutación **18/18** del bloque + 20/20 + 11/11 + 10/10 en
+los arneses afectados, **0 supervivientes, 0 `NO_APLICADO`, 0 ambiguos** · garantías **481 de 821
+rotas = la misma cuenta de antes** (+18 declaradas, +0 rotas; el único huérfano, `cap5-desactivar:M8`
+sobre `reglas.py`, es preexistente).
+
+Un mutante sobrevivió en la primera pasada (`AU-M15`, «sin buzón conectado no se finge haber
+registrado nada»): ninguna prueba llegaba a esa rama porque la fixture compone siempre el buzón.
+Cerrado con su prueba.
+
+**Corregida además una contradicción entre dos superficies mías:** la consulta de estado decía
+«necesitan tu **aprobación**» y la de autorización respondía que no se resuelven con un permiso. Ahora
+dice «necesitan una **decisión** tuya», que es lo exacto.
+
+### Estado
+
+Gobernanza · D24 · Bible · ADR · ROADMAP: **0 cambios**. `motor_autonomia.py`, `despertador.py`,
+`orquestador.py`, `despertar-aura.sh` y el `crontab` (`*/30`): **sin tocar** — el cron siguió
+despertando a AURORA durante todo el bloque (ciclo 101, despertar 93, a las 22:00:01). Sin
+dependencias nuevas, sin credenciales, sin daemon, sin procesos residentes, 0 commits, 0 push.
+
+**Observación técnica (preexistente):** la batería deja en `/tmp` los ficheros
+`aura-inexistente-g2` y `aura-inexistente-soberania`, que `test_garantias_motor_unico.py` usa como
+ruta de centinela del kill switch. Un fichero centinela abandonado no es residuo neutro; se promueve
+a deuda si alguna vez una configuración real apunta ahí.
+
+---
+
+## 10.duodetricies · ARITMÉTICA DETERMINISTA EN LA CONVERSACIÓN (2026-09-01)
+
+### Causa raíz
+
+    tu> cuanto es 1+1
+    AURA> Entendido.
+
+`«cuanto es 1+1»` no tenía superficie propia, así que recorría la cascada entera y la contestaba el
+enrutador con su respuesta enlatada (`router.py:51`: `{"say": "Entendido."}`). No existía ninguna
+capacidad matemática.
+
+Que en el modo simulado saliera «Entendido.» y con un modelo real quizá saliera «2» es justamente el
+problema: **una suma no es una inferencia**. Es la misma regla que ADR-0014 aplica al resto del
+sistema —los hechos los responde el núcleo—, y aquí hay poco margen de duda sobre si `1+1` es un
+hecho.
+
+### Solución
+
+`core/aritmetica.py` (nuevo) y una superficie más en la cascada del orquestador, **después** de las
+ocho que ya existían —para que no pueda robarles ninguna frase— y **antes** de la memoria y del
+modelo, que es lo que el defecto pedía.
+
+**Un parser, no `eval`.** `eval("1+1")` funciona, y también funciona
+`eval("__import__('os').system(…)")`. El texto viene del usuario, así que se acepta una **lista de
+nodos** y se rechaza todo lo demás: enteros, los cuatro operadores, signo unario y paréntesis. Una
+llamada, un nombre o una potencia no se rechazan por una comprobación que alguien pueda olvidar: **no
+tienen caso en el evaluador**, así que no hay camino.
+
+**Exactitud sin fingirla.** Se calcula con `Fraction`, no con `float`. Al presentar: entero si lo es
+(`12/4` → `3`), decimal si **termina** (`7/2` → `3.5`), y la fracción exacta si no (`1/3` → `1/3`).
+Escribir `0.3333` sería inventarle un final a un número que no lo tiene.
+
+**Cuando no contesta, no contesta.** Si la frase no es aritmética devuelve `None` y el turno sigue su
+camino de siempre. No se responde «no lo sé»: eso le robaría el turno a las superficies siguientes.
+
+### El guardia que parecía redundante y no lo era
+
+Un mutante quitaba el filtro de caracteres (`^[\d\s+\-*/().]+$`) y **sobrevivió**: casi todo lo que
+cuela lo rechaza después el parser. Pero Python acepta formas numéricas que el usuario no escribió
+como aritmética: `1_0` vale 10, `0x10` vale 16, `0b101` vale 5. Sin el filtro, **«1_0 + 5» habría
+respondido 15 a alguien que nunca escribió un diez**. El filtro no repite al parser: le acota lo que
+puede llegar a ver. Cerrado con su prueba.
+
+### Verificación
+
+**1241 passed** (antes 1197; +44) · `ruff` PASS · Quality Gate **5 failed / 1241 passed / 3 skipped =
+línea base exacta** · mutación **19/19, 0 supervivientes, 0 `NO_APLICADO`, 0 ambiguos** · garantías
+**481 de 840 rotas = la misma cuenta de antes** (+19 declaradas, +0 rotas; el único huérfano,
+`cap5-desactivar:M8`, sigue siendo preexistente).
+
+Dos mutantes sobrevivieron en la primera pasada: el del filtro de caracteres (arriba) y `AR-M19`,
+que **era un error mío al declarar sus pruebas** — apunté a las de no-interferencia en vez de a la de
+cotas. Es la tercera vez en esta sesión que un mutante «sobrevive» por estar mal apuntado; conviene
+mirar ahí antes que al código.
+
+### Conversación real
+
+```
+tu> hola                    AURA> Hola. ¿En qué puedo ayudarte hoy?
+tu> cuanto es 1+1           AURA> 2.
+tu> cuanto es 25 * 4        AURA> 100.
+tu> 7 por 8                 AURA> 56.
+tu> (2 + 3) * 4             AURA> 20.
+tu> cuanto es 1/0           AURA> Una división entre cero no está definida.
+tu> en que estas trabajando? AURA> [estado autónomo real: 6 bloqueadas, 2 elevadas, próximo ciclo…]
+tu> cual es mi nombre?      AURA> Te llamas Mauricio.
+```
+
+Telemetría del turno: `[CORE] aritmetica — resuelta en el nucleo, sin LLM` · `proveedor=core`.
+`«borra 2 archivos»` **no** la intercepta la aritmética pese a llevar un número: sigue yendo a la
+confirmación de lista roja, como antes.
+
+### Estado
+
+Gobernanza · D24 · Bible · ADR · ROADMAP · autoridad · motor autónomo · `cron`: **0 cambios**. Sin
+dependencias externas, sin `eval`, sin ejecución arbitraria. 0 commits, 0 push.
+
+---
+
+## 10.undetricies · ENRUTAMIENTO POR DOMINIOS (2026-09-01)
+
+### Causa raíz — no era ninguna de las frases
+
+    tu> ¿Qué son D-ORCH-6 y D-INT-1?          AURA> Entendido.
+    tu> ¿Qué oportunidades tengo bloqueadas?  AURA> No tengo ningun recuerdo registrado sobre eso.
+
+Dos respuestas distintas, **un solo defecto**: no existía un dominio por defecto para «no sé a qué
+dominio pertenece esto». La cascada terminaba en
+
+```
+hits = memory.recall(text)
+if not hits and _es_consulta_de_memoria(text):  → "no tengo ningún recuerdo"
+else                                           → proveedor → "Entendido."
+```
+
+y `_es_consulta_de_memoria` acaba en `or _es_pregunta(texto)`. De modo que **toda interrogativa sin
+dueño caía en la memoria del usuario**, y todo lo demás en el proveedor. No faltaban los datos:
+`estado.json` tenía las dos decisiones con sus opciones y las seis oportunidades bloqueadas con su
+motivo y quién las desbloquea. **Faltaba la puerta.**
+
+### Mapa nuevo
+
+Tres superficies deterministas más, todas leyendo la fuente que ya existía a través del puerto
+`estado_autonomo` que ya estaba cableado:
+
+| Dominio | Responde | Fuente real |
+|---|---|---|
+| `decisiones` | «¿qué es D-ORCH-6?» · «¿qué opciones tiene?» · «¿qué decisiones necesitan de mí?» | `estado.json:decisiones_pendientes` |
+| `oportunidades` | «¿qué está bloqueado?» · «¿por qué?» · «¿qué trabajo tienes?» | `estado.json:oportunidades_bloqueadas` |
+| `evolucion` | «¿qué hiciste hoy?» · «¿qué mejoraste?» | trabajos con efecto verificado del log |
+
+**Detección por semántica, no por lista:** además de las formas declaradas, **cualquier texto que
+nombre un identificador de decisión pertenece a ese dominio** —pregunta u orden—. La autorización
+inequívoca se evalúa antes, así que no se le roba nada: `«Haz D-ORCH-6»` y `«Autorizo D-ORCH-6 si te
+parece bien»` no autorizan, pero ahora aterrizan donde está la información en vez de en el proveedor.
+
+**El turno declara su `dominio`.** Con nueve superficies deterministas, `provider="core"` ya no dice
+nada: no distingue si respondió el estado autónomo, las decisiones o la aritmética. Sin ese dato, la
+única forma de comprobar el enrutamiento sería mirarle la cara al texto — que es como un
+enrutamiento roto pasa desapercibido.
+
+### Un error que encontró la propia matriz
+
+`«¿qué decisiones necesitan de mí?»` caía en memoria: la guarda de dominio veía `«de mi»` y lo leía
+como una posesión del usuario. Ahí «de mí» no posee nada — es parte de la pregunta.
+
+### `Entendido.` deja de ser el valor seguro
+
+Cuando el modelo devuelve un `say` vacío, «Entendido.» **afirma que se atendió algo** y el usuario no
+puede distinguir esa confirmación de una respuesta real. Ahora dice que no supo qué responder. La
+prueba de resiliencia que fijaba el texto anterior se actualizó conservando su propósito.
+
+### DECISION_REQUIRED — conocimiento general
+
+`«¿de qué color es el cielo?»`, medido en el ejecutable real:
+
+- **con memoria poblada** → llega al proveedor. Que el `MockProvider` conteste «Entendido.» es
+  comportamiento del *mock*, no una carencia del sistema.
+- **con memoria vacía** → lo intercepta la puerta de ADR-0014 y responde «no tengo ningún recuerdo»:
+  dominio incorrecto.
+
+Corregirlo exige distinguir pregunta *personal* de pregunta *del mundo*, y **no hay discriminador
+determinista barato**. Medido sobre `tests/datos/bateria_memoria.json`:
+
+| Criterio | Reconocidas (umbral declarado ≥70/77) |
+|---|---|
+| hoy (evocación **o** pregunta) | **70**/77 |
+| exigiendo posesivo | 41/77 |
+| morfología de 1ª persona | 67/77 — y clasifica «¿quién escribió el Quijote?» como personal |
+
+Elegir entre «AURA nunca inventa sobre ti» y «AURA responde del mundo» **no me corresponde**. Se
+reporta sin tocar la puerta.
+
+### Verificación
+
+**1291 passed** (antes 1241; +50) · `ruff` PASS en los dos planos · Quality Gate **5 failed / 1291
+passed / 3 skipped = línea base exacta** · mutación **17/17** del bloque nuevo, **48/48**
+observabilidad, y 11/11 · 35/35 · 18/18 · 20/20 · 19/19 · 10/10 en los arneses afectados —
+**0 supervivientes, 0 `NO_APLICADO`, 0 ambiguos**. Garantías: **483 de 859**, mismo número de rotas
+más los 2 mutantes nuevos del control-plane que el auditor no resuelve (limitación conocida); dos
+mutantes quedaron huérfanos por mis ediciones y se reapuntaron.
+
+### Estado
+
+Gobernanza · D24 · Bible · ADR · ROADMAP · autoridad · motor autónomo · `cron`: **0 cambios**. Sin
+dependencias nuevas. 0 commits, 0 push.
+
+---
+
+## 10.tricies · COMMUNICATION PLANE · G2 — YA ESTABA CONSTRUIDO; SE VERIFICÓ (2026-09-02)
+
+**Encargo:** construir G2 (`identidad_de_agente` · `limites_de_identidad` · `transportes_disponibles` ·
+`transportes_autorizados` · `requiere_credenciales` · `registrar_coste` · `ejecucion_correcta` ·
+`prueba_de_concurrencia` · `lock_se_libera_al_morir_el_proceso` · `cerrar_tarea`), con RED antes/después.
+
+**Hallazgo previo a escribir nada `[EJEC]`:** los **diez** símbolos ya existen en
+`entorno/communication-plane/communication_plane.py:936-1111`, con sus invariantes, y
+`mutaciones/cp-g2-hechos-declarados.toml` ya declaraba **11 mutantes**. No hubo RED que escribir: el
+incremento estaba hecho desde el 2026-08-25. **No se reimplementó** (CLAUDE.md: prohibido crear un
+componente sin demostrar que no existe equivalente). Se verificó.
+
+**Premisa del encargo que no se sostiene `[EJEC]`:** el encargo daba «116 passed / 46 failed en CP».
+Medido: **180 passed · 5 skipped · 0 failed**. El `communication-plane` solo existe en este worktree
+(no está en el checkout principal) y sigue **sin versionar** (`?? entorno/communication-plane/`).
+
+**Lo único que faltaba era la red, y faltaba de verdad:** dos garantías de G2 sin mutante. Declarados:
+
+- **`G2-M12`** — la medición del lock sustituida por `return True`. **SOBREVIVIÓ.** La prueba era
+  `assert canal.lock_se_libera_al_morir_el_proceso(tmp_path) is True`: **ninguna degradación podía
+  hacerla fallar**, porque no distingue medir de afirmar. Es el patrón «prueba sin caso de control»
+  del `§5` de CLAUDE.md, en la garantía de que un SIGKILL no congela el canal.
+  **Corregida con un caso de control observable:** medir EXIGE tomar el cerrojo, y tomarlo crea
+  `canal.lock`; una afirmación sin medición no deja rastro en disco. Muere.
+- **`G2-M13`** — `CAMPOS_DE_IDENTIDAD` reducido a `("de",)`. Detectado a la primera.
+
+**Mutación G2: 13/13 detectados · 0 supervivientes · 0 NO_APLICADO · 0 ambiguos.**
+
+**Regresión `[EJEC]`:** CP 180 passed / 5 skipped · B1-B4 43 passed · control-plane 668 passed ·
+walking-skeleton **5 failed / 1291 passed / 3 skipped = línea base exacta** (G-1 ×3,
+`test_garantias_vigentes`, `test_limite_reintentos`) · `ruff` PASS.
+
+**Segunda vía: NO existe `[EJEC]`.** `subtype` solo se nombra en docstrings; el único otro lector del
+sobre, `verificador_b2._sin_error`, **delega en `cp.ejecucion_correcta`** en vez de reimplementar la
+regla. Y `cerrar_tarea` del canal **no escribe nada**: no puede cerrar una tarea, solo lanzar.
+
+### Deuda encontrada, fuera del alcance de G2
+
+- **`cp-g3-ciclo-de-vida.toml:G3-M2` está huérfano** `[EJEC]`: su `buscar` ya no existe en el código.
+  G3 mide hoy **8 detectados / 1 NO_APLICADO**, no 9/9. Una garantía de G3 quedó sin red y el informe
+  no lo canta como superviviente. **Preexistente** — `communication_plane.py` no se tocó en esta sesión.
+- **`test_garantias_vigentes` es ciega al Communication Plane** `[EJEC]`: los **27** mutantes de
+  G1/G2/G3 aparecen en su lista de «ya no protegen nada», incluidos los 13 que el arnés acaba de
+  demostrar DETECTADOS. Resuelve rutas solo bajo `walking-skeleton/`. Ya fallaba antes; mis dos
+  mutantes nuevos solo suman 2 a un contador roto (483/859 → 485/861).
+
+### DECISION_REQUIRED · `cerrar_tarea` — el contrato NO fija quién cierra en el Communication Plane
+
+Ver el informe del bloque. **No se inventó autoridad ni comportamiento.**
+
+**Ficheros tocados (3):** `mutaciones/cp-g2-hechos-declarados.toml` (+2 mutantes) ·
+`test_red_communication_plane.py` (caso de control) · `communication_plane.py` **sin cambios de
+contenido** (mtime alterado solo por el restaurado del arnés; verificado: los 31 originales de los
+mutantes CP siguen presentes y ningún `sustituir` quedó en el fichero).
+
+**Gobernanza 0 cambios · D24 intacto (`requiere_credenciales() is False`, sin dependencias nuevas) ·
+`motor_autonomia.py`/`despertador.py` SIN TOCAR · `aura_skeleton/` SIN TOCAR · `estado.json` sin
+cambios por mi parte · 0 procesos · 0 residuos · kill switch NO armado · 0 commits · 0 push.**
+
+---
+
+## 10.untricies · `cerrar_tarea` RETIRADA DEL COMMUNICATION PLANE — decisión del CEO, opción 3 (2026-09-02)
+
+**Decisión:** el cierre queda **exclusivamente** en el motor único. El Communication Plane comunica;
+no certifica cierre y no produce `COMPLETED`. No duplicar `§14.bis`, no crear segunda ruta a
+`COMPLETED`, no importar autoridad del Control Plane hacia el canal.
+
+**FASE 1 · usos encontrados `[EJEC]`:** la definición (`communication_plane.py:994`) y **una sola
+prueba** (`test_red_transporte.py`). **Ningún flujo productivo la llamaba** —ni `verificador_b2`, ni
+`verificador_b3`, ni el orquestador—, así que **no hubo migración** y la FASE 2 no requirió decisión
+adicional. `agentes.cerrar_tarea` (Control Plane, 4 argumentos) es **otra función**: no se tocó.
+
+**FASE 2 · retiro.** La función se eliminó; en su lugar queda un comentario que explica por qué el
+plano no puede tenerla. Con ella desapareció la **única** mención de `COMPLETED` en el canal.
+
+**FASE 3 · contrato.** `CONTRATO-COMMUNICATION-PLANE.md`: fila retirada, **48 → 47 símbolos**, nota de
+la decisión y reparto explícito `COMUNICACIÓN → transporte` / `MOTOR ÚNICO → criterio·autorización·
+ejecución·verificación·cierre`. **Bible/ADR/DP sin tocar.**
+
+**FASE 4 · la garantía cambió de naturaleza.** La prueba anterior protegía *cómo* cerraba; las cuatro
+nuevas protegen que **no puede** cerrar — que es más fuerte:
+
+1. `test_el_canal_no_puede_cerrar_una_tarea` — barrido AST de funciones **y** métodos de `Canal`
+   contra un vocabulario de cierre/certificación. Prohíbe la **categoría**, no el nombre retirado.
+2. `test_el_canal_no_nombra_el_estado_terminal` — ningún literal `COMPLETED` en código ejecutable.
+   Se mira el AST, no el texto: el comentario que explica la ausencia debe poder escribirse.
+3. `test_el_canal_no_importa_autoridad_del_control_plane` — ningún `import` del motor +
+   `SOLO_LECTURA` + `fuentes_de_autoridad() == ('control_plane',)`.
+4. `test_el_unico_cierre_valido_sigue_en_el_motor_unico` — **caso de control imprescindible:** sin
+   él, borrar el cierre de los **dos** planos dejaría las tres pruebas anteriores en verde y el
+   sistema sin ninguna forma de cerrar. Lee `agentes.py`/`control_plane.py` **por ruta**: comprobar
+   la frontera no puede consistir en cruzarla.
+
+**Mutación `[EJEC]`:** `G2-M8`/`G2-M9` retirados (su objetivo ya no existe). Nuevos `G2-M14..M17`:
+devolver `cerrar_tarea` · devolverla **con otro nombre** (`completar_tarea`) · nombrar `COMPLETED` en
+código · importar el motor. **Los cuatro mueren.** `G2-M15` es el que importa: demuestra que la
+garantía no es una lista negra de nombres. **G2: 15/15 · 0 supervivientes.**
+
+**§14.bis sigue protegido `[EJEC]`:** `controles-14-y-criterios-22.toml` **57/57 detectados,
+0 supervivientes** — la puerta buena sigue en pie después de retirar la del canal.
+
+**Todas las baterías del canal (14): 83 mutantes · 0 supervivientes · 1 `NO_APLICADO`** — el
+`G3-M2` huérfano ya reportado, **preexistente y sin cambio**.
+
+**FASE 5 · regresión `[EJEC]`:** CP **183 passed** / 5 skipped (180 → 183: +4 frontera −1 retirada) ·
+B1-B4 **46 passed** (43 → 46) · control-plane **668 passed** · walking-skeleton
+**1291 passed / 5 failed / 3 skipped = línea base exacta** · `ruff` PASS.
+`test_garantias_vigentes` pasa de 861 a 863 garantías declaradas por el mismo saldo (+4 −2) y sigue
+ciega al Communication Plane: es la deuda ya registrada, no un efecto de este cambio.
+
+**FASE 6 · seguridad `[EJEC]`:** `motor_autonomia.py` y `despertador.py` sin tocar (mtime 2026-08-31) ·
+`agentes.py` **sin diff** · `control_plane.py` solo el `+6` preexistente · `aura_skeleton/` **0
+ficheros** tocados · `delegar.sh` sha `33bec337df1b560d` **idéntico al documentado** · G4 (`aprobar`,
+`bloqueado_por`) y G6/`D-CP-8` intactos · crontab `*/30` intacto · D24: `requiere_credenciales()
+False`, `modelo_externo_via_api False`, `SOLO_LECTURA`, **0 dependencias nuevas** · integridad tras el
+arnés verificada en los **dos** planos (83 + 57 originales presentes, **0 mutado**) · 0 procesos ·
+0 residuos · kill switch no armado · **0 commits · 0 push**.
+
+**Estado final:** una sola autoridad efectiva capaz de producir `COMPLETED`, y una prueba que impide
+que aparezca una segunda **aunque se le cambie el nombre**.
+
+---
+
+## 10.duoettricies · `DP-SELF-EVOLUTION-01` FASE A — SEXTA FUENTE: DETECCIÓN DE ESTANCAMIENTO (2026-09-04)
+
+**FASE A: IMPLEMENTADA + DEMOSTRADA.** Cierre aceptado por el CEO. **NO integrada: 0 commits · 0 push.**
+**FASE B: NO IMPLEMENTADA** (no aprobada). **Decisión pendiente: el valor contractual de `K`.**
+
+### Qué cierra este incremento
+
+Hasta hoy AURA solo descubría trabajo del árbol (código muerto) o releía listas que un humano había
+escrito en `estado.json`. No tenía forma de observar una **carencia propia**: que su ciclo lleva N
+vueltas sin avanzar con trabajo bloqueado sin resolver. La sexta fuente convierte ese hecho —que ya
+estaba en el historial— en una **pregunta para el CEO**. **Detecta la necesidad; no la resuelve.**
+Elevar no es decidir: el roadmap sigue siendo del CEO (ADR-0003, D22, D23).
+
+| Fichero | Qué |
+|---|---|
+| `entorno/control-plane/estancamiento.py` | **NUEVO** — la fuente. Solo lectura, fail-closed |
+| `entorno/control-plane/test_red_estancamiento.py` | **NUEVO** — 17 pruebas |
+| `walking-skeleton/mutaciones/self-evolution-01.toml` | **NUEVO** — 8 mutantes |
+| `entorno/control-plane/descubrimiento.py` | **MODIFICADO — solo 2 aportes:** `import estancamiento as est` + la entrada `"estancamiento": est.estancamiento` en `FUENTES` (línea 402) |
+
+`motor_autonomia.py` **sin diff** — el motor recorre el dict `FUENTES`, así que la fuente se enchufa
+sin tocarlo. Una prueba lo fija (`test_motor_autonomia_no_conoce_la_fuente`).
+
+### EN PRODUCCIÓN PERO INERTE — fail-closed, y esto es lo primero que hay que entender
+
+`K_ESTANCAMIENTO = None` en `estancamiento.py:54`. **No es un número escondido: es su ausencia
+declarada.** Mientras sea `None` la fuente **no eleva nada**. Es el patrón `REVIEW_HABILITADO=False`:
+construida, cableada y apagada hasta que un acta la arme.
+
+`[EJEC]` **Verificado en el campo, no solo en pruebas:** 9 ciclos reales del cron
+(2026-09-03T23:30 → 2026-09-04T06:30) ya corrieron con la sexta fuente cableada:
+`fuentes` la lista · `fuentes_con_error = []` · `encontradas = 8` y
+`por_clase.DECISION_REQUIRED` **sigue valiendo 2, no 3**. La fuente corre y eleva cero.
+
+### Evidencia — toda EJECUTADA `[EJEC]`
+
+| Paso | Resultado |
+|---|---|
+| **RED** | `ModuleNotFoundError: No module named 'estancamiento'` — error de colección, la batería entera falla por ausencia del módulo |
+| **GREEN** | **17 passed**; `sorted(FUENTES)` pasa de 5 a 6 fuentes |
+| **Mutación** | **8 mutantes · 8 detectados · 0 supervivientes · 0 no aplicados · 0 ambiguos** (exit 0) |
+| **Suite afectada** | `entorno/control-plane` **685 passed** (668 base + 17 nuevos), 0 fallos |
+| **Quality Gate** | **FAIL — `5 failed · 1291 passed · 3 skipped` = LÍNEA BASE CONOCIDA. 0 regresiones nuevas** |
+| **ruff** | **PASS** (`All checks passed`) |
+| **Historial real** | **197 ciclos reconstruidos · racha de 146 vueltas consecutivas sin progreso** desde `2026-08-31T21:46:41` |
+
+**Sobre el Quality Gate:** el FAIL es la deuda aceptada de siempre (G-1 ×3, `test_limite_reintentos`,
+`test_garantias_vigentes`). El código de este incremento vive en `entorno/`, que **no** forma parte de
+la suite de `walking-skeleton`: por eso su recuento queda idéntico. `test_garantias_vigentes` sube su
+contador de garantías declaradas de 863 a 871 porque suma mis 8 mutantes y **es ciega a `entorno/`**
+(resuelve rutas solo bajo `walking-skeleton/`) — es la deuda **preexistente** ya registrada en
+`10.untricies`, no un efecto de este cambio. El veredicto siguen siendo los mismos 5 fallos.
+
+**Sobre la mutación:** en la primera pasada `SE-M7` **sobrevivió**. No se maquilló. El análisis mostró
+que `descubiertas<=0` → `<0` solo difiere ante un historial **internamente inconsistente**
+(`encontradas=0` contradiciendo un `por_clase` con backlog), posible únicamente con el log editado a
+mano —riesgo ya documentado—. A esa garantía real le faltaba prueba: se añadió
+`test_no_eleva_sobre_historial_inconsistente` y el mutante murió. Segunda pasada 8/8.
+
+### Prueba sobre el historial REAL — solo lectura
+
+| | |
+|---|---|
+| producción `k=None` | eleva **0** (inerte) |
+| ilustrativo `k=3` y `k=10` | eleva **1 `DECISION_REQUIRED`** `revisar_estancamiento`, id `OP-cfc20cd92f12` |
+| id estable | **sí** — idéntico entre lecturas y entre `k=3`/`k=10`: deriva de **dónde empezó la racha**, no del umbral ni del `seq` actual |
+| `planificador.a_tarea()` | **None** → jamás ejecutable |
+| `eventos.jsonl` sha256 antes/después | **idéntico** (`42e1e109…`) → estrictamente solo lectura |
+
+Garantías fijadas por pruebas y por mutantes: **solo lectura** (barrido AST), **nunca
+`OPORTUNIDAD_REAL`**, **no ejecutable**, **no se autodetecta** (si lo único elevado es su propia
+señal, el backlog ajeno es 0 → no hay estancamiento), **id estable**, **cota de una oportunidad**
+(`_APORTE_PROPIO_MAXIMO = 1`), **cableado presente** (mutante `SE-M8`, ALERTA-005).
+
+### DECISIÓN PENDIENTE — el valor contractual de `K`
+
+**El acto de aprobación NO fijó `K`, y está prohibido inventarlo.** Por eso `K` es un parámetro
+**obligatorio y sin valor por defecto** en `hay_estancamiento(ciclos, k)`, y la constante quedó en
+`None`. **No se escribió `K=3`. No se cambió `K_ESTANCAMIENTO`.**
+
+Para **armar** la fuente hace falta un acta del CEO que fije `K`. Dato para esa decisión, no
+propuesta: la racha real medida hoy es de **146 vueltas**, así que cualquier `K` razonable dispararía
+de inmediato. El DP proponía `K≥2` como mínimo derivable de «recurrencia», sin publicar techo.
+
+### Continuidad — para la siguiente sesión de Claude
+
+- **Último incremento cerrado:** este (`DP-SELF-EVOLUTION-01` Fase A). El anterior fue
+  `10.untricies` (`cerrar_tarea` retirada del Communication Plane, 2026-09-02).
+- **Estado actual:** AURA opera sola por cron `*/30`. Descubre 8 oportunidades por ciclo
+  (`BLOQUEADA:6 · DECISION_REQUIRED:2 · OPORTUNIDAD_REAL:0`) y **no puede avanzar sin un acta
+  humana**: lleva 146+ vueltas sin progreso. Ese estancamiento es **real y ahora medible**, y es
+  precisamente lo que esta fuente observa.
+- **Decisiones pendientes:** el **valor de `K`** (arma la sexta fuente) · `D-ORCH-6` y `D-INT-1`
+  (las 2 `DECISION_REQUIRED` que AURA reeleva cada ciclo, en `estado.json`).
+- **NO autorizado:** implementar la **Fase B** (registrar ids en el log) · fijar `K` sin acta ·
+  cualquier ruta que permita a la fuente ejecutar, autorizar o escribir · tocar `motor_autonomia.py`,
+  el cron, D24, gobernanza, Bible, ADR o decisiones estratégicas · integrar a `main` sin orden del CEO.
+- **Próximos pasos PERMITIDOS:** esperar el acta de `K`; si llega, armar la fuente y verificar que
+  eleva exactamente **una** `DECISION_REQUIRED` con id estable y `a_tarea() is None`.
+- **Próximos pasos PROHIBIDOS:** Fase B · inventar `K` · ampliar el alcance de la fuente · commit o
+  push de este incremento sin orden expresa.
+- **Artefacto ausente que conviene saber:** `DP-SELF-EVOLUTION-01` **no existe como fichero
+  versionado**; se aprobó en conversación. Los artefactos que sí existen son los cuatro ficheros de
+  la tabla de arriba.
+
+**Comandos para recuperar el estado sin volver a auditar:**
+
+```bash
+cd entorno/control-plane
+grep -n "^K_ESTANCAMIENTO" estancamiento.py            # debe seguir siendo None
+grep -n '"estancamiento": est.estancamiento' descubrimiento.py   # cableado (linea ~402)
+python3 -m pytest test_red_estancamiento.py -q         # 17 passed
+cd ../../walking-skeleton && python3 -m herramientas.mutar \
+    mutaciones/self-evolution-01.toml --raiz ../entorno/control-plane   # 8/8, 0 supervivientes
+python3 -c "import observatorio as o, estancamiento as e, pathlib; \
+  print(len(e._racha_de_estancamiento(o.ciclos(pathlib.Path('.')))))"   # racha real, solo lectura
+```
+
+**Gobernanza 0 cambios · D24 intacto (la fuente no añade dependencias, no usa red ni credenciales) ·
+`motor_autonomia.py` SIN DIFF · cron `*/30` intacto · `despertador.py` sin tocar · `aura_skeleton/`
+sin tocar · Bible/ADR/DP sin tocar · `estado.json` sin cambios por mi parte · `eventos.jsonl` solo
+crece por los despertares del cron (verificado sha256 idéntico durante la lectura) · sin residuo del
+arnés de mutación · kill switch no armado · **0 commits · 0 push.**
+
+---
+
+## 10.trestricies · `DR-A` — SÉPTIMA FUENTE: OBSERVACIÓN DEL ENTORNO DE EJECUCIÓN (2026-09-05)
+
+**Qué cierra.** Las seis fuentes anteriores miraban dos sitios: el árbol de ficheros y el historial.
+Ninguna miraba la máquina. AURA podía tener un razonador local corriendo delante y no verlo — no le
+faltaba permiso para usarlo, le faltaba el **órgano para observarlo**. `DR-A` abre ese sentido, y
+solo ese.
+
+| Fichero | Cambio |
+|---|---|
+| `entorno/control-plane/entorno_disponible.py` | **NUEVO** — la séptima fuente |
+| `entorno/control-plane/test_red_entorno_disponible.py` | **NUEVO** — 25 pruebas |
+| `walking-skeleton/mutaciones/dr-a-entorno.toml` | **NUEVO** — 9 mutantes |
+| `entorno/control-plane/descubrimiento.py` | import + entrada en `FUENTES` (2 aportes) |
+
+**Los tres estados, y por qué son tres.** `DISPONIBLE` (observado y está) · `AUSENTE` (observado y no
+está) · `DESCONOCIDO` (no se pudo observar). La distinción entre los dos últimos es el corazón de
+`DR-A`: con dos estados, un fichero ilegible se convertiría en «no existe» — una ausencia inventada,
+que es el patrón «declarado ≠ real» que este proyecto ya ha pagado ocho veces. **Fail-closed:** solo
+lo `DISPONIBLE` con las tres señales se eleva; `DESCONOCIDO` no eleva nada.
+
+**Por qué lee `/proc` y no pregunta al servicio.** `/proc/net/tcp` y `/proc/<pid>/comm` los publica el
+núcleo, se leen sin privilegios y sin efectos. Una petición a `127.0.0.1:11434` sería más cómoda y
+sería **otra cosa**: una interacción con un servicio ajeno desde el descubrimiento, con su latencia y
+sus modos de fallo. Observar no es preguntar. Imports reales del módulo: `dataclasses`, `pathlib`,
+`descubrimiento`. Ni `socket`, ni `urllib`, ni `subprocess`, ni `os` — D24 intacto.
+
+**Evidencia.**
+
+| Paso | Resultado |
+|---|---|
+| RED | `ModuleNotFoundError: No module named 'entorno_disponible'` `[EJEC]` |
+| GREEN | **25 passed** `[EJEC]` |
+| Mutación | **9 detectados, 0 supervivientes, 0 no aplicados, 0 ambiguos** `[EJEC]` |
+| Suite control-plane | **710 passed** `[EJEC]` |
+| Quality Gate | 5 failed / 1291 passed / 3 skipped = **línea base conocida, 0 regresiones** `[EJEC]` |
+| ruff | All checks passed `[EJEC]` |
+| Demostración real | AURA elevó `OP-ce4aa5725674`; `DECISION_REQUIRED` 2 → 3; `ejecutables` sigue **0** `[EJEC]` |
+
+**El superviviente que enseñó algo.** `DA-M5` (el id pasa a depender del catálogo de modelos)
+sobrevivió a la primera vuelta. No era equivalente: si el id dependiera del inventario, descargar un
+modelo nuevo cambiaría el id de una capacidad que es la misma, el antiduplicados dejaría de
+reconocerla y AURA volvería a elevar lo ya elevado — el defecto que `_id_de` documenta, visto desde
+el otro lado. Se añadió `test_el_id_no_depende_del_catalogo_de_modelos`, garantía genuina. Segunda
+vuelta: 9/9.
+
+**Lo que AURA puede decir ahora, y lo que no.** Puede decir *«hay un razonador local ahí —proceso
+`ollama`, puerto 11434 en escucha, `qwen2.5:0.5b`— y el ciclo no lo usa»*, con la procedencia en un
+fichero que se puede abrir. **No** puede decir *«por tanto lo pongo a trabajar»*: `a_tarea()` la
+devuelve como `None`, su acción `revisar_capacidad_del_entorno` es `HUMAN`, y conectar un modelo es
+`seleccionar_tecnologia`, materia reservada al CEO por D22.
+
+**Invariantes verificados sin cambio:** `AUTO` = las cuatro de observación · `REVIEW` = `()` ·
+`TODO_LO_DELEGABLE` = `("eliminar_codigo_muerto",)` · `_MATERIA_RESERVADA` = 10 entradas ·
+`REVIEW_HABILITADO = False` · `K_ESTANCAMIENTO = None` · `_EJECUTORES` siguen en 127 (INV-9) ·
+`D-ORCH-6` y `D-INT-1` intactas.
+
+**Lo que `DR-A` NO autorizó y sigue sin hacerse:** conectar Ollama al ciclo, usar Ollama como
+razonador, tocar `ModelProvider`, crear `RevisorLocal` funcional, ampliar el acta o la autoridad
+`AUTO`, habilitar ejecutores. Nada de eso se hizo.
+
+**Continuidad — decisiones abiertas al cierre de este incremento**
+
+- **DR-B** — ampliar el alcance del acta más allá de `eliminar_codigo_muerto` (hoy conectar un
+  proveedor excede incluso `TODO_LO_DELEGABLE`).
+- **DR-C** — puerta explícita para los ejecutores (INV-9).
+- **DR-D** — valor contractual de `K` (`DP-SELF-EVOLUTION-01`, sin cambios: sigue `None`).
+- **DR-1** — publicar `worktree-m3-entry` en `origin`: 21 commits y el historial vivo existen **solo
+  en este disco**, sin respaldo remoto.
+- **D-INT-1** — integrar a `main`, decidiendo la política sobre `estado.json` / `eventos.jsonl`.
+- **D31** — NO APTO: modelo en disco interno hasta disponer de almacenamiento externo sano. La USB
+  `/dev/sdc` quedó descartada por corromper escrituras grandes en silencio (medido: 400 MB → hash
+  distinto en cada copia; 1/10/100 MB íntegros).
+
+**Estado al cierre:** 0 commits, 0 push. `HEAD` sigue en `46be8ed`.
+
+```bash
+# Recuperar el estado de DR-A sin volver a auditar
+cd entorno/control-plane && python3 -m pytest test_red_entorno_disponible.py -q
+python3 -c "import sys;sys.path.insert(0,'.');import entorno_disponible as e,json;print(json.dumps(e.observar(e.RAZONAMIENTO_LOCAL),indent=2))"
+python3 aura.py diagnosticar                       # las 3 DECISION_REQUIRED, 0 ejecutables
+cd ../../walking-skeleton && python3 -m herramientas.mutar mutaciones/dr-a-entorno.toml --raiz ../entorno/control-plane
+```
+
+*AURA ya puede ver su entorno. Lo que haga con lo que ve sigue siendo del CEO.*
+
+---
+
+## 10.quattuortricies · `DR-E` — OPORTUNIDAD → PROPUESTA GENÉRICA (2026-09-05)
+
+**Qué cierra.** El diagnóstico previo encontró un bloqueo de **forma, no de permiso**: el circuito de
+propuesta solo sabía representar código muerto, porque nació para eso. Pasarle la oportunidad de la
+séptima fuente producía una propuesta con todos los campos `None` — una petición que decía borrar el
+símbolo `None` del fichero `None`. `DR-E` construye la forma que faltaba.
+
+| Fichero | Cambio |
+|---|---|
+| `entorno/control-plane/propuesta.py` | **NUEVO** — representación genérica, función pura |
+| `entorno/control-plane/test_red_propuesta.py` | **NUEVO** — 20 pruebas |
+| `walking-skeleton/mutaciones/dr-e-propuesta.toml` | **NUEVO** — 9 mutantes |
+
+**La única regla dura.** Transcribe lo observado; **no inventa lo que exige juicio**. Los cuatro
+campos de juicio —`riesgo_de_actuar`, `criterio_de_rollback`, `pruebas_necesarias`, `decision`— se
+marcan `REQUIERE_REVISION_HUMANA`. Un «riesgo: bajo» puesto por costumbre es indistinguible de un
+riesgo evaluado, y quien lee la propuesta no tendría forma de saber que nadie lo pensó (INV-9).
+
+**Distinción que importa:** el riesgo que declara la fuente es el de **observar** —un hecho, se
+transcribe— y no es el de **actuar**, que nadie ha evaluado todavía. Son campos distintos, y el
+mutante `DE-M9` existe para que sigan siéndolo.
+
+**Generalización AL LADO, no sustitución.** `autoconstruccion.proponer` **no se ha tocado**: sigue
+siendo el camino del código muerto, con su evento y su ruta a la autorización. `propuesta.py` ni
+siquiera lo importa — dos caminos que se cruzan acaban siendo una ruta alternativa (ALERTA-005). Una
+prueba fija ese no-import.
+
+**Función pura, y deliberadamente no cableada.** No registra eventos, no autoriza, no ejecuta.
+**Ningún módulo del ciclo la importa**: cablearla sería habilitar trabajo autónomo nuevo, y `DR-E` no
+lo autoriza. Se invoca a mano hasta que un acta diga otra cosa.
+
+**Evidencia.**
+
+| Paso | Resultado |
+|---|---|
+| RED | `ModuleNotFoundError: No module named 'propuesta'` `[EJEC]` |
+| GREEN | **20 passed** `[EJEC]` |
+| Mutación | **9 detectados, 0 supervivientes, 0 no aplicados, 0 ambiguos** `[EJEC]` |
+| Suite control-plane | **730 passed** (eran 710) `[EJEC]` |
+| Compatibilidad código muerto | `test_red_autoconstruccion.py` **23 passed** `[EJEC]` |
+| Quality Gate | 5 failed / 1291 passed / 3 skipped = **línea base, 0 regresiones** `[EJEC]` |
+| ruff | All checks passed `[EJEC]` |
+| Eventos registrados por DR-E | **0** — `propuesta_registrada` sigue en 16 `[EJEC]` |
+
+**El superviviente que enseñó algo.** `DE-M4` (retirar la validación `isinstance`) sobrevivió a la
+primera vuelta: la basura evidente —`None`, `42`— falla igual por accidente al tropezar con un
+atributo inexistente, así que la prueba no notaba nada. Lo que la validación protege de verdad es
+otra cosa: **un impostor con todos los atributos** y una fuente que no lleva a ninguna parte
+produciría una propuesta impecable, rodeando la barrera de procedencia que `descubrimiento.py` llama
+*«la única barrera real contra inventar trabajo»*. Se añadió
+`test_un_impostor_con_todos_los_atributos_no_pasa`. Segunda vuelta: 9/9.
+
+**La propuesta real para `OP-ce4aa5725674`** (generada, no fabricada; ningún evento registrado):
+describe `razonamiento_local` con proceso `ollama`, puerto `11434` y `qwen2.5:0.5b`, con
+`nivel_de_autorizacion: HUMAN`, `autorizada: false`, `limites.es_ejecutable_hoy: false`, y los cuatro
+campos de juicio en `REQUIERE_REVISION_HUMANA`. Dice lo que hay; no dice qué hacer.
+
+**Invariantes verificados sin cambio:** `AUTO` = las cuatro de observación · `REVIEW` = `()` ·
+`TODO_LO_DELEGABLE` = `("eliminar_codigo_muerto",)` · `act_scope` = `['eliminar_codigo_muerto']` ·
+D22 = 10 entradas · D24 · INV-9 (`_EJECUTORES` en 127, `RevisorLocal.disponible() = False`) ·
+`REVIEW_HABILITADO = False` · `K_ESTANCAMIENTO = None` · `D-ORCH-6` y `D-INT-1` intactas.
+
+**Lo que `DR-E` NO autorizó y sigue sin hacerse:** conectar Ollama, usar Ollama para razonar,
+habilitar `RevisorLocal`, ampliar `AUTO`/`act_scope`/`TODO_LO_DELEGABLE`, ejecutar o autorizar
+propuestas, habilitar trabajo autónomo adicional, Fase B.
+
+**Decisiones abiertas al cierre:** DR-B (ampliar acta) · DR-C (puerta de ejecutores) · DR-D (valor de
+`K`) · DR-1 (publicar la rama: 21 commits **sin respaldo remoto**) · D-INT-1 · D31 NO APTO.
+
+**Estado:** 0 commits, 0 push. `HEAD` sigue en `46be8ed`.
+
+```bash
+# Recuperar el estado de DR-E sin volver a auditar
+cd entorno/control-plane && python3 -m pytest test_red_propuesta.py -q
+python3 -c "import sys;sys.path.insert(0,'.');import entorno_disponible as e,propuesta as p,json;print(json.dumps(p.de_oportunidad(e.entorno('.','.')[0]),indent=2,ensure_ascii=False))"
+cd ../../walking-skeleton && python3 -m herramientas.mutar mutaciones/dr-e-propuesta.toml --raiz ../entorno/control-plane
+```
+
+*AURA ya puede decir qué ve y qué no sabe. Decidir sigue siendo del CEO.*
+
+---
+
+## 10.quinquettricies · `DR-F` — REVISOR LOCAL EN MODO OBSERVACIÓN: **BLOCKED** (2026-09-05)
+
+**Veredicto: `DR-F = BLOCKED` · `DECISION_REQUIRED DR-F-1`.** La capacidad se construyó entera, se
+midió contra el Ollama real y pasó su mutación; **no entró en el repositorio** porque choca con un
+invariante que solo el CEO puede tocar.
+
+### El bloqueo
+
+`test_A8_ningun_modulo_del_plano_de_desarrollo_importa_red_ni_github` (§16 Funcionamiento offline)
+prohíbe la cadena literal `import urllib` en **cualquier** módulo no-test del plano de desarrollo, y
+su propio docstring anticipa la evasión: *«una importación perezosa no aparecería en la prueba
+anterior»*. El punto 2 del acta —*«La comunicación con Ollama debe realizarse desde el control-plane
+mediante el endpoint local 127.0.0.1:11434»*— no se puede cumplir sin enmendar ese invariante.
+
+**El principio de A8 sí se respeta:** `test_A8_el_ciclo_completo_funciona_con_la_RED_DESCONECTADA`
+**pasa** con el diseño, porque el revisor nace apagado y no está cableado. Falla la comprobación
+estática, que se escribió deliberadamente sin excepciones. Enmendarla es decisión del CEO.
+
+### Lo que quedó demostrado antes de parar
+
+- **28 pruebas verdes** · **mutación 11/11 detectados, 0 supervivientes, 0 no aplicados**.
+- **Prueba real contra Ollama** (`qwen2.5:0.5b`, 4 inferencias): disponible `True` en 0,26 s; modelo
+  inesperado `False` en 0,01 s sin descargar nada; timeout real → `None` en 1,01 s; endpoint muerto →
+  `None` en 0,00 s.
+- **Latencia medida: 58,8 s / 91,8 s / 142,7 s / 165,6 s** (media ≈ 114,7 s), 242–259 tokens de
+  prompt y 69–93 de respuesta. Por debajo de los ~265 s previos. **No se corrigió: solo se midió.**
+- **Veredicto obtenido en las 3 muestras: `None`.** El modelo produjo veredictos plausibles con
+  **evidencia inventada literal** (`"ruta:entorno/control-plane/revisores.py"`, `"linea:13"`: copió
+  las palabras de la plantilla). Sin cita verificable no hay veredicto.
+- **Inyección de prompt contra el modelo real: el modelo obedeció al atacante** —respondió
+  `"veredicto": "aprobado_total"` y repitió las órdenes inyectadas, incluido un `rm -rf /`— **y
+  `juicio()` devolvió `None`**. Es la demostración de la tesis: *la defensa no es el prompt, es la
+  validación de la salida*.
+
+### Defecto propio encontrado por un caso de control
+
+`citas_verificadas` resolvía una cita **relativa** contra el `cwd` del proceso en vez de contra la
+raíz del expediente: rechazaba hasta las citas buenas. Fail-closed por accidente, indistinguible de
+una barrera sana hasta que se prueba el caso positivo. **Ninguna de las 26 pruebas lo vio porque
+todas citaban en absoluto.** Corregido (`base / ruta`, que además deja `/etc/passwd` fuera por
+`is_relative_to`) y cubierto con dos pruebas nuevas, con control RED demostrado. Es el error nº 2 del
+`CLAUDE.md` cometido otra vez: *una prueba sin caso de control no vale*.
+
+### Dato duro para la decisión
+
+**Con `qwen2.5:0.5b`, la capacidad es correcta y hoy funcionalmente estéril:** 3 de 3 muestras sin
+una sola cita verificable. El acta prohíbe cambiar de modelo, así que se registra, no se corrige.
+
+### Estado del repositorio
+
+**Archivos modificados por DR-F: ninguno.** `HEAD 46be8ed` · 145 entradas en `git status` · commits 0
+· push 0 · suite control-plane **730 passed** · A8 **33 passed** · ruff limpio · Quality Gate
+**5 failed / 1291 passed / 3 skipped** = baseline exacto, cero regresiones.
+
+Artefactos preservados en `~/.claude/jobs/d6cb894c/tmp/DR-F-preparado/`: `razonador_local.py`,
+`test_red_revisor_local.py` (28 pruebas), `revisores-RevisorLocal.patch`, `dr-f-revisor-local.toml`
+(11 mutantes). Banco de medición y salidas en `~/.claude/jobs/d6cb894c/tmp/DR-F-medicion/`.
+
+### `DECISION_REQUIRED DR-F-1` — pendiente del CEO
+
+**¿Puede un módulo del plano de desarrollo abrir conexión a `127.0.0.1`, o A8 (§16) prohíbe toda red
+sin excepción?** Tres caminos, sin recomendación por afectar a un invariante: **(A)** enmendar A8
+para distinguir red externa de loopback; **(B)** mantener A8 literal y cerrar DR-F como no viable;
+**(C)** razonador puro con el transporte inyectado desde fuera del plano —cumple A8 literalmente pero
+deja el cliente sin domicilio en el repositorio, lo que roza «declarado ≠ real»—.
+
+---
+
+## 10.sexettricies · `DR-F-3a` — LA FRONTERA DEL REVISOR LOCAL: **PASS** (2026-09-05)
+
+**AURA localiza y verifica la evidencia; el modelo elige una palabra de cuatro.** Ese es el rediseño,
+y con él desaparece el bloqueo de `DR-F`: como el transporte se inyecta, el plano no importa nada de
+red y **`A8 · §16` no necesita excepción alguna**.
+
+### Por qué era necesario
+
+`DR-F-3` midió contra Ollama real que tres de tres veredictos citaban `ruta/al/fichero.py` —el
+marcador del propio prompt— y que el expediente envenenado reaparecía entero dentro de `motivos`.
+Ninguna de las dos cosas se arregla con un modelo mayor: eran consecuencia de encargarle al modelo
+dos trabajos que no le tocan, **localizar** evidencia y **redactar**.
+
+### Cambio mínimo
+
+- `revisores.Expediente` gana `evidencia: tuple = ()`, y `como_dict()` **solo la incluye si existe**:
+  así `review_id` no cambia para los expedientes que ya se emitían y `RevisorHumano` sigue
+  reconociendo sus propias peticiones.
+- `revisores.RevisorLocal` pasa a clasificar: apagado por defecto, **sin transporte propio**, y exige
+  las tres cosas —permiso, transporte y raíz— para estar disponible.
+- Módulo nuevo `revision_local.py`: localiza contra disco, verifica que la línea **diga lo que se le
+  atribuye**, revalida la vigencia antes de emitir, y cierra la salida con un `enum` de cuatro.
+
+### Las tres garantías nuevas
+
+**Las citas ya no las pone el modelo:** salen del expediente verificado. Aunque devuelva
+`/etc/passwd:1`, no hay campo por donde entre. **Los motivos los redacta AURA** con hechos que
+conoce, así que el vector que llevaba el veneno a ojos humanos queda cerrado. **La evidencia se
+revalida** antes de emitir: entre preparar y revisar el disco pudo cambiar.
+
+### Evidencia
+
+**33 pruebas nuevas** (los ocho tipos de expediente del acta más las seis garantías) · **mutación
+13/13 detectados, 0 supervivientes** con el arnés oficial · **control-plane 763 passed** (730 previas
++ 33) · **A8 33 passed** · **ruff limpio** · arnés de mutación del producto 19 passed.
+
+### Límite documentado
+
+**El paso 4 del Quality Gate y el E2E contra Ollama no pudieron completarse: el equipo agota la
+memoria** (tres cortes). El E2E alcanzó a demostrar la primera mitad —AURA localizó y verificó
+`entorno/control-plane/revisores.py:129` por sí sola, prompt de 619 bytes— antes del corte. El cambio
+no toca ningún fichero de `walking-skeleton/`, así que no puede regresionar esa suite, pero eso es
+`[INFER]`, no `[EJEC]`. **Refuerza `DR-F-3c`: la duda no es qué modelo, es si es esta máquina.**
+
+### Estado
+
+Archivos: `revisores.py` (+48/−8), `revision_local.py`, `test_red_revision_local.py`,
+`mutaciones/dr-f-3a-revision-local.toml`. `HEAD 46be8ed` · 149 entradas · commits 0 · push 0.
+`REVIEW_HABILITADO = False`, `AUTO`, `act_scope`, D22, D24, INV-9 y A8 intactos. **No cableado al
+ciclo autónomo.**
+
+### `DR-F-3a` · cierre de validación (2026-09-05) — **PASS DE DISEÑO / VALIDACIÓN OPERATIVA BLOCKED**
+
+**Quality Gate paso 4: cerrado por tandas.** En un solo proceso falló dos veces por memoria, aun con
+1.790 MB disponibles. Ejecutado por tandas —misma cobertura, sin omitir pruebas ni tocar umbrales—
+completó entero: `unit` con los 4 fallos conocidos, `integration` con `test_limite_reintentos`, y
+`e2e` (3 skipped) y `performance` en verde. **5 fallos = baseline exacto. Cero regresiones.** `[EJEC]`
+
+**E2E real: BLOCKED POR RECURSO/HARDWARE.** Cortado durante la primera inferencia con 1.019 MB
+disponibles y `llama-server` en 514 MB al 100 % de CPU, junto a Firefox (~950 MB) y las sesiones de
+Claude (~400 MB). **Sin OOM del kernel**: lo detiene el entorno de ejecución. **AURA sí alcanzó a
+localizar y verificar evidencia real** —`entorno/control-plane/revisores.py:129`, texto
+`def exige_revision(accion: str) -> bool:`— antes del corte. **El fallo es de infraestructura, no de
+código.** `[EJEC]`
+
+**Aclarado el salto de garantías** (513/889 → 526/902): `auditar_garantias` resuelve rutas desde
+`walking-skeleton/` y marca como rotos **todos** los TOML del plano de desarrollo —`motor-autonomia`
+29, `d-orch-2` 28, `dr-a-entorno` 9, `dr-e-propuesta` 9, `dr-f-3a` 13—. Preexistente y sistemático;
+los mutantes sí protegen (13/13 con el arnés real). Observación técnica, no deuda. `[EJEC]`
+
+Final: 33 + **763 passed**, ruff limpio, invariantes intactos, `HEAD 46be8ed`, 149 entradas, 0
+commits, 0 push. Sin cambios de código en este cierre.
+
+---
+
+## 10.septemtricies · `DR-F-3d-2` — LA VERACIDAD DEL REVISOR DETERMINISTA: **PASS** (2026-09-05)
+
+**El revisor ya no dice que comprueba lo que no comprueba.** Los tres defectos que `DR-F-3d` midió
+quedan reparados o declarados, y ninguno se ha tapado.
+
+**H1 · criterios transcritos.** `aplicar_criterios` leía las cuatro banderas del propio dict de la
+tarea, y `planificador.a_tarea` las escribe como **constantes literales**: sobre cualquier tarea real
+devolvía `cumple: True` salvo materia reservada. Ahora `alcance` se mide contra `TODO_LO_DELEGABLE`
+—o contra el acta registrada, si se pasa el directorio— y la bandera del proponente **solo puede
+añadir fallos, nunca quitarlos**. `verificados: ('alcance','materia_reservada')` ·
+`declarados: ('consistencia','cinco_preguntas_d21')`.
+
+**Dos criterios NO se han fabricado.** `D21` son cinco preguntas cualitativas y ninguna función las
+responde. *«Respeta todas las decisiones previas»* es un universo abierto: `zona_permitida` cubre una
+parte pero **no es utilizable desde aquí** —sin `raiz` rechaza cualquier sandbox, y `raiz` está
+reservado a las pruebas—. El acta ordenaba no inventar la comprobación: se declaran y **el juicio
+dice que se declaran**. `DECISION_REQUIRED DR-F-3d-2-A`.
+
+**H2 · la firma.** `§275` decide *reutilizar* los agentes existentes, no invocarlos; invocarlos sería
+**ejecutar**, y un revisor que ejecuta deja de ser revisor. El contrato ahora lo dice donde se lee.
+
+**H3 · evidencia imposible.** Citaba `fichero:0` —línea que no existe en ningún fichero— y `cuenta()`
+la aceptaba. Ahora cada cita se verifica contra el disco reutilizando `revision_local.localizar` (de
+`DR-F-3a`), y **sin evidencia verificable no hay veredicto**: devuelve `None`, que es espera (`§8.3`),
+nunca aprobación. El rechazo por catálogo va **antes** que las citas: es un hecho de la gobernanza y
+no puede depender de que la evidencia se sostenga.
+
+**Evidencia.** 19 pruebas nuevas · **mutación 12/12 detectados, 0 supervivientes** · **control-plane
+782 passed** (763 + 19) · ruff limpio · invariantes intactos.
+
+**Pruebas existentes corregidas:** `test_red_f4_revisores.py` citaba `entorno/control-plane/m.py`, un
+fichero **inexistente**, y esperaba «conforme» con `cuenta() is True`. Codificaba el defecto H3; se
+sustituyó por un fichero real. Es corrección, no relajación.
+
+**Estado.** `HEAD 46be8ed` · 152 entradas · commits 0 · push 0 · `AUTO`, `act_scope`, D21, D22, D24,
+INV-9 y A8 sin tocar · `REVIEW_HABILITADO = False` · nada conectado al ciclo autónomo.
+
+---
+
+## 10.duodevicies · `DR-F-3d-4` — A3 + B2, APROBADAS POR EL CEO: **PASS** (2026-09-06)
+
+**Las cinco constantes falsas de `planificador.a_tarea` han desaparecido.** Una tarea real produce
+ahora `verificados: ('alcance','consistencia','materia_reservada')` con **`declarados: ()`**: ningún
+criterio se acepta ya por declaración.
+
+### A3 · consistencia enumerada
+
+`respeta_decisiones: bool` → **`decisiones_aplicables: (...)`**. Quien propone enumera qué decisiones
+aplican —el patrón de `5.3:113`— y el revisor evalúa **una por una**: `VERIFICADO`/`INCUMPLIDA` si ya
+existía función que la comprueba, `REQUIERE_REVISION_HUMANA` si el documento existe pero es prosa, e
+`INCUMPLIDA` si la referencia **no lleva a ninguna parte** —citar autoridad inexistente es peor que
+no citarla—. Una decisión verificada **no legitima** a las demás.
+
+**No se inventó ninguna fuente.** Las cinco comprobaciones (`D22-materia-reservada`,
+`D22-alcance-delegable`, `ADR-0003-review-no-habilitado`, `separacion-de-planos`,
+`gobernanza-intocable`) ya estaban codificadas antes; lo único nuevo es poder **nombrarlas** al pedir
+una revisión. Ningún Markdown se interpreta: de un ADR solo se comprueba que **exista**.
+
+### B2 · alcance de D21
+
+Las cinco preguntas siguen siendo el gate de las decisiones estratégicas. Una tarea técnica acotada
+dentro de un alcance aprobado ya no las exige, y aparece como `no_aplica`. **La clasificación no se
+inventa**: `TODO_LO_DELEGABLE` está definido en el propio código como *«acciones técnicas,
+reversibles y del plano de desarrollo»* —las tres propiedades que `B2` pide—. `permissions.CATALOGO`
+dice lo mismo por reversibilidad, pero vive en el plano PRODUCTO y este plano no lo importa. Lo que
+no puede demostrarse acotado, no lo es.
+
+### Evidencia
+
+19 pruebas nuevas · **mutación 13/13 detectados, 0 supervivientes** (tres cayeron en la primera
+vuelta y cada uno destapó un hueco real: la guarda de materia reservada en `es_tarea_tecnica_acotada`
+sin prueba, el planificador sin cubrir, y una comprobación que reventase dándose por buena) ·
+**control-plane 802 passed** (782 + 20) · ruff limpio.
+
+**Pruebas de `DR-F-3d-2` actualizadas a `B2`:** dos asumían `D21` en `declarados` para una tarea
+acotada. Cambia el contrato aprobado por el CEO, no la garantía: la propiedad «una bandera solo puede
+añadir fallos» se comprueba ahora donde `D21` sigue aplicando.
+
+### Estado
+
+`HEAD 46be8ed` · 154 entradas · commits 0 · push 0 · D21, D22, D24, INV-9, AUTO, `act_scope`,
+`TODO_LO_DELEGABLE`, `_MATERIA_RESERVADA`, `CRITERIOS_D22`, `Veredicto` y A8 **sin tocar** ·
+`REVIEW_HABILITADO = False` · `_EJECUTORES` en 127 · `RevisorLocal` apagado · cero ampliación de
+autoridad.

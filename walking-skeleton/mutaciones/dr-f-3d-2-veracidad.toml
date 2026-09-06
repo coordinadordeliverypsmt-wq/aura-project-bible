@@ -1,0 +1,107 @@
+incremento = "DR-F-3d-2 · veracidad del revisor determinista (2026-09-05)"
+# La garantia no es «el revisor emite un veredicto»: es que **no diga que comprobo lo que no
+# comprobo**. Cada mutante devuelve el mecanismo al estado en que `DR-F-3d` lo encontro — criterios
+# que se transcriben en vez de medirse, evidencia que no se puede abrir, o un `cumple` que mezcla lo
+# verificado con lo declarado.
+pruebas = ["test_red_veracidad_revisor.py", "test_red_f4_revisores.py"]
+timeout_s = 240
+
+[[mutante]]
+id = "V-M1"
+descripcion = "el alcance vuelve a ser una constante: la bandera del proponente concede"
+fichero = "review.py"
+buscar = '''    elif accion in TODO_LO_DELEGABLE:
+        verificados.append("alcance")
+    else:
+        verificados.append("alcance")
+        fallos.append("alcance")'''
+sustituir = '''    else:
+        verificados.append("alcance")'''
+
+[[mutante]]
+id = "V-M2"
+descripcion = "la bandera puede QUITAR fallos, no solo anadirlos"
+fichero = "review.py"
+buscar = '''    if tarea.get("cambia_alcance") and "alcance" not in fallos:
+        fallos.append("alcance")'''
+sustituir = '''    if tarea.get("cambia_alcance") and "alcance" not in fallos:
+        pass'''
+
+[[mutante]]
+id = "V-M3"
+descripcion = "D21 se declara verificado: se finge comprobar cinco preguntas cualitativas"
+fichero = "review.py"
+buscar = '''    declarados.append("cinco_preguntas_d21")'''
+sustituir = '''    verificados.append("cinco_preguntas_d21")'''
+
+[[mutante]]
+id = "V-M4"
+descripcion = "consistencia se declara verificada sin tener fuente de verdad"
+fichero = "review.py"
+buscar = '''    declarados.append("consistencia")
+    if not tarea.get("respeta_decisiones"):'''
+sustituir = '''    verificados.append("consistencia")
+    if not tarea.get("respeta_decisiones"):'''
+
+[[mutante]]
+id = "V-M5"
+descripcion = "la materia reservada deja de comprobarse contra el catalogo"
+fichero = "review.py"
+buscar = '''    if tarea.get("materia_reservada") or es_materia_reservada(accion):'''
+sustituir = '''    if tarea.get("materia_reservada"):'''
+
+[[mutante]]
+id = "V-M6"
+descripcion = "el juicio deja de distinguir lo verificado de lo declarado"
+fichero = "review.py"
+buscar = '''            "verificados": tuple(verificados), "declarados": tuple(declarados)}'''
+sustituir = '''            "verificados": tuple(verificados) + tuple(declarados), "declarados": ()}'''
+
+[[mutante]]
+id = "V-M7"
+descripcion = "vuelve la linea cero: evidencia que no existe en ningun fichero"
+fichero = "revisores.py"
+buscar = '''                verificadas.append(f"{actuales[0]['fichero']}:{actuales[0]['linea']}")'''
+sustituir = '''                verificadas.append(f"{cita.get('fichero')}:0")'''
+
+[[mutante]]
+id = "V-M8"
+descripcion = "se deja de comprobar que la linea diga lo que se le atribuye"
+fichero = "revisores.py"
+buscar = '''            if actuales and actuales[0]["texto"] == cita.get("texto"):'''
+sustituir = '''            if True:'''
+
+[[mutante]]
+id = "V-M9"
+descripcion = "fail-closed roto: sin evidencia verificable se emite conforme igual"
+fichero = "revisores.py"
+buscar = '''        if not citas:
+            return None          # sin evidencia verificable no hay veredicto: se espera (`§8.3`)'''
+sustituir = '''        if False:
+            return None'''
+
+[[mutante]]
+id = "V-M10"
+descripcion = "la evidencia se inventa en vez de localizarse contra el disco"
+fichero = "revisores.py"
+buscar = '''            actuales = _rl.localizar(self._raiz, cita.get("fichero", ""),
+                                     lineas=(cita.get("linea"),))'''
+sustituir = '''            actuales = ({"fichero": cita.get("fichero"), "linea": cita.get("linea"),
+                         "texto": cita.get("texto")},)'''
+
+[[mutante]]
+id = "V-M11"
+descripcion = "el rechazo por catalogo pasa a depender de que la evidencia se sostenga"
+fichero = "revisores.py"
+buscar = '''        if rv.es_materia_reservada(expediente.accion) or not ac.zona_permitida(expediente.fichero):
+            return Veredicto("fuera_de_alcance",'''
+sustituir = '''        if citas and (rv.es_materia_reservada(expediente.accion) or not ac.zona_permitida(expediente.fichero)):
+            return Veredicto("fuera_de_alcance",'''
+
+[[mutante]]
+id = "V-M12"
+descripcion = "el veredicto deja de decir sobre que criterios se pronuncia"
+fichero = "revisores.py"
+buscar = '''        alcance = (f"criterios D22 verificados: {','.join(juicio['verificados'])}",
+                   f"criterios D22 declarados: {','.join(juicio['declarados'])}")'''
+sustituir = '''        alcance = ()'''

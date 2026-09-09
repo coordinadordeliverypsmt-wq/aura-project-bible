@@ -9,8 +9,9 @@ import re
 from pathlib import Path
 
 from .. import observability as obs
-from ..contracts import Event
+from ..contracts import HISTORICO, Event
 from ..observability import Timer
+from . import intencion
 from .almacen_senales import AlmacenSenales
 from .aritmetica import resolver as resolver_aritmetica
 from .automatizacion import MotorAutomatizacion
@@ -119,11 +120,19 @@ _INTERROGATIVOS = (
 
 
 def _es_pregunta(texto: str) -> bool:
-    """Intencion interrogativa: signo de interrogacion o interrogativo en posicion inicial."""
-    if "?" in texto or "¿" in texto:
-        return True
-    palabras = _normalizar(texto).split()
-    return bool(palabras) and palabras[0] in _INTERROGATIVOS
+    """Intencion interrogativa: signo de interrogacion o interrogativo en posicion inicial.
+
+    **M-1 (DP-D-M-7, Opcion A): esta funcion DELEGA, no decide.** La senal sintactica vive ahora en
+    `intencion.es_interrogativa`, que es su unico sitio; aqui se conserva el nombre porque lo importan
+    pruebas y otras superficies. El comportamiento es identico —verificado sobre las 77 consultas de
+    `bateria_memoria.json`: coinciden 77/77— y por eso la garantia de 24/24 no se mueve.
+
+    Lo que SI cambia es que ya no decide **dos** cosas. Antes gobernaba la puerta de ADR-0014 (que se
+    LEE) y ademas la escritura de memoria (que se ESCRIBE). La segunda responsabilidad se fue a
+    `intencion.debe_almacenarse`, que es el eje 2. Un detector sintactico no puede decidir si un turno
+    aporta un hecho: son preguntas distintas, y mezclarlas hacia que tocar una moviera la otra.
+    """
+    return intencion.es_interrogativa(texto)
 
 
 #: Verbos con los que una persona **pide que se haga** algo. Declarados, no deducidos del catalogo:
@@ -1750,13 +1759,23 @@ class Orchestrator:
         que es exactamente como se cuela un enrutamiento roto."""
         if dominio:
             obs.log("CORE", "routing", f"dominio={dominio}", tid)
-        if not _es_pregunta(text):
-            # Una PREGUNTA no es informacion sobre el usuario: es una peticion de informacion.
-            # Almacenarla como recuerdo hacia que, al repetirla, se cubriera a si misma con cobertura
-            # 1,00 y ADR-0014 dejara de activarse — el sistema recibia su propia pregunta como si
-            # fuera un recuerdo. Se sigue registrando en el audit log: no se pierde la traza.
+        destino = intencion.destino_de_memoria(text)
+        if destino is not None:
+            # **M-1, eje 2 (DP-D-M-7) + HISTORICO NO RECUPERABLE (CEO, 2026-09-09).** Antes la
+            # condicion era `not _es_pregunta(text)`: un detector SINTACTICO decidiendo una cuestion
+            # de CONTENIDO, y con una sola salida —almacenar o no—. Ahora hay tres:
+            #
+            #   RECUPERABLE               el turno aporta un hecho del usuario -> vuelve en `recall`
+            #   HISTORICO_NO_RECUPERABLE  orden pura -> se persiste, se audita, NO vuelve en `recall`
+            #   None                      pregunta, social, INCIERTO -> no se almacena
+            #
+            # El historico es lo que permite conservar la traza de una orden sin convertirla en un
+            # recuerdo personal: era el auto-eco de `D-M-2` disfrazado de persistencia. Y la primera
+            # salida conserva intacto el motivo original: una PREGUNTA no se almacena nunca, porque al
+            # repetirla se cubriria a si misma con cobertura 1,00 y ADR-0014 dejaria de activarse.
+            kind = "episodica" if destino == intencion.RECUPERABLE else HISTORICO
             await self.memory.write(
-                uid, "episodica", f"usuario dijo: {text}", {"trace_id": tid, "fuente": "conversacion"}
+                uid, kind, f"usuario dijo: {text}", {"trace_id": tid, "fuente": "conversacion"}
             )
         await self._capturar_senales(uid, tid, text)
         buffer = self._dialogue.setdefault(uid, [])

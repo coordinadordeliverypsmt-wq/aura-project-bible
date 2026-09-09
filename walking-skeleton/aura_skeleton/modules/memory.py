@@ -9,6 +9,7 @@ import re
 import unicodedata
 
 from .. import observability as obs
+from ..contracts import HISTORICO, es_recuperable  # noqa: F401  (HISTORICO se reexporta)
 
 
 class SimpleMemory:
@@ -23,8 +24,8 @@ class SimpleMemory:
         q = set(query.lower().split())
         scored = []
         for it in self._items:
-            if it["user_id"] != user_id:
-                continue
+            if it["user_id"] != user_id or not es_recuperable(it):
+                continue  # el historico no recuperable existe, se persiste, y NO vuelve por aqui
             overlap = len(q & set(it["content"].lower().split()))
             if overlap:
                 scored.append((overlap, it))
@@ -198,7 +199,10 @@ class PersistentMemory:
         # Desempate por posicion en el almacen: dos recuerdos con la misma cobertura salen SIEMPRE en
         # el mismo orden. Antes dependia del orden de iteracion de un `set`, que varia con el hash del
         # proceso: la misma consulta podia devolver recuerdos distintos en dos arranques (comprobado).
-        puntuados = [(idx, len(consulta & self._terminos_item(idx))) for idx in sorted(candidatos)]
+        # El historico no recuperable se descarta ANTES de puntuar: no compite, no desplaza a un
+        # recuerdo real por el hueco `k`, y no puede colarse por un empate.
+        puntuados = [(idx, len(consulta & self._terminos_item(idx)))
+                     for idx in sorted(candidatos) if es_recuperable(self._items[idx])]
         mejores = sorted(
             ((idx, n) for idx, n in puntuados if n >= minimo),
             key=lambda par: (-par[1], par[0]),

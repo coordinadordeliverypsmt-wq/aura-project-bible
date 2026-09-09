@@ -1,5 +1,5 @@
 incremento = "Correcciones deterministas del recuperador que afectan al usuario"
-pruebas = ["tests/integration/test_correcciones_producto.py", "tests/integration/test_bateria_memoria.py"]
+pruebas = ["tests/integration/test_correcciones_producto.py", "tests/integration/test_bateria_memoria.py", "tests/unit/test_m1_clasificacion_intencion.py"]
 
 [[mutante]]
 id = "M1"
@@ -11,7 +11,9 @@ sustituir = '''    return any(p in t for p in _PATRONES_CONSULTA_MEMORIA)'''
 [[mutante]]
 id = "M2"
 garantia = "una afirmacion se clasifica como pregunta: todo activaria ADR-0014"
-fichero = "aura_skeleton/core/orchestrator.py"
+# RE-ANCLADO por M-1 (DP-D-M-7): la senal sintactica se mudo a `intencion.es_interrogativa`. La
+# garantia es la misma —y el mutante sigue siendo el mismo—; lo unico que cambio es donde vive.
+fichero = "aura_skeleton/core/intencion.py"
 buscar = '''    if "?" in texto or "¿" in texto:
         return True'''
 sustituir = '''    if True:
@@ -27,6 +29,38 @@ sustituir = '''    podrias"""'''
 [[mutante]]
 id = "M4"
 garantia = "las preguntas vuelven a almacenarse como recuerdo: reaparece el auto-eco"
+# RE-ANCLADO dos veces: primero por M-1 (la condicion dejo de ser `not _es_pregunta`), y despues por
+# el HISTORICO NO RECUPERABLE (la decision de escribir se volvio una decision de DESTINO). La garantia
+# es la misma desde el principio: que una pregunta no acabe siendo un recuerdo recuperable.
+fichero = "aura_skeleton/core/intencion.py"
+buscar = '''    if debe_almacenarse(texto, c):
+        return RECUPERABLE'''
+sustituir = '''    if True:
+        return RECUPERABLE'''
+
+# ------------------------------------------------------------------ M-1 (DP-D-M-7, Opcion A) --
+# Garantias que nacen con la separacion de los dos ejes. Sin estos mutantes, la parte NUEVA de la
+# proteccion —la que impide que un fallo del acto convierta una pregunta en recuerdo— no tendria red.
+
+[[mutante]]
+id = "M1-A"
+garantia = "cae el suelo sintactico: un fallo del ACTO bastaria para escribir una pregunta (D-M-2)"
+fichero = "aura_skeleton/core/intencion.py"
+buscar = '''    if es_interrogativa(texto):
+        return False'''
+sustituir = '''    if False:
+        return False'''
+
+[[mutante]]
+id = "M1-B"
+garantia = "la whitelist del eje 2 se vuelve blacklist: INCIERTO pasaria a almacenarse"
+fichero = "aura_skeleton/core/intencion.py"
+buscar = '''ALMACENABLES = frozenset({HECHO_USUARIO, CONOCIMIENTO_PROCEDURAL, COMPROMISO_FUTURO})'''
+sustituir = '''ALMACENABLES = frozenset(CONTENIDOS)'''
+
+[[mutante]]
+id = "M1-C"
+garantia = "la delegacion se rompe: `_es_pregunta` deja de ser la misma senal y 24/24 se mueve"
 fichero = "aura_skeleton/core/orchestrator.py"
-buscar = '''        if not _es_pregunta(text):'''
-sustituir = '''        if True:'''
+buscar = '''    return intencion.es_interrogativa(texto)'''
+sustituir = '''    return False'''

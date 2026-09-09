@@ -35,8 +35,42 @@ class EventBus(Protocol):
     def subscribe(self, type_prefix: str, handler: Callable[[Event], Awaitable[None]]) -> None: ...
 
 
+#: `kind` reservado al **HISTORICO NO RECUPERABLE** (DP-D-M-7 §3; decision del CEO, 2026-09-09).
+#:
+#: No significa borrado, ni oculto, ni sin traza: significa que **no forma parte del espacio semantico
+#: de la memoria personal recuperable**. Se persiste igual que cualquier otro recuerdo y se audita
+#: igual; lo unico que no hace es volver en un `recall`.
+#:
+#: Existe porque el eje 2 de `DP-D-M-7` clasifica la orden pura como «historico no recuperable», y sin
+#: este nivel las unicas salidas eran almacenarla como memoria personal —que es el auto-eco de `D-M-2`—
+#: o perder la traza. Ninguna de las dos es aceptable.
+HISTORICO = "historico"
+
+#: Los `kind` que `recall` NO puede devolver. Es una **lista negra de una sola entrada y un solo
+#: sitio**: si algun dia hay mas niveles no recuperables, se anaden aqui y las tres implementaciones
+#: de `MemoryStore` los heredan sin tocarse.
+KINDS_NO_RECUPERABLES = frozenset({HISTORICO})
+
+
+def es_recuperable(item: dict) -> bool:
+    """Si este recuerdo puede aparecer en un `recall` de memoria personal.
+
+    **Fail-closed por omision:** un item sin `kind` se considera recuperable, que es el comportamiento
+    historico; lo que se excluye es SOLO lo marcado explicitamente. Al reves —excluir por defecto—
+    haria desaparecer memoria legitima ante un fallo de escritura.
+    """
+    return item.get("kind") not in KINDS_NO_RECUPERABLES
+
+
 @runtime_checkable
 class MemoryStore(Protocol):
+    """Almacen de memoria del usuario.
+
+    **Garantia del contrato (CEO, 2026-09-09):** `recall` NUNCA devuelve un item cuyo `kind` este en
+    `KINDS_NO_RECUPERABLES`. Toda implementacion debe cumplirlo; `write` sigue aceptando cualquier
+    `kind`, porque el historico se persiste como cualquier otra cosa.
+    """
+
     async def write(self, user_id: str, kind: str, content: str, provenance: dict) -> None: ...
     async def recall(self, user_id: str, query: str, k: int = 3) -> list[dict]: ...
 

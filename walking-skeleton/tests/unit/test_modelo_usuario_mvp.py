@@ -14,8 +14,27 @@ import os
 
 import pytest
 
+from aura_skeleton.core.automatizacion import MotorAutomatizacion
+from aura_skeleton.core.ejecutor_modelo_usuario import EjecutorModeloUsuario
 from aura_skeleton.core.modelo_usuario import ModeloUsuario
+from aura_skeleton.core.permissions import PermissionManager
 from aura_skeleton.modules.memory import PersistentMemory
+
+
+def _mu(mem, kill=None):
+    """`ModeloUsuario` cableado al MOTOR UNICO (F4, 2026-08-25).
+
+    La ruta de soberania dejo de mutar el almacen directamente. **Sin motor no muta**, asi que un
+    fixture que construya `ModeloUsuario(mem)` a secas haria pasar la prueba en vacio. El veredicto
+    que cada prueba mide no cambia: se completa el cableado que la migracion hizo obligatorio.
+    """
+    return ModeloUsuario(mem, motor=MotorAutomatizacion(
+        EjecutorModeloUsuario(mem), PermissionManager(_confirmar_mu, kill_switch=kill)))
+
+
+async def _confirmar_mu(accion, args, trace_id):
+    return True
+
 
 
 async def _sembrar(mem):
@@ -30,14 +49,14 @@ async def test_olvidar_persiste_tras_reiniciar(tmp_path):
     """EL CRITERIO DEL CEO: lo olvidado NO reaparece tras reconstruir la memoria desde disco."""
     ruta = os.path.join(tmp_path, "m.jsonl")
     mem = PersistentMemory(ruta)
-    mu = ModeloUsuario(mem)
+    mu = _mu(mem)
     await _sembrar(mem)
 
     n = await mu.borrar("u", contiene="facturas")
     assert n == 1
 
     # Reinicio: nueva instancia que lee del disco.
-    mu2 = ModeloUsuario(PersistentMemory(ruta))
+    mu2 = _mu(PersistentMemory(ruta))
     contenidos = [e["contenido"] for e in await mu2.ver("u")]
     assert any("luz tenue" in c for c in contenidos), "lo no borrado debe seguir"
     assert not any("facturas" in c for c in contenidos), "lo OLVIDADO no puede reaparecer tras reiniciar"
@@ -55,7 +74,7 @@ async def test_olvidar_no_corrompe_el_recall(tmp_path):
     await mem.write("u", "semantica", "alfa primero", {"origen": "declarada"})
     await mem.write("u", "semantica", "beta facturas medio", {"origen": "observada"})
     await mem.write("u", "semantica", "gamma ultimo", {"origen": "declarada"})
-    await ModeloUsuario(mem).borrar("u", contiene="facturas")  # borra el del medio (posición 1)
+    await _mu(mem).borrar("u", contiene="facturas")  # borra el del medio (posición 1)
     hits = await mem.recall("u", "gamma ultimo")  # gamma estaba en posición 2; sin reindexar -> IndexError
     assert any("gamma" in h["content"] for h in hits)
 
@@ -64,7 +83,7 @@ async def test_olvidar_no_corrompe_el_recall(tmp_path):
 async def test_ver_no_devuelve_lo_ya_olvidado(tmp_path):
     mem = PersistentMemory(os.path.join(tmp_path, "m.jsonl"))
     await _sembrar(mem)
-    mu = ModeloUsuario(mem)
+    mu = _mu(mem)
     await mu.borrar("u", contiene="facturas")
     assert not any("facturas" in e["contenido"] for e in await mu.ver("u"))
 
@@ -75,8 +94,8 @@ async def test_refutar_persiste_tras_reiniciar(tmp_path):
     ruta = os.path.join(tmp_path, "m.jsonl")
     mem = PersistentMemory(ruta)
     await _sembrar(mem)
-    await ModeloUsuario(mem).refutar("u", contiene="facturas")
-    tras = await ModeloUsuario(PersistentMemory(ruta)).ver("u")
+    await _mu(mem).refutar("u", contiene="facturas")
+    tras = await _mu(PersistentMemory(ruta)).ver("u")
     facturas = next(e for e in tras if "facturas" in e["contenido"])
     assert facturas["refutada"] is True
 

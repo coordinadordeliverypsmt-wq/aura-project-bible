@@ -1,0 +1,42 @@
+incremento = "B3 · segundo tipo de agente en el canal (DEC-B3-QUE-AGENTE = OpenCode) — 2026-08-25"
+# La septima evidencia es la razon de ser de B3: con dos agentes en el canal, confundir al emisor
+# haria que la respuesta de B2 pasara por el resultado de B3.
+pruebas = ["test_b3_segundo_agente.py"]
+timeout_s = 120
+
+[[mutante]]
+id = "B3-M1"
+descripcion = "no se comprueba QUIEN firma el RESULT: la respuesta de B2 valdria para B3"
+fichero = "verificador_b3.py"
+buscar = '''    evidencias["lo_firma_el_segundo_agente"] = bool(respuesta) and respuesta.get("de") == agente'''
+sustituir = '''    evidencias["lo_firma_el_segundo_agente"] = bool(respuesta)'''
+
+[[mutante]]
+id = "B3-M2"
+descripcion = "la firma se da por buena aunque no haya respuesta"
+fichero = "verificador_b3.py"
+buscar = '''    evidencias["lo_firma_el_segundo_agente"] = bool(respuesta) and respuesta.get("de") == agente
+    return evidencias'''
+sustituir = '''    evidencias["lo_firma_el_segundo_agente"] = True
+    return evidencias'''
+
+[[mutante]]
+id = "B3-M3"
+descripcion = "B3 deja de heredar las seis evidencias de B2"
+fichero = "verificador_b3.py"
+buscar = '''    evidencias = verificar_b2(canal, id_tarea, sobre, codigo_salida)'''
+sustituir = '''    evidencias = {}'''
+
+[[mutante]]
+id = "B3-M4"
+descripcion = "la respuesta se busca sin exigir que responda A ESTA tarea"
+fichero = "verificador_b3.py"
+buscar = '''                      if m.get("tipo") == "RESULT" and m.get("in_reply_to") == id_tarea), None)'''
+sustituir = '''                      if m.get("tipo") == "RESULT"), None)'''
+
+[[mutante]]
+id = "B3-M5"
+descripcion = "la TASK deja de dirigirse al segundo agente"
+fichero = "verificador_b3.py"
+buscar = '''    return canal.publicar(tipo="TASK", de="orquestador-local", para=AGENTE_B3, cuerpo=dict(TAREA))'''
+sustituir = '''    return canal.publicar(tipo="TASK", de="orquestador-local", para="claude-code", cuerpo=dict(TAREA))'''

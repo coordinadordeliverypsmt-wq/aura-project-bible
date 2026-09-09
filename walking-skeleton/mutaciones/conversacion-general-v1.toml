@@ -67,17 +67,17 @@ garantia = "Conversacion General se evalua DESPUES de capacidades: el saludo de 
 fichero = "aura_skeleton/core/orchestrator.py"
 buscar = '''        resp = await self._atender_conversacion_general(uid, text)
         if resp is not None:
-            await self._finalizar_turno(uid, tid, text, resp, "core", t)
+            await self._finalizar_turno(uid, tid, text, resp, "core", t, dominio="conversacion_general")
             return
         if _es_consulta_de_capacidades(text):
-            await self._finalizar_turno(uid, tid, text, self._describir_capacidades(), "core", t)
+            await self._finalizar_turno(uid, tid, text, self._describir_capacidades(), "core", t, dominio="capacidades")
             return'''
 sustituir = '''        if _es_consulta_de_capacidades(text):
-            await self._finalizar_turno(uid, tid, text, self._describir_capacidades(), "core", t)
+            await self._finalizar_turno(uid, tid, text, self._describir_capacidades(), "core", t, dominio="capacidades")
             return
         resp = await self._atender_conversacion_general(uid, text)
         if resp is not None:
-            await self._finalizar_turno(uid, tid, text, resp, "core", t)
+            await self._finalizar_turno(uid, tid, text, resp, "core", t, dominio="conversacion_general")
             return'''
 
 # ------------------------------------------------------------------------------------------------

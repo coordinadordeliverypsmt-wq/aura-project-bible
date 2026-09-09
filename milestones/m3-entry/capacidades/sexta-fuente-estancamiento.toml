@@ -1,0 +1,50 @@
+# Contrato de capacidad — armar la sexta fuente (deteccion de estancamiento).
+#
+# Los 15 campos salen de evidencia existente: DP-SELF-EVOLUTION-01 Fase A, CHECKPOINT-CONTINUIDAD
+# (que declara este paso como el unico PERMITIDO), la implementacion de estancamiento.py y el acta
+# DR-D del CEO que fija K. Ningun campo esta inventado.
+
+id = "sexta-fuente-estancamiento"
+nombre = "armar la sexta fuente — deteccion de estancamiento"
+version = "1"
+estado = "AUTORIZADA"
+intencion = "la sexta fuente esta construida y cableada pero inerte porque su umbral no esta fijado; el acta DR-D lo fija y con ello la fuente pasa a observar el estancamiento real del ciclo"
+regla_de_transformacion = { operacion = "sustituir_texto", buscar = "K_ESTANCAMIENTO = None", sustituir = "K_ESTANCAMIENTO = 100" }
+trazabilidad = { especificacion = "DP-SELF-EVOLUTION-01 Fase A", autorizacion = "DR-D", plan = "CHECKPOINT-CONTINUIDAD.md:4856" }
+
+[[entradas]]
+nombre = "modulo de la sexta fuente"
+fuente = "/home/majo1230/Documentos/AURA/aura-project-bible/.claude/worktrees/m3-entry/entorno/control-plane/estancamiento.py"
+formato = "python"
+
+[[salidas]]
+resultado = "K_ESTANCAMIENTO fijado en 100"
+destino = "/home/majo1230/Documentos/AURA/aura-project-bible/.claude/worktrees/m3-entry/entorno/control-plane/estancamiento.py"
+
+[fuentes_de_verdad]
+autoridad = ["/home/majo1230/Documentos/AURA/aura-project-bible/.claude/worktrees/m3-entry/entorno/control-plane/estancamiento.py"]
+referencia = ["CHECKPOINT-CONTINUIDAD.md"]
+
+[perimetro]
+modificables = ["/home/majo1230/Documentos/AURA/aura-project-bible/.claude/worktrees/m3-entry/entorno/control-plane/estancamiento.py"]
+fuera_de_alcance = ["walking-skeleton/", "docs/", "adr/", "decisiones/"]
+
+[autoridad]
+nivel = "REVIEW"
+acta = "DR-D · acta del CEO 2026-09-07: K_ESTANCAMIENTO = 100"
+parte_de_aura = "aplicar la sustitucion y verificar el efecto"
+parte_del_ceo = "fijar el valor de K"
+
+[ejecutor]
+verbo = "implementar_incremento_especificado"
+
+[efectos]
+permitidos = ["fijar el umbral de la sexta fuente"]
+prohibidos = ["cambiar la semantica de hay_estancamiento", "tocar otra linea del modulo"]
+reversible = true
+
+[verificacion]
+invariantes = ["la fuente sigue emitiendo como maximo una oportunidad", "su techo sigue siendo DECISION_REQUIRED"]
+pruebas_minimas = ["/home/majo1230/Documentos/AURA/aura-project-bible/.claude/worktrees/m3-entry/entorno/control-plane/test_red_estancamiento.py"]
+criterio_de_aceptacion = "K_ESTANCAMIENTO deja de ser None y las 17 pruebas de la fuente siguen en verde"
+evidencia = "cambio_aplicado con efecto_verificado y el fichero releido"

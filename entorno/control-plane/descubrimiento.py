@@ -243,6 +243,11 @@ def codigo_muerto(raiz: pathlib.Path, directorio) -> list[Oportunidad]:
     contra el arbol entero y, si se usa fuera, se descarta **diciendo por que**."""
     ficheros = sorted(p for p in raiz.rglob("*.py")
                       if not p.name.startswith(("test_", "conftest")))
+    # **El perimetro que el acta anade no cuelga de `raiz`.** Ampliar la zona sin ampliar el barrido
+    # habria dejado la autorizacion sin efecto: `zona_permitida` dice que se puede tocar, `raiz` dice
+    # donde se mira, y son dos cosas distintas. La lista de ficheros exactos vive en
+    # `autoconstruccion`, que es la unica fuente de verdad sobre el perimetro: aqui se consulta.
+    ficheros = sorted(set(ficheros) | set(ac.ficheros_autorizados()))
     fuera = {}
     for otro in ficheros:
         try:
@@ -376,18 +381,34 @@ def bloqueos_registrados(_raiz, directorio) -> list[Oportunidad]:
     vistas = []
     for bloqueada in estado.get("oportunidades_bloqueadas", []) or []:
         ident = bloqueada.get("id", "OB-?")
+        quien = bloqueada.get("quien_desbloquea", "CEO")
+        # **Lo ya decidido no vuelve a la bandeja de excepciones.** Una entrada cuyo propio registro
+        # dice que **nadie** la desbloquea porque esta cerrada no es un bloqueo esperando decision:
+        # es una cuestion resuelta, y contarla como pendiente convierte una decision tomada en una
+        # por tomar. Su clase ya existe: `FALSO_HUECO` —«parece un hueco y no lo es»—.
+        #
+        # El criterio se **lee del dato**, no se deduce: solo cuando el desbloqueador declarado es
+        # literalmente «nadie». Sin campo, o con un desbloqueador nombrado, sigue bloqueada
+        # (fail-closed: la ausencia no es una declaracion de cierre).
+        cerrada = str(quien).strip().lower().startswith("nadie")
         vistas.append(Oportunidad(
             id=_id_de(f"estado.json:oportunidades_bloqueadas:{ident}", ident, "desbloquear"),
             fuente=f"estado.json:oportunidades_bloqueadas:{ident}",
-            justificacion=bloqueada.get("por_que", "registrada como bloqueada"),
+            justificacion=(f"cerrada, no pendiente: {bloqueada.get('por_que', '')}".strip(": ")
+                           if cerrada else bloqueada.get("por_que", "registrada como bloqueada")),
             alcance=bloqueada.get("que", ident), accion="desbloquear",
-            autoridad=bloqueada.get("quien_desbloquea", "CEO"),
+            autoridad=quien,
             criterio_de_finalizacion={"capacidad": "diagnosticar_estado"},
             evidencia_requerida={"tipo": "salida_contiene", "patron": ident},
-            riesgo="no evaluable sin acta",
-            estado=BLOQUEADA))
+            riesgo="ninguno: ya decidida" if cerrada else "no evaluable sin acta",
+            estado=FALSO_HUECO if cerrada else BLOQUEADA))
     return vistas
 
+
+# **El import va aqui abajo, no arriba, y es deliberado.** `formacion` importa este modulo para
+# construir `Oportunidad`, asi que importarlo en la cabecera cerraria el ciclo antes de que las
+# constantes existan. Colocado despues de ellas, el ciclo se resuelve y no hace falta envoltorio.
+import formacion as frm  # noqa: E402
 
 #: Las fuentes que el contrato ya reconoce. Una sola fuente volveria a ser una lista escrita a mano,
 #: solo que mas corta — el defecto que este proyecto lleva cuatro auditorias corrigiendo.
@@ -405,6 +426,12 @@ FUENTES = {
     # locales— leyendo lo que el nucleo ya publica. Ni ejecuta, ni escribe, ni pregunta por red. Su
     # techo es DECISION_REQUIRED: eleva conocimiento, nunca permiso.
     "capacidades_del_entorno": ent.entorno,
+    # Octava fuente: **el plan de formacion**. Es el unico documento de la evolucion de AURA que le
+    # era invisible. Su techo es DECISION_REQUIRED por construccion —lo fija el propio plan: «ninguna
+    # capacidad se desarrolla automaticamente»—, asi que ver lo que le falta no le concede permiso
+    # para construirlo. Solo lectura. El import va aqui abajo para no cerrar un ciclo: `formacion`
+    # importa este modulo.
+    "capacidades_declaradas": frm.formacion,
 }
 
 

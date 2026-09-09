@@ -70,4 +70,9 @@ async def test_claves_faltantes_usan_valores_seguros():
     await orch.handle_utterance("u", _ORDEN_QUE_LLEGA_AL_LLM, "T")
     res = await orch.wait("T")
     assert res["provider"] == "raw", "el turno no llego al LLM: la prueba no ejercita el parsing"
-    assert res["say"] == "Entendido.", "el valor seguro por defecto dejo de aplicarse"
+    # El valor seguro cambió por instrucción del CEO (2026-09-01, FASE 5): «Entendido.» AFIRMA que
+    # se atendió algo, y ante un `say` ausente el usuario no puede distinguir esa confirmación de una
+    # respuesta real. Lo que se prueba aquí sigue siendo lo mismo —que el defecto seguro se aplica—;
+    # lo que cambia es cuál es.
+    assert res["say"] == "No he sabido qué responder a eso.", "el valor seguro por defecto dejo de aplicarse"
+    assert "entendido" not in res["say"].lower(), "una confirmación no es una respuesta"

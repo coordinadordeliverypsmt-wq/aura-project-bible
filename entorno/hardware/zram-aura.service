@@ -1,0 +1,30 @@
+# zRAM para AURA — preparado por DR-HW (2026-09-06). NO APLICADO: requiere sudo.
+#
+# Objetivo: 1,5 GB de RAM comprimida por delante del swap en eMMC, conservando
+# el /swapfile existente. Prioridad resultante: RAM fisica -> zRAM -> swap eMMC.
+#
+# Aplicar con:
+#   sudo install -m 644 zram-aura.conf /etc/systemd/system/zram-aura.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now zram-aura.service
+#
+[Unit]
+Description=zRAM para AURA (1,5 GB, lz4, prioridad sobre el swap en eMMC)
+After=multi-user.target
+DefaultDependencies=no
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# El modulo ya existe en el kernel de Mint 22.3: no se instala nada.
+ExecStartPre=/sbin/modprobe zram num_devices=1
+ExecStart=/bin/sh -c '\
+  echo lz4 > /sys/block/zram0/comp_algorithm; \
+  echo 1536M > /sys/block/zram0/disksize; \
+  /sbin/mkswap /dev/zram0; \
+  /sbin/swapon --priority 100 /dev/zram0'
+# Prioridad 100 frente al -2 del /swapfile: el kernel usa zRAM primero y el eMMC
+# solo cuando aquella se agota. El /swapfile NO se toca ni se desactiva.
+ExecStop=/bin/sh -c '/sbin/swapoff /dev/zram0 || true'
+
+[Install]
+WantedBy=multi-user.target

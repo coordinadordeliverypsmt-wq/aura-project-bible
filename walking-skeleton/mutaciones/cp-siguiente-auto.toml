@@ -1,0 +1,37 @@
+incremento = "Control Plane · seleccion automatica de tarea AUTO (2026-08-25)"
+# La garantia central: AURA NO puede darse trabajo a si misma. El selector solo lee lo que el CEO
+# autorizo y aplica debe_ejecutar. Los mutantes degradan esa contencion.
+pruebas = ["test_red_siguiente_auto.py"]
+timeout_s = 60
+
+[[mutante]]
+id = "AUTO-M1"
+descripcion = "el selector ignora debe_ejecutar: ejecutaria tareas completadas o bloqueadas"
+fichero = "control_plane.py"
+buscar = '''        puede, porque = debe_ejecutar(estado, ident)'''
+sustituir = '''        puede, porque = True, "sin comprobar"'''
+
+[[mutante]]
+id = "AUTO-M2"
+descripcion = "con la lista vacia se inventa una tarea en vez de devolver None"
+fichero = "control_plane.py"
+buscar = '''    if not candidatas:
+        return None, ('''
+sustituir = '''    if not candidatas:
+        return {"id": "INVENTADA"}, ('''
+
+[[mutante]]
+id = "AUTO-M3"
+descripcion = "una decision que bloquea deja de detener la cadena: se devuelve igualmente"
+fichero = "control_plane.py"
+buscar = '''        if puede:
+            return tarea, f"{ident}: {porque}"'''
+sustituir = '''        if True:
+            return tarea, f"{ident}: {porque}"'''
+
+[[mutante]]
+id = "AUTO-M4"
+descripcion = "el motivo se silencia: detenerse pasa a ser indistinguible de un fallo"
+fichero = "control_plane.py"
+buscar = '''    return None, " · ".join(motivos)'''
+sustituir = '''    return None, ""'''

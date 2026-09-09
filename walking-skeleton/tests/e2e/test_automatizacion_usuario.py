@@ -30,6 +30,7 @@ from aura_skeleton.adapters.computador import AdaptadorComputador
 from aura_skeleton.adapters.voice import VoiceAdapterMock
 from aura_skeleton.bus import InProcessEventBus
 from aura_skeleton.core.automatizacion import MotorAutomatizacion
+from aura_skeleton.core.ejecutor_reglas import EjecutorReglas
 from aura_skeleton.core.orchestrator import Orchestrator
 from aura_skeleton.core.permissions import PermissionManager
 from aura_skeleton.core.registro import RegistroAdaptadores
@@ -136,6 +137,12 @@ def _arrancar_aura(archivos, estado, proveedor=None):
     motor = MotorAutomatizacion(registro, permisos)
     if proveedor is None:
         proveedor = _GuionBorrado(str(archivos))
+    # F4 tramo 2 (2026-08-25): el almacen de reglas pasa por el MOTOR UNICO, asi que necesita
+    # recibirlo, y el motor necesita saber quien atiende la capacidad `automatizacion`. Sin este
+    # cableado el almacen es fail-closed y **ninguna regla se crearia**: la bateria pasaria en vacio.
+    # El veredicto de cada prueba NO cambia; se completa el arranque como lo hace `composicion.py`.
+    automatizaciones = AlmacenReglas(str(estado / "reglas.jsonl"), motor=motor)
+    registro.registrar(EjecutorReglas(automatizaciones))
     return Orchestrator(
         InProcessEventBus(),
         SimpleMemory(),
@@ -144,7 +151,7 @@ def _arrancar_aura(archivos, estado, proveedor=None):
         VoiceAdapterMock(),
         registro,
         motor=motor,
-        automatizaciones=AlmacenReglas(str(estado / "reglas.jsonl")),
+        automatizaciones=automatizaciones,
     )
 
 
@@ -435,7 +442,7 @@ async def test_la_ultima_defensa_no_inventa_una_automatizacion(entorno):
     archivos, estado = entorno
     aura = _arrancar_aura(archivos, estado)
 
-    respuesta = aura._crear_regla(USUARIO, "siempre que llueva, guarda una copia")
+    respuesta = await aura._crear_regla(USUARIO, "siempre que llueva, guarda una copia")
 
     assert "lo haré a partir de ahora" not in respuesta.lower(), "inventó una automatización"
     assert aura.automatizaciones.listar(USUARIO) == [], "persistió una regla sin disparador reconocido"

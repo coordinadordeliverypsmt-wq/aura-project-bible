@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "actualizado": "2026-08-31T23:59:59",
+  "actualizado": "2026-09-01T08:30:00",
   "status": "WAITING_FOR_NEXT_TASK",
   "tarea_actual": null,
   "git": {
@@ -483,6 +483,53 @@
         "el despertador no planifico ni ejecuto ninguna tarea",
         "0 procesos residentes"
       ]
+    },
+    {
+      "id": "CODIGO-MUERTO-COMPLETO",
+      "fecha": "2026-08-31",
+      "que": "completada la capacidad `eliminar_codigo_muerto`: AURA solo sabia ver y borrar UNA de sus formas (funciones). Ahora ve las cinco —import, constante, clase, funcion, metodo— y las borra por `ast`, no por expresion regular",
+      "no_amplia_perimetro": "misma accion, misma zona. Ampliar el perimetro exige acta; completar una capacidad ya autorizada, no",
+      "AURA_EJECUTO_TRABAJO_REAL": "por su propio punto de entrada, en entorno de cron limpio: descubrio 8, ejecuto 1 (`_quitar_funcion` en autoconstruccion.py), 2 vueltas, actos_humanos=0, cola agotada. Cadena completa en el historial: descubrimiento -> tarea_planificada -> veredicto_emitido -> propuesta_autorizada -> cambio_aplicado(efecto_verificado=True) -> redescubrimiento -> cola agotada [EJEC]",
+      "tres_falsos_positivos_MIOS_que_AURA_destapo_en_produccion": [
+        "`from __future__ import annotations` es una DIRECTIVA del compilador: su uso no aparece en el arbol. AURA la borro de 3 ficheros haciendo exactamente lo que se le pidio. Restauradas y cerrado",
+        "lo exportado en `__all__` SE USA: borrarlo dejaria `import *` roto con AttributeError, y ninguna prueba lo veria porque nadie hace `import *`. Fallo latente que la verificacion daria por bueno",
+        "los `__dunder__` no son constantes privadas: `__all__` llego a senalarse a si mismo"
+      ],
+      "leccion": "la verificacion de efecto comprueba que el simbolo DESAPARECIO, no que DEBIERA desaparecer. Contra un falso positivo del detector, la verificacion no protege",
+      "lo_que_NO_se_detecta_a_proposito": "ficheros huerfanos. El unico real es `medicion-a11.py`, que no es codigo muerto sino la evidencia de A11 —por eso nadie lo importa—. Un detector cuya unica instancia real seria un error convierte una capacidad en un riesgo",
+      "evidencia": "595 passed (antes 574) · ruff PASS · 273 mutantes en 14 arneses, 0 supervivientes, 0 NO_APLICADO, 0 ambiguos · Quality Gate FAIL 5/1139/3 = baseline"
+    },
+    {
+      "id": "SEGUNDA-BARRERA",
+      "fecha": "2026-08-31",
+      "que": "segunda barrera anti-falsos-positivos: el detector propone, `es_eliminable()` decide si se puede borrar. Dos preguntas distintas —«¿parece que nadie lo usa?» y «¿es esto eliminable, mire quien lo mire?»— y una sola regla aplicada en dos puntos",
+      "por_que": "contra un falso positivo del detector, el revisor, el acta, la verificacion y la reversion NO protegen: todos dan por buena la premisa. La verificacion de efecto comprueba que el simbolo DESAPARECIO, no que DEBIERA desaparecer",
+      "donde": "una sola fuente de verdad en autoconstruccion.es_eliminable(), consultada por el DESCUBRIDOR —para que un falso positivo no llegue ni a proponerse— y por el EJECUTOR —porque por ahi pasa cualquier ruta: ALERTA-005 aplicada al contenido—",
+      "cinco_comprobaciones": [
+        "__dunder__ es protocolo del lenguaje, por la PROPIEDAD y no por una lista",
+        "__future__ es directiva del compilador: su efecto no es un uso contable",
+        "lo exportado en __all__ se usa aunque nadie lo llame aqui dentro",
+        "el simbolo tiene que EXISTIR (fail-closed)",
+        "quitarlo tiene que dejar un fichero que COMPILE — la unica que protege de errores aun no cometidos"
+      ],
+      "defecto_grave_encontrado_de_paso": "el id de la oportunidad se derivaba de `fichero:linea`. Al borrar un simbolo, el siguiente OCUPA la linea liberada, hereda su id y el antiduplicados lo suprime: AURA perdia trabajo real EN SILENCIO e informaba «cola agotada» habiendo dejado algo sin hacer. Lo delato una prueba intermitente. La identidad es ahora (fichero, simbolo, forma)",
+      "una_regla_escrita_dos_veces_otra_vez": "`__future__` quedo en la barrera Y en el borrador; cada guardia tapaba al otro y un mutante sobrevivia sin faltar prueba. `quitar_simbolo` sabe COMO borrar; `es_eliminable` decide SI se debe",
+      "evidencia": "610 passed (antes 595, y 3 corridas seguidas sin intermitencia) · ruff PASS · 281 mutantes en 15 arneses, 0 supervivientes, 0 NO_APLICADO, 0 ambiguos · Quality Gate FAIL 5/1139/3 = baseline",
+      "AURA_en_el_plano_real": "descubiertas=8 · ejecutadas=0 · bloqueadas=6 · elevadas=2 · actos_humanos=0 · cola agotada. NO se fabrico trabajo"
+    },
+    {
+      "id": "OBSERVABILIDAD-CICLO-AUTONOMO",
+      "fecha": "2026-09-01",
+      "que": "consola de SOLO LECTURA sobre el ciclo autonomo: `aura.py estado|historial|ultimo`. AURA ya trabajaba sola; lo que faltaba era que un humano pudiera preguntar «que estas haciendo» sin entrar en el motor y sin interferir",
+      "por_que_un_modulo_aparte": "«solo lectura» tiene que poder DEMOSTRARSE. En `observatorio.py` la garantia se comprueba sobre el arbol sintactico. Y cierra una trampa concreta: `descubrimiento.descubrir()` REGISTRA UN EVENTO, asi que una consola que descubriera para ensenar la cola escribiria en el historial cada vez que alguien la mira",
+      "tres_alturas": "64 despertares · 73 ciclos · 10 trabajos — contadas por separado, nunca colapsadas",
+      "regla_central": "si el dato no esta en la fuente: NO DISPONIBLE. Nunca 0. Con su contrapartida: lo derivable se deriva, para que no degenere en «ante la duda, NO DISPONIBLE»",
+      "dos_GRAVE_de_la_auditoria_independiente": [
+        "el detector de contradicciones comparaba `estado.json[status]` —vocabulario de estados de TAREA— con el estado del CICLO, filtrando por `in ESTADOS`: 7 de los 8 valores reales no disparaban nunca. estado.json llevaba 7 HORAS desfasado sin que la consola lo dijera. Corregido comparando la frescura, que si es comparable",
+        "`TRABAJANDO` no distinguia «trabajando» de «el proceso murio hace horas». Ahora dice cuanto lleva abierto y, si supera el periodo del cron —derivado de la linea real, no un umbral inventado—, lo advierte; y un ciclo al que otro posterior deja atras consta como abandonado"
+      ],
+      "evidencia": "665 passed (antes 610) · ruff PASS · 46 mutantes, 0 supervivientes, 0 NO_APLICADO, 0 ambiguos · Quality Gate 5/1139/3 = linea base exacta, cero regresiones nuevas · E2E sobre el historial REAL con eventos.jsonl byte a byte identico, confirmado por el auditor con strace: ningun open de escritura",
+      "no_tocado": "motor_autonomia · despertador · orquestador · despertar-aura.sh · crontab (*/30) · docs · adr · decisiones · CLAUDE.md · ROADMAP. 0 commits, 0 push"
     }
   ],
   "checkpoint": {
@@ -722,10 +769,9 @@
   },
   "siguiente_trabajo_auto_executable": {
     "hay": false,
-    "motivo": "NO_HAY_TRABAJO_AUTORIZADO",
-    "medido": "11 ficheros de produccion y 33 funciones privadas examinadas en entorno/control-plane/: 0 muertas. El cero es del detector corriendo, no de un detector roto [EJEC]",
-    "que_hay_en_cambio": "6 oportunidades BLOQUEADAS (OB-1..OB-6) y 1 DECISION_REQUIRED (D-ORCH-6)",
-    "como_se_tomara_la_proxima": "automaticamente: `python3 aura.py trabajar` descubre, clasifica, planifica y ejecuta sin que nadie entregue la tarea"
+    "motivo": "NO_HAY_TRABAJO_AUTORIZADO — el perimetro quedo limpio despues de que AURA lo limpiara",
+    "medido": "0 ejecutables · 6 bloqueadas · 2 elevadas [EJEC]",
+    "que_desbloquearia_mas_trabajo": "un acta que amplie el ALCANCE del acta de DEC-ORCH-2 mas alla de `eliminar_codigo_muerto`, o que amplie la ZONA mas alla de entorno/control-plane/. Ambas dimensiones estan agotadas hoy"
   },
   "autonomia_operativa": {
     "actualizado": "2026-08-31",

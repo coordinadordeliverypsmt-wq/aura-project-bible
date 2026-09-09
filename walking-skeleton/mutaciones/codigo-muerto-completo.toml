@@ -1,0 +1,162 @@
+incremento = "Completar `eliminar_codigo_muerto`: las cinco formas, borrado por ast (2026-08-31)"
+pruebas = ["test_red_codigo_muerto_completo.py"]
+timeout_s = 300
+
+# --------- DESCUBRIMIENTO: las formas ---------
+
+[[mutante]]
+id = "CMC-M1"
+garantia = "un IMPORT sin usar es codigo muerto, y uno que si se usa NO lo es"
+fichero = "descubrimiento.py"
+pruebas = ["test_red_codigo_muerto_completo.py::test_un_IMPORT_sin_usar_es_codigo_muerto"]
+buscar = '''                if nombre != "*" and nombre not in usados:
+                    muertos.append((nombre, n.lineno, "import"))'''
+sustituir = '''                if False:
+                    muertos.append((nombre, n.lineno, "import"))'''
+
+[[mutante]]
+id = "CMC-M2"
+garantia = "una CONSTANTE privada sin uso es codigo muerto"
+fichero = "descubrimiento.py"
+pruebas = ["test_red_codigo_muerto_completo.py::test_una_CONSTANTE_privada_sin_uso_es_codigo_muerto"]
+buscar = '''                    muertos.append((objetivo.id, n.lineno, "constante"))'''
+sustituir = '''                    pass'''
+
+[[mutante]]
+id = "CMC-M3"
+garantia = "una CLASE privada sin uso es codigo muerto"
+fichero = "descubrimiento.py"
+pruebas = ["test_red_codigo_muerto_completo.py::test_una_CLASE_privada_sin_uso_es_codigo_muerto"]
+buscar = '''            muertos.append((n.name, n.lineno, "clase"))'''
+sustituir = '''            pass'''
+
+[[mutante]]
+id = "CMC-M4"
+garantia = "un METODO privado sin uso en su clase es codigo muerto"
+fichero = "descubrimiento.py"
+pruebas = ["test_red_codigo_muerto_completo.py::test_un_METODO_privado_sin_uso_en_su_clase_es_codigo_muerto"]
+buscar = '''                muertos.append((f"{c.name}.{m.name}", m.lineno, "metodo"))'''
+sustituir = '''                pass'''
+
+[[mutante]]
+id = "CMC-M5"
+garantia = "lo PUBLICO no se toca nunca: puede usarse desde fuera del arbol"
+fichero = "descubrimiento.py"
+pruebas = ["test_red_codigo_muerto_completo.py::test_lo_PUBLICO_no_se_toca_nunca"]
+buscar = '''        elif isinstance(n, ast.FunctionDef) and n.name.startswith("_") \
+                and not n.name.startswith("__") and n.name not in usados:'''
+sustituir = '''        elif isinstance(n, ast.FunctionDef) and n.name not in usados:'''
+
+[[mutante]]
+id = "CMC-M6"
+garantia = "un IMPORT no es FALSO_HUECO porque su nombre aparezca en otro modulo: cada uno tiene los suyos"
+fichero = "descubrimiento.py"
+# Reapuntado: sobrevivia porque en ninguna prueba otro fichero mencionaba el import sobrante, y el
+# caso real es el mas comun de todos — dos modulos que importan `json`.
+pruebas = ["test_red_codigo_muerto_completo.py::test_un_IMPORT_no_es_FALSO_HUECO_porque_otro_MODULO_lo_use"]
+buscar = '''            usada_fuera = (forma != "import" and'''
+sustituir = '''            usada_fuera = (True and'''
+
+[[mutante]]
+id = "CMC-M7"
+garantia = "lo que se usa DESDE OTRO FICHERO es FALSO_HUECO, no trabajo"
+fichero = "descubrimiento.py"
+pruebas = ["test_red_codigo_muerto_completo.py::test_lo_que_se_usa_DESDE_OTRO_FICHERO_es_FALSO_HUECO"]
+buscar = '''                           any(buscado in texto for otro, texto in fuera.items() if otro != fichero))'''
+sustituir = '''                           False)'''
+
+# --------- BORRADO POR AST ---------
+
+[[mutante]]
+id = "CMC-M8"
+garantia = "se borra EXACTAMENTE el rango del nodo: una regex se lleva lo que haya en medio"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_codigo_muerto_completo.py::test_borrar_un_METODO_no_se_lleva_la_clase",
+           "test_red_codigo_muerto_completo.py::test_se_borra_EXACTAMENTE_el_simbolo_y_nada_mas"]
+buscar = '''    inicio, fin = nodo.lineno - 1, (nodo.end_lineno or nodo.lineno)'''
+sustituir = '''    inicio, fin = nodo.lineno - 1, len(lineas)'''
+
+[[mutante]]
+id = "CMC-M9"
+garantia = "FAIL-CLOSED: si el simbolo no esta, no se toca nada. Un borrado aproximado es peor que ninguno"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_codigo_muerto_completo.py::test_quitar_un_simbolo_que_no_esta_no_cambia_nada"]
+buscar = '''    if nodo is None:
+        return texto'''
+sustituir = '''    if nodo is None:
+        return ""'''
+
+[[mutante]]
+id = "CMC-M10"
+garantia = "un `import a, b` del que sobra uno se reescribe sin el, no se borra la linea entera"
+fichero = "autoconstruccion.py"
+# Reapuntado: todas las pruebas usaban imports de un solo nombre.
+pruebas = ["test_red_codigo_muerto_completo.py::test_un_IMPORT_MULTIPLE_pierde_solo_el_que_sobra"]
+buscar = '''    if clase == "import" and len(nodo.names) > 1:'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "CMC-M11"
+garantia = "el EFECTO se comprueba releyendo el arbol, no buscando texto"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_codigo_muerto_completo.py::test_AURA_ejecuta_las_CUATRO_formas_encadenadas",
+           "test_red_codigo_muerto_completo.py::test_si_la_verificacion_falla_se_REVIERTE_cualquiera_de_las_formas"]
+buscar = '''    efecto = _existe_simbolo(original, propuesta["simbolo"], forma) \
+        and not _existe_simbolo(tras_el_cambio, propuesta["simbolo"], forma)'''
+sustituir = '''    efecto = "def " + propuesta["simbolo"] + "(" in original'''
+
+[[mutante]]
+id = "CMC-M12"
+garantia = "la FORMA viaja de la oportunidad a la tarea, o el ejecutor supone «funcion» y no borra nada"
+fichero = "planificador.py"
+pruebas = ["test_red_codigo_muerto_completo.py::test_AURA_ejecuta_las_CUATRO_formas_encadenadas"]
+buscar = '''        "forma": oportunidad.detalle.get("forma", "funcion"),'''
+sustituir = '''        "forma": "funcion",'''
+
+[[mutante]]
+id = "CMC-M13"
+garantia = "la FORMA viaja de la tarea a la propuesta"
+fichero = "review.py"
+pruebas = ["test_red_codigo_muerto_completo.py::test_AURA_ejecuta_las_CUATRO_formas_encadenadas"]
+buscar = '''                                         "forma": tarea.get("forma", "funcion"),'''
+sustituir = '''                                         "forma": "funcion",'''
+
+[[mutante]]
+id = "CMC-M14"
+garantia = "la FORMA sobrevive al registro de la propuesta: se perdia ahi, en silencio y revirtiendo"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_codigo_muerto_completo.py::test_AURA_ejecuta_las_CUATRO_formas_encadenadas"]
+buscar = '''                 "forma": hallazgo.get("forma", "funcion")}'''
+sustituir = '''                 "forma": "funcion"}'''
+
+[[mutante]]
+id = "CMC-M15"
+garantia = "los ficheros HUERFANOS no se proponen NUNCA: el unico real es la evidencia de A11"
+fichero = "descubrimiento.py"
+pruebas = ["test_red_codigo_muerto_completo.py::test_los_ficheros_HUERFANOS_no_se_proponen_NUNCA"]
+buscar = '''FICHEROS_NO_SE_PROPONEN_COMO_MUERTOS = True'''
+sustituir = '''FICHEROS_NO_SE_PROPONEN_COMO_MUERTOS = False'''
+
+# --------- LOS TRES FALSOS POSITIVOS QUE ENCONTRO AURA EN PRODUCCION ---------
+
+# CMC-M16, M18, M19 y M20 RETIRADOS el 2026-08-31 — **la regla que mutaban se mudo**.
+#   Los cuatro atacaban las reglas de `__future__`, `__all__` y los `__dunder__` mientras vivian
+#   dentro del descubridor. Al construirse la segunda barrera, esas reglas pasaron a `es_eliminable()`
+#   —un solo sitio, consultado por el descubridor y por el ejecutor—, asi que sus patrones dejaron de
+#   existir y el arnes los reportaba NO_APLICADO, que nunca cuenta como detectado.
+#   Sus garantias las cubren ahora `SB-M1` (dunder), `SB-M2` (__future__), `SB-M3` y `SB-M4` (__all__)
+#   en `mutaciones/segunda-barrera.toml`, y ademas `SB-M6`, que comprueba que el descubridor la
+#   consulta en vez de reimplementarla. No se pierde cobertura: se deja de medir dos veces lo mismo.
+
+[[mutante]]
+id = "CMC-M17"
+garantia = "la regla de `__future__` vive en la BARRERA, no en el borrador"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_codigo_muerto_completo.py::test_ningun_import_de___future___se_propone_aunque_se_pida",
+           "test_red_segunda_barrera.py::test_la_barrera_RECHAZA_los_tres_falsos_positivos_reales"]
+# Reapuntado 2026-08-31: la regla vivia en DOS sitios —la barrera y el borrador— y cada guardia tapaba
+# al otro, asi que el mutante sobrevivia sin que faltara ninguna prueba. Ahora vive solo en
+# `es_eliminable`, y se muta ahi.
+buscar = '''                    return False, (f"{corto!r} viene de `__future__`: es una directiva del compilador "'''
+sustituir = '''                    return True, (f"{corto!r} viene de `__future__`: es una directiva del compilador "'''
+

@@ -273,7 +273,10 @@ def test_A10_REVIEW_no_alcanza_ninguna_materia_del_producto_ni_de_gobierno():
     # Y la garantia de verdad no es esa lista, que es negra y siempre incompleta: es que lo
     # delegable sea una lista BLANCA. Una accion que nadie previo no es delegable por no estar
     # en la lista negra — es que no esta en la blanca.
-    assert review.TODO_LO_DELEGABLE == ("eliminar_codigo_muerto",)
+    # Crecio a dos **por el acta `DR-D` del CEO (2026-09-07)**, registrada en el log con `habilitar()`.
+    # La garantia no era «esta tupla tiene un elemento»: es que sea una lista BLANCA y que entrar en
+    # ella exija un acta. Eso sigue en pie, y por eso se comprueba tambien lo inventado.
+    assert review.TODO_LO_DELEGABLE == ("eliminar_codigo_muerto", "implementar_incremento_especificado")
     for inventada in ("modificar_D24", "tocar_el_roadmap", "lo_que_sea"):
         assert inventada not in review.TODO_LO_DELEGABLE
 

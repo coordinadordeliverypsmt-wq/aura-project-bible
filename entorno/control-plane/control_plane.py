@@ -1248,6 +1248,12 @@ NO_CONCEDEN_ESTADO = frozenset({
     "cargar",               # lee del disco
     "validar_tareas",       # ya estaba: valida el borde y rechaza
     "cuota_observada_de",   # lee
+    # La consola de observabilidad. **Nombra** el vocabulario de estados de tarea porque su trabajo
+    # es explicar por que NO lo compara con el del ciclo —son dos ejes distintos—, y el barrido la
+    # delata por eso mismo. Lee dos fuentes y enumera donde discrepan; no concede nada, no escribe
+    # nada, y una prueba sobre su arbol sintactico lo comprueba
+    # (`test_red_observatorio.py::test_el_observatorio_NO_PUEDE_escribir`).
+    "_contradicciones",
 })
 
 # **Residual declarado, no cerrado.** `_registrar_sin_lock` es el escritor del fichero: le da igual

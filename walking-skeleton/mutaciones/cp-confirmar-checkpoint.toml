@@ -1,0 +1,40 @@
+incremento = "Control Plane · confirmar_checkpoint (2026-08-25)"
+# La operacion acredita una LECTURA. Los mutantes atacan lo que la haria inutil o peligrosa:
+# sellar algo distinto de lo leido, silenciar el futuro, acreditar lo inexistente, o tocar autoridad.
+pruebas = ["test_red_confirmar_checkpoint.py"]
+timeout_s = 60
+
+[[mutante]]
+id = "CHK-M1"
+descripcion = "se acredita un documento INEXISTENTE: se fabrica evidencia de lectura"
+fichero = "control_plane.py"
+buscar = '''    if not lectura.get("existe"):
+        raise ValueError('''
+sustituir = '''    if False:
+        raise ValueError('''
+
+[[mutante]]
+id = "CHK-M2"
+descripcion = "se sella un valor fijo en vez de la version realmente leida"
+fichero = "control_plane.py"
+buscar = '''    estado["checkpoint"] = lectura
+    return estado'''
+sustituir = '''    estado["checkpoint"] = {"existe": True, "sha256": "confirmado", "secciones": []}
+    return estado'''
+
+[[mutante]]
+id = "CHK-M3"
+descripcion = "confirmar silencia el aviso para SIEMPRE, tambien tras cambios posteriores"
+fichero = "control_plane.py"
+buscar = '''    registrada = (estado.get("checkpoint") or {}).get("sha256")'''
+sustituir = '''    registrada = None'''
+
+[[mutante]]
+id = "CHK-M4"
+descripcion = "confirmar toca tareas_AUTO: una lectura pasa a autorizar"
+fichero = "control_plane.py"
+buscar = '''    estado["checkpoint"] = lectura
+    return estado'''
+sustituir = '''    estado["checkpoint"] = lectura
+    estado["tareas_AUTO"] = list(estado.get("tareas_AUTO") or []) + [{"id": "POR_LECTURA"}]
+    return estado'''

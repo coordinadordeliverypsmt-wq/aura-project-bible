@@ -1,0 +1,47 @@
+incremento = "CP · AUTO-01 idempotencia de entrega en pendientes() (2026-08-25)"
+# Dos garantias a la vez, y en tension: una tarea repetida NO son dos tareas, PERO el log sigue
+# siendo append-only. Un mutante que resuelva la primera rompiendo la segunda debe morir.
+pruebas = ["test_red_communication_plane.py::test_publicar_dos_veces_el_mismo_mensaje_no_lo_duplica",
+           "test_red_communication_plane.py::test_el_log_es_append_only_los_mensajes_no_se_modifican",
+           "test_red_communication_plane.py::test_un_mensaje_marcado_como_procesado_no_vuelve_a_entregarse",
+           "test_red_communication_plane.py::test_el_hilo_completo_se_reconstruye_desde_el_log"]
+timeout_s = 90
+
+[[mutante]]
+id = "A01-M1"
+descripcion = "se elimina la deduplicacion: un reintento vuelve a crear dos tareas"
+fichero = "communication_plane.py"
+buscar = '''            if ident in vistos:
+                continue'''
+sustituir = '''            if False:
+                continue'''
+
+[[mutante]]
+id = "A01-M2"
+descripcion = "se deduplica por CONTENIDO en vez de por id: dos identidades para la misma tarea"
+fichero = "communication_plane.py"
+buscar = '''            vistos.add(ident)'''
+sustituir = '''            vistos.add(str(m.get("cuerpo")))'''
+
+[[mutante]]
+id = "A01-M3"
+descripcion = "se elimina FISICAMENTE la linea duplicada del log: rompe append-only (ADR-0023)"
+fichero = "communication_plane.py"
+buscar = '''            if ident in vistos:
+                continue
+            vistos.add(ident)'''
+sustituir = '''            if ident in vistos:
+                lineas = [l for l in self._log.read_text(encoding="utf-8").splitlines()
+                          if f'"id": "{ident}"' not in l]
+                self._log.write_text("\n".join(lineas) + "\n", encoding="utf-8")
+                continue
+            vistos.add(ident)'''
+
+[[mutante]]
+id = "A01-M4"
+descripcion = "la deduplicacion se aplica tambien a los procesados: un mensaje procesado reaparece"
+fichero = "communication_plane.py"
+buscar = '''            if ident in procesados or ident in retractados:
+                continue'''
+sustituir = '''            if ident in retractados:
+                continue'''

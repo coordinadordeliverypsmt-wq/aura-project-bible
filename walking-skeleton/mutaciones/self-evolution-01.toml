@@ -1,0 +1,62 @@
+incremento = "DP-SELF-EVOLUTION-01 · Fase A — sexta fuente: deteccion de estancamiento/friccion (2026-09-03)"
+# La garantia no es solo detectar: es detectar SIN mentir. Cada mutante abre una via para que la
+# fuente eleve trabajo fantasma, se autodetecte, pierda estabilidad de id, se vuelva ejecutable, o
+# deje de encenderse. Todos deben morir.
+pruebas = ["test_red_estancamiento.py"]
+timeout_s = 120
+
+[[mutante]]
+id = "SE-M1"
+descripcion = "el progreso deja de contar: un ciclo CON efecto real pasa por estancado"
+fichero = "estancamiento.py"
+buscar = '''    return (ciclo.get("efecto_real") or 0) == 0'''
+sustituir = '''    return (ciclo.get("efecto_real") or 0) != 0'''
+
+[[mutante]]
+id = "SE-M2"
+descripcion = "el umbral se relaja a > k: exactamente K vueltas ya no dispara la senal"
+fichero = "estancamiento.py"
+buscar = '''    return len(_racha_de_estancamiento(ciclos)) >= k'''
+sustituir = '''    return len(_racha_de_estancamiento(ciclos)) > k'''
+
+[[mutante]]
+id = "SE-M3"
+descripcion = "el id deja de ser estable: incorpora la longitud de la racha y cambia al alargarse"
+fichero = "estancamiento.py"
+buscar = '''    firma = f"desde:{inicio}"'''
+sustituir = '''    firma = f"desde:{inicio}:{len(racha)}"'''
+
+[[mutante]]
+id = "SE-M4"
+descripcion = "se elimina la auto-exclusion: la propia elevacion sostiene el estancamiento"
+fichero = "estancamiento.py"
+buscar = '''    return bloqueadas + max(0, elevadas - _APORTE_PROPIO_MAXIMO)'''
+sustituir = '''    return bloqueadas + max(0, elevadas - 0)'''
+
+[[mutante]]
+id = "SE-M5"
+descripcion = "la senal se vuelve EJECUTABLE: DECISION_REQUIRED pasa a OPORTUNIDAD_REAL"
+fichero = "estancamiento.py"
+buscar = '''        estado=des.DECISION_REQUIRED,'''
+sustituir = '''        estado=des.OPORTUNIDAD_REAL,'''
+
+[[mutante]]
+id = "SE-M6"
+descripcion = "deja de mirar el trabajo real: un ciclo con OPORTUNIDAD_REAL cuenta como estancado"
+fichero = "estancamiento.py"
+buscar = '''    return (reales or 0) == 0'''
+sustituir = '''    return (reales or 0) >= 0'''
+
+[[mutante]]
+id = "SE-M7"
+descripcion = "el ocio sano (descubiertas=0) pasa por estancamiento"
+fichero = "estancamiento.py"
+buscar = '''    if not isinstance(descubiertas, int) or descubiertas <= 0:'''
+sustituir = '''    if not isinstance(descubiertas, int) or descubiertas < 0:'''
+
+[[mutante]]
+id = "SE-M8"
+descripcion = "la fuente NO se enciende: se descablea del dict FUENTES (ALERTA-005)"
+fichero = "descubrimiento.py"
+buscar = '''    "estancamiento": est.estancamiento,'''
+sustituir = '''    "NO_estancamiento": est.estancamiento,'''

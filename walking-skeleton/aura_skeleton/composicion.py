@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import observability as obs
+from .adapters.estado_autonomo_cp import crear_fuente_estado_autonomo
 from .adapters.hitl_consola import confirmar_por_consola
 from .adapters.home_assistant import HomeAssistantMock
 from .adapters.voice import VoiceAdapterMock
@@ -43,6 +44,8 @@ from .core.conectores_externos import habilitar
 from .core.contexto import RegistroContexto
 from .core.decisiones import AlmacenDecisiones, reabrir_aprobadas
 from .core.director import DirectorGeneral, RegistroEjecutores
+from .core.ejecutor_modelo_usuario import EjecutorModeloUsuario
+from .core.ejecutor_reglas import EjecutorReglas
 from .core.estado_operativo import AlmacenEstadoOperativo
 from .core.kill_switch import KillSwitch
 from .core.modelo_usuario import ModeloUsuario
@@ -343,11 +346,18 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
     centro_notificaciones = CentroNotificaciones(permisos=permisos, motor=motor)
     # Soberania del modelo del usuario (MVP): inspeccionar/entender/corregir/olvidar lo que AURA sabe de ti,
     # sobre la MISMA memoria del sistema (el olvido persiste; ADR-0017).
-    modelo_usuario = ModeloUsuario(memoria)
+    # F4 · la soberania del usuario pasa por el MOTOR UNICO (DP-D-M-8 §7, tramo «soberania»).
+    # El ejecutor se inscribe aqui y no arriba porque `memoria` se resuelve por nivel de degradacion
+    # mas abajo que el registro; y el modelo recibe el motor: sin el, sus mutaciones no ocurren.
+    registro_adaptadores.registrar(EjecutorModeloUsuario(memoria))
+    modelo_usuario = ModeloUsuario(memoria, motor=motor)
     # Automatizaciones definidas por el usuario (MVP capacidad 5, Bible 6.4). Sus reglas son DATO DEL
     # USUARIO y viven junto al resto de su estado permanente: por eso persisten al reiniciar AURA, que es
     # exactamente lo que distingue una automatizacion de una instruccion dada en una conversacion.
-    automatizaciones = AlmacenReglas(os.path.join(config.datos, "reglas.jsonl"))
+    # F4 tramo 2 · las automatizaciones pasan por el motor unico. El ejecutor se inscribe en el
+    # registro para que el motor sepa quien atiende la capacidad `automatizacion`.
+    automatizaciones = AlmacenReglas(os.path.join(config.datos, "reglas.jsonl"), motor=motor)
+    registro_adaptadores.registrar(EjecutorReglas(automatizaciones))
 
     # SISTEMA OPERATIVO INTERNO. El estado del trabajo de AURORA vive en disco junto al resto de su
     # estado permanente: eso es lo que le permite reanudar tras apagarse sin depender de una
@@ -365,6 +375,9 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
     # aprobacion escrita por el CEO debe surtir efecto en el siguiente latido venga de donde venga la
     # corrida. Quien PREGUNTA depende del modo: la consola en sesion interactiva, el buzon en
     # `--servir`, donde no hay nadie a quien preguntar.
+    # El buzon se construye ANTES de quien lo usa. Antes quedaba despues del `lambda` que lo captura
+    # y funcionaba solo por evaluacion diferida: cualquier reordenacion posterior lo habria roto con
+    # un `NameError` en el primer latido, no al arrancar.
     decisiones = AlmacenDecisiones(os.path.join(config.datos, "decisiones"))
     motor_ciclo = MotorDelCiclo(
         director,
@@ -372,6 +385,13 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
         al_despertar=lambda: reabrir_aprobadas(decisiones, estado_operativo),
     )
 
+    fuente_autonoma = crear_fuente_estado_autonomo()
+    obs.log(
+        "AUTO",
+        "estado-autonomo",
+        "ciclo autonomo legible" if fuente_autonoma is not None else "sin plano de control: ausente",
+        "-",
+    )
     orquestador = Orchestrator(
         InProcessEventBus(),
         memoria,
@@ -388,6 +408,16 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
         # estas bloqueada?" leen el MISMO almacen que expone `sistema.estado_operativo` y que
         # `--gobierno` ya publica -- nunca un segundo estado que pudiera divergir.
         estado_operativo=estado_operativo,
+        # Ciclo autonomo de AURORA (CEO, 2026-09-01): "¿en que estas trabajando?" se contesta con lo
+        # que el motor autonomo REGISTRO, no con la memoria del usuario. Es un PUERTO opcional: si el
+        # plano de control no esta -un despliegue del producto sin entorno de desarrollo-, la fuente
+        # es `None` y la conversacion se comporta exactamente como antes. No hay segundo estado: el
+        # observatorio lee el mismo `eventos.jsonl` que el propio motor escribe.
+        estado_autonomo=fuente_autonoma,
+        # El MISMO buzon que usa el confirmador diferido y que `reabrir_aprobadas` lee al despertar
+        # (linea de `motor_ciclo`, mas abajo). La conversacion no abre una segunda via de
+        # autorizacion: se asoma a la unica que hay.
+        decisiones=decisiones,
     )
 
     obs.log(

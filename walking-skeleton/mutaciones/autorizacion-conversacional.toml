@@ -1,0 +1,188 @@
+incremento = "Autorizacion humana desde la conversacion (CEO, 2026-09-01)"
+pruebas = ["tests/integration/test_autorizacion_conversacional.py"]
+timeout_s = 600
+
+# Un falso positivo aqui ABRE UNA ACCION DE LISTA ROJA que nadie pidio. La asimetria del dano manda:
+# casi todos los mutantes de abajo aflojan una guarda, porque aflojar es como esto se rompe de verdad.
+
+# --------- RECONOCER: decir que NO casi siempre ---------
+
+[[mutante]]
+id = "AU-M1"
+garantia = "una PREGUNTA nunca autoriza: '¿Puedes ejecutar X?' pregunta, 'Puedes ejecutar X' concede"
+fichero = "aura_skeleton/core/autorizacion.py"
+pruebas = ["tests/integration/test_autorizacion_conversacional.py::test_el_lenguaje_AMBIGUO_no_autoriza_nunca",
+           "tests/integration/test_autorizacion_conversacional.py::test_la_diferencia_entre_permiso_y_pregunta_es_EL_SIGNO"]
+buscar = '''    if "?" in texto or "¿" in texto:
+        return None'''
+sustituir = '''    if False:
+        return None'''
+
+[[mutante]]
+id = "AU-M2"
+garantia = "lo CONDICIONAL no decide: quien matiza esta pensando en voz alta, no autorizando"
+fichero = "aura_skeleton/core/autorizacion.py"
+pruebas = ["tests/integration/test_autorizacion_conversacional.py::test_el_lenguaje_AMBIGUO_no_autoriza_nunca"]
+buscar = '''    if any(c in t for c in CONDICIONALES):
+        return None'''
+sustituir = '''    if False:
+        return None'''
+
+[[mutante]]
+id = "AU-M3"
+garantia = "hace falta un VERBO de autorizacion: 'Trabaja en X' es una orden, no un permiso"
+fichero = "aura_skeleton/core/autorizacion.py"
+pruebas = ["tests/integration/test_autorizacion_conversacional.py::test_el_lenguaje_AMBIGUO_no_autoriza_nunca"]
+buscar = '''    if not any(v in t for v in VERBOS_DE_AUTORIZACION):
+        return None'''
+sustituir = '''    if False:
+        return None'''
+
+[[mutante]]
+id = "AU-M4"
+garantia = "sin OBJETO no hay autorizacion: 'haz lo que consideres' no nombra nada que autorizar"
+fichero = "aura_skeleton/core/autorizacion.py"
+pruebas = ["tests/integration/test_autorizacion_conversacional.py::test_el_lenguaje_AMBIGUO_no_autoriza_nunca"]
+buscar = '''    return identificador_en(texto)'''
+sustituir = '''    return identificador_en(texto) or "cualquiera"'''
+
+[[mutante]]
+id = "AU-M5"
+garantia = "el mecanismo funciona sobre CUALQUIER identificador valido, no solo los dos conocidos"
+fichero = "aura_skeleton/core/autorizacion.py"
+pruebas = ["tests/integration/test_autorizacion_conversacional.py::test_el_mecanismo_NO_esta_atado_a_D_ORCH_6_ni_a_D_INT_1"]
+buscar = '''_RE_DECISION = re.compile(r"\b[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+\b")'''
+sustituir = '''_RE_DECISION = re.compile(r"\b(?:D-ORCH-6|D-INT-1)\b")'''
+
+# --------- RESOLVER: no elegir por el usuario ---------
+
+[[mutante]]
+id = "AU-M6"
+garantia = "un identificador AMBIGUO no elige la primera: adivinar seria autorizar por cuenta propia"
+fichero = "aura_skeleton/core/autorizacion.py"
+pruebas = ["tests/integration/test_autorizacion_conversacional.py::test_un_identificador_AMBIGUO_no_elige_por_el_usuario"]
+buscar = '''    if len(huellas) > 1:
+        return None, "ambiguo"'''
+sustituir = '''    if False:
+        return None, "ambiguo"'''
+
+[[mutante]]
+id = "AU-M7"
+garantia = "una decision INEXISTENTE no se resuelve contra nada"
+fichero = "aura_skeleton/core/autorizacion.py"
+pruebas = ["tests/integration/test_autorizacion_conversacional.py::test_una_decision_INEXISTENTE_no_registra_nada"]
+buscar = '''    if not candidatas:
+        return None, "no encontrada"'''
+sustituir = '''    if not candidatas:
+        return {"huella": "", "accion": "?", "estado": "pendiente"}, "encontrada"'''
+
+# --------- EL CHAT NO EJECUTA ---------
+
+[[mutante]]
+id = "AU-M8"
+garantia = "autorizar NO ejecuta: si el chat ejecutara, autorizacion y ejecucion serian el mismo acto"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_autorizacion_conversacional.py::test_autorizar_NO_ejecuta_la_tarea_en_el_turno",
+           "tests/integration/test_autorizacion_conversacional.py::test_E2E_autorizo_por_chat_y_el_CICLO_AUTONOMO_lo_ejecuta"]
+buscar = '''        return (f"Autorización registrada para {identificador} ({decision.get('accion')}). "
+                f"No ejecuto la tarea desde la conversación: queda disponible para mi próximo "
+                f"ciclo autónomo, que volverá a comprobar el permiso antes de actuar.")'''
+sustituir = '''        return (f"Autorización registrada para {identificador} ({decision.get('accion')}) y "
+                f"ejecutada al momento.")'''
+
+# --------- REGISTRAR CON PROCEDENCIA ---------
+
+[[mutante]]
+id = "AU-M9"
+garantia = "consta QUIEN autorizo y DESDE DONDE: sin eso, auditar exige creerle a quien pregunte"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_autorizacion_conversacional.py::test_una_autorizacion_VALIDA_se_registra_y_PERSISTE"]
+buscar = '''        marcada = self.decisiones.aprobar(huella, por=uid, origen="conversacion", evidencia=texto)'''
+sustituir = '''        marcada = self.decisiones.aprobar(huella)'''
+
+[[mutante]]
+id = "AU-M10"
+garantia = "el ESTADO ANTERIOR se conserva: una transicion sin rastro obliga a deducirla por la fecha"
+fichero = "aura_skeleton/core/decisiones.py"
+pruebas = ["tests/integration/test_autorizacion_conversacional.py::test_una_autorizacion_VALIDA_se_registra_y_PERSISTE"]
+buscar = '''        decision["estado_anterior"] = decision.get("estado")'''
+sustituir = '''        decision["estado_anterior"] = estado'''
+
+[[mutante]]
+id = "AU-M11"
+garantia = "la EVIDENCIA es el mensaje original: es la prueba de que hubo una intencion explicita"
+fichero = "aura_skeleton/core/decisiones.py"
+pruebas = ["tests/integration/test_autorizacion_conversacional.py::test_una_autorizacion_VALIDA_se_registra_y_PERSISTE"]
+buscar = '''        if evidencia:'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "AU-M12"
+garantia = "queda rastro FORENSE de quien abrio una accion de lista roja (H2)"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_autorizacion_conversacional.py::test_la_autorizacion_deja_rastro_en_la_AUDITORIA"]
+buscar = '''        obs.log("HITL", "autorizacion", f"{decision.get('accion')} autorizada por {uid} desde la "
+                f"conversacion ({huella[:8]}): pendiente -> aprobada", tid, audit=True)'''
+sustituir = '''        pass'''
+
+# --------- NO DUPLICAR, NO INVENTAR AUTORIDAD ---------
+
+[[mutante]]
+id = "AU-M13"
+garantia = "lo YA autorizado no se re-autoriza: reescribiria quien y con que palabras fue la primera"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_autorizacion_conversacional.py::test_una_decision_YA_AUTORIZADA_no_se_autoriza_dos_veces"]
+buscar = '''        if decision.get("estado") == "aprobada":'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "AU-M14"
+garantia = "lo que exige OTRA AUTORIDAD se declara: decir «registrada» afirmaria un desbloqueo falso"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_autorizacion_conversacional.py::test_lo_que_requiere_OTRA_AUTORIDAD_se_declara_y_no_se_registra"]
+buscar = '''            if gobernanza:'''
+sustituir = '''            if False:'''
+
+[[mutante]]
+id = "AU-M15"
+garantia = "sin buzon conectado NO se finge haber registrado nada"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_autorizacion_conversacional.py::test_SIN_BUZON_conectado_no_se_finge_haber_registrado_nada"]
+buscar = '''        if self.decisiones is None:
+            return ("No tengo buzón de decisiones conectado, así que no puedo registrar ninguna "
+                    "autorización desde aquí.")'''
+sustituir = '''        if self.decisiones is None:
+            return "Autorización registrada."'''
+
+# --------- UNA SOLA FUENTE, Y EL MOTOR LA VE ---------
+
+[[mutante]]
+id = "AU-M16"
+garantia = "el buzon de la conversacion es EL MISMO del motor: dos serian dos fuentes de verdad"
+fichero = "aura_skeleton/composicion.py"
+pruebas = ["tests/integration/test_autorizacion_conversacional.py::test_el_buzon_de_la_conversacion_es_EL_MISMO_que_el_del_motor",
+           "tests/integration/test_autorizacion_conversacional.py::test_la_autorizacion_es_VISIBLE_para_el_siguiente_ciclo"]
+buscar = '''        decisiones=decisiones,
+    )'''
+sustituir = '''        decisiones=None,
+    )'''
+
+[[mutante]]
+id = "AU-M17"
+garantia = "la autorizacion es VISIBLE para el siguiente ciclo: sin eso se queda en el disco"
+fichero = "aura_skeleton/core/decisiones.py"
+pruebas = ["tests/integration/test_autorizacion_conversacional.py::test_la_autorizacion_es_VISIBLE_para_el_siguiente_ciclo",
+           "tests/integration/test_autorizacion_conversacional.py::test_E2E_autorizo_por_chat_y_el_CICLO_AUTONOMO_lo_ejecuta"]
+buscar = '''    aprobadas = {_solo_tarea(d.get("tarea")) for d in almacen.aprobadas() if d.get("tarea")}'''
+sustituir = '''    aprobadas = set()'''
+
+[[mutante]]
+id = "AU-M18"
+garantia = "la superficie va ANTES de la ausencia de memoria: si no, autorizar cae en 'no recuerdo'"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_autorizacion_conversacional.py::test_una_decision_INEXISTENTE_no_registra_nada",
+           "tests/integration/test_autorizacion_conversacional.py::test_una_autorizacion_VALIDA_se_registra_y_PERSISTE"]
+buscar = '''        identificador = es_autorizacion(text)
+        if identificador is not None:'''
+sustituir = '''        identificador = es_autorizacion(text)
+        if False:'''

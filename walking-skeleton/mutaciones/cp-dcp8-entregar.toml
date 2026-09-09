@@ -1,0 +1,36 @@
+incremento = "CP · D-CP-8=C metodo entregar() (2026-08-25)"
+# La garantia: la ruta de entrega APLICA la barrera en vez de declararla. El cuerpo llega marcado
+# como dato no confiable y anidado, nunca fundido con las instrucciones del receptor.
+pruebas = ["test_red_dcp8_cableado.py::test_la_ruta_de_entrega_marca_el_mensaje_como_dato_no_confiable",
+           "test_red_dcp8_cableado.py::test_lo_entregado_conserva_el_cuerpo_sin_fundirlo_con_las_instrucciones"]
+timeout_s = 60
+
+[[mutante]]
+id = "DCP8-M1"
+descripcion = "entregar() devuelve el mensaje CRUDO: la barrera vuelve a ser declarativa"
+fichero = "communication_plane.py"
+buscar = '''        return entregar_a_receptor(mensaje)'''
+sustituir = '''        return mensaje'''
+
+[[mutante]]
+id = "DCP8-M2"
+descripcion = "lo entregado se marca como ejecutable"
+fichero = "communication_plane.py"
+buscar = '''        "ejecutable": False,'''
+sustituir = '''        "ejecutable": True,'''
+
+[[mutante]]
+id = "DCP8-M3"
+descripcion = "el cuerpo se funde en la raiz del objeto entregado: deja de ser un dato anidado"
+fichero = "communication_plane.py"
+buscar = '''        return entregar_a_receptor(mensaje)'''
+sustituir = '''        e = entregar_a_receptor(mensaje)
+        e.update(mensaje.get("cuerpo") or {})
+        return e'''
+
+[[mutante]]
+id = "DCP8-M4"
+descripcion = "la confianza deja de declararse NO_CONFIABLE"
+fichero = "communication_plane.py"
+buscar = '''        "confianza": "NO_CONFIABLE",'''
+sustituir = '''        "confianza": "CONFIABLE",'''

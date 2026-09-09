@@ -1,0 +1,103 @@
+incremento = "B4 · Barrera de la Seccion E del Communication Plane (2026-08-23)"
+# Degrada las SIETE garantias que B4 anade a entorno/communication-plane/communication_plane.py.
+# Se ejecuta con --raiz apuntando a entorno/communication-plane, porque el modulo del canal vive
+# fuera de walking-skeleton.
+#
+# Solo se declaran las 16 pruebas de la Seccion E que B4 pone en VERDE: las otras 12 siguen rojas a
+# proposito (D-CP-4, D-CP-5 y `bloqueado_por`, todas fuera del alcance autorizado), y declararlas
+# haria que la base no estuviera verde.
+pruebas = [
+    "test_red_seccion_e.py::test_v2_una_afirmacion_en_prosa_no_cambia_lo_que_el_control_plane_permite",
+    "test_red_seccion_e.py::test_v2_el_ejecutor_consulta_el_control_plane_y_nunca_el_mensaje",
+    "test_red_seccion_e.py::test_v2_una_propuesta_no_es_una_decision",
+    "test_red_seccion_e.py::test_v3_el_cuerpo_se_entrega_marcado_como_dato_no_confiable",
+    "test_red_seccion_e.py::test_v3_no_existe_ninguna_ruta_del_cuerpo_a_un_ejecutor",
+    "test_red_seccion_e.py::test_v3_la_defensa_contra_persuasion_no_puede_ser_semantica",
+    "test_red_seccion_e.py::test_v4_el_canal_no_puede_modificar_el_control_plane",
+    "test_red_b4_medicion.py::test_la_medicion_detecta_una_ruta_de_ejecucion_inyectada",
+    "test_red_b4_medicion.py::test_caso_de_control_la_misma_medicion_sobre_el_modulo_intacto_da_vacio",
+]
+timeout_s = 60
+
+[[mutante]]
+id = "M1"
+garantia = "el veredicto NO se lee del mensaje: `del mensaje` es lo que hace imposible consultarlo"
+fichero = "communication_plane.py"
+pruebas = ["test_red_seccion_e.py::test_v2_una_afirmacion_en_prosa_no_cambia_lo_que_el_control_plane_permite"]
+buscar = '''    del mensaje  # ← la garantía, ejecutada. No se lee: se elimina.'''
+sustituir = '''    if mensaje and "cuerpo" in mensaje:
+        return True'''
+
+[[mutante]]
+id = "M2"
+garantia = "DECISION_REQUIRED no permite actuar: si se colase en la lista, una decision pendiente dejaria de bloquear"
+fichero = "communication_plane.py"
+pruebas = ["test_red_seccion_e.py::test_v2_una_afirmacion_en_prosa_no_cambia_lo_que_el_control_plane_permite"]
+buscar = '''_ESTADOS_QUE_PERMITEN: tuple[str, ...] = ("WORKING",)'''
+sustituir = '''_ESTADOS_QUE_PERMITEN: tuple[str, ...] = ("WORKING", "DECISION_REQUIRED")'''
+
+[[mutante]]
+id = "M3"
+garantia = "la autoridad viene SOLO del Control Plane: anadir el mensaje como fuente invierte la direccion de la dependencia"
+fichero = "communication_plane.py"
+pruebas = ["test_red_seccion_e.py::test_v2_el_ejecutor_consulta_el_control_plane_y_nunca_el_mensaje"]
+# El patron incluye la linea previa del docstring: desde que `D-CP-4` anadio `fuentes_de_criterio()`,
+# `return ("control_plane",)` aparece DOS veces en el modulo y por si solo quedaba AMBIGUO — es decir,
+# la garantia de B4 se habia quedado sin proteccion sin que ninguna prueba lo notara. Lo detecto el
+# propio arnes al reejecutarlo tras D-CP-4.
+buscar = '''    La dirección de la dependencia **es** la garantía. Ni `mensaje` ni `cuerpo` figuran aquí.
+    """
+    return ("control_plane",)'''
+sustituir = '''    La dirección de la dependencia **es** la garantía. Ni `mensaje` ni `cuerpo` figuran aquí.
+    """
+    return ("control_plane", "mensaje")'''
+
+[[mutante]]
+id = "M4"
+garantia = "ningun tipo de mensaje es una AUTORIZACION: si TASK lo fuera, publicar bastaria para conceder"
+fichero = "communication_plane.py"
+pruebas = ["test_red_seccion_e.py::test_v2_una_propuesta_no_es_una_decision"]
+buscar = '''    "TASK": "PROPUESTA",'''
+sustituir = '''    "TASK": "AUTORIZACION",'''
+
+[[mutante]]
+id = "M5"
+garantia = "el cuerpo se entrega como NO ejecutable: es la unica barrera que el canal ofrece por si mismo"
+fichero = "communication_plane.py"
+pruebas = ["test_red_seccion_e.py::test_v3_el_cuerpo_se_entrega_marcado_como_dato_no_confiable"]
+buscar = '''        "ejecutable": False,'''
+sustituir = '''        "ejecutable": True,'''
+
+[[mutante]]
+id = "M6"
+garantia = "el cuerpo se entrega marcado NO_CONFIABLE: si llegase como confiable, se fundiria con las instrucciones del receptor"
+fichero = "communication_plane.py"
+pruebas = ["test_red_seccion_e.py::test_v3_el_cuerpo_se_entrega_marcado_como_dato_no_confiable"]
+buscar = '''        "confianza": "NO_CONFIABLE",'''
+sustituir = '''        "confianza": "CONFIABLE",'''
+
+[[mutante]]
+id = "M7"
+garantia = "el canal NO afirma impedir la persuasion (INV-9): afirmarlo seria fingir una capacidad que no tiene"
+fichero = "communication_plane.py"
+pruebas = ["test_red_seccion_e.py::test_v3_la_defensa_contra_persuasion_no_puede_ser_semantica"]
+buscar = '''        "impide_que_el_modelo_sea_persuadido": False,'''
+sustituir = '''        "impide_que_el_modelo_sea_persuadido": True,'''
+
+[[mutante]]
+id = "M8"
+garantia = "el canal solo LEE el Control Plane: con escritura, transporte y autoridad serian la misma cosa"
+fichero = "communication_plane.py"
+pruebas = ["test_red_seccion_e.py::test_v4_el_canal_no_puede_modificar_el_control_plane"]
+buscar = '''    return "SOLO_LECTURA"'''
+sustituir = '''    return "LECTURA_Y_ESCRITURA"'''
+
+[[mutante]]
+id = "M9"
+garantia = "la ausencia de rutas de ejecucion se MIDE sobre el AST, no se declara. Superviviente hasta 2026-08-23; cubierto desde entonces por la RED autorizada con D-CP-8."
+fichero = "communication_plane.py"
+pruebas = ["test_red_seccion_e.py::test_v3_no_existe_ninguna_ruta_del_cuerpo_a_un_ejecutor",
+           "test_red_b4_medicion.py::test_la_medicion_detecta_una_ruta_de_ejecucion_inyectada"]
+buscar = '''    arbol = ast.parse(Path(__file__).read_text(encoding="utf-8"))'''
+sustituir = '''    return ()
+    arbol = ast.parse(Path(__file__).read_text(encoding="utf-8"))'''

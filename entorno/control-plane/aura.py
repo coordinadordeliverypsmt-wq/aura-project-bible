@@ -1,7 +1,18 @@
 """`aura` — el punto de entrada desde el que AURA trabaja **sin que nadie le pase la tarea**.
 
-    python3 aura.py diagnosticar     # que ve, sin tocar nada
+    python3 aura.py diagnosticar     # que ve AHORA, mirando el arbol
     python3 aura.py trabajar         # una vuelta acotada del ciclo, y termina
+
+    python3 aura.py estado           # que esta haciendo, segun lo que registro
+    python3 aura.py historial        # que ha hecho, ciclo a ciclo
+    python3 aura.py ultimo           # el ultimo ciclo, entero
+
+## Dos familias de ordenes, y la diferencia importa
+
+`diagnosticar` y `trabajar` **miran el arbol y escriben en el historial** —descubrir registra un
+evento—. `estado`, `historial` y `ultimo` no: leen lo que AURA ya registro y no dejan rastro. Por eso
+un humano puede consultarlas cuantas veces quiera sin ensuciar el log con su propia curiosidad, y por
+eso viven en `observatorio.py`, donde la garantia de solo-lectura se comprueba sobre el codigo.
 
 ## Por que esto NO es un demonio, y no puede serlo
 
@@ -40,6 +51,7 @@ import sys
 import control_plane as cp
 import descubrimiento as des
 import motor_autonomia as motor
+import observatorio as obs
 
 #: Terminaciones que **no** son un problema: se hizo el trabajo, o no habia. Cualquier otra parada
 #: la mira alguien.
@@ -71,11 +83,34 @@ def codigo_de_salida(informe: dict) -> int:
 def principal(argumentos=None) -> int:
     analizador = argparse.ArgumentParser(
         prog="aura", description="Ciclo de trabajo de AURA: descubrir, ejecutar, verificar, seguir.")
-    analizador.add_argument("orden", choices=("diagnosticar", "trabajar"))
+    analizador.add_argument("orden", choices=("diagnosticar", "trabajar",
+                                              "estado", "historial", "ultimo"))
     analizador.add_argument("--max-tareas", type=int, default=5,
                             help="tope de tareas por invocacion (§14: ningun bucle sin cota)")
+    analizador.add_argument("--limite", type=int, default=obs.LIMITE_HISTORIAL,
+                            help="cuantos ciclos y trabajos muestra `historial`")
+    analizador.add_argument("--json", action="store_true",
+                            help="el informe crudo, para encadenarlo con otra herramienta")
     opciones = analizador.parse_args(argumentos)
     base = _base()
+
+    # Las ordenes de observacion salen antes de cualquier cosa que trabaje: son solo lectura, no
+    # pueden fallar por el estado del arbol, y su codigo de salida es 0 porque **observar salio
+    # bien**. Lo que se observe puede ser un desastre; eso lo dice el informe, no el codigo de
+    # salida. Confundir «AURA esta en ERROR» con «el comando fallo» haria que un envoltorio
+    # razonable dejara de mostrar justo el informe que hace falta leer.
+    OBSERVACIONES = {"estado": (obs.estado, obs.render_estado),
+                     "ultimo": (obs.ultimo, obs.render_ultimo)}
+    if opciones.orden in OBSERVACIONES or opciones.orden == "historial":
+        if opciones.orden == "historial":
+            informe = obs.historial(base, opciones.limite)
+            texto = obs.render_historial(informe)
+        else:
+            calcular, render = OBSERVACIONES[opciones.orden]
+            informe = calcular(base)
+            texto = render(informe)
+        print(json.dumps(informe, ensure_ascii=False, indent=2) if opciones.json else texto)
+        return SALIDA_OK
 
     try:
         if opciones.orden == "diagnosticar":
@@ -104,7 +139,7 @@ def principal(argumentos=None) -> int:
     return codigo_de_salida(informe)
 
 
-__all__ = ["principal", "diagnosticar", "trabajar", "codigo_de_salida",
+__all__ = ["principal", "diagnosticar", "trabajar", "codigo_de_salida", "obs",
            "PARADAS_NORMALES", "SALIDA_OK", "SALIDA_PARADA", "SALIDA_ERROR", "des"]
 
 

@@ -1,0 +1,45 @@
+# G1 del Communication Plane · sobre y concurrencia. Cuatro funciones puras, sin dependencias de
+# ninguna decision abierta. Las pruebas que las cubren viven en test_red_transporte.py.
+incremento = "CP · G1 sobre y concurrencia (2026-08-24)"
+pruebas = ["test_red_transporte.py::test_el_mensaje_declara_que_version_del_estado_leyo_su_emisor",
+           "test_red_transporte.py::test_un_resultado_calculado_sobre_un_estado_viejo_se_rechaza",
+           "test_red_transporte.py::test_un_hueco_en_la_secuencia_se_detecta_y_no_se_rellena",
+           "test_red_transporte.py::test_una_respuesta_a_un_mensaje_inexistente_se_rechaza"]
+timeout_s = 60
+
+[[mutante]]
+id = "G1-M1"
+descripcion = "el sobre deja de declarar sobre que estado se emitio"
+fichero = "communication_plane.py"
+buscar = '''"in_reply_to": None, "estado_leido": None}'''
+sustituir = '''"in_reply_to": None}'''
+
+[[mutante]]
+id = "G1-M2"
+descripcion = "la concurrencia optimista deja de comparar: todo es aplicable"
+fichero = "communication_plane.py"
+buscar = '''return (mensaje or {}).get("estado_leido") == estado_actual'''
+sustituir = '''return True'''
+
+[[mutante]]
+id = "G1-M3"
+descripcion = "los huecos de secuencia se silencian: el canal miente sobre su historia"
+fichero = "communication_plane.py"
+buscar = '''return [n for n in range(min(presentes), max(presentes) + 1) if n not in presentes]'''
+sustituir = '''return []'''
+
+[[mutante]]
+id = "G1-M4"
+descripcion = "una respuesta a un mensaje inexistente deja de rechazarse"
+fichero = "communication_plane.py"
+buscar = '''    if referencia not in set(ids_conocidos or ()):
+        raise ValueError('''
+sustituir = '''    if False:
+        raise ValueError('''
+
+[[mutante]]
+id = "G1-M5"
+descripcion = "la comparacion de estado se vuelve tolerante (subcadena en vez de igualdad)"
+fichero = "communication_plane.py"
+buscar = '''    return (mensaje or {}).get("estado_leido") == estado_actual'''
+sustituir = '''    return str((mensaje or {}).get("estado_leido")) in str(estado_actual)'''

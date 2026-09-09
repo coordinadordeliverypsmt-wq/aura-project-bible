@@ -1,0 +1,171 @@
+incremento = "Enrutamiento por dominios: decisiones, oportunidades y evolucion (CEO, 2026-09-01)"
+pruebas = ["tests/integration/test_routing_dominios.py"]
+timeout_s = 500
+
+# El defecto no era ninguna frase: era que la memoria del usuario actuaba como dominio POR DEFECTO de
+# toda interrogativa. Casi todos los mutantes de abajo devuelven una pregunta a ese agujero.
+
+# --------- ELIMINAR CADA SUPERFICIE ---------
+
+[[mutante]]
+id = "RD-M1"
+garantia = "la superficie de DECISIONES existe: sin ella '¿que es D-ORCH-6?' vuelve a memoria"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_routing_dominios.py::test_cada_entrada_llega_a_SU_dominio",
+           "tests/integration/test_routing_dominios.py::test_NINGUNA_de_esas_preguntas_cae_en_MEMORIA"]
+buscar = '''        if self.estado_autonomo is not None and _es_consulta_de_decisiones(text):'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "RD-M2"
+garantia = "la superficie de OPORTUNIDADES existe: sin ella '¿que esta bloqueado?' vuelve a memoria"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_routing_dominios.py::test_cada_entrada_llega_a_SU_dominio",
+           "tests/integration/test_routing_dominios.py::test_NINGUNA_de_esas_preguntas_cae_en_MEMORIA"]
+buscar = '''        if self.estado_autonomo is not None and _es_consulta_de_oportunidades(text):'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "RD-M3"
+garantia = "la superficie de EVOLUCION existe"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_routing_dominios.py::test_cada_entrada_llega_a_SU_dominio"]
+buscar = '''        if self.estado_autonomo is not None and _es_consulta_de_evolucion(text):'''
+sustituir = '''        if False:'''
+
+# --------- EL ORDEN DEL ENRUTAMIENTO ---------
+
+[[mutante]]
+id = "RD-M4"
+garantia = "EVOLUCION se evalua ANTES que ultima tarea: '¿que hiciste hoy?' contiene '¿que hiciste?'"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_routing_dominios.py::test_cada_entrada_llega_a_SU_dominio"]
+buscar = '''_PAT_EVOLUCION = (
+    "que hiciste hoy",'''
+sustituir = '''_PAT_EVOLUCION = (
+    "que hiciste hoy nunca jamas",'''
+
+[[mutante]]
+id = "RD-M5"
+garantia = "la AUTORIZACION se evalua antes que decisiones: si no, 'Autorizo X' seria una consulta"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_routing_dominios.py::test_solo_la_autorizacion_INEQUIVOCA_autoriza"]
+buscar = '''        identificador = es_autorizacion(text)
+        if identificador is not None:'''
+sustituir = '''        identificador = None
+        if identificador is not None:'''
+
+# --------- QUE NO VUELVAN A CAER EN MEMORIA ---------
+
+[[mutante]]
+id = "RD-M6"
+garantia = "nombrar una DECISION basta para pertenecer a su dominio, sea pregunta u orden"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_routing_dominios.py::test_solo_la_autorizacion_INEQUIVOCA_autoriza",
+           "tests/integration/test_routing_dominios.py::test_cada_entrada_llega_a_SU_dominio"]
+buscar = '''    return identificador_de_decision(texto) is not None'''
+sustituir = '''    return False'''
+
+[[mutante]]
+id = "RD-M7"
+garantia = "la guarda de dominio NO se traga '¿que decisiones necesitan DE MI?' — ahi 'de mi' no posee nada"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_routing_dominios.py::test_cada_entrada_llega_a_SU_dominio"]
+buscar = '''        if "mi" in patron.split() or not _tiene_objeto_ajeno(t):'''
+sustituir = '''        if not _tiene_objeto_ajeno(t):'''
+
+[[mutante]]
+id = "RD-M8"
+garantia = "la consulta de ESTADO autonomo sigue yendo a su fuente y no a memoria"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_routing_dominios.py::test_cada_entrada_llega_a_SU_dominio",
+           "tests/integration/test_routing_dominios.py::test_esas_respuestas_LEEN_la_fuente_real"]
+buscar = '''        if (self.estado_operativo is not None or self.estado_autonomo is not None) and _es_consulta_de_tareas(text):'''
+sustituir = '''        if False:'''
+
+# --------- SE LEE LA FUENTE, NO SE ACIERTA EL TEXTO ---------
+
+[[mutante]]
+id = "RD-M9"
+garantia = "las DECISIONES se leen de la fuente real: acertar el texto sin leerla es el mismo defecto"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_routing_dominios.py::test_esas_respuestas_LEEN_la_fuente_real",
+           "tests/integration/test_routing_dominios.py::test_una_DECISION_se_describe_con_sus_opciones_reales"]
+buscar = '''        return (redactar_decisiones(self.estado_autonomo.instantanea(), identificador)
+                or "No me consta ninguna decisión pendiente en mi estado actual.")'''
+sustituir = '''        return "Tengo 2 decisión(es) esperando una respuesta tuya."'''
+
+[[mutante]]
+id = "RD-M10"
+garantia = "las OPORTUNIDADES traen su motivo y quien las desbloquea, no solo el recuento"
+fichero = "aura_skeleton/core/estado_autonomo.py"
+pruebas = ["tests/integration/test_routing_dominios.py::test_las_OPORTUNIDADES_se_describen_con_su_motivo_y_quien_desbloquea"]
+buscar = '''            if _hay(o.get("quien_desbloquea")):
+                partes.append(f"    Lo desbloquea: {o['quien_desbloquea']}")'''
+sustituir = '''            if False:
+                partes.append(f"    Lo desbloquea: {o['quien_desbloquea']}")'''
+
+[[mutante]]
+id = "RD-M11"
+garantia = "una DECISION que no existe no se inventa"
+fichero = "aura_skeleton/core/estado_autonomo.py"
+pruebas = ["tests/integration/test_routing_dominios.py::test_una_decision_INEXISTENTE_no_se_inventa"]
+buscar = '''        if not halladas:
+            return f"No encuentro una decisión llamada {identificador} en mi estado actual."'''
+sustituir = '''        if not halladas:
+            halladas = pendientes[:1]'''
+
+[[mutante]]
+id = "RD-M12"
+garantia = "la EVOLUCION sale del historial, no de la conversacion reciente"
+fichero = "aura_skeleton/core/estado_autonomo.py"
+pruebas = ["tests/integration/test_routing_dominios.py::test_la_EVOLUCION_sale_del_historial_y_no_de_la_conversacion"]
+buscar = '''    trabajos = inst.get("trabajos_recientes")
+    if not isinstance(trabajos, list):'''
+sustituir = '''    trabajos = None
+    if not isinstance(trabajos, list):'''
+
+[[mutante]]
+id = "RD-M13"
+garantia = "sin datos NINGUNA superficie fabrica: se declara la ausencia"
+fichero = "aura_skeleton/core/estado_autonomo.py"
+pruebas = ["tests/integration/test_routing_dominios.py::test_sin_datos_NINGUNA_superficie_fabrica_nada"]
+buscar = '''    if not isinstance(pendientes, list):
+        return "No me consta ninguna decisión pendiente en mi estado actual."'''
+sustituir = '''    if not isinstance(pendientes, list):
+        return "Ahora mismo no tengo ninguna decisión esperando una respuesta tuya."'''
+
+# --------- LA TELEMETRIA Y EL FALLBACK ---------
+
+[[mutante]]
+id = "RD-M14"
+garantia = "el DOMINIO viaja con el turno: sin el, comprobar el enrutamiento seria mirarle la cara al texto"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_routing_dominios.py::test_cada_entrada_llega_a_SU_dominio"]
+buscar = '''                              "marks": dict(t.marks), "dominio": dominio or ("llm" if prov != "core" else "")}'''
+sustituir = '''                              "marks": dict(t.marks), "dominio": ""}'''
+
+[[mutante]]
+id = "RD-M15"
+garantia = "un `say` vacio NO se convierte en una confirmacion: «Entendido.» afirma que se atendio algo"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_routing_dominios.py::test_un_say_VACIO_del_proveedor_no_se_convierte_en_una_confirmacion"]
+buscar = '''            say = str(d.get("say", "")) or "No he sabido qué responder a eso."'''
+sustituir = '''            say = str(d.get("say", "")) or "Entendido."'''
+
+[[mutante]]
+id = "RD-M16"
+garantia = "el tablero del producto NO se mezcla con el estado del motor: son dos planos"
+fichero = "aura_skeleton/core/estado_autonomo.py"
+pruebas = ["tests/integration/test_routing_dominios.py::test_el_tablero_del_producto_NO_se_mezcla_con_el_motor",
+           "tests/integration/test_routing_dominios.py::test_las_OPORTUNIDADES_se_describen_con_su_motivo_y_quien_desbloquea"]
+buscar = '''    bloqueadas = inst.get("oportunidades_bloqueadas")'''
+sustituir = '''    bloqueadas = inst.get("tablero_de_objetivos")'''
+
+[[mutante]]
+id = "RD-M17"
+garantia = "SIN fuente autonoma las tres superficies no se activan: el producto se instala sin el plano"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_routing_dominios.py::test_regresion_SIN_estado_autonomo_las_tres_superficies_no_se_activan"]
+buscar = '''        if self.estado_autonomo is not None and _es_consulta_de_evolucion(text):'''
+sustituir = '''        if _es_consulta_de_evolucion(text):'''

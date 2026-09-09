@@ -115,9 +115,14 @@ sustituir = '''    if False:
 id = "AC-M10"
 garantia = "el efecto se comprueba RELEYENDO el fichero: que la sustitucion «se haya hecho» no es evidencia"
 fichero = "autoconstruccion.py"
-pruebas = ["test_red_autoconstruccion.py::test_AURA_no_declara_exito_sin_comprobar_el_efecto"]
-buscar = '''    efecto = (f"def {propuesta['simbolo']}(" in original
-              and f"def {propuesta['simbolo']}(" not in tras_el_cambio)'''
+# Reapuntado 2026-08-31: desde que existe la segunda barrera, el simbolo siempre esta antes de
+# borrarlo, asi que el efecto nunca llegaba a ser falso y el mutante sobrevivia sin faltar prueba —
+# faltaba el CASO: un borrado que no hace nada.
+pruebas = ["test_red_segunda_barrera.py::test_si_el_BORRADO_no_hace_nada_no_se_declara_efecto"]
+# Reapuntado 2026-08-31: la comprobacion pasa a releer el ARBOL —vale para las cinco formas y no se
+# deja enganar por una mencion en un comentario—, asi que el patron viejo dejo de existir.
+buscar = '''    efecto = _existe_simbolo(original, propuesta["simbolo"], forma) \
+        and not _existe_simbolo(tras_el_cambio, propuesta["simbolo"], forma)'''
 sustituir = '''    efecto = True'''
 
 [[mutante]]

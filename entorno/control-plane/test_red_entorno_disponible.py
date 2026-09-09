@@ -269,7 +269,10 @@ def test_no_concluye_que_puede_conectarlo(tmp_path):
 def test_la_fuente_esta_cableada_en_FUENTES():
     """ALERTA-005: una capacidad que no esta cableada no existe, por buena que sea."""
     assert des.FUENTES.get("capacidades_del_entorno") is ent.entorno
-    assert len(des.FUENTES) == 7
+    # Eran 7 hasta que el acta del CEO (2026-09-07) anadio la octava, `capacidades_declaradas`, que
+    # lee el plan de formacion. El numero se sube aqui **porque hay un acta**, no para que la prueba
+    # pase: su trabajo es avisar de que el catalogo cambio, y aviso.
+    assert len(des.FUENTES) == 8
 
 
 def test_convive_con_las_seis_fuentes_existentes():

@@ -1,0 +1,91 @@
+incremento = "D-M8 · F3 (clase soberania + sujeto) + F4 (ruta de soberania por el motor) — 2026-08-25"
+# El bloque entero: catalogo -> clase -> sujeto -> authorize -> kill switch -> motor -> ejecutor ->
+# audit -> persistencia. Cada mutante abre una via para saltarse UN eslabon de esa cadena.
+pruebas = [
+  "tests/unit/test_f3_clase_soberania.py",
+  "tests/unit/test_f3_catalogo_sujeto.py",
+  "tests/unit/test_f4_soberania_por_el_motor.py",
+]
+timeout_s = 240
+
+[[mutante]]
+id = "BLQ-M1"
+descripcion = "la clase soberania desaparece: las tres operaciones vuelven a ser verdes"
+fichero = "aura_skeleton/core/permissions.py"
+buscar = '''SOBERANIA = {a for a, m in CATALOGO.items() if m["lista"] == "soberania"}'''
+sustituir = '''SOBERANIA = set()'''
+
+[[mutante]]
+id = "BLQ-M2"
+descripcion = "HITL indebido: la soberania pasa a pedir confirmacion (contra §4.3)"
+fichero = "aura_skeleton/core/permissions.py"
+buscar = '''        if action in SOBERANIA:'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "BLQ-M3"
+descripcion = "bypass del SUJETO: la operacion se autoriza sin decir sobre quien recae"
+fichero = "aura_skeleton/core/permissions.py"
+buscar = '''        if action in SUJETO_REQUERIDO and not sujeto_declarado(args):'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "BLQ-M4"
+descripcion = "un sujeto VACIO vuelve a valer como sujeto declarado"
+fichero = "aura_skeleton/core/permissions.py"
+buscar = '''    return isinstance(valor, str) and valor.strip() != ""'''
+sustituir = '''    return valor is not None'''
+
+[[mutante]]
+id = "BLQ-M5"
+descripcion = "RUTA DIRECTA restaurada: el modelo vuelve a mutar el almacen sin motor"
+fichero = "aura_skeleton/core/modelo_usuario.py"
+buscar = '''        if self._motor is None:
+            return 0'''
+sustituir = '''        if self._motor is None:
+            return self._memoria.olvidar(
+                lambda i: i["user_id"] == args.get("user_id") and i["kind"] in _TIPOS)'''
+
+[[mutante]]
+id = "BLQ-M6"
+descripcion = "el motor detiene la operacion pero el modelo informa exito igualmente"
+fichero = "aura_skeleton/core/modelo_usuario.py"
+buscar = '''        if resultado.get("estado") != "ejecutada":
+            return 0'''
+sustituir = '''        if False:
+            return 0'''
+
+[[mutante]]
+id = "BLQ-M7"
+descripcion = "el audit deja de decir QUE se borro: solo cuenta (G-6 degradada)"
+fichero = "aura_skeleton/core/ejecutor_modelo_usuario.py"
+buscar = '''                    f"olvidadas {n} entrada(s) sobre '{user_id}': {afectadas!r}", trace_id, audit=True)'''
+sustituir = '''                    f"olvidadas {n} entrada(s)", trace_id, audit=True)'''
+
+[[mutante]]
+id = "BLQ-M8"
+descripcion = "refutar vuelve a alcanzar lo YA refutado: narraria exito sin efecto (INV-9)"
+fichero = "aura_skeleton/core/ejecutor_modelo_usuario.py"
+buscar = '''            and not (solo_vivas and i.get("provenance", {}).get("refutada"))'''
+sustituir = '''            and True'''
+
+[[mutante]]
+id = "BLQ-M9"
+descripcion = "el ejecutor se convierte en comodin y atiende acciones ajenas"
+fichero = "aura_skeleton/core/ejecutor_modelo_usuario.py"
+buscar = '''        return self if accion in ACCIONES else None'''
+sustituir = '''        return self'''
+
+# BLQ-M10 RETIRADO 2026-08-25. Fue DETECTADO, no sobrevivio: se retira porque exigia un metodo en
+# PRODUCCION que solo servia al arnes, y codigo muerto en el producto para sostener un mutante es
+# peor negocio que el mutante. Su garantia —«corregir no puede escribir sin pasar por el motor»—
+# queda cubierta por BLQ-M5 (ruta directa restaurada), BLQ-M11 (corregir sin refutar) y la RED
+# `test_corregir_sin_motor_no_muta`.
+[[mutante]]
+id = "BLQ-M11"
+descripcion = "corregir registra la version nueva pero NO marca la anterior como refutada"
+fichero = "aura_skeleton/core/modelo_usuario.py"
+buscar = '''        await self._por_el_motor(
+            "refutar_informacion_usuario", {"user_id": user_id, "contiene": anterior}
+        )'''
+sustituir = '''        pass'''

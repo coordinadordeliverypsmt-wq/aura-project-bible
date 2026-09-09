@@ -1,0 +1,104 @@
+incremento = "Control Plane · DISCOVERY/CLASSIFY/PROPOSE (2026-08-25)"
+# La garantia central no es tecnica sino de gobernanza: AURA descubre, pero NO se autoriza. Cada
+# mutante abre una via para que el descubridor acabe escribiendo en tareas_AUTO.
+pruebas = ["test_red_discovery.py"]
+timeout_s = 90
+
+[[mutante]]
+id = "DSC-M1"
+descripcion = "el descubridor ESCRIBE en tareas_AUTO: se autoriza trabajo a si mismo"
+fichero = "control_plane.py"
+buscar = '''    ev = evidencia or {}
+    hallazgos = []'''
+sustituir = '''    ev = evidencia or {}
+    estado["tareas_AUTO"] = list(estado.get("tareas_AUTO") or []) + [{"id": "AUTOASIGNADA"}]
+    hallazgos = []'''
+
+[[mutante]]
+id = "DSC-M2"
+descripcion = "la clasificacion es fail-OPEN: lo desconocido pasa a ejecutable"
+fichero = "control_plane.py"
+buscar = '''    if not isinstance(hallazgo, dict) or hallazgo.get("origen") not in _ORIGENES:
+        return "DECISION_REQUIRED"'''
+sustituir = '''    if not isinstance(hallazgo, dict) or hallazgo.get("origen") not in _ORIGENES:
+        return "AUTO_EXECUTABLE"'''
+
+[[mutante]]
+id = "DSC-M3"
+descripcion = "las zonas bloqueadas dejan de bloquear: M9/aprobar/Orchestrator pasan a AUTO"
+fichero = "control_plane.py"
+buscar = '''    if _toca_zona_bloqueada(hallazgo, estado):
+        return "DECISION_REQUIRED"'''
+sustituir = '''    if False:
+        return "DECISION_REQUIRED"'''
+
+[[mutante]]
+id = "DSC-M4"
+descripcion = "se promueve un DECISION_REQUIRED"
+fichero = "control_plane.py"
+buscar = '''    if clase == "DECISION_REQUIRED":
+        raise PromocionInvalida('''
+sustituir = '''    if False:
+        raise PromocionInvalida('''
+
+[[mutante]]
+id = "DSC-M5"
+descripcion = "un PROPOSAL_ONLY se promueve sin aprobacion expresa"
+fichero = "control_plane.py"
+buscar = '''    if clase == "PROPOSAL_ONLY" and not aprobacion_expresa:
+        raise PromocionInvalida('''
+sustituir = '''    if False:
+        raise PromocionInvalida('''
+
+[[mutante]]
+id = "DSC-M6"
+descripcion = "se acepta evidencia inexistente: trabajo fantasma"
+fichero = "control_plane.py"
+buscar = '''    if not _evidencia_sigue_existiendo(estado, p):
+        raise PromocionInvalida('''
+sustituir = '''    if False:
+        raise PromocionInvalida('''
+
+[[mutante]]
+id = "DSC-M7"
+descripcion = "se pierde la trazabilidad hallazgo -> propuesta -> tarea"
+fichero = "control_plane.py"
+buscar = '''        "origen_propuesta": id_propuesta, "aprobado_por": aprobado_por,'''
+sustituir = '''        "origen_propuesta": None, "aprobado_por": None,'''
+
+[[mutante]]
+id = "DSC-M8"
+descripcion = "el descubrimiento deja de ser idempotente: duplica propuestas en cada pasada"
+fichero = "control_plane.py"
+buscar = '''        if ident in conocidas:
+            continue'''
+sustituir = '''        if False:
+            continue'''
+
+[[mutante]]
+id = "DSC-M9"
+descripcion = "sin evidencia se inventa un hallazgo"
+fichero = "control_plane.py"
+buscar = '''    for g in ev.get("gates_fallidos") or []:'''
+sustituir = '''    if not hallazgos:
+        hallazgos.append({"origen": "defecto", "ref": "INVENTADO",
+                          "determinado_por": "contrato existente"})
+    for g in ev.get("gates_fallidos") or []:'''
+
+[[mutante]]
+id = "DSC-M11"
+descripcion = "sin lista de zonas declarada se clasifica como ejecutable en vez de fail-closed"
+fichero = "control_plane.py"
+buscar = '''    if not zonas:
+        return True'''
+sustituir = '''    if not zonas:
+        return False'''
+
+[[mutante]]
+id = "DSC-M10"
+descripcion = "se promueve sin aprobador: deja de ser una decision humana"
+fichero = "control_plane.py"
+buscar = '''    if not aprobado_por:
+        raise PromocionInvalida('''
+sustituir = '''    if False:
+        raise PromocionInvalida('''

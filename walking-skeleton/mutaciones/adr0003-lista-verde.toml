@@ -1,0 +1,52 @@
+incremento = "ADR-0003 · solo lo VERDE puede ser criterio AUTO (2026-08-23)"
+# Resuelve el conflicto entre D-CP-4 («capacidad registrada») y ADR-0003 («la lista roja exige
+# confirmacion humana SIEMPRE, con tolerancia cero a falsos negativos»).
+pruebas = ["test_red_adr0003_lista_verde.py", "test_red_dcp4_criterio.py", "test_red_dcp6_argumentos.py"]
+timeout_s = 60
+
+[[mutante]]
+id = "M1"
+garantia = "ADR-0003: una capacidad ROJA nunca es criterio AUTO. Sin esta linea, `pago` vuelve a pasar"
+fichero = "communication_plane.py"
+pruebas = ["test_red_adr0003_lista_verde.py::test_una_capacidad_roja_NUNCA_es_criterio_AUTO"]
+buscar = '''    if clasificacion_de_capacidad(criterio) != "verde":'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "M2"
+garantia = "lo que no consta clasificado NO es verde: ante la duda, roja"
+fichero = "communication_plane.py"
+pruebas = ["test_red_adr0003_lista_verde.py::test_una_capacidad_sin_clasificacion_conocida_no_es_verde",
+           "test_red_adr0003_lista_verde.py::test_fail_safe_si_el_registro_no_es_legible_nada_es_verde"]
+buscar = '''        return "desconocida"
+    return "desconocida"'''
+sustituir = '''        return "verde"
+    return "verde"'''
+
+[[mutante]]
+id = "M3"
+garantia = "FAIL-SAFE: registro ilegible -> nada es verde. Tolerancia cero a falsos negativos (ADR-0003)"
+fichero = "communication_plane.py"
+pruebas = ["test_red_adr0003_lista_verde.py::test_fail_safe_si_el_registro_no_es_legible_nada_es_verde"]
+buscar = '''    dicc = _dict_de_produccion(_RUTA_CATALOGO, _NOMBRE_CATALOGO)
+    if dicc is None:
+        return "desconocida"'''
+sustituir = '''    dicc = _dict_de_produccion(_RUTA_CATALOGO, _NOMBRE_CATALOGO)
+    if dicc is None:
+        return "verde"'''
+
+[[mutante]]
+id = "M4"
+garantia = "se lee el campo `lista` (la clasificacion de autonomia), no otro campo del registro"
+fichero = "communication_plane.py"
+pruebas = ["test_red_adr0003_lista_verde.py::test_la_clasificacion_se_lee_del_registro_real"]
+buscar = '''            if (isinstance(sub, ast.Constant) and sub.value == "lista"'''
+sustituir = '''            if (isinstance(sub, ast.Constant) and sub.value == "efecto"'''
+
+[[mutante]]
+id = "M5"
+garantia = "FAIL-SAFE completo: un registro con CODIFICACION invalida degrada a rechazo, no lanza. Una excepcion no es «roja»: es comportamiento indefinido"
+fichero = "communication_plane.py"
+pruebas = ["test_red_adr0003_lista_verde.py::test_fail_safe_un_registro_con_codificacion_invalida_tampoco_concede"]
+buscar = '''    except (OSError, SyntaxError, ValueError):'''
+sustituir = '''    except (OSError, SyntaxError):'''

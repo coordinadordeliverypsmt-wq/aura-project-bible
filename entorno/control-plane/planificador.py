@@ -74,6 +74,12 @@ def a_tarea(oportunidad) -> dict | None:
         # La **forma** del simbolo viaja con la tarea: sin ella el ejecutor solo sabria borrar
         # funciones, que es lo unico que sabia antes de completar la capacidad.
         "forma": oportunidad.detalle.get("forma", "funcion"),
+        # La operacion constructiva y sus dos textos, cuando el contrato la declara. Por defecto no
+        # viajan: una tarea de codigo muerto no tiene `buscar` ni `sustituir`, y el ejecutor usa su
+        # operacion por defecto.
+        "operacion": oportunidad.detalle.get("operacion", "eliminar_codigo_muerto"),
+        "buscar": oportunidad.detalle.get("buscar"),
+        "sustituir": oportunidad.detalle.get("sustituir"),
         "objetivo": oportunidad.justificacion,
         "criterio_de_finalizacion": dict(oportunidad.criterio_de_finalizacion),
         "evidencia_requerida": dict(oportunidad.evidencia_requerida),
@@ -108,14 +114,79 @@ def registrar_planificada(directorio, tarea: dict) -> dict:
         "fichero": tarea["fichero"], "riesgo": tarea["riesgo"]})
 
 
+#: **El tope de intentos, y no es un numero inventado.** Sale del modelo que este plano ya tiene:
+#: `agentes.ejecutar_tarea(..., max_intentos=2)`. Y su motivo esta escrito en `revisores.py:380` —
+#: *«un reintento sin tope es un bucle, y el §14 no autoriza ninguno»*.
+TOPE_DE_REINTENTOS = 2
+
+
+def resultado_de(directorio, id_tarea: str) -> dict | None:
+    """El resultado del ultimo intento de esa tarea, o `None` si aun no lo hay.
+
+    **El enlace sale del orden del historial, sin campos nuevos.** El log es secuencial y append-only
+    (`ADR-0023`): entre una `tarea_planificada` y la siguiente, el `cambio_aplicado` que aparezca
+    pertenece a la primera. Se comprobo contra los cuatro intentos que existen en el log real."""
+    resultado, mio = None, False
+    for evento in cp.leer_eventos(pathlib.Path(directorio)):
+        if evento["tipo"] == "tarea_planificada":
+            mio = evento["datos"].get("id") == id_tarea
+        elif evento["tipo"] == "cambio_aplicado" and mio:
+            resultado = evento["datos"]
+    return resultado
+
+
+def intentos_de(directorio, id_tarea: str) -> int:
+    """Cuantas veces se planifico. La constancia se deja **antes** de ejecutar, asi que esto cuenta
+    intentos empezados, que es lo que un presupuesto acotado tiene que contar."""
+    return sum(1 for e in cp.leer_eventos(pathlib.Path(directorio))
+               if e["tipo"] == "tarea_planificada" and e["datos"].get("id") == id_tarea)
+
+
+def completada(directorio, id_tarea: str) -> bool:
+    """**`tarea_planificada` no es `tarea_completada`.** Completada es haber dejado efecto: un
+    intento revertido no cambio nada, y tratarlo como terminado quema trabajo que nunca se hizo.
+
+    **Las tres condiciones, explicitas.** Hoy `ejecutar()` deriva `revertido = not (efecto and sano)`,
+    asi que mirar solo `revertido` bastaria; escribirlas las tres es lo que impide que un cambio en
+    esa derivacion abra una puerta aqui sin que nadie se entere. Y un evento sin los campos no
+    concede: la duda nunca completa."""
+    resultado = resultado_de(directorio, id_tarea)
+    if not resultado:
+        return False
+    return (resultado.get("efecto_verificado") is True
+            and resultado.get("verificacion_sana") is True
+            and resultado.get("revertido") is False)
+
+
+def elegible(directorio, id_tarea: str) -> bool:
+    """Si la tarea puede entrar en la cola. **Ante la duda, no.**
+
+    Cuatro respuestas, y solo una concede: nunca intentada -> si; completada -> no; planificada y sin
+    resultado todavia -> no (puede estar corriendo, y duplicarla es el defecto que
+    `registrar_planificada` existe para evitar); revertida -> si, **mientras quede presupuesto**.
+
+    Una reversion no es un permiso permanente: es el resto de un presupuesto acotado. Agotado, la
+    tarea se apaga y hace falta evidencia nueva —otra oportunidad, con otra identidad— para volver."""
+    intentos = intentos_de(directorio, id_tarea)
+    if intentos == 0:
+        return True
+    resultado = resultado_de(directorio, id_tarea)
+    if resultado is None:
+        return False
+    if not resultado.get("revertido", False):
+        return False
+    return intentos < TOPE_DE_REINTENTOS
+
+
 def cola(directorio, oportunidades) -> list[dict]:
-    """Las tareas ejecutables **no planificadas todavia**, en orden de riesgo."""
+    """Las tareas ejecutables **elegibles**, en orden de riesgo. La regla de elegibilidad vive en
+    `elegible()` y solo alli: tenerla aqui tambien seria la copia que este proyecto ya ha pagado."""
     ordenadas = sorted((o for o in oportunidades if o.estado == des.OPORTUNIDAD_REAL), key=_peso)
     tareas = []
     vistos = set()
     for oportunidad in ordenadas:
         tarea = a_tarea(oportunidad)
-        if tarea is None or tarea["id"] in vistos or ya_planificada(directorio, tarea["id"]):
+        if tarea is None or tarea["id"] in vistos or not elegible(directorio, tarea["id"]):
             continue
         vistos.add(tarea["id"])
         tareas.append(tarea)
@@ -142,5 +213,6 @@ def informe_de_cola(oportunidades) -> dict:
     }
 
 
-__all__ = ["a_tarea", "cola", "siguiente", "id_de_tarea", "ya_planificada",
+__all__ = ["a_tarea", "cola", "siguiente", "id_de_tarea", "ya_planificada", "elegible",
+           "resultado_de", "intentos_de", "completada", "TOPE_DE_REINTENTOS",
            "registrar_planificada", "informe_de_cola"]

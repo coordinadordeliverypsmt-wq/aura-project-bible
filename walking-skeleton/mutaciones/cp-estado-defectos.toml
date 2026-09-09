@@ -1,0 +1,70 @@
+incremento = "Control Plane · DEC-DEFECTO-ESTADO-ESTRUCTURADO opcion B + contencion (2026-08-25)"
+# Dos garantias distintas y cada mutante ataca UNA: (1) la apertura es un dato, no una narracion, y
+# su ausencia nunca significa abierto; (2) hacer visible un defecto no lo hace ejecutable.
+pruebas = ["test_red_estado_defectos.py"]
+timeout_s = 90
+
+[[mutante]]
+id = "EDF-M1"
+descripcion = "la ausencia del campo se interpreta como ABIERTO: los registros historicos se abren solos"
+fichero = "control_plane.py"
+buscar = '''    return valor if valor in APERTURAS else "NO_CONSTA"'''
+sustituir = '''    return valor if valor in APERTURAS else "ABIERTO"'''
+
+[[mutante]]
+id = "EDF-M2"
+descripcion = "la apertura vuelve a decidirse leyendo la PROSA por substring"
+fichero = "control_plane.py"
+buscar = '''        if not isinstance(d, dict) or apertura_de(d) != "ABIERTO":
+            continue'''
+sustituir = '''        if not isinstance(d, dict) or "ABIERTO" not in str(d.get("estado", "")).upper():
+            continue'''
+
+[[mutante]]
+id = "EDF-M3"
+descripcion = "un defecto CERRADO vuelve a contar como trabajo abierto"
+fichero = "control_plane.py"
+buscar = '''        if not isinstance(d, dict) or apertura_de(d) != "ABIERTO":
+            continue
+'''
+sustituir = '''        if not isinstance(d, dict) or apertura_de(d) not in ("ABIERTO", "CERRADO"):
+            continue
+'''
+
+[[mutante]]
+id = "EDF-M4"
+descripcion = "un defecto SIN FICHERO puede clasificarse AUTO_EXECUTABLE"
+fichero = "control_plane.py"
+buscar = '''    if not (hallazgo.get("fichero") and hallazgo.get("prueba")):
+        return "PROPOSAL_ONLY"'''
+sustituir = '''    if not hallazgo.get("prueba"):
+        return "PROPOSAL_ONLY"'''
+
+[[mutante]]
+id = "EDF-M5"
+descripcion = "un defecto SIN PRUEBA puede clasificarse AUTO_EXECUTABLE"
+fichero = "control_plane.py"
+buscar = '''    if not (hallazgo.get("fichero") and hallazgo.get("prueba")):
+        return "PROPOSAL_ONLY"
+'''
+sustituir = '''    if not hallazgo.get("fichero"):
+        return "PROPOSAL_ONLY"
+'''
+
+[[mutante]]
+id = "EDF-M6"
+descripcion = "la contencion desaparece: la falta de informacion vuelve a actuar como permiso"
+fichero = "control_plane.py"
+buscar = '''    if not (hallazgo.get("fichero") and hallazgo.get("prueba")):
+        return "PROPOSAL_ONLY"
+    if hallazgo.get("determinado_por")'''
+sustituir = '''    if hallazgo.get("determinado_por")'''
+
+[[mutante]]
+id = "EDF-M7"
+descripcion = "la zona bloqueada deja de tener prioridad sobre la clasificacion AUTO"
+fichero = "control_plane.py"
+buscar = '''    if _toca_zona_bloqueada(hallazgo, estado):
+        return "DECISION_REQUIRED"'''
+sustituir = '''    if False:
+        return "DECISION_REQUIRED"'''

@@ -1,6 +1,10 @@
 # Decision Package — D-M-8: Motor Único de Mutaciones
 
-**Estado:** propuesta, **pendiente de aprobación del CEO**. **No se ha escrito código.**
+**Estado:** **APROBADO por el CEO el 2026-08-17.** Autorizado continuar **únicamente con el
+alcance definido en este documento**, para cerrar estructuralmente ALERTA-006: fases F0–F6,
+HITL, PermissionManager, Kill Switch, auditoría, reversibilidad y Quality Gate.
+**Orden expresa del CEO: no ampliar el alcance ni inventar fases adicionales.**
+**Todavía no se ha escrito código.**
 **Encargo (CEO, 2026-08-03):** definir el contrato del Motor Único, el flujo obligatorio de toda
 mutación persistente, su integración con Kill Switch / PermissionManager / HITL, la estrategia de
 auditoría y reversibilidad, las garantías que protegerá el Quality Gate y el plan de migración.

@@ -225,15 +225,33 @@ def test_un_cambio_verificado_se_CONSERVA_y_queda_registrado(tmp_path):
 
 
 def test_AURA_no_declara_exito_sin_comprobar_el_efecto(tmp_path):
-    """El punto crítico otra vez: no basta con que el borrado «se haya hecho». Se relee el fichero."""
+    """El punto crítico otra vez: no basta con que el borrado «se haya hecho». Se relee el fichero.
+
+    **Premisa endurecida el 2026-08-31 (segunda barrera).** Antes, proponer un símbolo inexistente
+    dejaba que el ejecutor corriera, escribiera el fichero sin cambios y reportara
+    `efecto_verificado=False`. Ahora **ni siquiera llega a tocarlo**: `es_eliminable()` se niega antes,
+    porque el símbolo no consta en el fichero.
+
+    Las dos garantías siguen vivas y son distintas: *no se declara éxito sin comprobar el efecto*
+    —que es lo que esta prueba medía— y *no se escribe un fichero para descubrir después que no había
+    nada que borrar*, que es lo que la barrera añade. Se comprueban las dos."""
     d = pathlib.Path(tmp_path)
     objetivo = d / "s.py"
     objetivo.write_text("def _m():\n    return 1\n", encoding="utf-8")
+    original = objetivo.read_text(encoding="utf-8")
     p = ac.proponer(d, {"simbolo": "_no_existe_en_el_fichero", "fichero": str(objetivo),
                         "motivo": "muerto"})
     ac.autorizar(d, p["id"], por="ceo", acta="acta")
-    resultado = ac.ejecutar(d, p, autoridad="ceo", verificacion=lambda: True)
-    assert resultado["efecto_verificado"] is False, "no había nada que borrar: no hay efecto"
+    with pytest.raises(ac.NoEliminable):
+        ac.ejecutar(d, p, autoridad="ceo", verificacion=lambda: True)
+    assert objetivo.read_text(encoding="utf-8") == original, "no se toca lo que no hay que tocar"
+
+    # Y la garantía original, con un símbolo que **sí** existe: el efecto se comprueba releyendo.
+    real = ac.proponer(d, {"simbolo": "_m", "fichero": str(objetivo), "motivo": "muerto"})
+    ac.autorizar(d, real["id"], por="ceo", acta="acta")
+    resultado = ac.ejecutar(d, real, autoridad="ceo", verificacion=lambda: True)
+    assert resultado["efecto_verificado"] is True
+    assert "_m" not in objetivo.read_text(encoding="utf-8")
 
 
 # ============================================ CICLO COMPLETO Y ENCADENADO --

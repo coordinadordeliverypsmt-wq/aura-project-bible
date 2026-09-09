@@ -1,0 +1,42 @@
+incremento = "CP · G4-b aprobar() y prueba de autoridad (2026-08-25)"
+# Cuatro garantias reales: sin prueba no se aprueba · una prueba falsa no vale · el emisor no se
+# aprueba a si mismo · la verificacion RELEE el Control Plane en vez de fiarse de lo que la prueba dice.
+pruebas = ["test_red_communication_plane.py::test_solo_una_aprobacion_humana_valida_desbloquea",
+           "test_red_communication_plane.py::test_una_aprobacion_sin_prueba_de_autoridad_se_rechaza",
+           "test_red_communication_plane.py::test_un_agente_no_puede_aprobar_su_propia_decision",
+           "test_red_communication_plane.py::test_decision_required_bloquea_y_no_se_desbloquea_sola"]
+timeout_s = 90
+
+[[mutante]]
+id = "G4B-M1"
+descripcion = "se aprueba SIN prueba de autoridad: una afirmacion basta"
+fichero = "communication_plane.py"
+buscar = '''        if not _prueba_valida(prueba):
+            raise AutoridadInsuficiente('''
+sustituir = '''        if False:
+            raise AutoridadInsuficiente('''
+
+[[mutante]]
+id = "G4B-M2"
+descripcion = "el emisor puede aprobar su propia decision: se autocertifica"
+fichero = "communication_plane.py"
+buscar = '''        if decision.get("de") == autoridad:
+            raise AutoridadInsuficiente('''
+sustituir = '''        if False:
+            raise AutoridadInsuficiente('''
+
+[[mutante]]
+id = "G4B-M3"
+descripcion = "la prueba se acepta por lo que DICE, sin releer el Control Plane"
+fichero = "communication_plane.py"
+buscar = '''    return prueba["sello"] == hashlib.sha256(ruta.read_bytes()).hexdigest()'''
+sustituir = '''    return True'''
+
+[[mutante]]
+id = "G4B-M4"
+descripcion = "un dict cualquiera pasa como prueba: se pierde el fail-closed de forma"
+fichero = "communication_plane.py"
+buscar = '''    if prueba.get("fuente") != "control_plane" or not prueba.get("sello"):
+        return False'''
+sustituir = '''    if False:
+        return False'''

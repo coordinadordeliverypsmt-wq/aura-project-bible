@@ -190,8 +190,9 @@ id = "MOT-M19"
 garantia = "FALSO HUECO: una privada usada desde otro modulo NO es codigo muerto"
 fichero = "descubrimiento.py"
 pruebas = ["test_red_motor_autonomia.py::test_un_FALSO_HUECO_se_descarta_CON_SU_MOTIVO"]
-buscar = '''            usada_fuera = any(simbolo in texto for otro, texto in fuera.items() if otro != fichero)'''
-sustituir = '''            usada_fuera = False'''
+# Reapuntado 2026-08-31: el filtro se reescribio al cubrir las cinco formas del codigo muerto.
+buscar = '''            usada_fuera = (forma != "import" and'''
+sustituir = '''            usada_fuera = (False and'''
 
 [[mutante]]
 id = "MOT-M20"

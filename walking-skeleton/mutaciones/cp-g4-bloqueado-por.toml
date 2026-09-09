@@ -1,0 +1,29 @@
+incremento = "CP · G4-a solo bloqueado_por (2026-08-25)"
+# La garantia: una decision humana permanece bloqueada hasta una aprobacion VALIDA. Ningun mensaje
+# del canal la levanta. Es fail-closed: sin aprobar() implementado, nada desbloquea.
+pruebas = ["test_red_communication_plane.py::test_decision_required_bloquea_y_no_se_desbloquea_sola"]
+timeout_s = 60
+
+[[mutante]]
+id = "G4-M1"
+descripcion = "un ACK desbloquea la decision: el canal pasa a ser autoridad"
+fichero = "communication_plane.py"
+buscar = '''        return not any(m.get("_evento") == "aprobado" and m.get("_sobre") == id_decision
+                       for m in self._mensajes())'''
+sustituir = '''        return not any(m.get("in_reply_to") == id_decision for m in mensajes)'''
+
+[[mutante]]
+id = "G4-M2"
+descripcion = "toda decision se declara desbloqueada"
+fichero = "communication_plane.py"
+buscar = '''        if decision is None or decision.get("tipo") != "DECISION_REQUIRED":
+            return False'''
+sustituir = '''        if True:
+            return False'''
+
+[[mutante]]
+id = "G4-M3"
+descripcion = "un tipo distinto de DECISION_REQUIRED tambien bloquea: bloqueo indiscriminado"
+fichero = "communication_plane.py"
+buscar = '''        if decision is None or decision.get("tipo") != "DECISION_REQUIRED":'''
+sustituir = '''        if decision is None or decision.get("tipo") == "NUNCA":'''

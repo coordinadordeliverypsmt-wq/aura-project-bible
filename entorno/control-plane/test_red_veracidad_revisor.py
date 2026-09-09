@@ -206,7 +206,7 @@ def test_el_veredicto_dice_sobre_que_criterios_se_pronuncia():
 
 def test_la_reparacion_no_toca_la_autoridad():
     assert rv.REVIEW_HABILITADO is False
-    assert rv.TODO_LO_DELEGABLE == ("eliminar_codigo_muerto",)
+    assert rv.TODO_LO_DELEGABLE == ("eliminar_codigo_muerto", "implementar_incremento_especificado")
     assert len(rv._MATERIA_RESERVADA) == 10
     assert rev.autoriza(rev.Veredicto("conforme", (), ("f.py:1",), "x", "y")) is False
     assert "autoriza" not in rev.Veredicto.__dataclass_fields__

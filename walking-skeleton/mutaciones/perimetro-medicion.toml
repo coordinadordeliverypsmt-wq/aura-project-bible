@@ -1,0 +1,77 @@
+incremento = "Perimetro quirurgico + proteccion de simbolos decorados (acta CEO 2026-09-07)"
+# Dos garantias, y las dos son restricciones: (1) un simbolo decorado NUNCA se borra, porque el
+# decorador puede registrarlo por efecto lateral; (2) el perimetro anadido es UN fichero exacto, no
+# un directorio. Cada mutante afloja una de las dos, que es exactamente como se destruiria trabajo
+# vivo o se concederia `milestones/` entero sin acta.
+pruebas = ["test_red_perimetro_medicion.py", "test_red_segunda_barrera.py",
+           "test_red_zona_de_trabajo.py", "test_red_discovery.py"]
+timeout_s = 240
+
+[[mutante]]
+id = "PM-M1"
+descripcion = "la proteccion de decorados desaparece: se borra codigo vivo"
+fichero = "autoconstruccion.py"
+buscar = '''    if getattr(nodo, "decorator_list", []):'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "PM-M2"
+descripcion = "la propiedad se degrada a lista de decoradores conocidos"
+fichero = "autoconstruccion.py"
+buscar = '''    if getattr(nodo, "decorator_list", []):
+        nombres = ", ".join(ast.unparse(d).split("(")[0] for d in nodo.decorator_list)'''
+sustituir = '''    nombres = ", ".join(ast.unparse(d).split("(")[0] for d in getattr(nodo, "decorator_list", []))
+    if nombres == "_regla":'''
+
+[[mutante]]
+id = "PM-M3"
+descripcion = "el perimetro se compara como prefijo: concede milestones/ entero"
+fichero = "autoconstruccion.py"
+buscar = '''        if real.relative_to(_RAIZ_REPO).as_posix() in _FICHEROS_AUTORIZADOS:'''
+sustituir = '''        if any(real.relative_to(_RAIZ_REPO).as_posix().startswith(f.rsplit("/", 1)[0])
+               for f in _FICHEROS_AUTORIZADOS):'''
+
+[[mutante]]
+id = "PM-M4"
+descripcion = "el perimetro queda vacio: el acta no surte efecto"
+fichero = "autoconstruccion.py"
+buscar = '''_FICHEROS_AUTORIZADOS = frozenset({
+    "milestones/m3-entry/medicion-razonador/heuristicas_deterministas.py",
+})'''
+sustituir = '''_FICHEROS_AUTORIZADOS = frozenset()'''
+
+[[mutante]]
+id = "PM-M5"
+descripcion = "el perimetro se mira ANTES que gobernanza y producto"
+fichero = "autoconstruccion.py"
+buscar = '''    if segmentos & _DIRS_GOBERNANZA or ruta.name.lower() in _FICHEROS_GOBERNANZA:
+        return False'''
+sustituir = '''    try:
+        if real.relative_to(_RAIZ_REPO).as_posix() in _FICHEROS_AUTORIZADOS:
+            return True
+    except ValueError:
+        pass
+    if segmentos & _DIRS_GOBERNANZA or ruta.name.lower() in _FICHEROS_GOBERNANZA:
+        return False'''
+
+[[mutante]]
+id = "PM-M6"
+descripcion = "los ficheros autorizados se devuelven aunque no existan"
+fichero = "autoconstruccion.py"
+buscar = '''    return tuple(sorted(r for r in (_RAIZ_REPO / f for f in _FICHEROS_AUTORIZADOS) if r.is_file()))'''
+sustituir = '''    return tuple(sorted(_RAIZ_REPO / f for f in _FICHEROS_AUTORIZADOS))'''
+
+[[mutante]]
+id = "PM-M7"
+descripcion = "el barrido no llega al fichero autorizado: la zona se amplia sin efecto"
+fichero = "descubrimiento.py"
+buscar = '''    ficheros = sorted(set(ficheros) | set(ac.ficheros_autorizados()))'''
+sustituir = '''    ficheros = sorted(set(ficheros))'''
+
+[[mutante]]
+id = "PM-M8"
+descripcion = "el detector deja de consultar la segunda barrera"
+fichero = "descubrimiento.py"
+buscar = '''    return [(s, ln, forma) for s, ln, forma in muertos
+            if ac.es_eliminable(fuente, s, forma)[0]]'''
+sustituir = '''    return muertos'''

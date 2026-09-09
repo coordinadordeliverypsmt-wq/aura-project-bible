@@ -233,6 +233,10 @@ tiene términos exclusivos. **No es un control de este escenario**, aunque su no
 
 1. **Abrir la fase de integración.** Decisión explícita del CEO (2026-08-02).
 2. **Iniciar cualquier incremento nuevo** sin decisión posterior a la revisión estratégica.
+   **LEVANTADO PARA LA LÍNEA B** — decisión expresa del CEO, 2026-08-25 (`D-ORCH-5`). El
+   Communication Plane puede avanzar más allá de B1 sin acta por incremento. **Sigue vigente
+   para todo lo demás**, y no autoriza tocar `D24`, local-first, `AURA_APPROVED` ni instalar
+   agentes de forma permanente.
 3. **Abrir frentes fuera del plan** aprobado.
 4. **Fabricar entornos** para aprobar hitos (D34) ni adoptar claves de terceros (D24).
 5. **Recortar capacidades del MVP**: exige nueva acta del CEO (D2 es rango 1).

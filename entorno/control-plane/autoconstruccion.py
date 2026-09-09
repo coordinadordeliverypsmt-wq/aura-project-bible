@@ -35,7 +35,6 @@ from __future__ import annotations
 import ast
 import dataclasses
 import pathlib
-import re
 
 import control_plane as cp
 
@@ -71,9 +70,41 @@ _DIRS_PRODUCTO = frozenset({"walking-skeleton", "aura_skeleton"})
 _FICHEROS_GOBERNANZA = frozenset({
     "claude.md", "roadmap.md", "checklist-continuidad.md", "checkpoint-continuidad.md"})
 
+#: La raiz del repositorio, para resolver el perimetro declarado por acta contra rutas absolutas.
+_RAIZ_REPO = pathlib.Path(__file__).resolve().parents[2]
+
+#: **Ampliacion quirurgica del perimetro — acta del CEO 2026-09-07.** UN fichero, nombrado por su
+#: ruta relativa COMPLETA. No es un prefijo ni un directorio: el acta dice *«esta autorizacion NO se
+#: extiende a ningun otro fichero ni directorio»*, y un prefijo habria concedido `milestones/`
+#: entero. La accion sigue siendo `eliminar_codigo_muerto`; no se crea autoridad, capacidad ni
+#: excepcion por funcion. Gobernanza y producto siguen ganando siempre, antes de mirar esta lista.
+_FICHEROS_AUTORIZADOS = frozenset({
+    "milestones/m3-entry/medicion-razonador/heuristicas_deterministas.py",
+})
+
 
 class SinAutorizacion(RuntimeError):
     """Se intento ejecutar sin autoridad humana registrada, o autorizar sin acta."""
+
+
+#: **El vocabulario de transformaciones, cerrado.** No se inventa: `herramientas/mutar.py` lleva
+#: meses aplicando `buscar`/`sustituir` de forma gobernada —patron exacto, unico, no-op rechazado,
+#: aplicacion acotada y restauracion verificada—. Aquello es un arnes de pruebas y vive en el
+#: producto; esto es la misma semantica en el plano donde `ejecutar()` ya aporta zona, autorizacion,
+#: relectura, verificacion y reversion. Una operacion que no este aqui **no se interpreta**.
+OPERACIONES = ("eliminar_codigo_muerto", "sustituir_texto")
+
+
+class OperacionDesconocida(RuntimeError):
+    """La propuesta declara una operacion que no esta en `OPERACIONES`. No se intenta adivinar."""
+
+
+class NoSustituible(RuntimeError):
+    """La segunda barrera se nego para una sustitucion: el patron no es aplicable sin ambiguedad."""
+
+
+class NoEliminable(RuntimeError):
+    """La segunda barrera se nego: el simbolo no es eliminable, lo diga quien lo diga."""
 
 
 class ZonaProhibida(RuntimeError):
@@ -165,6 +196,15 @@ def zona_permitida(ruta, raiz=None) -> bool:
         return False
     if ruta.name.lower().startswith("acta"):
         return False
+    # **El perimetro que el acta anade.** Va aqui a proposito: DESPUES de gobernanza, producto y
+    # actas —que siguen rechazandose siempre, tambien para estos ficheros— y ANTES de `raiz`, porque
+    # el ciclo llama con `raiz=<control-plane>` y el fichero autorizado no cuelga de ahi. Se compara
+    # la ruta relativa entera, nunca un prefijo.
+    try:
+        if real.relative_to(_RAIZ_REPO).as_posix() in _FICHEROS_AUTORIZADOS:
+            return True
+    except ValueError:                                # fuera del repositorio: no es asunto del acta
+        pass
     if raiz is not None:
         try:
             relativa = real.relative_to(pathlib.Path(raiz).resolve())
@@ -184,6 +224,14 @@ def zona_permitida(ruta, raiz=None) -> bool:
     # justamente lo que esta primera capacidad no debe tocar: una zona segura se declara, no se
     # deduce por descarte.
     return _ZONA_PERMITIDA in texto
+
+
+def ficheros_autorizados() -> tuple[pathlib.Path, ...]:
+    """Los ficheros exactos que el acta anade al perimetro, resueltos y **solo si existen**.
+
+    Ampliar la zona no amplia el barrido: son dos cosas distintas —que se puede tocar y donde se
+    mira—. El descubridor consulta esta lista para llegar a ellos, y la lista vive en un solo sitio."""
+    return tuple(sorted(r for r in (_RAIZ_REPO / f for f in _FICHEROS_AUTORIZADOS) if r.is_file()))
 
 
 def observar(ficheros) -> list[dict]:
@@ -229,7 +277,15 @@ def proponer(directorio, hallazgo: dict) -> dict:
     directorio = pathlib.Path(directorio)
     existentes = [e for e in cp.leer_eventos(directorio) if e["tipo"] == "propuesta_registrada"]
     propuesta = {"id": f"P-{len(existentes) + 1:03d}", "estado": "PROPUESTA", "autorizada": False,
-                 **{k: hallazgo.get(k) for k in ("simbolo", "fichero", "motivo", "linea")}}
+                 # `forma` viaja con la propuesta desde que la capacidad cubre las cinco formas del
+                 # codigo muerto: sin ella el ejecutor volveria a suponer «funcion» y no borraria
+                 # nada, que es exactamente lo que pasaba —en silencio y revirtiendo— antes de esto.
+                 **{k: hallazgo.get(k) for k in ("simbolo", "fichero", "motivo", "linea",
+                                                  "buscar", "sustituir")},
+                 # La operacion viaja con la propuesta. Por defecto la de siempre: sin esto, una
+                 # propuesta antigua cambiaria de comportamiento al aparecer el vocabulario nuevo.
+                 "operacion": hallazgo.get("operacion", "eliminar_codigo_muerto"),
+                 "forma": hallazgo.get("forma", "funcion")}
     cp.registrar_evento(directorio, "propuesta_registrada", propuesta)
     return propuesta
 
@@ -255,9 +311,208 @@ def esta_autorizada(directorio, id_propuesta: str) -> bool:
 
 # ------------------------------------------------------- 5-7 · EJECUTAR / VERIFICAR / REGISTRAR --
 
-def _quitar_funcion(texto: str, simbolo: str) -> str:
-    patron = re.compile(rf"(?:^|\n)def {re.escape(simbolo)}\(.*?(?=\ndef |\nclass |\Z)", re.S)
-    return patron.sub("\n", texto, count=1)
+def _exportados(arbol) -> set:
+    """Los nombres que el modulo publica en `__all__`. Son cadenas dentro de una lista, no `Name`,
+    asi que ningun analisis de uso los ve — y borrarlos deja `import *` roto con `AttributeError`."""
+    exportados = set()
+    for n in arbol.body:
+        if isinstance(n, ast.Assign) and any(
+                isinstance(x, ast.Name) and x.id == "__all__" for x in n.targets):
+            exportados |= {e.value for e in ast.walk(n.value)
+                           if isinstance(e, ast.Constant) and isinstance(e.value, str)}
+    return exportados
+
+
+def es_eliminable(fuente: str, simbolo: str, forma: str) -> tuple[bool, str]:
+    """**La segunda barrera.** ¿Es este simbolo eliminable, mire quien lo mire?
+
+    El detector responde a otra pregunta —*¿parece que nadie lo usa?*— y el 2026-08-31 se equivoco
+    tres veces: AURA borro `from __future__ import annotations` de tres ficheros haciendo exactamente
+    lo que se le pidio. Y lo que aquello destapo es mayor que los tres nombres:
+
+        La verificacion de efecto comprueba que el simbolo DESAPARECIO, no que DEBIERA desaparecer.
+
+    Contra un falso positivo del detector, el revisor, el acta, la verificacion y la reversion **no
+    protegen**: todos dan por buena la premisa. El unico punto que puede refutarla es uno que vuelva a
+    mirar el arbol y pregunte otra cosa.
+
+    Esta funcion es **la unica fuente de verdad** sobre lo eliminable, y la consultan el descubridor
+    —para que un falso positivo no llegue ni a proponerse— y el ejecutor —para que nada que llegue por
+    otra via se borre—. Escribirla dos veces seria la copia que falta convertida en ruta abierta.
+
+    Devuelve `(puede, motivo)`. Un rechazo sin motivo obliga a quien lo lea a averiguarlo."""
+    try:
+        arbol = ast.parse(fuente)
+    except SyntaxError as exc:
+        return False, f"el fichero no compila antes de tocarlo: {exc}"
+
+    corto = simbolo.split(".")[-1]
+
+    # 1 · Protocolo del lenguaje. Es la **propiedad**, no una lista de tres nombres: excluir solo los
+    #     conocidos seria volver a una lista escrita a mano.
+    if corto.startswith("__") and corto.endswith("__"):
+        return False, f"{corto!r} es protocolo del lenguaje, no una constante privada"
+
+    # 2 · Directiva del compilador. Su efecto ocurre al parsear, asi que su uso no aparece en el
+    #     arbol y cualquier analisis de uso la ve muerta siempre.
+    if forma == "import":
+        for n in arbol.body:
+            if isinstance(n, ast.ImportFrom) and n.module == "__future__":
+                if any((a.asname or a.name) == corto for a in n.names):
+                    return False, (f"{corto!r} viene de `__future__`: es una directiva del compilador "
+                                   f"y su efecto no es un uso que se pueda contar")
+
+    # 3 · Exportado. El modulo lo publica, aunque nadie lo use aqui dentro.
+    if corto in _exportados(arbol):
+        return False, (f"{corto!r} esta en `__all__`: el modulo lo exporta, y borrarlo dejaria "
+                       f"`import *` fallando con AttributeError sin que ninguna prueba lo viera")
+
+    # 4 · Tiene que existir. Fail-closed: borrar «aproximadamente» deja el arbol en un estado que
+    #     nadie pidio y que la verificacion tendria que descubrir despues.
+    nodo = _nodo_de(arbol, simbolo, forma)
+    if nodo is None:
+        return False, f"{simbolo!r} no consta como {forma} en este fichero"
+
+    # 5 · **Decorado.** Un decorador es codigo que se ejecuta sobre la definicion, y lo que hace con
+    #     ella no se deduce de su nombre: puede inscribirla en un registro, y entonces el simbolo
+    #     esta VIVO aunque nadie lo llame nunca. Lo destapo el fichero que el acta del 2026-09-07
+    #     anadio al perimetro: sus 17 heuristicas `_r_*` llevan `@_regla(...)`, que las mete en
+    #     `REGLAS` por efecto lateral. Las cinco comprobaciones anteriores las daban por eliminables
+    #     y el ejecutor las habria borrado verificando el efecto correcto —el simbolo desaparece—,
+    #     que es el fallo descrito arriba con un disfraz nuevo.
+    #
+    #     Y la comprobacion estructural no cubre este caso: al quitar la funcion, su decorador queda
+    #     huerfano y se **apila sobre la siguiente**, asi que el fichero sigue compilando y ademas
+    #     queda corrompido en silencio. Se rechaza por la **propiedad** —estar decorado—, no por una
+    #     lista de decoradores conocidos, que seria la lista escrita a mano que este proyecto ya ha
+    #     pagado otras veces. Solo puede REDUCIR lo que se borra: ninguna garantia se relaja.
+    if getattr(nodo, "decorator_list", []):
+        nombres = ", ".join(ast.unparse(d).split("(")[0] for d in nodo.decorator_list)
+        return False, (f"{simbolo!r} esta decorado ({nombres}): un decorador puede registrarlo por "
+                       f"efecto lateral, asi que «nadie lo llama» no significa que este muerto")
+
+    # 6 · **La comprobacion estructural**, y la unica que protege de errores aun no cometidos: si
+    #     quitarlo deja un fichero que Python ya no acepta, no se quita. Ejemplo real: una clase cuyo
+    #     unico cuerpo es el metodo que se pretende borrar.
+    try:
+        ast.parse(quitar_simbolo(fuente, simbolo, forma))
+    except SyntaxError as exc:
+        return False, f"quitar {simbolo!r} deja un fichero que no compila: {exc}"
+    return True, ""
+
+
+def es_sustituible(fuente: str, buscar: str, sustituir: str) -> tuple[bool, str]:
+    """**La segunda barrera de la operacion constructiva.** ¿Es esta sustitucion aplicable sin que
+    nadie tenga que elegir nada?
+
+    Las cuatro condiciones son las que `mutar.py` ya exigia, y cada una cierra una forma de que la
+    operacion deje de ser determinista:
+
+    1. un patron vacio no selecciona: selecciona **todo**;
+    2. un patron que aparece N veces obliga a elegir cual, y elegir es interpretar;
+    3. una sustitucion identica no cambia nada y sin embargo se registraria como cambio aplicado;
+    4. si el resultado no compila, el arbol queda roto — el mismo criterio estructural que protege
+       a `es_eliminable`.
+
+    Devuelve `(puede, motivo)`. Un rechazo sin motivo obliga a quien lo lea a averiguarlo."""
+    if not buscar:
+        return False, "el patron a buscar esta vacio: no selecciona nada, o lo selecciona todo"
+    if buscar == sustituir:
+        return False, "'buscar' y 'sustituir' son identicos: no habria cambio que verificar"
+    apariciones = fuente.count(buscar)
+    if apariciones == 0:
+        return False, "el patron no aparece en el fichero"
+    if apariciones > 1:
+        return False, (f"el patron aparece {apariciones} veces: elegir cual sustituir seria "
+                       f"interpretar, y esta operacion tiene que ser determinista")
+    try:
+        ast.parse(sustituir_texto(fuente, buscar, sustituir))
+    except SyntaxError as exc:
+        return False, f"la sustitucion deja un fichero que no compila: {exc}"
+    return True, ""
+
+
+def sustituir_texto(texto: str, buscar: str, sustituir: str) -> str:
+    """**Una sola aparicion, la que `es_sustituible` verifico que era unica.** Sabe *como* sustituir,
+    no *si* se debe: eso lo decide la barrera, y vive en un solo sitio."""
+    return texto.replace(buscar, sustituir, 1)
+
+
+def _nodo_de(arbol, simbolo: str, clase: str):
+    """El nodo que ocupa el simbolo, o `None`. `metodo` viene como `Clase.metodo`."""
+    if clase == "metodo" and "." in simbolo:
+        contenedor, nombre = simbolo.split(".", 1)
+        for c in arbol.body:
+            if isinstance(c, ast.ClassDef) and c.name == contenedor:
+                for m in c.body:
+                    if isinstance(m, ast.FunctionDef) and m.name == nombre:
+                        return m
+        return None
+    for n in arbol.body:
+        if clase == "funcion" and isinstance(n, ast.FunctionDef) and n.name == simbolo:
+            return n
+        if clase == "clase" and isinstance(n, ast.ClassDef) and n.name == simbolo:
+            return n
+        if clase == "constante" and isinstance(n, ast.Assign):
+            if any(isinstance(x, ast.Name) and x.id == simbolo for x in n.targets):
+                return n
+        if clase == "import" and isinstance(n, (ast.Import, ast.ImportFrom)):
+            for a in n.names:
+                if (a.asname or a.name.split(".")[0]) == simbolo:
+                    return n
+    return None
+
+
+def _existe_simbolo(texto: str, simbolo: str, clase: str) -> bool:
+    """Si el simbolo sigue **declarado** en el fuente, segun el parser. Un fichero que ya no compila
+    se trata como «no se sabe», y quien pregunta debe revertir: afirmar que el simbolo desaparecio
+    porque el fichero se rompio seria dar por buena una destruccion."""
+    try:
+        return _nodo_de(ast.parse(texto), simbolo, clase) is not None
+    except SyntaxError:                                # pragma: no cover - fichero roto
+        return False
+
+
+def quitar_simbolo(texto: str, simbolo: str, clase: str = "funcion") -> str:
+    """Borra **el rango de lineas que el parser dice que ocupa el simbolo**, ni una mas.
+
+    Sabe **como** borrar, no **si** se debe: eso lo decide `es_eliminable()`, y vive en un solo sitio.
+    Tener aqui una copia de sus reglas dejo sobrevivir un mutante —cada guardia tapaba al otro, asi
+    que quitar uno no cambiaba nada— y ese es el defecto que este proyecto lleva cinco auditorias
+    corrigiendo: la regla escrita dos veces, con la copia que falta convertida en ruta abierta.
+
+    La version anterior usaba una expresion regular que buscaba «hasta el siguiente `def` o `class`».
+    Para una funcion suelta funciona; para un metodo dentro de una clase, o para un import en medio
+    de un bloque, no hay patron fiable y lo que hay en medio se va por delante.
+
+    **Fail-closed:** si el simbolo no aparece, el texto vuelve intacto. Un borrado aproximado es peor
+    que ninguno — deja el arbol roto y la verificacion tendria que descubrirlo despues."""
+    try:
+        arbol = ast.parse(texto)
+    except SyntaxError:                                # pragma: no cover - fichero ya roto
+        return texto
+    nodo = _nodo_de(arbol, simbolo, clase)
+    if nodo is None:
+        return texto
+
+    if clase == "import" and len(nodo.names) > 1:
+        # Un `import a, b` del que solo sobra uno: se reescribe la linea sin el, en vez de borrarla
+        # entera y llevarse por delante el que si se usa.
+        quedan = [a for a in nodo.names if (a.asname or a.name.split(".")[0]) != simbolo]
+        nueva = ("from " + (nodo.module or "") + " import " if isinstance(nodo, ast.ImportFrom)
+                 else "import ") + ", ".join(
+                     a.name + (f" as {a.asname}" if a.asname else "") for a in quedan)
+        lineas = texto.splitlines(keepends=True)
+        lineas[nodo.lineno - 1] = nueva + "\n"
+        return "".join(lineas)
+
+    lineas = texto.splitlines(keepends=True)
+    inicio, fin = nodo.lineno - 1, (nodo.end_lineno or nodo.lineno)
+    # Se arrastran las lineas en blanco que quedan justo detras: dejarlas produce tres saltos
+    # seguidos y un `ruff` en rojo, y una limpieza que ensucia el formato no esta limpia.
+    while fin < len(lineas) and not lineas[fin].strip():
+        fin += 1
+    return "".join(lineas[:inicio] + lineas[fin:])
 
 
 def ejecutar(directorio, propuesta: dict, autoridad: str, verificacion=None) -> dict:
@@ -277,13 +532,51 @@ def ejecutar(directorio, propuesta: dict, autoridad: str, verificacion=None) -> 
             f"la propuesta {propuesta['id']!r} no tiene autorizacion humana registrada")
 
     original = ruta.read_text(encoding="utf-8") if ruta.exists() else ""
-    nuevo = _quitar_funcion(original, propuesta["simbolo"])
+    forma = propuesta.get("forma", "funcion")
+
+    # **El despacho es cerrado.** Una operacion que no esta en el vocabulario no se interpreta: se
+    # rechaza antes de leer nada mas. Fail-closed, y con el valor por defecto de siempre para que la
+    # ruta de codigo muerto quede byte a byte como estaba.
+    operacion = propuesta.get("operacion", "eliminar_codigo_muerto")
+    if operacion not in OPERACIONES:
+        raise OperacionDesconocida(
+            f"{operacion!r} no esta en el vocabulario {OPERACIONES}: no se adivina que hacer")
+
+    # **Segunda barrera, y va aqui porque por el ejecutor pasa cualquier ruta.** Es `ALERTA-005`
+    # aplicada al contenido en vez de al estado: la puerta va donde pasa todo el mundo. Cada
+    # operacion tiene la suya; ninguna se ejecuta sin pasar una.
+    if operacion == "sustituir_texto":
+        buscar, sustituir = propuesta.get("buscar", ""), propuesta.get("sustituir", "")
+        puede, motivo = es_sustituible(original, buscar, sustituir)
+        if not puede:
+            cp.registrar_evento(directorio, "sustitucion_rechazada",
+                                {"id": propuesta.get("id"), "fichero": str(ruta), "motivo": motivo})
+            raise NoSustituible(f"no se sustituye en {ruta.name}: {motivo}")
+        nuevo = sustituir_texto(original, buscar, sustituir)
+    else:
+        puede, motivo = es_eliminable(original, propuesta["simbolo"], forma)
+        if not puede:
+            cp.registrar_evento(directorio, "eliminacion_rechazada",
+                                {"id": propuesta.get("id"), "simbolo": propuesta["simbolo"],
+                                 "forma": forma, "fichero": str(ruta), "motivo": motivo})
+            raise NoEliminable(
+                f"no se elimina {propuesta['simbolo']!r} de {ruta.name}: {motivo}")
+        nuevo = quitar_simbolo(original, propuesta["simbolo"], forma)
     ruta.write_text(nuevo, encoding="utf-8")
 
     # **Se relee el fichero.** Que la sustitucion «se haya hecho» no es evidencia de nada.
     tras_el_cambio = ruta.read_text(encoding="utf-8")
-    efecto = (f"def {propuesta['simbolo']}(" in original
-              and f"def {propuesta['simbolo']}(" not in tras_el_cambio)
+    # **El efecto se comprueba releyendo el arbol, no buscando texto.** Un `in` sobre el fuente
+    # confunde el simbolo con su mencion en un comentario o en otra palabra que lo contenga, y ademas
+    # solo sabia mirar funciones: `def X(`. Preguntarle al parser si el nodo sigue ahi vale para las
+    # cinco formas y no se deja enganar por la prosa.
+    if operacion == "sustituir_texto":
+        # El efecto de una sustitucion es doble y se comprueba releyendo: el patron dejo de estar
+        # **y** el texto nuevo esta. Comprobar solo una mitad daria por buena una escritura parcial.
+        efecto = (buscar not in tras_el_cambio) and (sustituir in tras_el_cambio)
+    else:
+        efecto = _existe_simbolo(original, propuesta["simbolo"], forma) \
+            and not _existe_simbolo(tras_el_cambio, propuesta["simbolo"], forma)
     try:
         sano = bool(verificacion() if verificacion else True)
     except BaseException:

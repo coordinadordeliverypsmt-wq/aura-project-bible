@@ -1,8 +1,25 @@
 # DP · Experimento de aislamiento: ¿puede el modelo decidir `sustituir`?
 
-**Estado:** PROPUESTO. **No se ejecuta nada.** No implementa, no modifica producto, no abre capacidad.
-**Fecha:** 2026-08-15 · `main` = `origin/main` = `d933a08`, intacto. Sin commits.
+**Estado formal:** PROPUESTO — y así permanece. **Ejecutar un DP no lo convierte en aprobación
+arquitectónica:** lo que el CEO aprobó fue la *ejecución del experimento*, no una capacidad. No
+implementa, no modifica producto, no abre capacidad.
+**Fecha de redacción:** 2026-08-15 · `main` = `origin/main` = `d933a08`, intacto.
 Clasificación D47: `[EJEC]` · `[LECT]` · `[INFER]` · `[HIPO]`.
+
+> **ESTADO DE EJECUCIÓN — nota añadida el 2026-08-16 por orden del CEO.**
+> La cabecera original decía **«No se ejecuta nada»** y **«Sin commits»**. Ambas eran ciertas al
+> redactar el DP y **dejaron de serlo el mismo día**, y se corrigen aquí porque indujeron a un error
+> de navegación real: se llegó a tratar este experimento como pendiente cuando ya estaba concluido.
+>
+> - El experimento **se ejecutó el 2026-08-15**.
+> - **n = 1 por modelo**, sin reintentos, conforme a §5 y §7.
+> - Resultado: **FAIL en `qwen2.5:0.5b` y FAIL en `qwen2.5:3b`**, bajo los criterios de §6 fijados
+>   **antes** de ejecutar.
+> - La **evidencia existe** y está commiteada en `8698035` (§13, artefactos en §13.5).
+>
+> **No se ha alterado ningún criterio, protocolo, resultado ni evidencia histórica.** El alcance de la
+> conclusión vigente es el de **§13.6 y §13.7**, no el de §8: §13.7 mantiene expresamente **abierta**
+> la rama de capacidad del razonador.
 
 ---
 

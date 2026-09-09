@@ -1,0 +1,503 @@
+incremento = "Observabilidad del ciclo autonomo — la consola de solo lectura (2026-09-01)"
+pruebas = ["test_red_observatorio.py"]
+timeout_s = 300
+
+# Una consola no miente inventandose una frase: miente COLAPSANDO NIVELES o RELLENANDO HUECOS. Cada
+# mutante de abajo es una de esas dos mentiras, escrita como la escribiria alguien de buena fe.
+
+# --------- COLAPSAR NIVELES: despertar / ciclo / trabajo ---------
+
+[[mutante]]
+id = "OB-M1"
+garantia = "un DESPERTAR no es TRABAJO: el cron llamo 63 veces y AURA no toco un fichero"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_un_DESPERTAR_no_es_un_CICLO_y_un_CICLO_no_es_TRABAJO",
+           "test_red_observatorio.py::test_el_HISTORIAL_separa_ciclos_de_trabajos"]
+buscar = '''        "trabajo_ejecutado": len(trabajos),'''
+sustituir = '''        "trabajo_ejecutado": sum(1 for e in eventos
+                                 if e.get("tipo") in ("aura_despertada", "despertar_rechazado")),'''
+
+[[mutante]]
+id = "OB-M2"
+garantia = "un DESPERTAR RECHAZADO no es un ciclo: hubo llamada y no hubo arranque"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_un_despertar_RECHAZADO_no_es_un_ciclo"]
+buscar = '''APERTURAS = {"motor_iniciado": "ciclo_detenido",
+             "ciclo_autonomo_iniciado": "ciclo_autonomo_terminado"}'''
+sustituir = '''APERTURAS = {"motor_iniciado": "ciclo_detenido",
+             "despertar_rechazado": "ciclo_detenido",
+             "ciclo_autonomo_iniciado": "ciclo_autonomo_terminado"}'''
+
+# --------- FABRICAR TRABAJO EJECUTADO ---------
+
+[[mutante]]
+id = "OB-M3"
+garantia = "AUTORIZADO no es EJECUTADO: un veredicto favorable dice que se podia, no que se hiciera"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_AUTORIZADO_no_es_EJECUTADO"]
+buscar = '''        "trabajo_ejecutado": len(trabajos),
+        "trabajo_autorizado": sum(1 for e in eventos if e.get("tipo") == "propuesta_autorizada"),'''
+sustituir = '''        "trabajo_ejecutado": sum(1 for e in eventos
+                                 if e.get("tipo") == "propuesta_autorizada"),
+        "trabajo_autorizado": sum(1 for e in eventos if e.get("tipo") == "propuesta_autorizada"),'''
+
+[[mutante]]
+id = "OB-M4"
+garantia = "APLICADO no acredita EFECTO: el propio evento trae el veredicto del efecto"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_APLICADO_SIN_EFECTO_VERIFICADO_no_es_EJECUTADO"]
+buscar = '''    return bool(d.get("efecto_verificado")) and bool(d.get("verificacion_sana")) \
+        and not d.get("revertido", False)'''
+sustituir = '''    return True'''
+
+[[mutante]]
+id = "OB-M5"
+garantia = "una VERIFICACION INSANA no acredita efecto: es el falso PASS de siempre"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_una_VERIFICACION_INSANA_no_acredita_efecto"]
+buscar = '''    return bool(d.get("efecto_verificado")) and bool(d.get("verificacion_sana")) \
+        and not d.get("revertido", False)'''
+sustituir = '''    return bool(d.get("efecto_verificado")) and not d.get("revertido", False)'''
+
+[[mutante]]
+id = "OB-M6"
+garantia = "lo REVERTIDO no cuenta: el arbol quedo como estaba"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_lo_REVERTIDO_no_cuenta_como_trabajo"]
+buscar = '''    return bool(d.get("efecto_verificado")) and bool(d.get("verificacion_sana")) \
+        and not d.get("revertido", False)'''
+sustituir = '''    return bool(d.get("efecto_verificado")) and bool(d.get("verificacion_sana"))'''
+
+# --------- CONFUNDIR BLOQUEADA Y ELEVADA CON EJECUTADA ---------
+
+[[mutante]]
+id = "OB-M7"
+garantia = "lo BLOQUEADO no es trabajo hecho: es trabajo que no se pudo hacer"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_lo_BLOQUEADO_y_lo_ELEVADO_no_cuentan_como_ejecutado"]
+buscar = '''        "trabajo_bloqueado": _nivel("BLOQUEADA"),
+        "trabajo_elevado": _nivel("DECISION_REQUIRED"),'''
+sustituir = '''        "trabajo_bloqueado": 0,
+        "trabajo_elevado": _nivel("DECISION_REQUIRED"),'''
+
+[[mutante]]
+id = "OB-M8"
+garantia = "lo ELEVADO no es trabajo hecho: espera una firma que nadie ha puesto"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_lo_BLOQUEADO_y_lo_ELEVADO_no_cuentan_como_ejecutado",
+           "test_red_observatorio.py::test_TRABAJO_ELEVADO_pendiente_se_ve_como_DECISION_REQUIRED"]
+buscar = '''    if _es_numero(elevadas) and elevadas > 0:'''
+sustituir = '''    if False:'''
+
+# --------- RELLENAR HUECOS ---------
+
+[[mutante]]
+id = "OB-M9"
+garantia = "un campo AUSENTE no se rellena con cero: cero es una medicion, ausente es su falta"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_un_CAMPO_AUSENTE_no_se_rellena_con_cero"]
+buscar = '''    for clave in claves:
+        if clave in (datos or {}):
+            return datos[clave]
+    return NO_DISPONIBLE'''
+sustituir = '''    for clave in claves:
+        if clave in (datos or {}):
+            return datos[clave]
+    return 0'''
+
+[[mutante]]
+id = "OB-M10"
+garantia = "se comprueba que la clave CONSTE, no que su valor sea verdadero: un 0 registrado es un dato"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_un_CERO_MEDIDO_se_distingue_de_un_hueco"]
+buscar = '''    for clave in claves:
+        if clave in (datos or {}):
+            return datos[clave]
+    return NO_DISPONIBLE'''
+sustituir = '''    for clave in claves:
+        if (datos or {}).get(clave):
+            return datos[clave]
+    return NO_DISPONIBLE'''
+
+[[mutante]]
+id = "OB-M11"
+garantia = "sin historial NO se inventa un estado: un log vacio no es «AURA esta esperando»"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_sin_HISTORIAL_no_se_inventa_un_estado"]
+buscar = '''    if not lista_de_ciclos:
+        return NO_DISPONIBLE'''
+sustituir = '''    if not lista_de_ciclos:
+        return "ESPERANDO"'''
+
+[[mutante]]
+id = "OB-M12"
+garantia = "sin tareas NO se inventa una ultima tarea"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_sin_TAREAS_no_se_inventa_una_ultima_tarea"]
+buscar = '''    ultima = NO_DISPONIBLE
+    if trabajos:'''
+sustituir = '''    ultima = {"id": "P-000", "fichero": "?", "simbolo": "?", "resultado": "?",
+              "autorizada_por": "?", "enlace": "?", "pruebas": "?"}
+    if trabajos:'''
+
+[[mutante]]
+id = "OB-M13"
+garantia = "las PRUEBAS ASOCIADAS solo aparecen si constan: no se ensena la bateria del proyecto"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_las_PRUEBAS_ASOCIADAS_solo_aparecen_si_constan"]
+buscar = '''        "pruebas": criterio.get("criterio") if criterio else NO_DISPONIBLE,'''
+sustituir = '''        "pruebas": criterio.get("criterio") if criterio else "test_red_observatorio.py",'''
+
+[[mutante]]
+id = "OB-M14"
+garantia = "el render ESCRIBE el hueco: se puede ser honesto por dentro y mentir al imprimir"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_el_render_ESCRIBE_NO_DISPONIBLE_cuando_falta_el_dato"]
+buscar = '''    return f"  {etiqueta+':':<34} {valor}"'''
+sustituir = '''    return f"  {etiqueta+':':<34} {'' if valor == NO_DISPONIBLE else valor}"'''
+
+# --------- IGNORAR AL HUMANO ---------
+
+[[mutante]]
+id = "OB-M15"
+garantia = "los ACTOS HUMANOS no se ignoran: sin ellos un ciclo asistido parece autonomo"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_los_ACTOS_HUMANOS_del_ciclo_NO_se_ignoran"]
+buscar = '''    return sum(1 for e in eventos
+               if (e.get("datos") or {}).get("autoridad") in cp.AUTORIDADES_HUMANAS)'''
+sustituir = '''    return 0'''
+
+[[mutante]]
+id = "OB-M16"
+garantia = "un cambio con autoridad HUMANA no es trabajo de AURA: seria una felicitacion"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_un_acto_HUMANO_no_se_cuenta_como_trabajo_de_AURA"]
+buscar = '''        if d.get("autoridad") in cp.AUTORIDADES_HUMANAS:
+            continue'''
+sustituir = '''        if False:
+            continue'''
+
+# --------- ELIMINAR / IGNORAR EVIDENCIA ---------
+
+[[mutante]]
+id = "OB-M17"
+garantia = "un LOG ROTO se denuncia: seguir informando desde el daria por buena la prueba en duda"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_un_LOG_ROTO_se_denuncia_y_no_se_lee_como_bueno"]
+buscar = '''    if not integro:
+        # Con la cadena rota, la evidencia sobre la que se informaria esta en duda. Seguir como si
+        # nada seria dar por buena justamente la prueba que falla.
+        return "ERROR"'''
+sustituir = '''    if False:
+        return "ERROR"'''
+
+[[mutante]]
+id = "OB-M18"
+garantia = "una PROYECCION DESFASADA se denuncia: el log manda, pero eso no autoriza a callarlo"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_una_PROYECCION_DESFASADA_se_denuncia"]
+buscar = '''        if actualizado and ultimo_momento != NO_DISPONIBLE and str(actualizado) < str(ultimo_momento):'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "OB-M19"
+garantia = "no se INVENTA un desfase donde no lo hay"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_sin_desfase_no_se_inventa_una_contradiccion"]
+buscar = '''        if actualizado and ultimo_momento != NO_DISPONIBLE and str(actualizado) < str(ultimo_momento):'''
+sustituir = '''        if True:'''
+
+[[mutante]]
+id = "OB-M39"
+garantia = "el STATUS de estado.json se ENSENA etiquetado como de otro eje, no se esconde"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_el_STATUS_de_estado_json_NO_se_finge_comparable_con_el_del_ciclo"]
+buscar = '''        "estado_de_tarea_declarado": (proyeccion.get("status", NO_DISPONIBLE)
+                                      if proyeccion is not None else NO_DISPONIBLE),'''
+sustituir = '''        "estado_de_tarea_declarado": NO_DISPONIBLE,'''
+
+[[mutante]]
+id = "OB-M40"
+garantia = "un ciclo ABANDONADO por otro posterior se denuncia: es certeza, no sospecha"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_un_ciclo_ABANDONADO_por_otro_posterior_se_denuncia"]
+buscar = '''    abandonados = [c["numero"] for c in lista_de_ciclos[:-1] if c["abierto"]]'''
+sustituir = '''    abandonados = []'''
+
+[[mutante]]
+id = "OB-M41"
+garantia = "no se declara abandonado un ciclo que no lo esta"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_sin_ciclos_abandonados_no_se_inventa_ninguno"]
+buscar = '''    abandonados = [c["numero"] for c in lista_de_ciclos[:-1] if c["abierto"]]'''
+sustituir = '''    abandonados = [c["numero"] for c in lista_de_ciclos[:-1]]'''
+
+[[mutante]]
+id = "OB-M42"
+garantia = "un ciclo abierto DICE CUANTO lleva: sin eso, un proceso muerto se lee como actividad"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_un_ciclo_abierto_dice_CUANTO_lleva_abierto",
+           "test_red_observatorio.py::test_el_render_ENSENA_la_antiguedad_y_el_aviso"]
+buscar = '''    segundos = int(((ahora or dt.datetime.now()) - inicio).total_seconds())
+    if segundos < 0:
+        return NO_DISPONIBLE'''
+sustituir = '''    segundos = int(((ahora or dt.datetime.now()) - inicio).total_seconds())
+    if True:
+        return NO_DISPONIBLE'''
+
+[[mutante]]
+id = "OB-M43"
+garantia = "el aviso solo sale si el ciclo esta ABIERTO: uno que sale siempre no dice nada"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_un_ciclo_CERRADO_no_arrastra_antiguedad_ni_aviso"]
+buscar = '''    if not ciclo["abierto"]:
+        return ""'''
+sustituir = '''    if False:
+        return ""'''
+
+[[mutante]]
+id = "OB-M44"
+garantia = "sin CRON legible no se inventa la referencia: aproximar sin fuente es opinar"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_sin_CRON_legible_el_aviso_no_se_inventa_una_referencia"]
+buscar = '''    primero = proximo_despertar(momento)
+    if primero == NO_DISPONIBLE:
+        return None'''
+sustituir = '''    primero = proximo_despertar(momento)
+    if primero == NO_DISPONIBLE:
+        return 30'''
+
+[[mutante]]
+id = "OB-M45"
+garantia = "pasado un PERIODO DEL CRON entero, el aviso lo dice"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_pasado_un_PERIODO_DEL_CRON_entero_el_aviso_lo_dice"]
+buscar = '''        if transcurridos > periodo:'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "OB-M20"
+garantia = "una COLA TRUNCADA consta: el ultimo evento puede faltar y el lector debe saberlo"
+fichero = "control_plane.py"
+pruebas = ["test_red_observatorio.py::test_una_COLA_TRUNCADA_consta"]
+buscar = '''    return {"integro": True, "eventos": len(eventos), "cola_truncada": cola_truncada,'''
+sustituir = '''    return {"integro": True, "eventos": len(eventos), "cola_truncada": False,'''
+
+# --------- EL ULTIMO ES EL ULTIMO ---------
+
+[[mutante]]
+id = "OB-M21"
+garantia = "ULTIMO es el ultimo, no el ultimo INTERESANTE: elegir seria seleccion editorial"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_ULTIMO_es_el_ultimo_y_no_el_ultimo_INTERESANTE"]
+buscar = '''    ciclo = dict(lista[-1])'''
+sustituir = '''    ciclo = dict(max(lista, key=lambda c: c["efecto_real"]))'''
+
+[[mutante]]
+id = "OB-M22"
+garantia = "el trabajo se atribuye AL CICLO EN QUE OCURRIO, no al ultimo"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_ULTIMO_es_el_ultimo_y_no_el_ultimo_INTERESANTE",
+           "test_red_observatorio.py::test_el_trabajo_se_atribuye_AL_CICLO_EN_QUE_OCURRIO"]
+buscar = '''        "tareas_ejecutadas": [_detalle_de_trabajo(t, crudo["eventos"], integro) for t in trabajos],'''
+sustituir = '''        "tareas_ejecutadas": [_detalle_de_trabajo(t, crudo["eventos"], integro)
+                              for t in _trabajos_en(crudo["eventos"] + trabajos)],'''
+
+[[mutante]]
+id = "OB-M23"
+garantia = "un cambio FUERA DE TODO CICLO no se adopta: seria inventarle una procedencia"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_un_cambio_FUERA_DE_TODO_CICLO_no_se_adopta"]
+buscar = '''        if abierto is None:
+            continue
+        abierto["eventos"].append(evento)'''
+sustituir = '''        if abierto is None:
+            if salida:
+                salida[-1]["eventos"].append(evento)
+            continue
+        abierto["eventos"].append(evento)'''
+
+[[mutante]]
+id = "OB-M24"
+garantia = "un ciclo ABIERTO no se da por cerrado: puede estar corriendo o puede haber muerto"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_un_ciclo_ABIERTO_no_se_da_por_cerrado"]
+buscar = '''    if ultimo_ciclo["abierto"]:
+        return "TRABAJANDO"'''
+sustituir = '''    if False:
+        return "TRABAJANDO"'''
+
+# --------- IDENTIDAD ---------
+
+[[mutante]]
+id = "OB-M25"
+garantia = "la IDENTIDAD viaja hasta el efecto: sin ella «se ejecuto algo» es un rumor"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_la_IDENTIDAD_de_la_tarea_viaja_hasta_el_efecto"]
+buscar = '''    ident = _dato(d, "id")
+    autorizacion = None'''
+sustituir = '''    ident = NO_DISPONIBLE
+    autorizacion = None'''
+
+# OB-M26 RETIRADO — EQUIVALENTE DEMOSTRADO POR EJECUCION (2026-09-01).
+#
+# Atacaba el guardia `if ident != NO_DISPONIBLE:` antes de buscar la autorizacion. Se midio la
+# salida de `ultimo()` con y sin el guardia sobre las cuatro formas que puede tomar un id —presente,
+# ausente, `None` y cadena vacia— y fue IDENTICA byte a byte: ningun evento lleva por id la cadena
+# literal "NO DISPONIBLE", asi que el bucle no encuentra nada con o sin guardia.
+#
+# No es una garantia sin red: es un ATAJO DE RENDIMIENTO. Escribir una prueba para matarlo habria
+# exigido fabricar un evento cuyo id fuera "NO DISPONIBLE", es decir, inventar el escenario para que
+# la prueba tuviera algo que detectar. Eso es una prueba decorativa con otro nombre.
+
+[[mutante]]
+id = "OB-M27"
+garantia = "el ENLACE se marca como REGISTRADO solo cuando lo esta: una deduccion no es un hecho"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_un_cambio_SIN_IDENTIDAD_no_se_da_por_bueno"]
+buscar = '''        "enlace": "REGISTRADO" if autorizacion else NO_DISPONIBLE,'''
+sustituir = '''        "enlace": "REGISTRADO",'''
+
+# --------- LAS CINCO ETAPAS ---------
+
+[[mutante]]
+id = "OB-M28"
+garantia = "una etapa que NO CONSTA sale como no cumplida: colapsarlas permite decir «lo hizo»"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_una_etapa_que_NO_CONSTA_sale_como_no_cumplida"]
+buscar = '''                   "autorizada": autorizacion is not None,'''
+sustituir = '''                   "autorizada": True,'''
+
+[[mutante]]
+id = "OB-M29"
+garantia = "la etapa DESCUBIERTA sale del descubrimiento real del ciclo"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_las_CINCO_ETAPAS_se_distinguen",
+           "test_red_observatorio.py::test_una_etapa_que_NO_CONSTA_sale_como_no_cumplida"]
+buscar = '''    descubierta = any(e.get("tipo") == "descubrimiento_realizado"'''
+sustituir = '''    descubierta = any(e.get("tipo") != "descubrimiento_realizado"'''
+
+# --------- PROXIMO DESPERTAR ---------
+
+[[mutante]]
+id = "OB-M30"
+garantia = "el PROXIMO DESPERTAR sale del cron real o no sale: estimarlo seria adivinar"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_el_PROXIMO_DESPERTAR_sale_del_cron_real_o_no_sale"]
+buscar = '''    lineas = _lineas_de_cron()
+    if not lineas:
+        return NO_DISPONIBLE'''
+sustituir = '''    lineas = _lineas_de_cron()
+    if not lineas:
+        return ((ahora or dt.datetime.now()) + dt.timedelta(minutes=30)).isoformat()'''
+
+[[mutante]]
+id = "OB-M31"
+garantia = "una cadencia que NO se sabe derivar no se aproxima (dias del mes o de la semana)"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_una_cadencia_que_NO_se_sabe_derivar_no_se_aproxima"]
+buscar = '''    if (dia, mes, semana) != ("*", "*", "*"):'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "OB-M32"
+garantia = "una cadencia simple SI se deriva: si todo saliera NO DISPONIBLE nada quedaria probado"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_una_cadencia_SIMPLE_si_se_deriva"]
+buscar = '''        if momento.minute in minutos and momento.hour in horas:'''
+sustituir = '''        if momento.minute in minutos and momento.hour in horas and False:'''
+
+# --------- SOLO LECTURA ---------
+
+[[mutante]]
+id = "OB-M33"
+garantia = "la consola no descubre: descubrir REGISTRA UN EVENTO y mirar dejaria rastro"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_el_observatorio_NO_DESCUBRE_para_ensenar_la_cola",
+           "test_red_observatorio.py::test_mirar_NO_DEJA_RASTRO"]
+buscar = '''import control_plane as cp
+import orquestador as orq'''
+sustituir = '''import control_plane as cp
+import descubrimiento
+import orquestador as orq'''
+
+[[mutante]]
+id = "OB-M34"
+garantia = "el kill switch manda: alguien paro el sistema a mano, y es el hecho mas fuerte que hay"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_el_KILL_SWITCH_manda_sobre_cualquier_otra_lectura"]
+buscar = '''    if orq.parada_solicitada(directorio):'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "OB-M35"
+garantia = "una PARADA ANOMALA es ERROR: igualarla a «cola agotada» la enterraria"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_una_PARADA_ANOMALA_es_ERROR_y_no_ESPERANDO"]
+buscar = '''    if ultimo_ciclo["motivo_de_parada"] not in aura.PARADAS_NORMALES:
+        return "ERROR"'''
+sustituir = '''    if False:
+        return "ERROR"'''
+
+# --------- HISTORIAL ---------
+
+[[mutante]]
+id = "OB-M36"
+garantia = "el HISTORIAL esta acotado y DICE que recorto: truncar en silencio miente por omision"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_el_HISTORIAL_esta_acotado_y_lo_dice"]
+buscar = '''        "recortado": len(lista) > limite or len(trabajos) > limite,'''
+sustituir = '''        "recortado": False,'''
+
+[[mutante]]
+id = "OB-M37"
+garantia = "el historial va del mas reciente al mas antiguo"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_el_historial_va_del_mas_reciente_al_mas_antiguo"]
+buscar = '''        "ciclos": list(reversed(lista))[:limite],'''
+sustituir = '''        "ciclos": lista[:limite],'''
+
+[[mutante]]
+id = "OB-M38"
+garantia = "las DECISIONES PENDIENTES se resumen sin enterrar la informacion en un muro de texto"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_las_DECISIONES_PENDIENTES_se_resumen_sin_perderse"]
+buscar = '''    return [f"{d.get('id', NO_DISPONIBLE)} · {d.get('titulo', NO_DISPONIBLE)}"
+            if isinstance(d, dict) else str(d) for d in decisiones]'''
+sustituir = '''    return [str(d) for d in decisiones]'''
+
+[[mutante]]
+id = "OB-M46"
+garantia = "sin REPARTO POR CLASE la cabecera no afirma ESPERANDO: era el unico hueco relleno con 0"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_sin_REPARTO_POR_CLASE_la_cabecera_no_afirma_ESPERANDO"]
+buscar = '''    if elevadas == NO_DISPONIBLE:'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "OB-M47"
+garantia = "y con el reparto presente SI se decide: la regla no degenera en «ante la duda, ND»"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_sin_nada_pendiente_el_estado_es_ESPERANDO",
+           "test_red_observatorio.py::test_TRABAJO_ELEVADO_pendiente_se_ve_como_DECISION_REQUIRED"]
+buscar = '''    elevadas = _dato(por_clase, "DECISION_REQUIRED") if isinstance(por_clase, dict) else NO_DISPONIBLE'''
+sustituir = '''    elevadas = NO_DISPONIBLE'''
+
+[[mutante]]
+id = "OB-M48"
+garantia = "las OPORTUNIDADES BLOQUEADAS se exponen una por una, no solo el recuento"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_las_OPORTUNIDADES_BLOQUEADAS_se_exponen_una_por_una",
+           "test_red_observatorio.py::test_sin_oportunidades_bloqueadas_registradas_se_declara_el_hueco"]
+buscar = '''        "oportunidades_bloqueadas": (proyeccion.get("oportunidades_bloqueadas", NO_DISPONIBLE)
+                                     if proyeccion is not None else NO_DISPONIBLE),'''
+sustituir = '''        "oportunidades_bloqueadas": [],'''
+
+[[mutante]]
+id = "OB-M49"
+garantia = "los TRABAJOS RECIENTES se exponen: con uno solo no se puede contar que se hizo hoy"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py::test_los_TRABAJOS_RECIENTES_se_exponen_acotados"]
+buscar = '''        "trabajos_recientes": [_detalle_de_trabajo(x, eventos, integro)
+                               for x in trabajos[-LIMITE_HISTORIAL:]],'''
+sustituir = '''        "trabajos_recientes": [],'''

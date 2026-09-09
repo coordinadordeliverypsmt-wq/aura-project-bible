@@ -15,7 +15,8 @@ class MockProvider:
         self._lat = latency_ms
         self.healthy = healthy
 
-    async def infer(self, prompt: str) -> str:
+    async def infer(self, prompt: str, modo: str = "accion") -> str:
+        del modo  # el mock clasifica por palabras clave; el modo no le cambia el comportamiento
         await asyncio.sleep(self._lat / 1000.0)  # simula latencia del primer token
         if not self.healthy:
             raise RuntimeError(f"{self.name} no disponible")
@@ -57,12 +58,19 @@ class ModelRouter:
         self.budget = latency_budget_ms  # 2.5 5.1 (R1 nube <=1200ms)
         self._open = set()  # circuit breakers abiertos
 
-    async def route(self, prompt, trace_id):
+    async def route(self, prompt, trace_id, modo: str = "accion"):
+        """`modo` distingue cognicion de accion. Es opcional: sin el, todo se comporta como antes.
+
+        Un proveedor que no lo entienda —cualquier implementacion previa del puerto— se sigue
+        llamando con la firma de siempre, asi que el contrato `ModelProvider` no cambia."""
         for prov in self.providers:
             if prov.name in self._open:
                 continue
             try:
-                out = await prov.infer(prompt)
+                try:
+                    out = await prov.infer(prompt, modo)
+                except TypeError:
+                    out = await prov.infer(prompt)
                 obs.log("LLM", "router", f"enrutado a {prov.name}", trace_id)
                 return prov.name, out
             except Exception as e:

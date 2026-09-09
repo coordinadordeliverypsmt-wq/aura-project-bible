@@ -25,6 +25,7 @@ import os
 import sys
 import uuid
 
+from . import observability as obs
 from .adapters.hitl_diferido import crear_confirmador_diferido
 from .composicion import Configuracion, componer
 from .core.centro_gobierno import panel, publicar
@@ -105,7 +106,19 @@ async def _servir(sistema) -> int:
     return 0
 
 
-async def _conversar(sistema) -> int:
+async def _conversar(sistema, telemetria: bool = False) -> int:
+    """Conversacion humana. La telemetria NO se apaga: se saca de la pantalla.
+
+    `[VOICE]`, `[MEM]`, `[EVENT]`, `[LAT]`… seguian saliendo por `stderr` mientras la respuesta salia
+    por `stdout` — dos flujos distintos, si, pero en una terminal caen en el mismo sitio, asi que la
+    separacion no separaba nada y la conversacion aparecia sepultada bajo su propia instrumentacion.
+
+    Lo que cambia es DONDE se imprime, no si se registra: `observability.log` guarda el registro y
+    persiste la auditoria **antes** de decidir si lo pinta. El audit log sigue en
+    `sistema.ruta_audit`, `obs.audit_records()` sigue devolviendo lo mismo, y `--telemetria` la
+    devuelve a la pantalla para quien la quiera delante."""
+    if not telemetria:
+        obs.configurar_salida(None)
     print(_informe(sistema))
     print("Escribe para hablar con AURA. Ctrl-D para salir.\n")
     while True:
@@ -135,6 +148,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--servir", action="store_true", help="AURORA con proceso propio: sirve el objetivo activo hasta Ctrl-C"
     )
+    ap.add_argument(
+        "--telemetria",
+        action="store_true",
+        help="muestra la telemetria interna en pantalla durante la conversacion (por defecto solo se registra)",
+    )
     args = ap.parse_args(argv)
 
     config = Configuracion.desde_entorno()
@@ -163,7 +181,7 @@ def main(argv: list[str] | None = None) -> int:
         except FallosConsecutivosExcedidos as e:
             print(f"\nAURA: servicio detenido -- {e}", flush=True)
             return 1
-    return asyncio.run(_conversar(sistema))
+    return asyncio.run(_conversar(sistema, telemetria=args.telemetria))
 
 
 if __name__ == "__main__":

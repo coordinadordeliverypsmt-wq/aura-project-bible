@@ -2,3 +2,5 @@
 # Formato: fecha-ISO | commit | autor | motivo
 # Una entrada aqui significa que alguien publico SIN pasar el gate. Debe ser excepcional.
 # Si se acumulan entradas, el problema es el proceso, no el gate.
+2026-09-06T11:15:50-05:00 | 46be8ed | coordinadordeliverypsmt@gmail.com | Preservación remota de 21 commits sin réplica; Quality Gate en FAIL por baseline preexistente conocido, sin regresiones nuevas.
+2026-09-06T13:55:55-05:00 | f761096 | coordinadordeliverypsmt@gmail.com | Preservacion remota de DR-A a DR-F-3g; Quality Gate en FAIL por baseline preexistente conocido (G-1 x3, test_limite_reintentos, test_garantias_vigentes), sin regresiones nuevas.

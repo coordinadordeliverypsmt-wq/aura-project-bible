@@ -155,7 +155,7 @@ def test_este_trabajo_no_amplia_autoridad():
     import agentes
     import revisores as rev
     assert rv.REVIEW_HABILITADO is False
-    assert rv.TODO_LO_DELEGABLE == ("eliminar_codigo_muerto",)
+    assert rv.TODO_LO_DELEGABLE == ("eliminar_codigo_muerto", "implementar_incremento_especificado")
     assert len(rv._MATERIA_RESERVADA) == 10
     assert rv.CRITERIOS_D22 == ("alcance", "consistencia", "cinco_preguntas_d21",
                                 "materia_reservada")

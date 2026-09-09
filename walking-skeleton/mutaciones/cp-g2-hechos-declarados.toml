@@ -1,0 +1,142 @@
+incremento = "CP · G2 hechos declarados y medidos (2026-08-24)"
+# Cada mutante degrada un HECHO que el canal declara sobre si mismo. El patron que atacan es siempre
+# el mismo: sustituir una medicion por una suposicion favorable, que es como se finge capacidad.
+pruebas = ["test_red_transporte.py::test_la_identidad_atestiguada_exige_algo_mas_que_el_campo_de",
+           "test_red_transporte.py::test_el_canal_no_afirma_autenticar_a_nadie",
+           "test_red_transporte.py::test_la_identidad_de_codex_esta_declarada_como_desconocida",
+           "test_red_transporte.py::test_el_canal_declara_que_transportes_estan_disponibles_hoy_y_cuales_no",
+           "test_red_transporte.py::test_el_exito_se_decide_por_is_error_nunca_por_subtype",
+           "test_red_transporte.py::test_un_sobre_sin_is_error_no_se_interpreta_como_exito",
+           "test_red_transporte.py::test_el_coste_de_la_invocacion_se_registra_sin_estimar_cuota_restante",
+                    "test_red_transporte.py::test_el_canal_no_puede_cerrar_una_tarea",
+  "test_red_transporte.py::test_el_canal_no_nombra_el_estado_terminal",
+  "test_red_transporte.py::test_el_canal_no_importa_autoridad_del_control_plane",
+  "test_red_transporte.py::test_el_unico_cierre_valido_sigue_en_el_motor_unico",
+  "test_red_communication_plane.py::test_dos_escritores_concurrentes_no_pierden_ningun_mensaje",
+           "test_red_communication_plane.py::test_el_lock_se_libera_si_el_proceso_muere",
+           "test_red_communication_plane.py::test_el_canal_no_requiere_ninguna_clave_para_operar",
+           "test_red_communication_plane.py::test_el_canal_declara_que_transportes_estan_disponibles_hoy"]
+timeout_s = 120
+
+[[mutante]]
+id = "G2-M1"
+descripcion = "el exito pasa a decidirse por subtype: la trampa MEDIDA el 2026-08-17"
+fichero = "communication_plane.py"
+buscar = '''    return sobre["is_error"] is False'''
+sustituir = '''    return sobre.get("subtype") == "success"'''
+
+[[mutante]]
+id = "G2-M2"
+descripcion = "la ausencia de is_error se interpreta como exito en vez de lanzar"
+fichero = "communication_plane.py"
+buscar = '''    if not isinstance(sobre, dict) or "is_error" not in sobre:
+        raise ValueError('''
+sustituir = '''    if False:
+        raise ValueError('''
+
+[[mutante]]
+id = "G2-M3"
+descripcion = "el canal DERIVA cuota restante en vez de declararla UNKNOWN"
+fichero = "communication_plane.py"
+buscar = '''            "cuota_restante": "UNKNOWN"}'''
+sustituir = '''            "cuota_restante": 100.0 - ((sobre or {}).get("total_cost_usd") or 0)}'''
+
+[[mutante]]
+id = "G2-M4"
+descripcion = "se autoriza el transporte hacia un modelo externo sin decision del CEO"
+fichero = "communication_plane.py"
+buscar = '''    return {"ficheros_locales": True, "modelo_externo_via_api": False}'''
+sustituir = '''    return {"ficheros_locales": True, "modelo_externo_via_api": True}'''
+
+[[mutante]]
+id = "G2-M5"
+descripcion = "se declara DISPONIBLE un transporte que nadie ha medido"
+fichero = "communication_plane.py"
+buscar = '''    return {"fichero": "DISPONIBLE", "codex": "UNKNOWN"}'''
+sustituir = '''    return {"fichero": "DISPONIBLE", "codex": "DISPONIBLE"}'''
+
+[[mutante]]
+id = "G2-M6"
+descripcion = "el canal afirma que autentica: sugiere una garantia que no tiene"
+fichero = "communication_plane.py"
+buscar = '''    return {"autentica": False,'''
+sustituir = '''    return {"autentica": True,'''
+
+[[mutante]]
+id = "G2-M7"
+descripcion = "se inventa un identificador de agente en vez de declararlo UNKNOWN"
+fichero = "communication_plane.py"
+buscar = '''def identidad_de_agente(agente: str) -> str:'''
+sustituir = '''def identidad_de_agente(agente: str) -> str:
+    return f"agente-{agente}"'''
+
+[[mutante]]
+id = "G2-M10"
+descripcion = "la concurrencia se prueba con HILOS: el GIL enmascara la carrera"
+fichero = "communication_plane.py"
+buscar = '''    procesos = [multiprocessing.Process(target=_escribir,'''
+sustituir = '''    import threading
+    procesos = [threading.Thread(target=_escribir,'''
+
+[[mutante]]
+id = "G2-M11"
+descripcion = "el canal afirma que requiere credenciales: contradice local-first"
+fichero = "communication_plane.py"
+buscar = '''def requiere_credenciales() -> bool:'''
+sustituir = '''def requiere_credenciales() -> bool:
+    return True'''
+
+[[mutante]]
+id = "G2-M12"
+descripcion = "la medicion del lock se sustituye por una afirmacion: devuelve True sin medir nada"
+fichero = "communication_plane.py"
+buscar = '''def lock_se_libera_al_morir_el_proceso(directorio) -> bool:'''
+sustituir = '''def lock_se_libera_al_morir_el_proceso(directorio) -> bool:
+    return True'''
+
+[[mutante]]
+id = "G2-M13"
+descripcion = "la identidad atestiguada se reduce al campo `de`, que es declarativo y no prueba nada (N-2)"
+fichero = "communication_plane.py"
+buscar = '''CAMPOS_DE_IDENTIDAD: tuple[str, ...] = ("de", "sesion_id", "estado_leido")'''
+sustituir = '''CAMPOS_DE_IDENTIDAD: tuple[str, ...] = ("de",)'''
+
+[[mutante]]
+id = "G2-M14"
+descripcion = "cerrar_tarea VUELVE al canal: la segunda ruta hacia COMPLETED que la opcion 3 retiro"
+fichero = "communication_plane.py"
+buscar = '''def prueba_de_concurrencia(directorio, escritores: int = 2,'''
+sustituir = '''def cerrar_tarea(tarea: dict, resultado_criterio) -> None:
+    if not resultado_criterio:
+        raise ValueError("el criterio no paso")
+
+
+def prueba_de_concurrencia(directorio, escritores: int = 2,'''
+
+[[mutante]]
+id = "G2-M15"
+descripcion = "la capacidad de cierre vuelve con OTRO NOMBRE: misma segunda via, otra etiqueta"
+fichero = "communication_plane.py"
+buscar = '''def prueba_de_concurrencia(directorio, escritores: int = 2,'''
+sustituir = '''def completar_tarea(tarea: dict, resultado_criterio) -> None:
+    if not resultado_criterio:
+        raise ValueError("el criterio no paso")
+
+
+def prueba_de_concurrencia(directorio, escritores: int = 2,'''
+
+[[mutante]]
+id = "G2-M16"
+descripcion = "el canal nombra el estado terminal en codigo ejecutable: empieza a producir COMPLETED"
+fichero = "communication_plane.py"
+buscar = '''    return {"fichero": "DISPONIBLE", "codex": "UNKNOWN"}'''
+sustituir = '''    _ = "COMPLETED"
+    return {"fichero": "DISPONIBLE", "codex": "UNKNOWN"}'''
+
+[[mutante]]
+id = "G2-M17"
+descripcion = "el canal IMPORTA el motor unico: invierte la dependencia y trae autoridad al plano"
+fichero = "communication_plane.py"
+buscar = '''def permisos_sobre_el_control_plane() -> str:'''
+sustituir = '''def permisos_sobre_el_control_plane() -> str:
+    import control_plane  # noqa: F401'''

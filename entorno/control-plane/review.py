@@ -70,9 +70,46 @@ _MATERIA_RESERVADA = (
 )
 
 # Lo maximo que un acta podria delegar: acciones tecnicas, reversibles y del plano de desarrollo.
-TODO_LO_DELEGABLE = ("eliminar_codigo_muerto",)
+#
+# **`implementar_incremento_especificado` NO es «programar libremente».** Es construir un incremento
+# que YA esta especificado y aprobado, dentro de un perimetro explicito. Entra aqui porque es lo
+# maximo que un acta *podria* delegar; **no** porque este delegado: el acta vigente (`DEC-ORCH-2`)
+# delega exactamente `("eliminar_codigo_muerto",)`, asi que `en_alcance()` lo niega y `clasificar()`
+# lo manda a `HUMAN`. Mismo patron que `REVIEW_HABILITADO=False` y `K_ESTANCAMIENTO=None`:
+# construido, declarado y **a la espera de un acta** — nunca encendido por edicion de codigo.
+#
+# **`implementar_incremento_especificado` entra aqui por el acta del CEO de `DR-D` (2026-09-07)**, no
+# por una edicion de conveniencia: hasta que existio esa decision humana el verbo vivia declarado y
+# fuera de la lista blanca. Entrar en ella no lo hace ejecutable por si solo —siguen mandando el acta
+# registrada (`en_alcance`), el ejecutor construido y el contrato de la capacidad—: solo levanta el
+# techo de lo que un acta *puede* delegar hasta donde el CEO ya lo ha delegado.
+TODO_LO_DELEGABLE = ("eliminar_codigo_muerto", "implementar_incremento_especificado")
+
+#: **El verbo de la evolucion, DECLARADO y NO DELEGADO.** Construir una capacidad ya especificada y
+#: aprobada, dentro de un perimetro explicito. No significa «programar libremente».
+#:
+#: **No esta en `TODO_LO_DELEGABLE` a proposito.** Esa tupla es la lista BLANCA que la garantia `A10`
+#: fija, y es «lo maximo que un acta podria delegar»: meterlo ahi editando codigo agrandaria el techo
+#: de la autonomia sin acta, que es exactamente lo que este modulo dice que no puede pasar —*«la
+#: puerta: constante y en False; encenderla exige un acta, no una edicion de codigo»*—. Entrar en la
+#: lista blanca es un acto del CEO, igual que `REVIEW_HABILITADO` y que el alcance de `DEC-ORCH-2`.
+#:
+#: Mientras tanto queda aqui: nombrado, contratado y verificable, sin conceder nada. `clasificar()`
+#: lo manda a `HUMAN` por dos vias independientes —no esta en la lista blanca y no esta en el acta—.
+ACCION_DE_EVOLUCION = "implementar_incremento_especificado"
+
+#: Las acciones para las que existe un ejecutor **de verdad**. `INV-9`: no se finge capacidad no
+#: construida. Es la tercera barrera del verbo de evolucion, independiente de las otras dos: aunque
+#: un dia un acta lo metiera en la lista blanca y en el alcance, seguiria sin ejecutor y el circuito
+#: se negaria en vez de mandarlo al ejecutor de codigo muerto —que espera `simbolo` y `fichero`— a
+#: hacer algo que nadie diseno.
+_EJECUTORES_CONSTRUIDOS = ("eliminar_codigo_muerto", "implementar_incremento_especificado")
 
 REVISORES = ac.REVISORES
+
+
+class SinEjecutor(RuntimeError):
+    """La accion esta declarada como delegable pero **no existe ejecutor construido** (`INV-9`)."""
 
 
 class ReviewNoHabilitado(RuntimeError):
@@ -362,6 +399,13 @@ def ejecutar_bajo_review(directorio, tarea: dict, propuesto_por: str, autoridad:
     if es_materia_reservada(accion):
         raise MateriaReservada(
             f"{accion!r} esta reservada al CEO por D22 y no pasa por REVIEW ni habilitado")
+    # **Antes que el acta**: que exista ejecutor no depende de ningun permiso. Un acta que delegara
+    # un verbo sin ejecutor no lo haria ejecutable, lo haria mentiroso. Va despues de materia
+    # reservada para que la gobernanza mas fuerte siga hablando primero.
+    if accion not in _EJECUTORES_CONSTRUIDOS:
+        raise SinEjecutor(
+            f"{accion!r} esta declarada en TODO_LO_DELEGABLE pero no tiene ejecutor construido: "
+            f"los que hoy existen son {_EJECUTORES_CONSTRUIDOS}. INV-9: no se finge capacidad")
     if not habilitado(directorio):
         raise ReviewNoHabilitado(
             "REVIEW no esta habilitado: elevarlo exige un acta del CEO (ADR-0003:33). "
@@ -397,8 +441,15 @@ def ejecutar_bajo_review(directorio, tarea: dict, propuesto_por: str, autoridad:
 
     # La ejecucion reutiliza la maquinaria ya probada: misma reversibilidad, misma verificacion de
     # efecto releyendo el fichero, mismas zonas prohibidas.
-    propuesta = ac.proponer(directorio, {"simbolo": tarea["simbolo"], "fichero": tarea["fichero"],
+    # La operacion viaja con la tarea hasta el ejecutor. Sin esto, una tarea constructiva llegaria
+    # al ejecutor como si fuera codigo muerto y no haria nada —en silencio—, que es exactamente el
+    # defecto que costo completar `forma` cuando la capacidad crecio a cinco formas.
+    propuesta = ac.proponer(directorio, {"simbolo": tarea.get("simbolo", ""),
+                                         "fichero": tarea["fichero"],
                                          "forma": tarea.get("forma", "funcion"),
+                                         "operacion": tarea.get("operacion", "eliminar_codigo_muerto"),
+                                         "buscar": tarea.get("buscar"),
+                                         "sustituir": tarea.get("sustituir"),
                                          "motivo": f"{accion} bajo REVIEW"})
     cp.registrar_evento(directorio, "propuesta_autorizada",
                         {"id": propuesta["id"], "autorizada_por": f"REVIEW:{revisor}",

@@ -33,6 +33,19 @@ def _catalogo_para_prompt() -> str:
     return "\n".join(lineas)
 
 
+#: Prompt de **cognicion**: conversar, razonar, responder conocimiento general. Sin catalogo, sin
+#: acciones. Mantiene el mismo contrato de salida para no romper `_parse_decision`, y fija `action`
+#: en `consulta` porque por esta via **no se ejecuta nada**: si el usuario pide una accion, el
+#: orquestador ya lo habra enrutado por el otro camino.
+_SYSTEM_COGNITIVO = (
+    "Eres AURA, un asistente personal. Responde UNICAMENTE un objeto JSON con las claves: "
+    'intent (string), action (string, siempre "consulta"), args (object vacio), '
+    "say (string en espanol, tu respuesta al usuario). "
+    "Conversa con naturalidad y razona cuando haga falta. "
+    "Si no sabes algo, dilo en `say` en vez de inventarlo. "
+    "NUNCA afirmes recordar algo sobre el usuario que no aparezca en el contexto de memoria."
+)
+
 _SYSTEM = (
     "Eres AURA. Responde UNICAMENTE un objeto JSON con las claves: "
     "intent (string), action (string), args (object), say (string en espanol). "
@@ -65,13 +78,23 @@ class OllamaProvider:
         self.url = url.rstrip("/")
         self.timeout_s = timeout_s or int(os.getenv("AURA_OLLAMA_TIMEOUT_S", self.DEFAULT_TIMEOUT_S))
 
-    async def infer(self, prompt: str) -> str:
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, self._infer_sync, prompt)
+    async def infer(self, prompt: str, modo: str = "accion") -> str:
+        """`modo` es opcional y por defecto conserva el comportamiento anterior.
 
-    def _infer_sync(self, prompt: str) -> str:
+        El contrato `ModelProvider` declara `infer(prompt)`; un parametro con valor por defecto lo
+        sigue satisfaciendo, asi que el puerto **no se toca**."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self._infer_sync, prompt, modo)
+
+    def _infer_sync(self, prompt: str, modo: str = "accion") -> str:
+        # **El catalogo solo viaja cuando hay algo que ejecutar.** Medido: el prompt de accion son
+        # 630 tokens de ingesta, 311 s de los 441 s de una inferencia real —el 71%— y ante una
+        # pregunta de conocimiento el modelo respondia eligiendo una accion del catalogo, con `say`
+        # vacio. Pedirle que clasifique comandos cuando el usuario esta conversando es pedirle la
+        # tarea equivocada, y ademas pagar el contexto de la equivocada.
+        system = _SYSTEM_COGNITIVO if modo == "cognitivo" else _SYSTEM
         body = json.dumps(
-            {"model": self.model, "prompt": prompt, "system": _SYSTEM, "stream": False, "format": "json"}
+            {"model": self.model, "prompt": prompt, "system": system, "stream": False, "format": "json"}
         ).encode()
         req = urllib.request.Request(
             self.url + "/api/generate", data=body, headers={"Content-Type": "application/json"}

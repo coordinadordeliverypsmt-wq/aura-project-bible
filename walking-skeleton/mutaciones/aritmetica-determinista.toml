@@ -1,0 +1,203 @@
+incremento = "Aritmetica determinista en la conversacion (CEO, 2026-09-01)"
+pruebas = ["tests/integration/test_aritmetica_determinista.py"]
+timeout_s = 400
+
+# Dos familias, y la segunda importa mas: que las cuentas salgan, y que NADA MAS se cuele por esta
+# puerta. El texto llega del usuario a un evaluador, y un evaluador que acepta de mas ejecuta codigo
+# ajeno.
+
+# --------- 1 · EL NUCLEO RESPONDE, NO EL MODELO ---------
+
+[[mutante]]
+id = "AR-M1"
+garantia = "la aritmetica se resuelve ANTES del modelo: si no, 'cuanto es 1+1' vuelve a ser 'Entendido.'"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_aritmetica_determinista.py::test_la_operacion_la_resuelve_EL_NUCLEO_y_es_correcta"]
+buscar = '''        respuesta = resolver_aritmetica(text)
+        if respuesta is not None:'''
+sustituir = '''        respuesta = resolver_aritmetica(text)
+        if False:'''
+
+# --------- 2 · LAS CUENTAS SALEN ---------
+
+[[mutante]]
+id = "AR-M2"
+garantia = "la PRECEDENCIA es la de las matematicas, no el orden de lectura"
+fichero = "aura_skeleton/core/aritmetica.py"
+pruebas = ["tests/integration/test_aritmetica_determinista.py::test_la_PRECEDENCIA_no_es_de_izquierda_a_derecha",
+           "tests/integration/test_aritmetica_determinista.py::test_la_operacion_la_resuelve_EL_NUCLEO_y_es_correcta"]
+buscar = '''        izquierda, derecha = _evaluar(nodo.left), _evaluar(nodo.right)'''
+sustituir = '''        izquierda, derecha = _evaluar(nodo.right), _evaluar(nodo.left)'''
+
+[[mutante]]
+id = "AR-M3"
+garantia = "la resta resta y la division divide: no se confunden entre si"
+fichero = "aura_skeleton/core/aritmetica.py"
+pruebas = ["tests/integration/test_aritmetica_determinista.py::test_la_operacion_la_resuelve_EL_NUCLEO_y_es_correcta"]
+buscar = '''_OPERADORES = {ast.Add: lambda a, b: a + b, ast.Sub: lambda a, b: a - b,
+               ast.Mult: lambda a, b: a * b}'''
+sustituir = '''_OPERADORES = {ast.Add: lambda a, b: a + b, ast.Sub: lambda a, b: a + b,
+               ast.Mult: lambda a, b: a * b}'''
+
+[[mutante]]
+id = "AR-M4"
+garantia = "el signo UNARIO se aplica: '-3 + 10' no es 13"
+fichero = "aura_skeleton/core/aritmetica.py"
+pruebas = ["tests/integration/test_aritmetica_determinista.py::test_la_operacion_la_resuelve_EL_NUCLEO_y_es_correcta"]
+buscar = '''        return -valor if isinstance(nodo.op, ast.USub) else valor'''
+sustituir = '''        return valor'''
+
+[[mutante]]
+id = "AR-M5"
+garantia = "se calcula con Fraction y no con float: la exactitud no se negocia"
+fichero = "aura_skeleton/core/aritmetica.py"
+pruebas = ["tests/integration/test_aritmetica_determinista.py::test_el_resultado_es_EXACTO_y_no_se_finge_precision"]
+buscar = '''        if isinstance(nodo.value, int) and not isinstance(nodo.value, bool):
+            return Fraction(nodo.value)'''
+sustituir = '''        if isinstance(nodo.value, int) and not isinstance(nodo.value, bool):
+            return float(nodo.value)'''
+
+[[mutante]]
+id = "AR-M6"
+garantia = "un decimal que NO termina se da como fraccion exacta: 0.3333 le inventaria un final"
+fichero = "aura_skeleton/core/aritmetica.py"
+pruebas = ["tests/integration/test_aritmetica_determinista.py::test_el_resultado_es_EXACTO_y_no_se_finge_precision"]
+buscar = '''    return f"{valor.numerator}/{valor.denominator}"'''
+sustituir = '''    return f"{float(valor):.4f}"'''
+
+# --------- 3 · LO QUE NO SE CONTESTA ---------
+
+[[mutante]]
+id = "AR-M7"
+garantia = "la DIVISION POR CERO se declara: dejarla al modelo produciria cualquier cosa"
+fichero = "aura_skeleton/core/aritmetica.py"
+pruebas = ["tests/integration/test_aritmetica_determinista.py::test_la_DIVISION_POR_CERO_se_declara_y_no_se_inventa"]
+buscar = '''            if derecha == 0:
+                raise DivisionPorCero("division por cero")'''
+sustituir = '''            if derecha == 0:
+                return Fraction(0)'''
+
+[[mutante]]
+id = "AR-M8"
+garantia = "el texto NO MATEMATICO no se intercepta: 'borra 2 archivos' lleva un numero y no es una cuenta"
+fichero = "aura_skeleton/core/aritmetica.py"
+pruebas = ["tests/integration/test_aritmetica_determinista.py::test_el_filtro_de_CARACTERES_no_es_redundante_con_el_parser"]
+buscar = '''    if not t or not _SEGURO.match(t):
+        return None'''
+sustituir = '''    if not t:
+        return None'''
+
+[[mutante]]
+id = "AR-M9"
+garantia = "un NUMERO SUELTO no es una operacion: contestarlo le robaria el turno a la frase"
+fichero = "aura_skeleton/core/aritmetica.py"
+pruebas = ["tests/integration/test_aritmetica_determinista.py::test_el_texto_NO_MATEMATICO_no_lo_intercepta"]
+buscar = '''    if not any(c in t for c in "+-*/"):'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "AR-M10"
+garantia = "una expresion INVALIDA no inventa un numero: se deja pasar, no se contesta 'no lo se'"
+fichero = "aura_skeleton/core/aritmetica.py"
+pruebas = ["tests/integration/test_aritmetica_determinista.py::test_una_expresion_INVALIDA_no_inventa_un_numero"]
+buscar = '''    except NoEsAritmetica:
+        return None'''
+sustituir = '''    except NoEsAritmetica:
+        return "0."'''
+
+# --------- 4 · NO EJECUTA CODIGO ---------
+
+[[mutante]]
+id = "AR-M11"
+garantia = "el evaluador NO tiene caso para llamadas ni nombres: aceptar de mas ejecuta codigo ajeno"
+fichero = "aura_skeleton/core/aritmetica.py"
+pruebas = ["tests/integration/test_aritmetica_determinista.py::test_el_evaluador_NO_conoce_llamadas_ni_nombres",
+           "tests/integration/test_aritmetica_determinista.py::test_NINGUNA_expresion_ejecuta_codigo_arbitrario"]
+buscar = '''    raise NoEsAritmetica(f"nodo no permitido: {type(nodo).__name__}")'''
+sustituir = '''    return Fraction(0)'''
+
+[[mutante]]
+id = "AR-M12"
+garantia = "un OPERADOR no permitido (potencia) se rechaza aunque el nodo sea un BinOp"
+fichero = "aura_skeleton/core/aritmetica.py"
+pruebas = ["tests/integration/test_aritmetica_determinista.py::test_NINGUNA_expresion_ejecuta_codigo_arbitrario",
+           "tests/integration/test_aritmetica_determinista.py::test_el_evaluador_NO_conoce_llamadas_ni_nombres"]
+buscar = '''        if operador is None:
+            raise NoEsAritmetica(f"operador no permitido: {type(nodo.op).__name__}")'''
+sustituir = '''        if operador is None:
+            return izquierda + derecha'''
+
+[[mutante]]
+id = "AR-M13"
+garantia = "solo ENTEROS: un booleano es un int en Python y no es un numero que el usuario escribiera"
+fichero = "aura_skeleton/core/aritmetica.py"
+pruebas = ["tests/integration/test_aritmetica_determinista.py::test_el_evaluador_NO_conoce_llamadas_ni_nombres"]
+buscar = '''        raise NoEsAritmetica(f"solo numeros enteros: {nodo.value!r}")'''
+sustituir = '''        return Fraction(0)'''
+
+[[mutante]]
+id = "AR-M14"
+garantia = "las COTAS cortan: con `*` encadenado se cuelga el turno"
+fichero = "aura_skeleton/core/aritmetica.py"
+pruebas = ["tests/integration/test_aritmetica_determinista.py::test_las_COTAS_impiden_bloquear_el_turno"]
+buscar = '''    if any(len(n) > MAX_DIGITOS for n in re.findall(r"\d+", t)):
+        return None'''
+sustituir = '''    if False:
+        return None'''
+
+[[mutante]]
+id = "AR-M15"
+garantia = "la cota de OPERADORES corta, y no de mas: justo por debajo tiene que resolverse"
+fichero = "aura_skeleton/core/aritmetica.py"
+pruebas = ["tests/integration/test_aritmetica_determinista.py::test_las_COTAS_impiden_bloquear_el_turno"]
+buscar = '''    if sum(t.count(c) for c in "+-*/") > MAX_OPERADORES:'''
+sustituir = '''    if sum(t.count(c) for c in "+-*/") > 1:'''
+
+# --------- 5 · EL CASTELLANO ---------
+
+[[mutante]]
+id = "AR-M16"
+garantia = "'7 por 8' son 56: los operadores dichos con palabras se traducen"
+fichero = "aura_skeleton/core/aritmetica.py"
+pruebas = ["tests/integration/test_aritmetica_determinista.py::test_la_operacion_la_resuelve_EL_NUCLEO_y_es_correcta"]
+buscar = '''    for palabra, simbolo in PALABRAS:
+        t = t.replace(palabra, simbolo)'''
+sustituir = '''    for palabra, simbolo in []:
+        t = t.replace(palabra, simbolo)'''
+
+[[mutante]]
+id = "AR-M17"
+garantia = "'dividido entre' se traduce ANTES que 'entre', o la primera se quedaria a medias"
+fichero = "aura_skeleton/core/aritmetica.py"
+pruebas = ["tests/integration/test_aritmetica_determinista.py::test_la_operacion_la_resuelve_EL_NUCLEO_y_es_correcta"]
+buscar = '''PALABRAS = (
+    (" dividido entre ", " / "),
+    (" dividido por ", " / "),'''
+sustituir = '''PALABRAS = (
+    (" entre ", " / "),
+    (" dividido entre ", " / "),
+    (" dividido por ", " / "),'''
+
+[[mutante]]
+id = "AR-M18"
+garantia = "la ENTRADILLA se retira: 'cuanto es 1+1' tiene que quedar en '1+1'"
+fichero = "aura_skeleton/core/aritmetica.py"
+pruebas = ["tests/integration/test_aritmetica_determinista.py::test_la_operacion_la_resuelve_EL_NUCLEO_y_es_correcta"]
+buscar = '''        if t.startswith(entradilla):
+            t = t[len(entradilla):].strip()
+            break'''
+sustituir = '''        if False:
+            t = t[len(entradilla):].strip()
+            break'''
+
+# --------- 6 · NO ROBAR TURNOS ---------
+
+[[mutante]]
+id = "AR-M19"
+garantia = "la superficie va DESPUES de las que ya existian: no puede robarles ninguna frase"
+fichero = "aura_skeleton/core/aritmetica.py"
+pruebas = ["tests/integration/test_aritmetica_determinista.py::test_las_COTAS_impiden_bloquear_el_turno"]
+buscar = '''    if not texto or len(texto) > MAX_CARACTERES:
+        return None'''
+sustituir = '''    if not texto:
+        return None'''

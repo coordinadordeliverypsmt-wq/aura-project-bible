@@ -12,8 +12,20 @@ from .. import observability as obs
 from ..contracts import Event
 from ..observability import Timer
 from .almacen_senales import AlmacenSenales
+from .aritmetica import resolver as resolver_aritmetica
 from .automatizacion import MotorAutomatizacion
+from .autorizacion import es_autorizacion, resolver
+from .autorizacion import identificador_en as identificador_de_decision
 from .centro_gobierno import panel
+from .ejecutor_modelo_usuario import EjecutorModeloUsuario
+from .ejecutor_reglas import EjecutorReglas
+from .estado_autonomo import (
+    redactar_actividad,
+    redactar_decisiones,
+    redactar_evolucion,
+    redactar_oportunidades,
+    redactar_ultima_tarea,
+)
 from .modelo_usuario import describir_conocimiento, explicar_entrada
 from .notificaciones import notificacion_de_accion
 from .registro import RegistroAdaptadores
@@ -33,7 +45,10 @@ def _parse_decision(out: str, tid: str) -> tuple[str, dict, str]:
             d = _j.loads(candidate)
             action = str(d.get("action", "consulta")) or "consulta"
             args = d.get("args", {}) if isinstance(d.get("args", {}), dict) else {}
-            say = str(d.get("say", "")) or "Entendido."
+            # UNA CONFIRMACION NO ES UNA RESPUESTA (CEO, 2026-09-01). Cuando el modelo no dice nada,
+            # «Entendido.» afirma que se atendio algo -y el usuario no tiene forma de distinguirlo de
+            # una respuesta real-. Se declara el hueco, que es lo unico cierto que se puede decir.
+            say = str(d.get("say", "")) or "No he sabido qué responder a eso."
             return action, args, say
         except (ValueError, TypeError):
             continue
@@ -111,12 +126,38 @@ def _es_pregunta(texto: str) -> bool:
     return bool(palabras) and palabras[0] in _INTERROGATIVOS
 
 
+#: Verbos con los que una persona **pide que se haga** algo. Declarados, no deducidos del catalogo:
+#: el catalogo dice que SABE hacer el sistema; esto dice como lo PIDE alguien, y son dos vocabularios
+#: distintos. Solo decide **que contexto viaja al modelo**, nunca si algo puede ejecutarse: eso lo
+#: siguen resolviendo el catalogo, los permisos y el motor unico.
+_PIDE_ACCION = ("abre", "abrir", "enciende", "encender", "apaga", "apagar", "busca", "buscar",
+                "lista", "listar", "lee ", "leer ", "mueve", "mover", "copia", "copiar",
+                "renombra", "renombrar", "borra", "borrar", "elimina", "eliminar",
+                "ejecuta", "ejecutar", "verifica", "verificar", "audita", "auditar",
+                "diagnostica", "diagnosticar", "recuerdame", "crea ", "crear ", "organiza")
+
+
+def _pide_accion(texto: str) -> bool:
+    """Si el usuario esta pidiendo que AURA **haga** algo, no que le responda algo.
+
+    Decide si el catalogo de acciones viaja en el prompt. Es deliberadamente **generoso**: ante la
+    duda se manda el catalogo, porque perder una accion seria peor que pagar contexto de mas."""
+    t = _normalizar(texto)
+    return any(v in t for v in _PIDE_ACCION)
+
+
 def _es_consulta_de_memoria(texto: str) -> bool:
     """True si el usuario pregunta por algo supuestamente recordado.
 
     Dos vias: los marcadores de evocacion explicita ("acordamos", "te conte") O una pregunta. La
     segunda es la que hacia falta: sin ella la garantia de no-fabricacion cubria una fraccion minima
     del espacio real de preguntas.
+
+    **Medido, y por eso sigue asi (2026-09-08).** Estrechar esta puerta a «marcadores + referencia
+    personal» baja la proteccion de `24/24` a `17/24` sobre `tests/datos/bateria_memoria.json`: se
+    escapan «¿a que hora ceno normalmente?», «¿que idioma hablo?», «¿que marca de telefono tengo?»
+    —hechos personales cuya marca es el VERBO en primera persona, no un pronombre— y **dos casos
+    adversariales**. Es el escenario de `ALERTA-004`. La decision de cambiarlo es del CEO.
     """
     t = _normalizar(texto)
     return any(p in t for p in _PATRONES_CONSULTA_MEMORIA) or _es_pregunta(texto)
@@ -417,12 +458,76 @@ _PAT_CAPACIDADES = (
     "que podes hacer",
 )
 
+# La lista sigue siendo POSITIVA y CERRADA -solo desvia lo que nombra-, pero deja de exigir la
+# inflexion exacta. El CEO escribio "¿en que estas TRABAJADO ahora?" y la frase cayo hasta el final
+# del recorrido, donde una memoria vacia contesta "no tengo ningun recuerdo": una pregunta sobre uno
+# mismo que no se reconoce no se queda sin responder, se responde MAL, porque el ultimo recurso
+# pertenece a otro dominio. Se reconoce por RAIZ ("en que estas trabaj") en lugar de anadir cada
+# variante a mano, que es como esta lista se quedaria corta otra vez a la siguiente.
 _PAT_TAREAS = (
     "que tareas tienes",
     "cuales son tus tareas",
-    "en que estas trabajando",
-    "en que trabajas",
+    "en que estas trabaj",      # trabajando · trabajado · trabajas
+    "en que trabaj",
     "que estas haciendo",
+    "en que andas",
+    "cual es tu estado",
+    "que tarea estas ejecutando",
+    "que estas ejecutando",
+    "que vas a hacer despues",
+    "que haras despues",
+)
+
+# "¿que hiciste?" mira al pasado y se contesta con el HISTORIAL, no con lo que se dijo hace dos
+# turnos: la conversacion reciente no es prueba de que algo ocurriera.
+# LOS TRES DOMINIOS QUE CAIAN EN MEMORIA O EN EL PROVEEDOR (CEO, 2026-09-01). Ninguna de estas
+# preguntas es «buscar recuerdos»: todas tienen una fuente real registrada, y lo unico que faltaba
+# era la puerta que llevara hasta ella.
+_PAT_DECISIONES = (
+    "que decisiones",
+    "decisiones pendientes",
+    "que necesitas de mi",
+    "necesitan de mi",
+    "que tengo que decidir",
+    "que opciones tiene",
+    "que opciones hay",
+    "muestrame las opciones",
+    "opciones disponibles",
+)
+
+_PAT_OPORTUNIDADES = (
+    "que oportunidades",
+    "oportunidades bloqueadas",
+    "por que estan bloqueadas",
+    "por que estan bloqueados",
+    "que trabajo tienes",
+    "que trabajo podria",
+    "que trabajo puedes",
+    "que tienes pendiente",
+    "que tengo bloqueado",
+    "tengo bloqueadas",
+)
+
+# MAS ESPECIFICOS que `_PAT_ULTIMA_TAREA` a proposito, y evaluados ANTES: «¿que hiciste?» pregunta
+# por LA ultima tarea; «¿que hiciste hoy?» o «¿que mejoraste?» piden el recorrido. Sin esta
+# separacion, la mas general se quedaria las dos.
+_PAT_EVOLUCION = (
+    "que hiciste hoy",
+    "que has hecho hoy",
+    "que mejoraste",
+    "que has mejorado",
+    "que hiciste para evolucionar",
+    "que has hecho para evolucionar",
+    "en que has avanzado",
+    "como has evolucionado",
+)
+
+_PAT_ULTIMA_TAREA = (
+    "que hiciste",
+    "que has hecho",
+    "cual fue tu ultima tarea",
+    "tu ultima tarea",
+    "cual ha sido tu ultima tarea",
 )
 
 _PAT_GOBIERNO = (
@@ -480,6 +585,50 @@ def _es_consulta_de_tareas(texto: str) -> bool:
     el o un tercero posee (guarda de dominio, ver `_tiene_objeto_ajeno`)."""
     t = _normalizar(texto)
     return any(p in t for p in _PAT_TAREAS) and not _tiene_objeto_ajeno(t)
+
+
+def _es_consulta_de_decisiones(texto: str) -> bool:
+    """True si pregunta por las decisiones que esperan una respuesta suya.
+
+    Ademas de las formas declaradas, **cualquier pregunta que nombre un identificador de decision**
+    pertenece a este dominio. Eso es semantica, no una lista: si el texto nombra `D-ORCH-6`, la
+    pregunta es sobre esa decision, y contestarla desde la memoria del usuario -que no sabe nada de
+    ella- era el defecto."""
+    t = _normalizar(texto)
+    for patron in _PAT_DECISIONES:
+        if patron not in t:
+            continue
+        # La guarda de dominio se aplica SALVO que el propio patron lleve la primera persona dentro.
+        # «¿que decisiones necesitan de mi?» contiene «de mi», y `_tiene_objeto_ajeno` lo leia como
+        # una posesion del usuario y mandaba la pregunta a la memoria — que no sabe nada de
+        # decisiones. Aqui «de mi» no marca una posesion: es parte de la pregunta.
+        if "mi" in patron.split() or not _tiene_objeto_ajeno(t):
+            return True
+    # NOMBRAR una decision basta, sea pregunta u orden. «Haz D-ORCH-6» y «Autorizo D-ORCH-6 si te
+    # parece bien» no autorizan -la orden no es un permiso y lo condicionado no decide-, pero hablan
+    # de esa decision: mandarlas al proveedor las dejaba sin la informacion que el sistema tiene
+    # delante. La autorizacion inequivoca se evalua ANTES, asi que no se le roba nada.
+    return identificador_de_decision(texto) is not None
+
+
+def _es_consulta_de_oportunidades(texto: str) -> bool:
+    t = _normalizar(texto)
+    return any(p in t for p in _PAT_OPORTUNIDADES) and not _tiene_objeto_ajeno(t)
+
+
+def _es_consulta_de_evolucion(texto: str) -> bool:
+    t = _normalizar(texto)
+    return any(p in t for p in _PAT_EVOLUCION) and not _tiene_objeto_ajeno(t)
+
+
+def _es_consulta_de_ultima_tarea(texto: str) -> bool:
+    """True si el usuario pregunta que hizo AURORA -no que hizo con algo suyo (guarda de dominio).
+
+    La guarda importa mas aqui que en ninguna otra: "¿que hiciste con mis archivos?" es una pregunta
+    sobre el usuario, y robarsela para contestar con el historial del ciclo seria exactamente el
+    defecto de este incremento, con los dominios cambiados de sitio."""
+    t = _normalizar(texto)
+    return any(p in t for p in _PAT_ULTIMA_TAREA) and not _tiene_objeto_ajeno(t)
 
 
 def _es_consulta_de_gobierno(texto: str) -> bool:
@@ -825,6 +974,8 @@ class Orchestrator:
         modelo_usuario=None,
         automatizaciones=None,
         estado_operativo=None,
+        estado_autonomo=None,
+        decisiones=None,
     ):
         self.bus, self.memory, self.router = bus, memory, router
         self.perm, self.voice = permissions, voice
@@ -835,12 +986,20 @@ class Orchestrator:
         # bloqueada" en la conversacion. OPCIONAL: sin el, esas preguntas siguen el flujo normal
         # (memoria/LLM), igual que notificaciones/modelo_usuario/automatizaciones cuando no se conectan.
         self.estado_operativo = estado_operativo
+        # Ciclo autonomo de AURORA (CEO, 2026-09-01). OPCIONAL, como `estado_operativo`: es un
+        # puerto, no un import. Sin el, "¿en que estas trabajando?" responde exactamente lo que
+        # respondia antes de este incremento — el producto tiene que poder instalarse sin el plano
+        # de desarrollo.
+        self.estado_autonomo = estado_autonomo
+        # Buzon de decisiones (CEO, 2026-09-01). OPCIONAL, como los dos anteriores. Es el MISMO
+        # almacen que usa el confirmador diferido y que `reabrir_aprobadas` lee al despertar: la
+        # conversacion no abre una segunda via de autorizacion, se asoma a la que ya existe.
+        self.decisiones = decisiones
         self._foco_modelo: dict[str, dict] = {}  # a que afirmacion se refiere "eso" por usuario
         # M3.0 — captura de senales. OPCIONAL y PASIVA: si no hay registro de contexto, el sistema
         # se comporta exactamente igual que en M2. La captura observa el turno; no participa en
         # ninguna decision (restriccion 2 del gate del CEO).
         self.contexto = contexto
-        self.almacen = AlmacenSenales(memory) if contexto is not None else None
         # Un adaptador suelto se envuelve; el resto del codigo trabaja siempre contra un registro.
         if hasattr(adaptadores, "para"):
             self.registro = adaptadores
@@ -848,7 +1007,23 @@ class Orchestrator:
             self.registro = RegistroAdaptadores([adaptadores])
         # Sin motor inyectado se construye uno sobre el mismo registro y los mismos permisos: el
         # flujo es identico venga de donde venga la peticion.
-        self.motor = motor if motor is not None else MotorAutomatizacion(self.registro, permissions)
+        if motor is None:
+            # F4 · un motor fabricado aqui debe saber ejecutar las rutas propias del orquestador.
+            # Sin esto seria un motor que no atiende ni la soberania ni las automatizaciones, y esas
+            # operaciones fallarian por «ninguna capacidad atiende», no por un control de gobierno:
+            # un fallo indistinguible de una denegacion legitima. Cuando el motor viene inyectado
+            # —produccion, `composicion.py`— los ejecutores ya estan inscritos alli y no se tocan.
+            for ejecutor in (EjecutorModeloUsuario(memory),
+                             EjecutorReglas(automatizaciones) if automatizaciones is not None else None):
+                if ejecutor is not None and self.registro.para(ejecutor.capabilities[0]) is None:
+                    self.registro.registrar(ejecutor)
+            self.motor = MotorAutomatizacion(self.registro, permissions)
+        else:
+            self.motor = motor
+        # F4 tramo 3 · la captura de senales se construye AQUI y no antes porque necesita el motor:
+        # §4.2 la señalaba como hueco —«escribe conocimiento sobre el usuario sin correspondencia
+        # alguna»— y ahora cada senal entra por `registrar_informacion_usuario`.
+        self.almacen = AlmacenSenales(memory, motor=self.motor) if contexto is not None else None
         self._timers: dict[str, Timer] = {}
         self._done: dict[str, asyncio.Event] = {}
         self._results: dict[str, dict] = {}
@@ -877,27 +1052,27 @@ class Orchestrator:
         if self.modelo_usuario is not None:
             resp = await self._atender_modelo_usuario(uid, text)
             if resp is not None:
-                await self._finalizar_turno(uid, tid, text, resp, "core", t)
+                await self._finalizar_turno(uid, tid, text, resp, "core", t, dominio="modelo_usuario")
                 return
         # Superficie del Centro de Notificaciones: "¿que ha pasado mientras no estaba?" se responde con
         # lo que AURA hizo, sin consultar memoria ni LLM (es un hecho del sistema, no una inferencia).
         if self.notificaciones is not None and _es_consulta_de_notificaciones(text):
-            await self._finalizar_turno(uid, tid, text, self._resumen_notificaciones(), "core", t)
+            await self._finalizar_turno(uid, tid, text, self._resumen_notificaciones(), "core", t, dominio="notificaciones")
             return
         # Automatizaciones del usuario (MVP capacidad 5): inspeccionar y crear reglas. Deterministas como el
         # resto de superficies; el LLM no interviene (definir o listar una regla es un hecho, no una inferencia).
         if self.automatizaciones is not None:
             if _es_consulta_de_reglas(text):
-                await self._finalizar_turno(uid, tid, text, self._describir_reglas(uid), "core", t)
+                await self._finalizar_turno(uid, tid, text, self._describir_reglas(uid), "core", t, dominio="reglas")
                 return
             if _es_creacion_de_regla(text):
-                await self._finalizar_turno(uid, tid, text, self._crear_regla(uid, text), "core", t)
+                await self._finalizar_turno(uid, tid, text, await self._crear_regla(uid, text), "core", t, dominio="reglas")
                 return
             # Desactivar una automatizacion (M3 entry): se responde SIEMPRE aqui, tenga o no el
             # usuario alguna activa, para que la frase no caiga en otra superficie (memoria, LLM)
             # y produzca una respuesta enganosa o un efecto no pedido.
             if _es_cancelacion_de_regla(text):
-                await self._finalizar_turno(uid, tid, text, self._desactivar_regla(uid, text), "core", t)
+                await self._finalizar_turno(uid, tid, text, await self._desactivar_regla(uid, text), "core", t, dominio="reglas")
                 return
         # Ventana del SO Interno (M3 entry): "¿que capacidades tienes?" / "¿en que estas trabajando?" /
         # "¿por que estas bloqueada?" / "¿que aprendiste?" se responden desde el propio sistema, nunca
@@ -911,20 +1086,61 @@ class Orchestrator:
         # None y todo sigue exactamente igual que antes de este incremento.
         resp = await self._atender_conversacion_general(uid, text)
         if resp is not None:
-            await self._finalizar_turno(uid, tid, text, resp, "core", t)
+            await self._finalizar_turno(uid, tid, text, resp, "core", t, dominio="conversacion_general")
             return
         if _es_consulta_de_capacidades(text):
-            await self._finalizar_turno(uid, tid, text, self._describir_capacidades(), "core", t)
+            await self._finalizar_turno(uid, tid, text, self._describir_capacidades(), "core", t, dominio="capacidades")
+            return
+        # La consulta de tareas ya no exige `estado_operativo`: con el ciclo autonomo cableado
+        # tiene fuente propia, y sin ninguna de las dos NO se desvia (cae al camino de siempre).
+        if (self.estado_operativo is not None or self.estado_autonomo is not None) and _es_consulta_de_tareas(text):
+            await self._finalizar_turno(uid, tid, text, self._describir_tareas(), "core", t, dominio="estado_autonomo")
+            return
+        if self.estado_autonomo is not None and _es_consulta_de_evolucion(text):
+            await self._finalizar_turno(uid, tid, text, self._describir_evolucion(text), "core", t,
+                                        dominio="evolucion")
+            return
+        if self.estado_autonomo is not None and _es_consulta_de_ultima_tarea(text):
+            await self._finalizar_turno(uid, tid, text, self._describir_ultima_tarea(), "core", t,
+                                        dominio="historial")
+            return
+        # Autorizacion humana (CEO, 2026-09-01). Va ANTES de la ausencia de memoria y del LLM porque
+        # conceder un permiso es un HECHO del sistema, no una inferencia (ADR-0014). Y lo unico que
+        # hace es marcar una solicitud del buzon: la accion se vuelve a evaluar en el motor unico.
+        identificador = es_autorizacion(text)
+        if identificador is not None:
+            respuesta = self._registrar_autorizacion(uid, identificador, text, tid)
+            await self._finalizar_turno(uid, tid, text, respuesta, "core", t, dominio="autorizacion")
+            return
+        # Los dos dominios que caian en la memoria del usuario, que no sabe nada de ellos.
+        if self.estado_autonomo is not None and _es_consulta_de_decisiones(text):
+            await self._finalizar_turno(uid, tid, text, self._describir_decisiones(text), "core", t,
+                                        dominio="decisiones")
+            return
+        if self.estado_autonomo is not None and _es_consulta_de_oportunidades(text):
+            await self._finalizar_turno(uid, tid, text, self._describir_oportunidades(), "core", t,
+                                        dominio="oportunidades")
             return
         if self.estado_operativo is not None:
-            if _es_consulta_de_tareas(text):
-                await self._finalizar_turno(uid, tid, text, self._describir_tareas(), "core", t)
-                return
             if _es_consulta_de_gobierno(text):
-                await self._finalizar_turno(uid, tid, text, self._describir_bloqueo(), "core", t)
+                await self._finalizar_turno(uid, tid, text, self._describir_bloqueo(), "core", t, dominio="gobierno")
                 return
         if _es_consulta_de_formacion(text):
-            await self._finalizar_turno(uid, tid, text, _resumen_formacion(), "core", t)
+            await self._finalizar_turno(uid, tid, text, _resumen_formacion(), "core", t, dominio="formacion")
+            return
+        # Aritmetica determinista (CEO, 2026-09-01). «cuanto es 1+1» no tenia superficie, recorria la
+        # cascada entera y la contestaba el enrutador con su respuesta enlatada: «Entendido.». Una
+        # suma no es una inferencia -- es la misma regla de ADR-0014 que ya gobierna el resto.
+        #
+        # VA AQUI, y no antes, por la disciplina que este fichero se aplica desde hace ocho
+        # superficies: lo nuevo se evalua DESPUES de lo que ya existia, para que no pueda robarle
+        # ninguna frase. Y antes de la memoria y del modelo, que es lo que el defecto pedia. El
+        # reconocimiento ademas es estrecho: o la frase empieza por una entradilla declarada, o el
+        # texto ENTERO es una expresion -- «borra 2 archivos» no lo es.
+        respuesta = resolver_aritmetica(text)
+        if respuesta is not None:
+            obs.log("CORE", "aritmetica", f"resuelta en el nucleo, sin LLM: {text[:40]!r}", tid)
+            await self._finalizar_turno(uid, tid, text, respuesta, "core", t, dominio="aritmetica")
             return
         hits = await self.memory.recall(uid, text)
         t.mark("memory")
@@ -936,14 +1152,23 @@ class Orchestrator:
             obs.log(
                 "CORE", "grounding", "memoria vacia -> respuesta determinista (sin llamada al LLM)", tid, audit=True
             )
-            await self._finalizar_turno(uid, tid, text, say, "core", t)
+            await self._finalizar_turno(uid, tid, text, say, "core", t, dominio="memoria")
             return
 
         ctx = " | ".join(h["content"] for h in hits) if hits else "(sin recuerdos relevantes)"
         buffer = self._dialogue.get(uid, [])
         recent = "\n".join(f"(previo) tu: {u} | AURA: {a}" for u, a in buffer) or "(inicio de la conversacion)"
         prompt = f"[contexto memoria: {ctx}]\n[conversacion reciente:\n{recent}]\nUsuario: {text}"
-        prov, out = await self.router.route(prompt, tid)
+        # **El catalogo solo si hay accion que pedir.** Ante la duda, `_pide_accion` es generoso:
+        # perder una accion seria peor que pagar contexto de mas.
+        modo = "accion" if _pide_accion(text) else "cognitivo"
+        obs.log("LLM", "routing", f"modo={modo}", tid)
+        try:
+            prov, out = await self.router.route(prompt, tid, modo)
+        except TypeError:
+            # Un router con la firma anterior —los dobles de prueba, por ejemplo— sigue funcionando.
+            # El modo es una mejora de contexto, no un cambio de contrato.
+            prov, out = await self.router.route(prompt, tid)
         t.mark("llm")
         action, args, say = _parse_decision(out, tid)
         if action != "consulta":
@@ -1223,11 +1448,110 @@ class Orchestrator:
         (INV-7: el plan no se reinterpreta): sin ningun objetivo activo, se declara -no se
         inventa trabajo en curso-.
         """
-        secciones = self._secciones_del_ciclo()
+        # El ciclo autonomo manda cuando esta disponible: es donde de verdad ocurre el trabajo de
+        # AURORA, y es lo que el CEO pregunta cuando pregunta en que ando. El tablero de objetivos
+        # del producto se anade DESPUES si tiene algo que decir; sin fuente autonoma, el
+        # comportamiento es bit a bit el de antes de este incremento.
+        del_ciclo = self._actividad_autonoma()
+        secciones = self._secciones_del_ciclo() if self.estado_operativo is not None else []
         if not secciones:
-            return "No tengo ningún objetivo activo registrado en el estado operativo ahora mismo."
+            return del_ciclo or "No tengo ningún objetivo activo registrado en el estado operativo ahora mismo."
         resumen = self._resumen_de(secciones, "Que esta haciendo", "Que hara despues", "Progreso")
-        return f"Esto es en lo que estoy trabajando:\n{resumen}"
+        tablero = f"Esto es en lo que estoy trabajando:\n{resumen}"
+        if not del_ciclo:
+            return tablero
+        # Los dos bloques hablan de PLANOS DISTINTOS -mi ciclo autonomo y el tablero de objetivos del
+        # producto- y sin decirlo se leen como una contradiccion: "no tengo tareas" seguido de "esto
+        # es en lo que trabajo". Se etiqueta el segundo; unirlos en una sola cuenta seria peor,
+        # porque fabricaria un total que no existe en ninguna de las dos fuentes.
+        return f"{del_ciclo}\n\nAparte, en el tablero de objetivos del producto:\n{resumen}"
+
+    def _actividad_autonoma(self) -> str | None:
+        """Que dice el ciclo autonomo, o `None` si no hay fuente que lo diga."""
+        if self.estado_autonomo is None:
+            return None
+        return redactar_actividad(self.estado_autonomo.instantanea())
+
+    def _decisiones_de_gobernanza(self) -> list:
+        """Las decisiones que el ciclo autonomo tiene elevadas al CEO. Se leen del puerto que ya
+        existe: no se abre una segunda ventana al plano de control."""
+        if self.estado_autonomo is None:
+            return []
+        pendientes = (self.estado_autonomo.instantanea() or {}).get("decisiones_pendientes")
+        return pendientes if isinstance(pendientes, list) else []
+
+    def _registrar_autorizacion(self, uid: str, identificador: str, texto: str, tid: str) -> str:
+        """Registra UNA decision humana explicita. No ejecuta nada, y lo dice.
+
+        Todas las respuestas salen del estado real: si no hay buzon, si la decision no existe, si ya
+        estaba aprobada o si pertenece a otra autoridad, se responde lo que el estado permite decir —
+        nunca un mensaje tranquilizador escrito de antemano."""
+        if self.decisiones is None:
+            return ("No tengo buzón de decisiones conectado, así que no puedo registrar ninguna "
+                    "autorización desde aquí.")
+
+        decision, motivo = resolver(identificador, self.decisiones.pendientes(),
+                                    self.decisiones.aprobadas())
+        if motivo == "ambiguo":
+            return (f"«{identificador}» coincide con más de una decisión pendiente. No registré "
+                    f"ninguna autorización: elegir por ti sería autorizar una acción que no me "
+                    f"pediste. Dime la huella completa.")
+
+        if decision is None:
+            # Puede ser una decision de GOBERNANZA elevada al CEO. Existe de verdad, pero no se
+            # resuelve con un «autorizo»: tiene opciones, y ninguna se elige sola. Decir «registrada»
+            # aqui seria afirmar que algo queda desbloqueado cuando no lo queda.
+            gobernanza = [d for d in self._decisiones_de_gobernanza()
+                          if isinstance(d, dict) and str(d.get("id", "")).lower() == identificador.lower()]
+            if gobernanza:
+                opciones = gobernanza[0].get("opciones") or []
+                detalle = ("\n" + "\n".join(f"  • {o}" for o in opciones)) if opciones else ""
+                return (f"No puedo registrar esa autorización con la autoridad disponible. "
+                        f"{identificador} es una decisión de gobernanza elevada, y no se resuelve "
+                        f"con un permiso: hay que elegir una de sus opciones.{detalle}")
+            return (f"No encuentro una decisión llamada {identificador} en mi estado actual. "
+                    f"No registré ninguna autorización.")
+
+        if decision.get("estado") == "aprobada":
+            return (f"{identificador} ya estaba autorizada. No registré una segunda autorización.")
+
+        huella = str(decision.get("huella", ""))
+        marcada = self.decisiones.aprobar(huella, por=uid, origen="conversacion", evidencia=texto)
+        if not marcada:
+            return (f"No pude registrar la autorización de {identificador}: su solicitud ya no está "
+                    f"en el buzón.")
+        obs.log("HITL", "autorizacion", f"{decision.get('accion')} autorizada por {uid} desde la "
+                f"conversacion ({huella[:8]}): pendiente -> aprobada", tid, audit=True)
+        return (f"Autorización registrada para {identificador} ({decision.get('accion')}). "
+                f"No ejecuto la tarea desde la conversación: queda disponible para mi próximo "
+                f"ciclo autónomo, que volverá a comprobar el permiso antes de actuar.")
+
+    def _describir_decisiones(self, texto: str) -> str:
+        """Las decisiones elevadas, o LA que se nombre. Fuente: el estado autónomo real."""
+        identificador = identificador_de_decision(texto)
+        return (redactar_decisiones(self.estado_autonomo.instantanea(), identificador)
+                or "No me consta ninguna decisión pendiente en mi estado actual.")
+
+    def _describir_oportunidades(self) -> str:
+        return (redactar_oportunidades(self.estado_autonomo.instantanea())
+                or "No me consta el estado de mi cola de trabajo.")
+
+    def _describir_evolucion(self, texto: str) -> str:
+        """Qué ha hecho de verdad. «hoy» acota por fecha; el resto, el historial reciente."""
+        dia = None
+        if "hoy" in _normalizar(texto):
+            import datetime as _dt
+
+            dia = _dt.date.today().isoformat()
+        return (redactar_evolucion(self.estado_autonomo.instantanea(), dia)
+                or "No me consta mi historial de trabajos.")
+
+    def _describir_ultima_tarea(self) -> str:
+        """La ultima tarea REALMENTE ejecutada, leida del historial del ciclo autonomo."""
+        if self.estado_autonomo is None:
+            return "No tengo registro de mi propio ciclo de trabajo ahora mismo."
+        return (redactar_ultima_tarea(self.estado_autonomo.instantanea())
+                or "No me consta ninguna tarea ejecutada en mi historial.")
 
     def _describir_bloqueo(self) -> str:
         """Responde "¿por que estas bloqueada?" / "¿que esta pasando?" reutilizando el MISMO
@@ -1254,7 +1578,7 @@ class Orchestrator:
         lineas = "\n".join(f"• {r.metadatos.get('descripcion') or f'{r.accion} cuando {r.evento}'}" for r in reglas)
         return f"Tienes {cabecera}:\n{lineas}"
 
-    def _crear_regla(self, uid: str, text: str) -> str:
+    async def _crear_regla(self, uid: str, text: str) -> str:
         """Persiste la automatizacion que el usuario acaba de definir y lo confirma.
 
         El reconocedor identifica CUAL de las cuatro acciones conocidas dispara la regla; lo que se
@@ -1284,11 +1608,11 @@ class Orchestrator:
             args={"ruta": f"$evento.{clave_evento}"},  # referencia al evento real, no un valor congelado
             metadatos={"descripcion": f"Guardar una copia antes de {sufijo} un archivo", "frase": text},
         )
-        self.automatizaciones.crear(regla)
+        await self.automatizaciones.crear(regla)
         obs.log("REGLA", "automatizacion", f"automatizacion creada: {regla.rule_id}", "-", audit=True)
         return "Entendido. Lo haré a partir de ahora."
 
-    def _desactivar_regla(self, uid: str, text: str) -> str:
+    async def _desactivar_regla(self, uid: str, text: str) -> str:
         """Desactiva la automatizacion que el usuario nombra al pedir que se deje de hacer algo.
 
         Usa `_detectar_accion_en_cancelacion`, que limpia el texto del marcador de cancelacion
@@ -1311,7 +1635,7 @@ class Orchestrator:
             equivalentes = {rule_id, *_IDS_HISTORICOS.get(rule_id, ())}
             activas = {r.rule_id for r in self.automatizaciones.listar(uid)}
             existente = next((rid for rid in equivalentes if rid in activas), None)
-            if existente is not None and self.automatizaciones.desactivar(uid, existente):
+            if existente is not None and await self.automatizaciones.desactivar(uid, existente):
                 obs.log("REGLA", "automatizacion", f"automatizacion desactivada: {existente}", "-", audit=True)
                 return "Hecho. He desactivado esa automatización."
         # No se identifico cual (o no existe entre las activas): se cuenta la verdad, nunca "hecho".
@@ -1416,8 +1740,16 @@ class Orchestrator:
         except Exception as e:
             obs.log("WARN", "senales", f"captura fallida (turno no afectado): {e}", tid)
 
-    async def _finalizar_turno(self, uid, tid, text, say, prov, t):
-        """Cierre comun del turno: persistencia, memoria de trabajo, voz, metricas y resultado."""
+    async def _finalizar_turno(self, uid, tid, text, say, prov, t, dominio: str = ""):
+        """Cierre comun del turno: persistencia, memoria de trabajo, voz, metricas y resultado.
+
+        `dominio` dice QUE FUENTE respondio. `provider` solo distingue nucleo de modelo, y con nueve
+        superficies deterministas eso ya no basta para auditar el enrutamiento: «core» no dice si la
+        respuesta salio del estado autonomo, de las decisiones o de la aritmetica. Sin este dato, la
+        unica forma de comprobar que una pregunta llego a su dominio seria mirarle la cara al texto,
+        que es exactamente como se cuela un enrutamiento roto."""
+        if dominio:
+            obs.log("CORE", "routing", f"dominio={dominio}", tid)
         if not _es_pregunta(text):
             # Una PREGUNTA no es informacion sobre el usuario: es una peticion de informacion.
             # Almacenarla como recuerdo hacia que, al repetirla, se cubriera a si misma con cobertura
@@ -1434,6 +1766,9 @@ class Orchestrator:
         t.mark("tts")
         total = t.total_ms()
         obs.log("LAT", "orchestrator", f"latencia total {total:.1f} ms (proveedor={prov})", tid, audit=True)
-        self._results[tid] = {"say": say, "provider": prov, "latency_ms": total, "marks": dict(t.marks)}
+        # `dominio` es ADITIVO: quien ya leia `provider` sigue leyendo lo mismo. Se declara siempre,
+        # y vale "llm" cuando respondio el proveedor, para que no haya un hueco silencioso.
+        self._results[tid] = {"say": say, "provider": prov, "latency_ms": total,
+                              "marks": dict(t.marks), "dominio": dominio or ("llm" if prov != "core" else "")}
         if tid in self._done:
             self._done[tid].set()

@@ -21,8 +21,11 @@ pruebas = [
 [[mutante]]
 id = "M1"
 garantia = "la puerta de ADR-0014 se salta: con memoria vacia el turno llega al LLM y este fabrica el recuerdo"
+# RE-ANCLADO 2026-09-09: la condicion de la puerta gano `and not cognicion_general` al abrir la
+# superficie cognitiva. La garantia es LA MISMA -que la puerta siga cerrandose- y el mutante sigue
+# siendo el mismo: anularla entera.
 fichero = "aura_skeleton/core/orchestrator.py"
-buscar = '''        if not hits and _es_consulta_de_memoria(text):'''
+buscar = '''        if not hits and _es_consulta_de_memoria(text) and not cognicion_general:'''
 sustituir = '''        if False:'''
 
 # ------------------------------------------------------------------------------------------------

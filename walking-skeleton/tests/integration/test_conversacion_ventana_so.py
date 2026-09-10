@@ -520,6 +520,11 @@ async def test_no_interferencia_las_8_superficies_previas_siguen_intactas(sistem
     assert "desactivado" in r["say"].lower()
 
     # --- Ausencia de memoria (ADR-0014): una pregunta genérica sin relación con nada de arriba ----
-    r = await _di(orq, "¿Cuál es la capital de Francia?")
+    # SONDA CORREGIDA (2026-09-09). Antes se usaba «¿Cuál es la capital de Francia?» como
+    # pregunta «genérica»: pero eso es CONOCIMIENTO GENERAL, y desde la frontera cognitiva de M3
+    # llega al modelo -es el comportamiento que el CEO pidió-. La garantía de esta prueba no ha
+    # cambiado; lo que estaba mal elegido era el sujeto. Se usa una pregunta que SÍ interroga la
+    # memoria personal, que es el camino que esta aserción existe para proteger.
+    r = await _di(orq, "¿Cuál es el nombre de mi abuela?")
     assert r["provider"] == "core"
     assert r["say"] == "No tengo ningun recuerdo registrado sobre eso."

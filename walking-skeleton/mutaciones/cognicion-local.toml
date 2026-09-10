@@ -1,0 +1,54 @@
+incremento = "Frontera cognitiva: que recuerda, que piensa y que no sabe (M3, 2026-09-09)"
+# La garantia NO es «la cognicion llega al modelo»: es que la superficie sea CERRADA y ESTRECHA. Abrir
+# una ruta hacia el modelo es facil; lo dificil es que no se lleve por delante la memoria personal. Cada
+# mutante ensancha la superficie de una forma distinta, que es como esto se rompe en la practica.
+pruebas = ["tests/unit/test_cognicion_local.py",
+           "tests/unit/test_frontera_cognitiva.py",
+           "tests/integration/test_correcciones_producto.py"]
+timeout_s = 240
+
+[[mutante]]
+id = "COG-M1"
+garantia = "la superficie se tragaria CUALQUIER pregunta: la memoria personal se iria al modelo"
+fichero = "aura_skeleton/core/intencion.py"
+buscar = '''    return any(p in n for p in _MARCOS_COGNITIVOS) and c.contenido == INCIERTO'''
+sustituir = '''    return True'''
+
+[[mutante]]
+id = "COG-M2"
+garantia = "el eje 2 deja de exigirse: una pregunta con marco conceptual SOBRE EL USUARIO pasaria"
+fichero = "aura_skeleton/core/intencion.py"
+buscar = '''    return any(p in n for p in _MARCOS_COGNITIVOS) and c.contenido == INCIERTO'''
+sustituir = '''    return any(p in n for p in _MARCOS_COGNITIVOS)'''
+
+[[mutante]]
+id = "COG-M3"
+garantia = "la evocacion explicita deja de excluirse: «que es lo que te conte ayer» iria al modelo"
+fichero = "aura_skeleton/core/intencion.py"
+buscar = '''    if any(p in n for p in MARCADORES_DE_EVOCACION):
+        return False'''
+sustituir = '''    if False:
+        return False'''
+
+[[mutante]]
+id = "COG-M4"
+garantia = "la suposicion se vuelve un salvoconducto: basta un «si» para esquivar la memoria"
+fichero = "aura_skeleton/core/intencion.py"
+buscar = '''            and any(q in n for q in _PIDE_CANTIDAD):'''
+sustituir = '''            and True:'''
+
+[[mutante]]
+id = "COG-M5"
+garantia = "una afirmacion o una orden entrarian por la via cognitiva"
+fichero = "aura_skeleton/core/intencion.py"
+buscar = '''    if c.acto != PREGUNTA:
+        return False'''
+sustituir = '''    if False:
+        return False'''
+
+[[mutante]]
+id = "COG-M6"
+garantia = "la consulta cognitiva vuelve a cargar el catalogo: 398 tok de ingesta que no necesita"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        modo = "accion" if (_pide_accion(text) and not cognicion_general) else "cognitivo"'''
+sustituir = '''        modo = "accion" if _pide_accion(text) else "cognitivo"'''

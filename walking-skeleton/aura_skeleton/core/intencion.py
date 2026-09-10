@@ -64,6 +64,29 @@ CONTENIDOS = (HECHO_USUARIO, CONOCIMIENTO_PROCEDURAL, COMPROMISO_FUTURO,
 ALMACENABLES = frozenset({HECHO_USUARIO, CONOCIMIENTO_PROCEDURAL, COMPROMISO_FUTURO})
 
 
+#: Marcadores de EVOCACION EXPLICITA: el usuario dice que algo se dijo o se acordo antes.
+#: Hogar unico (antes vivian en `orchestrator._PATRONES_CONSULTA_MEMORIA`, que ahora los aliasa).
+#: Medido: sobre `bateria_memoria.json` aportan CERO a la proteccion de 24/24 -las 24 negativas se
+#: protegen por ser interrogativas-. Siguen valiendo para lo que nombran: evocacion explicita.
+MARCADORES_DE_EVOCACION = (
+    "acordamos",
+    "quedamos en",
+    "recuerdas",
+    "te acuerdas",
+    "que dije",
+    "que dijimos",
+    "habiamos hablado",
+    "hablamos de",
+    "te conte",
+    "te comente",
+    "mencione",
+    "que sabes de mi",
+    "que recuerdas",
+    "mi preferencia",
+    "habiamos quedado",
+)
+
+
 # ------------------------------------------------------------------------ NORMALIZACION --
 
 def normalizar(texto: str) -> str:
@@ -357,3 +380,75 @@ def destino_de_memoria(texto: str, clasificacion: Intencion | None = None) -> st
     if c.acto == ORDEN and not es_interrogativa(texto):
         return HISTORICO_NO_RECUPERABLE
     return None
+
+
+# ------------------------------------------------------------- COGNICION GENERAL (M3, 2026-09-09) --
+#
+# POR QUE EXISTE. `_es_consulta_de_memoria` termina en `or _es_pregunta(texto)`, asi que TODA
+# interrogativa que nadie haya reclamado antes cae en la ausencia de memoria. Medido: 19 de 20
+# consultas cognitivas quedaban en «No tengo ningun recuerdo registrado sobre eso», y el CEO lo vio
+# en produccion con «quien es Jesus Cristo?» y «si tengo 1 caballo y lo vendo cuantos me quedan?».
+#
+# LA VIA QUE NO SE TOMA. Estrechar `_es_consulta_de_memoria` ya se midio: baja la proteccion de
+# `24/24` a `17/24`. Esa via esta CERRADA. Esto es lo contrario: una superficie POSITIVA y CERRADA
+# que solo puede desviar lo que NOMBRA. Lo que no esta aqui sigue el camino de hoy bit a bit.
+#
+# LA ASIMETRIA ES TODA LA TESIS. Un error de la via sustractiva EXPONE un hecho personal. Un error de
+# esta no contesta una pregunta general. El modo de fallo apunta al lado seguro por construccion.
+#
+# MEDIDO antes de cablearla: 0 colisiones con las 24 negativas · 0 con las 53 positivas · 0 fugas en
+# 15 ataques escritos para romperla · 11 de 12 consultas cognitivas liberadas.
+
+#: Marcos de cognicion general. **Cerrados.** Cada entrada es un compromiso, no una heuristica: se
+#: amplian de una en una, midiendo la disyuncion con la bateria antes de anadir.
+_MARCOS_COGNITIVOS = (
+    "que es ", "que son ", "que significa", "que quiere decir", "como funciona", "como funcionan",
+    "por que ", "de que esta hecho", "para que sirve", "quien es ", "quien fue ", "quien era ",
+    "quien invento", "quien escribio", "quien descubrio", "cual es la capital", "cuantos planetas",
+    "que distancia hay", "cuando termino", "cuando empezo", "en que ano", "cual es el rio",
+    "que podemos concluir", "que se puede concluir", "que pasaria si", "que crees que pasaria",
+    "que consecuencias", "que opinas", "que te parece", "cuentame", "explicame", "que diferencia hay",
+)
+
+#: Operadores de suposicion. Introducen sus propias premisas en el turno.
+_SUPOSICION_COGNITIVA = ("si ", "supongamos que", "supon que", "imagina que", "si fuera",
+                         "si todos", "si cada")
+
+#: Interrogativos de CANTIDAD. Es lo unico que una premisa numerica puede responder.
+_PIDE_CANTIDAD = ("cuanto", "cuantos", "cuantas", "cuanta")
+
+
+def es_cognicion_general(texto: str) -> bool:
+    """True si el turno es una pregunta que **no interroga la memoria personal**.
+
+    Tres condiciones, y las tres por su propio motivo:
+
+    1. **El acto es `PREGUNTA`.** Una afirmacion o una orden tienen su propia ruta.
+    2. **Ningun marcador de evocacion explicita.** «que es lo que te conte ayer» lleva `te conte`:
+       eso es memoria aunque empiece por un marco conceptual.
+    3. **O un marco conceptual declarado, o una suposicion con premisa numerica que pide una
+       cantidad.** El marco exige ademas que el eje 2 diga `INCIERTO` —que el turno NO habla del
+       mundo del usuario—; la suposicion no lo necesita porque sus premisas vienen en el turno.
+
+    **Por que la suposicion exige cifra Y pregunta por cantidad.** Medido: dejarla pasar por el solo
+    hecho de ser una suposicion abria tres fugas («si hoy es martes, a que hora ceno?»), y exigir solo
+    la cifra abria una mas («si tengo 2 hijos, como se llaman?» lleva cifra y pide un NOMBRE). Una
+    premisa numerica puede responder «cuantos quedan»; no puede responder «como se llaman».
+
+    **Lo que esta funcion NO hace.** No responde, no consulta memoria, no decide si algo se almacena y
+    no concede autoridad de ejecucion: dice a que ruta pertenece el turno. `ADR-0014` sigue
+    gobernando la memoria personal, y `_es_consulta_de_memoria` no se ha tocado.
+    """
+    c = clasificar(texto)
+    if c.acto != PREGUNTA:
+        return False
+
+    n = normalizar(texto)
+    if any(p in n for p in MARCADORES_DE_EVOCACION):
+        return False
+
+    if any(p in n for p in _SUPOSICION_COGNITIVA) and any(ch.isdigit() for ch in texto) \
+            and any(q in n for q in _PIDE_CANTIDAD):
+        return True
+
+    return any(p in n for p in _MARCOS_COGNITIVOS) and c.contenido == INCIERTO

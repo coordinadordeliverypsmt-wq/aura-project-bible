@@ -66,23 +66,10 @@ def _extract_json(s: str) -> str:
 # La deteccion de "el usuario pregunta por un recuerdo" es DETERMINISTA: no puede
 # delegarse en el LLM, porque el objetivo es precisamente no consultarlo cuando no
 # hay nada que recordar. Se normalizan acentos para que "habiamos"/"habíamos" coincidan.
-_PATRONES_CONSULTA_MEMORIA = (
-    "acordamos",
-    "quedamos en",
-    "recuerdas",
-    "te acuerdas",
-    "que dije",
-    "que dijimos",
-    "habiamos hablado",
-    "hablamos de",
-    "te conte",
-    "te comente",
-    "mencione",
-    "que sabes de mi",
-    "que recuerdas",
-    "mi preferencia",
-    "habiamos quedado",
-)
+#: **Vive en `intencion.py`, y aqui solo se aliasa.** Son marcadores de INTENCION, asi que su sitio
+#: es M-1; `es_cognicion_general` tambien los necesita y duplicarlos seria la regla escrita dos veces que
+#: este proyecto ya ha pagado. El nombre se conserva porque lo importan pruebas y un mutante.
+_PATRONES_CONSULTA_MEMORIA = intencion.MARCADORES_DE_EVOCACION
 
 
 def _normalizar(texto: str) -> str:
@@ -548,6 +535,13 @@ _PAT_GOBIERNO = (
 _PAT_FORMACION = (
     "que aprendiste",
     "que has aprendido",
+    # «cuanto te falta para completarte» pregunta por el ESTADO del producto, y ese estado existe: son
+    # las capacidades en observacion y bloqueadas del Plan de Formacion. Enviarla al modelo seria
+    # pedirle que opine sobre su propia completitud -fingir capacidad, INV-9-; enviarla a memoria
+    # personal seria peor. Su fuente correcta es la que ya se lee aqui.
+    "te falta para completarte",
+    "cuanto te falta",
+    "que te falta",
 )
 
 
@@ -1151,12 +1145,24 @@ class Orchestrator:
             obs.log("CORE", "aritmetica", f"resuelta en el nucleo, sin LLM: {text[:40]!r}", tid)
             await self._finalizar_turno(uid, tid, text, respuesta, "core", t, dominio="aritmetica")
             return
+        # **SUPERFICIE COGNITIVA (M3, 2026-09-09).** `_es_consulta_de_memoria` NO se toca: sigue
+        # diciendo que toda interrogativa es una consulta de memoria, y por eso la garantia de 24/24
+        # no se mueve. Lo que se anade es una superficie POSITIVA y CERRADA que solo puede desviar lo
+        # que NOMBRA —marcos conceptuales declarados, o una suposicion con premisa numerica que pide
+        # una cantidad— y que ademas exige que el eje 2 de M-1 diga que el turno no habla del mundo
+        # del usuario. Medido antes de cablearla: 0 colisiones con las 24 negativas, 0 con las 53
+        # positivas y 0 fugas en 15 ataques escritos para romperla.
+        #
+        # NO es la via que se descarto. Estrechar la puerta bajaba la proteccion a 17/24; esto la deja
+        # intacta y desvia por delante. La asimetria es la tesis: un error aqui no contesta una
+        # pregunta general, no expone un hecho personal.
+        cognicion_general = intencion.es_cognicion_general(text)
         hits = await self.memory.recall(uid, text)
         t.mark("memory")
         # ADR-0014: la ausencia de memoria es un HECHO, no una inferencia. Si el usuario
         # pregunta por un recuerdo y no existe registro, responde el nucleo y NO se consulta
         # al LLM: no se le da ocasion de inferir, completar ni reformular lo inexistente.
-        if not hits and _es_consulta_de_memoria(text):
+        if not hits and _es_consulta_de_memoria(text) and not cognicion_general:
             say = "No tengo ningun recuerdo registrado sobre eso."
             obs.log(
                 "CORE", "grounding", "memoria vacia -> respuesta determinista (sin llamada al LLM)", tid, audit=True
@@ -1170,7 +1176,9 @@ class Orchestrator:
         prompt = f"[contexto memoria: {ctx}]\n[conversacion reciente:\n{recent}]\nUsuario: {text}"
         # **El catalogo solo si hay accion que pedir.** Ante la duda, `_pide_accion` es generoso:
         # perder una accion seria peor que pagar contexto de mas.
-        modo = "accion" if _pide_accion(text) else "cognitivo"
+        # Una consulta COGNITIVA nunca carga el catalogo, ni aunque `_pide_accion` sea generoso:
+        # medido, el catalogo de acciones era el 71 % del tiempo de ingesta del turno.
+        modo = "accion" if (_pide_accion(text) and not cognicion_general) else "cognitivo"
         obs.log("LLM", "routing", f"modo={modo}", tid)
         try:
             prov, out = await self.router.route(prompt, tid, modo)

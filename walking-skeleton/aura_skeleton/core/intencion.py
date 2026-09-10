@@ -80,6 +80,14 @@ MARCADORES_DE_EVOCACION = (
     "te conte",
     "te comente",
     "mencione",
+    # AURA como SUJETO del recuerdo (2026-09-09). Faltaban, y lo destapo la verificacion de mutacion:
+    # «¿Como puedo recordar lo que me dijiste?» pedia consejo sobre un registro y se iba al modelo.
+    # Anadirlas solo ESTRECHA la cognicion -mas turnos vuelven al Core-, nunca la ensancha.
+    "me dijiste",
+    "me contaste",
+    "me comentaste",
+    "me recomendaste",
+    "dijiste que",
     "que sabes de mi",
     "que recuerdas",
     "mi preferencia",
@@ -146,7 +154,12 @@ _ORDEN = ("abre", "abras", "enciende", "enciendas", "apaga", "apagar",
           "mueve", "muevas", "renombra", "renombrar",
           "borra", "borres", "elimina", "elimines", "ejecuta", "ejecutar",
           "ejecutes", "verifica", "audita", "diagnostica", "diagnosticar",
-          "crea", "crees", "organiza", "guarda", "guardes",
+          # `crees` SALIO de esta lista (2026-09-09). Es subjuntivo de *crear* y, a la vez, presente
+          # de *creer*: con el dentro, «¿Por que crees que dormir poco afecta al animo?» se
+          # clasificaba ORDEN y la conversacion moria en la guarda de memoria vacia. Es la misma
+          # colision que ya costo `baja`, `marca` y `lista` en D-M-2, y se paga igual: la forma que
+          # colisiona sale, el imperativo real (`crea`) se queda.
+          "crea", "organiza", "guarda", "guardes",
           "pon", "ponme", "pongas", "quita", "quites", "manda", "envia",
           "cierra", "cierres", "reproduce", "sube", "subas", "silencia",
           "anota", "apunta", "apuntate", "registra",
@@ -410,6 +423,23 @@ _MARCOS_COGNITIVOS = (
     "que consecuencias", "que opinas", "que te parece", "cuentame", "explicame", "que diferencia hay",
 )
 
+#: Peticiones de CONSEJO u OPINION. Lista **positiva y cerrada**, como `_MARCOS_COGNITIVOS`: solo
+#: desvia lo que nombra, nunca «cualquier pregunta que no parezca personal» —esa via se midio y costo
+#: 7 de las 24 protecciones—.
+#:
+#: **Por que es seguro ensancharla.** Las 24 consultas protegidas piden todas un DATO: un nombre, una
+#: hora, una combinacion, una fecha, un numero, un color, una marca. Ninguna pide consejo. La asimetria
+#: es la tesis: un error aqui deja sin contestar un consejo; no expone un hecho personal.
+_PIDE_CONSEJO = ("que me recomiendas", "me recomiendas", "que me aconsejas", "me aconsejas",
+                 "que me sugieres", "me sugieres", "como puedo", "que puedo hacer",
+                 "crees que", "que harias", "que hago si", "ayudame a pensar")
+
+#: Posesivos de primera persona. **El freno de la rama de consejo.** «¿Crees que es buena idea...?» es
+#: conversacion; «¿Crees que mi hermana vive en Madrid?» interroga un hecho del usuario con forma de
+#: opinion. En cuanto aparece un posesivo propio, el turno vuelve al Core. Es deliberadamente
+#: conservador: preferimos dejar un consejo sin contestar antes que dejar fabricar un dato.
+_POSESIVO_PROPIO = ("mi", "mis", "mio", "mios", "mia", "mias")
+
 #: Operadores de suposicion. Introducen sus propias premisas en el turno.
 _SUPOSICION_COGNITIVA = ("si ", "supongamos que", "supon que", "imagina que", "si fuera",
                          "si todos", "si cada")
@@ -446,6 +476,12 @@ def es_cognicion_general(texto: str) -> bool:
     n = normalizar(texto)
     if any(p in n for p in MARCADORES_DE_EVOCACION):
         return False
+
+    # Pedir consejo u opinion NO es interrogar la memoria. Medido a traves del producto real: antes
+    # de esta rama, «¿Que me recomiendas para dormir mejor?» se contestaba «No tengo ningun recuerdo
+    # registrado sobre eso» en 38 ms, sin llamar al modelo. El freno es el posesivo propio.
+    if any(p in n for p in _PIDE_CONSEJO) and not _nombra(_con_bordes(n), _POSESIVO_PROPIO):
+        return True
 
     if any(p in n for p in _SUPOSICION_COGNITIVA) and any(ch.isdigit() for ch in texto) \
             and any(q in n for q in _PIDE_CANTIDAD):

@@ -229,9 +229,56 @@ _CONSULTAS_DE_HECHO: tuple[tuple[tuple[str, ...], str, str, str], ...] = (
         "Tu proyecto se llama {}.",
         "Todavía no me has dicho en qué proyecto trabajas.",
     ),
+    (
+        # Solo las dos formas INEQUIVOCAS. «que color me gusta mas» NO se lista: lleva un marcador de
+        # gusto y pertenece a la rama de preferencias; listarla aqui mezclaria las dos familias que el
+        # acta del CEO (2026-08-09) existe para separar.
+        ("cual es mi color favorito", "cual es mi color preferido"),
+        r"mi color (?:favorito|preferido) es\s+(?:el\s+)?(.+)",
+        "Tu color favorito es {}.",
+        "Todavía no me has dicho cuál es tu color favorito.",
+    ),
 )
 
 _PAT_CONSULTA_PREFERENCIA = ("que prefiero", "cuales son mis preferencias", "que me gusta")
+
+# ------------------------------------------- EMPAREJAMIENTO GRAMATICAL SIMETRICO (CEO, 2026-09-10) --
+#
+# La tabla de arriba no escala: cada atributo costaba dos ediciones de producto. Pero «mi X es V» y
+# «¿cual es mi X?» **comparten el sujeto posesivo**, y eso basta para emparejar sin enumerar preguntas.
+# Se deriva X de los dos lados y se resuelve por IGUALDAD EXACTA -nunca por parecido, que es lo que hace
+# el recall y lo que esta ruta existe para evitar-.
+#
+# Se lee la FRASE LITERAL que la memoria ya guarda: sin metadata nueva, sin migracion, sin tocar
+# contratos. Uno o dos terminos en el atributo, los mismos a los dos lados.
+# Se aplica sobre el texto ORIGINAL, no sobre el normalizado, por el mismo motivo que `_valor_declarado`:
+# el dato es del usuario y se le repite COMO EL LO ESCRIBIO -«cumpleaños», no «cumpleanos»; «Seat León»,
+# no «seat leon»- (ADR-0017, fidelidad al modelo). De ahi `[^\W\d_]`, que acepta letras acentuadas; la
+# comparacion del atributo si se hace normalizada, para que la pregunta case con la declaracion.
+_ATRIBUTO_DECLARADO = re.compile(
+    r"\bmi ([^\W\d_]+(?: [^\W\d_]+)?) (?:es|son)\s+(?:el|la|los|las|un|una|unos|unas)?\s*(.+)$",
+    re.IGNORECASE)
+# `_normalizar` conserva «¿» -solo quita diacriticos-, asi que el anclaje tiene que admitirlo: sin esto
+# «¿Cual es mi cumpleanos?» no casaba y el turno se iba al modelo.
+_ATRIBUTO_PREGUNTADO = re.compile(r"^¿?(?:cual|cuales) (?:es|son) mi ([a-z]+(?: [a-z]+)?)\s*\??$")
+
+
+def _atributo_preguntado(t: str) -> str | None:
+    """El atributo que una pregunta posesiva nombra, o None si no es una de ellas."""
+    hallado = _ATRIBUTO_PREGUNTADO.match(t.strip())
+    return hallado.group(1).strip() if hallado else None
+
+
+def _atributo_declarado(contenido: str) -> tuple[str, str] | None:
+    """El par (atributo, valor) de una declaracion posesiva, extraido de SU PROPIA frase."""
+    hallado = _ATRIBUTO_DECLARADO.search(contenido)
+    if not hallado:
+        return None
+    # No glotona, igual que `_valor_declarado`: «mi coche es rojo y viejo» declara el coche, no la
+    # coletilla. Se corta en el primer conector o signo.
+    bruto = re.split(r"\s+(?:y|pero|aunque|porque)\s+|[,;.]", hallado.group(2))[0]
+    valor = bruto.strip(" .,;:!?")
+    return (hallado.group(1).strip(), valor) if valor else None
 
 
 def _valor_declarado(contenido: str, patron: str) -> str | None:
@@ -1294,6 +1341,21 @@ class Orchestrator:
                 if valor:
                     return plantilla.format(valor)
             return ausencia
+
+        # EMPAREJAMIENTO SIMETRICO. Va al final a proposito: la tabla de arriba conserva su texto de
+        # ausencia especifico y las preferencias su rama, y esto solo atiende lo que ninguna cubria.
+        atributo = _atributo_preguntado(t)
+        if atributo is not None:
+            # La ULTIMA declaracion gana, por el mismo motivo que en la tabla: redeclarar es como uno
+            # se corrige.
+            for entrada in reversed(hechos):
+                par = _atributo_declarado(str(entrada.get("contenido", "")))
+                # El atributo se compara NORMALIZADO y se responde con la forma que el usuario escribio.
+                if par and _normalizar(par[0]) == atributo:
+                    return f"Tu {par[0]} es {par[1]}."
+            # SIN correspondencia NO se responde aqui: devolver un texto de ausencia propio robaria el
+            # turno a la puerta de ADR-0014, que es quien decide que hacer cuando no hay recuerdo. No
+            # inventar tambien significa no adelantarse a la ruta segura que ya existe.
 
         if _cae_en(t, _PAT_CONSULTA_PREFERENCIA):
             declaradas = [e["contenido"] for e in vivas if e.get("clase") == "preferencia_declarada"]

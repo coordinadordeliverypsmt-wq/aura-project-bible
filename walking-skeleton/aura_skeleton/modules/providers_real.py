@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import urllib.error
 import urllib.request
 
 
@@ -37,6 +38,35 @@ def _catalogo_para_prompt() -> str:
 #: acciones. Mantiene el mismo contrato de salida para no romper `_parse_decision`, y fija `action`
 #: en `consulta` porque por esta via **no se ejecuta nada**: si el usuario pide una accion, el
 #: orquestador ya lo habra enrutado por el otro camino.
+#: **ESQUEMA DE SALIDA DEL MODO COGNITIVO** (medido el 2026-09-09 en HC-1).
+#:
+#: EL DEFECTO. `format: "json"` solo obliga a que la salida sea JSON **valido**; no obliga a que tenga
+#: las claves que se le piden. Medido con `qwen2.5:0.5b`: devolvia
+#: `{"intent":"consulta","action":"consultar","args":{"nombre":"Jesus","tipo":1}}` —JSON impecable, sin
+#: `say`, y con una **accion inventada y argumentos fabricados**—. El usuario recibia el fallback. La
+#: causa NO era que el modelo no supiera responder: era que nadie le impedia no responder.
+#:
+#: LA REPARACION. Ollama >= 0.5 acepta un **JSON Schema** en `format` y restringe el decodificado por
+#: gramatica: lo que el esquema exige, el modelo no puede omitir. Medido sobre el mismo prompt:
+#: `say` presente 1/4 con `format: "json"` -> **4/4 con esquema**, y **0 acciones inventadas**.
+#:
+#: `action` es una CONSTANTE, no un string libre. Es la parte que importa para la seguridad: en modo
+#: cognitivo el modelo no puede nombrar una accion **ni siquiera al decodificar**. No sustituye al
+#: catalogo, ni a los permisos, ni al HITL —esos siguen siendo la autoridad—: es una barrera mas,
+#: aguas arriba, en el unico sitio donde el problema todavia no existe.
+#:
+#: `minLength: 1` en `say` es la diferencia entre «la clave esta» y «la clave dice algo».
+_ESQUEMA_COGNITIVO = {
+    "type": "object",
+    "properties": {
+        "say": {"type": "string", "minLength": 1},
+        "intent": {"type": "string"},
+        "action": {"type": "string", "enum": ["consulta"]},
+        "args": {"type": "object"},
+    },
+    "required": ["say", "action"],
+}
+
 _SYSTEM_COGNITIVO = (
     "Eres AURA, un asistente personal. Responde UNICAMENTE un objeto JSON con las claves: "
     'intent (string), action (string, siempre "consulta"), args (object vacio), '
@@ -93,12 +123,32 @@ class OllamaProvider:
         # vacio. Pedirle que clasifique comandos cuando el usuario esta conversando es pedirle la
         # tarea equivocada, y ademas pagar el contexto de la equivocada.
         system = _SYSTEM_COGNITIVO if modo == "cognitivo" else _SYSTEM
+        # **El esquema solo se aplica al modo cognitivo, y es deliberado.** En modo accion la eleccion
+        # la gobierna el catalogo, y constrenir `action` a una lista cerrada aqui duplicaria esa
+        # autoridad en un segundo sitio —el error que D-M-8 diagnostica en el propio sistema—. Ahi se
+        # conserva `format: "json"` byte a byte.
+        formato = _ESQUEMA_COGNITIVO if modo == "cognitivo" else "json"
         body = json.dumps(
-            {"model": self.model, "prompt": prompt, "system": system, "stream": False, "format": "json"}
+            {"model": self.model, "prompt": prompt, "system": system, "stream": False,
+             "format": formato}
         ).encode()
         req = urllib.request.Request(
             self.url + "/api/generate", data=body, headers={"Content-Type": "application/json"}
         )
-        with urllib.request.urlopen(req, timeout=self.timeout_s) as r:  # noqa: S310 (endpoint local, D24)
-            resp = json.load(r)
-        return str(resp["response"])  # con format=json, ya es un JSON string
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout_s) as r:  # noqa: S310 (local, D24)
+                resp = json.load(r)
+        except urllib.error.HTTPError:
+            # DEGRADACION, no operacion normal. El esquema necesita Ollama >= 0.5; si el runtime local
+            # es mas antiguo lo rechaza con 4xx. Antes de dejar el turno sin respuesta se reintenta con
+            # el contrato previo: se pierde la garantia del esquema —y con ella la fiabilidad de `say`—
+            # pero el sistema sigue conversando. Nunca se reintenta mas de una vez.
+            if formato == "json":
+                raise
+            body = json.dumps({"model": self.model, "prompt": prompt, "system": system,
+                               "stream": False, "format": "json"}).encode()
+            req = urllib.request.Request(
+                self.url + "/api/generate", data=body, headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=self.timeout_s) as r:  # noqa: S310 (local, D24)
+                resp = json.load(r)
+        return str(resp["response"])  # con format JSON/esquema, ya es un JSON string

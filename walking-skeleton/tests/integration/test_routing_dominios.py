@@ -242,8 +242,16 @@ async def test_el_conocimiento_general_y_la_puerta_de_ADR_0014(sistema):
        Quijote?» como personal. No hay discriminador determinista barato, y elegir entre «AURA nunca
        inventa sobre ti» y «AURA responde del mundo» no es una decisión que me corresponda.
     """
-    await _di(sistema.orquestador, "mi color favorito es el azul")
-    con_recall = await _di(sistema.orquestador, "¿cuál es mi color favorito?")
+    # EL EJEMPLO CAMBIO DOS VECES, LA GARANTIA NO (CEO, 2026-09-10). Primero era «mi color favorito es
+    # el azul»; luego «mi comida favorita es la pasta». Ambos dejaron de servir como ejemplo de «llega al
+    # proveedor» porque la arquitectura aprobada -emparejamiento gramatical simetrico- responde en el
+    # Core **cualquier** «¿cual es mi X?» que el usuario haya declarado como «mi X es V».
+    #
+    # Asi que el ejemplo tiene que ser una pregunta CON recuerdos que NO sea posesiva ni tenga
+    # superficie propia. Medido: «duermo siete horas cada noche» se guarda como episodica en el turno y
+    # «¿cuantas horas duermo?» llega al proveedor. Las dos aserciones son exactamente las mismas.
+    await _di(sistema.orquestador, "duermo siete horas cada noche")
+    con_recall = await _di(sistema.orquestador, "¿cuántas horas duermo?")
     assert con_recall["dominio"] == "llm", "con recuerdos, la pregunta llega al proveedor"
     assert con_recall["provider"] != "core"
 

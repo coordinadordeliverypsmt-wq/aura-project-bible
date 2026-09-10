@@ -223,3 +223,44 @@ def test_la_habilitacion_NO_se_hereda_entre_directorios(tmp_path):
     rv.habilitar(uno, por="ceo", acta="DEC-ORCH-2", alcance=("eliminar_codigo_muerto",))
     assert rv.habilitado(uno) is True
     assert rv.habilitado(otro) is False
+
+
+# ------------------------------------------------- los dos criterios que no tenian red (2026-09-09) --
+#
+# El arnes encontro `RV-M8` y `RV-M9` VIVOS en cuanto el auditor dejo de estar ciego a este plano.
+# La causa no era que faltara una prueba cualquiera: `test_basta_UN_criterio_incumplido` usa
+# `accion="x"` con `directorio=None`, y en ese caso **`alcance` falla SIEMPRE** -`"x"` no esta en
+# `TODO_LO_DELEGABLE`-. Asi que `cumple` era False pasara lo que pasara, y la prueba habria pasado
+# igual con los cuatro criterios borrados: aseveraba el resultado agregado en vez del criterio.
+#
+# Estas dos aseveran QUE criterio fallo, y parten de una base que CUMPLE. Sin base en verde no hay
+# forma de demostrar que el criterio es el que marca la diferencia.
+
+
+def test_el_criterio_de_ALCANCE_se_comprueba_sobre_una_base_que_CUMPLE():
+    """`D22`: «sin cambio de alcance». Si `cambia_alcance` deja de mirarse, esto cae."""
+    base = {"accion": "eliminar_codigo_muerto", "cambia_alcance": False,
+            "respeta_decisiones": True, "d21_afirmativas": True, "materia_reservada": False}
+    control = rv.aplicar_criterios(dict(base))
+    assert control["cumple"] is True, f"la base tiene que CUMPLIR para que la prueba discrimine: {control}"
+
+    juicio = rv.aplicar_criterios({**base, "cambia_alcance": True})
+    assert juicio["cumple"] is False
+    assert "alcance" in juicio["fallos"], f"el cambio de alcance no se reporto: {juicio['fallos']}"
+
+
+def test_las_CINCO_PREGUNTAS_D21_se_exigen_a_una_tarea_que_NO_es_tecnica_acotada():
+    """`B2`: una tarea acotada no las exige; **una que no lo es, si**.
+
+    Se asevera el criterio concreto y no `cumple`, porque una tarea fuera de `TODO_LO_DELEGABLE`
+    falla tambien por alcance: mirar solo `cumple` no distinguiria una cosa de la otra.
+    """
+    fuera = {"accion": "refactor_mayor", "cambia_alcance": False,
+             "respeta_decisiones": True, "materia_reservada": False}
+    assert rv.es_tarea_tecnica_acotada(fuera) is False, "guarda de cordura: la tarea no debe ser acotada"
+
+    sin_d21 = rv.aplicar_criterios({**fuera, "d21_afirmativas": False})
+    con_d21 = rv.aplicar_criterios({**fuera, "d21_afirmativas": True})
+    assert "cinco_preguntas_d21" in sin_d21["fallos"], f"no se exigio D21: {sin_d21['fallos']}"
+    assert "cinco_preguntas_d21" not in con_d21["fallos"], (
+        f"D21 se reporta como fallo incluso afirmandola: {con_d21['fallos']}")

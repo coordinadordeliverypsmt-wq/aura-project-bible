@@ -1,4 +1,7 @@
 incremento = "Motor de autonomia: descubrir -> planificar -> ejecutar -> encadenar (2026-08-31)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/control-plane"
 pruebas = ["test_red_motor_autonomia.py", "test_red_auditoria_a12.py"]
 timeout_s = 300
 
@@ -81,11 +84,14 @@ sustituir = '''    import uuid
 
 [[mutante]]
 id = "MOT-M8"
+# RE-ANCLADO 2026-09-09: el codigo se movio durante el trabajo de esta sesion y el patron dejo de
+# coincidir. La garantia es la MISMA; lo que cambio es donde vive. Quedaba invisible porque el
+# auditor resolvia este plano contra la raiz del producto (defecto corregido el mismo dia).
 garantia = "DUPLICAR: una tarea ya planificada no vuelve a la cola"
 fichero = "planificador.py"
 pruebas = ["test_red_motor_autonomia.py::test_no_se_planifica_DOS_VECES_la_misma_tarea",
            "test_red_motor_autonomia.py::test_la_segunda_vuelta_encuentra_la_cola_AGOTADA"]
-buscar = '''        if tarea is None or tarea["id"] in vistos or ya_planificada(directorio, tarea["id"]):'''
+buscar = '''        if tarea is None or tarea["id"] in vistos or not elegible(directorio, tarea["id"]):'''
 sustituir = '''        if tarea is None:'''
 
 [[mutante]]

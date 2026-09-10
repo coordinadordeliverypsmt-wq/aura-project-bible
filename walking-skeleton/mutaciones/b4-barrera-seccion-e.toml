@@ -1,4 +1,7 @@
 incremento = "B4 · Barrera de la Seccion E del Communication Plane (2026-08-23)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/communication-plane"
 # Degrada las SIETE garantias que B4 anade a entorno/communication-plane/communication_plane.py.
 # Se ejecuta con --raiz apuntando a entorno/communication-plane, porque el modulo del canal vive
 # fuera de walking-skeleton.

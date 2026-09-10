@@ -1,4 +1,7 @@
 incremento = "Control Plane · trazabilidad derivada en consulta, opcion A (2026-08-25)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/control-plane"
 # Dos garantias que se confunden con facilidad: derivar la cadena cuando existe, y NO inventarla
 # cuando no existe. Los mutantes atacan ambas.
 pruebas = ["test_red_trazabilidad.py"]

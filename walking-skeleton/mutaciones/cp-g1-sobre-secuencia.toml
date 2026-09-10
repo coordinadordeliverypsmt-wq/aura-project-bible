@@ -1,6 +1,9 @@
 # G1 del Communication Plane · sobre y concurrencia. Cuatro funciones puras, sin dependencias de
 # ninguna decision abierta. Las pruebas que las cubren viven en test_red_transporte.py.
 incremento = "CP · G1 sobre y concurrencia (2026-08-24)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/communication-plane"
 pruebas = ["test_red_transporte.py::test_el_mensaje_declara_que_version_del_estado_leyo_su_emisor",
            "test_red_transporte.py::test_un_resultado_calculado_sobre_un_estado_viejo_se_rechaza",
            "test_red_transporte.py::test_un_hueco_en_la_secuencia_se_detecta_y_no_se_rellena",

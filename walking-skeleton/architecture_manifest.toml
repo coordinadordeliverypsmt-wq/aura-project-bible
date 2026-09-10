@@ -105,3 +105,33 @@ desde  = "2026-08-18"
 modulo = "aura_skeleton/core/centro_gobierno.py"
 motivo = "Mantiene una PROYECCION regenerable (~/.aura/CENTRO-DE-GOBIERNO.md). ADR-0023: el historial es la unica fuente de verdad y las proyecciones deben poder eliminarse y regenerarse; gobernar su escritura no protege ningun dato."
 desde  = "2026-08-18"
+
+# --- D-A006-4 (decisión del CEO, 2026-09-09) · exclusiones POR OPERACIÓN.
+#
+# GRUPO A no se amplía y D-G1-2 no se toca. Estas cuatro entradas declaran `opera`, así que eximen
+# SOLO las operaciones nombradas: una escritura nueva —otra operación, u otra en un módulo que no la
+# declaró— se sigue acusando. Una exclusión no es una autorización genérica.
+
+[[mutaciones.excluido]]
+modulo = "aura_skeleton/adapters/computador.py"
+opera  = ["unlink", "rename"]
+motivo = "Es el adaptador de dominio que el Motor Unico INVOCA: su escritura ES el efecto ya autorizado -catalogo, permisos, HITL y kill switch han corrido antes-, no una via alternativa. `os.unlink` y `os.rename` van con `dir_fd` y rechazan enlaces y colisiones (D32). Gobernar aqui seria gobernar dos veces el mismo acto."
+desde  = "2026-09-09"
+
+[[mutaciones.excluido]]
+modulo = "aura_skeleton/adapters/programador.py"
+opera  = ["write_bytes"]
+motivo = "Ejecutor del ciclo interno: escribe el fichero, lo verifica y lo devuelve byte a byte si la verificacion falla. No persiste datos del usuario -toca el repositorio, dentro del perimetro de autoconstruccion-, y su efecto solo sobrevive si la verificacion lo respalda."
+desde  = "2026-09-09"
+
+[[mutaciones.excluido]]
+modulo = "aura_skeleton/conectores/auditoria.py"
+opera  = ["open", "replace"]
+motivo = "Escribe un CURSOR: la posicion hasta la que un conector ya leyo el audit log. No es dato del usuario y es regenerable -perderlo solo hace releer el historial-. Por ADR-0023 el historial es la unica fuente de verdad y una proyeccion regenerable no es persistencia cuya destruccion deba gobernar G-1."
+desde  = "2026-09-09"
+
+[[mutaciones.excluido]]
+modulo = "aura_skeleton/core/decisiones.py"
+opera  = ["open", "replace"]
+motivo = "Buzon de aprobacion DIFERIDA de lista roja (acta del CEO 2026-08-10). Escritura atomica via temporal + `os.replace` porque el CEO puede estar leyendolo mientras AURORA anexa. Es el mecanismo POR EL QUE se pide autorizacion humana, no una via para saltarsela: someterlo al Motor seria circular, como el kill switch."
+desde  = "2026-09-09"

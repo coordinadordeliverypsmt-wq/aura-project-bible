@@ -1,4 +1,7 @@
 incremento = "3.a auditoria (puerta interna + orden de sesion) + §8.3 en la ruta real + §11 (2026-08-30)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/control-plane"
 pruebas = ["test_red_auditoria_3.py", "test_red_review_enchufado.py", "test_red_criterios_22.py",
            "test_red_auditoria_2.py"]
 timeout_s = 300

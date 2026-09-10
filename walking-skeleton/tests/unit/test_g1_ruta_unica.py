@@ -19,6 +19,7 @@ la especificación; aquí se fija que la decisión no se revierte por descuido.
 
 from __future__ import annotations
 
+import ast
 import pathlib
 import sys
 
@@ -291,17 +292,73 @@ def test_capa5_no_reintroduce_los_falsos_positivos_conocidos(tmp_path):
     assert not hallazgos, "la capa 5 no puede introducir falsos positivos"
 
 
-def test_las_cuatro_rutas_de_alerta_006_aparecen_como_violacion():
-    """**La prueba que mide el objetivo del CEO.** Antes de la capa 5, R-A devolvía CERO violaciones
-    y las cuatro rutas quedaban como receptores no resolubles. Deben aparecer las cuatro, con su
-    fichero, su línea y su operación."""
-    violaciones = verificador.violaciones_ra()
-    encontradas = {(h.fichero, h.operacion) for h in violaciones}
-    esperadas = {
-        ("aura_skeleton/core/modelo_usuario.py", "olvidar"),
-        ("aura_skeleton/core/modelo_usuario.py", "marcar"),
-        ("aura_skeleton/core/orchestrator.py", "crear"),
-        ("aura_skeleton/core/orchestrator.py", "desactivar"),
-    }
-    assert esperadas <= encontradas, (
-        f"G-1 sigue ciega a ALERTA-006. Falta detectar: {sorted(esperadas - encontradas)}")
+def test_las_cuatro_rutas_de_alerta_006_ALCANZAN_el_motor():
+    """**La prueba que mide el objetivo del CEO, reescrita (D-A006-3).**
+
+    Antes exigía que R-A ACUSARA las cuatro rutas. Era correcto mientras el defecto existía, y dejó de
+    serlo el día que F4 lo reparó: **una prueba que asevera la PRESENCIA de un defecto se vuelve falsa
+    en cuanto el defecto se arregla**. Lo que hay que fijar es la propiedad —que las mutaciones
+    alcanzan la autoridad—, no el síntoma de que no la alcanzaban.
+
+    Se comprueba sobre el código, no sobre una lista: si alguna de las cuatro dejara de enrutar por el
+    motor, esta prueba cae sin que nadie tenga que acordarse de actualizarla.
+    """
+    # (a) Reglas: `crear` y `desactivar` enrutan por el motor ELLAS MISMAS.
+    por_el_motor = verificador.operaciones_que_alcanzan_el_motor()
+    assert por_el_motor.get("crear") is True, "AlmacenReglas.crear dejó de pasar por el motor"
+    assert por_el_motor.get("desactivar") is True, "AlmacenReglas.desactivar dejó de pasar por el motor"
+
+    # (b) Soberanía: `borrar` y `refutar` enrutan AGUAS ARRIBA, por `_por_el_motor`.
+    fuente = (verificador.PAQUETE / "core" / "modelo_usuario.py").read_text(encoding="utf-8")
+    arbol = ast.parse(fuente)
+    for metodo in ("borrar", "refutar"):
+        cuerpo = next((n for n in ast.walk(arbol)
+                       if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == metodo), None)
+        assert cuerpo is not None, f"modelo_usuario.{metodo} desapareció"
+        llamadas = {ast.unparse(n.func) for n in ast.walk(cuerpo) if isinstance(n, ast.Call)}
+        assert any("_por_el_motor" in c for c in llamadas), (
+            f"modelo_usuario.{metodo} dejó de pasar por el motor: {sorted(llamadas)}")
+
+    # (c) Y `_por_el_motor` llega de verdad al motor -- sin esto, (b) solo probaría que se llama a una
+    #     función con un nombre tranquilizador.
+    por = next((n for n in ast.walk(arbol)
+                if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == "_por_el_motor"), None)
+    assert por is not None and any(
+        isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "ejecutar"
+        and isinstance(n.func.value, ast.Attribute) and n.func.value.attr.lstrip("_") == "motor"
+        for n in ast.walk(por)), "_por_el_motor no llama al motor"
+
+
+def test_la_exencion_por_alcance_de_autoridad_es_ESTRECHA():
+    """Caso de control de la regla nueva. Si `operaciones_que_alcanzan_el_motor` se volviera una
+    amnistía general, R-A dejaría de proteger nada y esta prueba lo diría.
+
+    `olvidar` y `marcar` **no** enrutan por el motor por sí mismas —lo hace `modelo_usuario` aguas
+    arriba—, así que llamarlas directamente desde otro módulo SIGUE siendo una violación."""
+    por_el_motor = verificador.operaciones_que_alcanzan_el_motor()
+    assert por_el_motor.get("olvidar") is False, "la exención se volvió una amnistía"
+    assert por_el_motor.get("marcar") is False, "la exención se volvió una amnistía"
+    assert por_el_motor.get("write") is False
+
+
+def test_solo_EL_MOTOR_concede_la_exencion_no_cualquier_cosa_con_ejecutar():
+    """Caso de control que el arnés exigió: `G1-M3` sobrevivía sin esta prueba.
+
+    La exención se concede por llamar al **Motor Único**, no por llamar a algo que se llame
+    `ejecutar`. Si bastara el nombre del método, un almacén que delegara en `self._almacen.ejecutar(...)`
+    quedaría exento sin haber pasado por ninguna autoridad — el mismo error nominal que D-A006-3
+    corrige, cometido en el otro sentido.
+    """
+    def _fn(codigo: str):
+        return ast.parse(codigo).body[0]
+
+    concede = _fn("async def crear(self):\n    await self._motor.ejecutar('x', {}, 'u', 'e')\n")
+    assert verificador._enruta_por_el_motor(concede) is True
+
+    for impostor in (
+        "async def crear(self):\n    await self._almacen.ejecutar('x', {}, 'u', 'e')\n",
+        "async def crear(self):\n    await self._adaptador.ejecutar('x')\n",
+        "async def crear(self):\n    await self._motor.guardar('x')\n",
+        "async def crear(self):\n    ejecutar('x')\n",
+    ):
+        assert verificador._enruta_por_el_motor(_fn(impostor)) is False, impostor

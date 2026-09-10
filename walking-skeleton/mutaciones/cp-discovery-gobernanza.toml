@@ -1,4 +1,7 @@
 incremento = "Control Plane · DISCOVERY/CLASSIFY/PROPOSE (2026-08-25)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/control-plane"
 # La garantia central no es tecnica sino de gobernanza: AURA descubre, pero NO se autoriza. Cada
 # mutante abre una via para que el descubridor acabe escribiendo en tareas_AUTO.
 pruebas = ["test_red_discovery.py"]

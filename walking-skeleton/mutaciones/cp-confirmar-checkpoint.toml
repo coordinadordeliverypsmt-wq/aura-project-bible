@@ -1,4 +1,7 @@
 incremento = "Control Plane · confirmar_checkpoint (2026-08-25)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/control-plane"
 # La operacion acredita una LECTURA. Los mutantes atacan lo que la haria inutil o peligrosa:
 # sellar algo distinto de lo leido, silenciar el futuro, acreditar lo inexistente, o tocar autoridad.
 pruebas = ["test_red_confirmar_checkpoint.py"]

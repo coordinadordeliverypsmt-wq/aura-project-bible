@@ -1,4 +1,7 @@
 incremento = "DR-F-3g · la autoridad REVIEW real: la constante no es el estado (2026-09-06)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/control-plane"
 # La garantia no es «REVIEW esta encendido»: es que **nadie vuelva a confundir la constante con el
 # estado**. `REVIEW_HABILITADO` es una puerta global; el estado lo fija el acta registrada en el log.
 # Cada mutante colapsa las dos vias en una, que es justo el error que costo un informe equivocado.

@@ -1,4 +1,7 @@
 incremento = "CP · Seccion E: la persuasion no desbloquea (REDs alineadas con D-CP-5, 2026-08-25)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/communication-plane"
 # DOS defensas distintas, y cada mutante ataca una: (1) D-CP-5 impide que un campo no declarado
 # ENTRE; (2) bloqueado_por impide que, aun estando dentro, la frase TENGA EFECTO.
 pruebas = ["test_red_seccion_e.py", "test_red_b4_medicion.py"]

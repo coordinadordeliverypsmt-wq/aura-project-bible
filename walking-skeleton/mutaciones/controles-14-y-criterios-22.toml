@@ -1,4 +1,7 @@
 incremento = "§14 (kill switch · huella · exclusion mutua · A12) + §22 (A6-A11) + deuda del §21 (2026-08-30)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/control-plane"
 pruebas = ["test_red_controles_14.py", "test_red_criterios_22.py",
            "test_red_idempotencia_13.py", "test_red_recuperacion_12.py",
            "test_red_auditoria_a12.py", "test_red_auditoria_2.py"]
@@ -260,18 +263,15 @@ sustituir = '''        if False:
 
 [[mutante]]
 id = "C22-M6"
+# RE-ANCLADO 2026-09-09: el codigo se movio durante el trabajo de esta sesion y el patron dejo de
+# coincidir. La garantia es la MISMA; lo que cambio es donde vive. Quedaba invisible porque el
+# auditor resolvia este plano contra la raiz del producto (defecto corregido el mismo dia).
 garantia = "HALLAZGO: /tmp ya NO es zona libre. Era la puerta por la que pasaban 17 pruebas"
 fichero = "autoconstruccion.py"
 pruebas = ["test_red_criterios_22.py::test_TMP_ya_no_es_una_zona_libre",
            "test_red_criterios_22.py::test_A11_una_escritura_FUERA_de_la_zona_falla_de_verdad_y_no_deja_efecto"]
-buscar = '''    return _ZONA_PERMITIDA in texto
-
-
-def observar'''
-sustituir = '''    return _ZONA_PERMITIDA in texto or texto.startswith("/tmp/") or "/pytest-" in texto
-
-
-def observar'''
+buscar = '''    return _ZONA_PERMITIDA in texto'''
+sustituir = '''    return _ZONA_PERMITIDA in texto or texto.startswith("/tmp/") or "/pytest-" in texto'''
 
 [[mutante]]
 id = "C22-M7"

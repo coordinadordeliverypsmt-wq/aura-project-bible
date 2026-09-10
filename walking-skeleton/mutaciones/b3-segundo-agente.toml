@@ -1,4 +1,7 @@
 incremento = "B3 · segundo tipo de agente en el canal (DEC-B3-QUE-AGENTE = OpenCode) — 2026-08-25"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/communication-plane"
 # La septima evidencia es la razon de ser de B3: con dos agentes en el canal, confundir al emisor
 # haria que la respuesta de B2 pasara por el resultado de B3.
 pruebas = ["test_b3_segundo_agente.py"]

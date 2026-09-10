@@ -52,6 +52,35 @@ HISTORICO = "historico"
 KINDS_NO_RECUPERABLES = frozenset({HISTORICO})
 
 
+#: **Qué es una ESCRITURA PASIVA** (decisión del CEO, 2026-09-09, D-A006-2, Opción B).
+#:
+#: `PARADA` bloquea las acciones del Motor Único; **no** bloquea la conversación. Pero «conversación»
+#: no es un criterio mecánico, y sin uno cada escritura futura la resolvería quien la escribiera —que
+#: es como nacen las rutas alternativas que `ALERTA-005` prohíbe—. Así que la definición es una
+#: **whitelist de `kind`**, y es la única puerta.
+#:
+#: Pasivo significa exactamente: **registra lo que se dijo, y no alcanza al Motor Único**. Ni muta el
+#: modelo del usuario, ni crea automatizaciones, ni cambia configuración, ni ejecuta nada.
+#:
+#: - `episodica` — lo que el usuario dijo en el turno.
+#: - `historico` — la orden que pidió, que ni siquiera vuelve en un `recall`.
+#:
+#: Lo demás —`semantica`, `procedimental` y cualquier `kind` futuro— **no es pasivo**, y con `PARADA`
+#: armada queda bloqueado. Esos ya pasan por el motor (`AlmacenSenales.guardar`), de modo que el kill
+#: switch los detiene ahí; esta whitelist es la segunda barrera, no la primera.
+KINDS_PASIVOS = frozenset({"episodica", HISTORICO})
+
+
+def es_escritura_pasiva(kind: str) -> bool:
+    """**Fail-closed por construcción: whitelist, nunca blacklist.**
+
+    Lo que no pueda demostrarse pasivo se trata como NO pasivo. Un `kind` nuevo queda bloqueado con
+    `PARADA` armada hasta que alguien lo declare aquí — que es justo el orden correcto: primero se
+    decide que algo es inofensivo, después se le deja pasar. Al revés, el olvido concede.
+    """
+    return kind in KINDS_PASIVOS
+
+
 def es_recuperable(item: dict) -> bool:
     """Si este recuerdo puede aparecer en un `recall` de memoria personal.
 

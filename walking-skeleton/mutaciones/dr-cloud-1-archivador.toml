@@ -1,4 +1,7 @@
 incremento = "DR-CLOUD-1 · archivador Cloud: solo copia, lista blanca, fail-closed (2026-09-06)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/control-plane"
 # La garantia de un archivador no es «copia ficheros»: es que **no pueda hacer nada mas**. Cada
 # mutante abre una de las puertas que el contrato cierra — archivar runtime vivo, sacar un secreto de
 # la maquina, sobrescribir lo ya preservado, o convertir un destino ausente en una escritura ciega.

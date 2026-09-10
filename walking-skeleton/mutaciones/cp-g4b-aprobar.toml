@@ -1,4 +1,7 @@
 incremento = "CP · G4-b aprobar() y prueba de autoridad (2026-08-25)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/communication-plane"
 # Cuatro garantias reales: sin prueba no se aprueba · una prueba falsa no vale · el emisor no se
 # aprueba a si mismo · la verificacion RELEE el Control Plane en vez de fiarse de lo que la prueba dice.
 pruebas = ["test_red_communication_plane.py::test_solo_una_aprobacion_humana_valida_desbloquea",

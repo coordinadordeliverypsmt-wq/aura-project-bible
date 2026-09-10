@@ -1,4 +1,7 @@
 incremento = "Perimetro quirurgico + proteccion de simbolos decorados (acta CEO 2026-09-07)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/control-plane"
 # Dos garantias, y las dos son restricciones: (1) un simbolo decorado NUNCA se borra, porque el
 # decorador puede registrarlo por efecto lateral; (2) el perimetro anadido es UN fichero exacto, no
 # un directorio. Cada mutante afloja una de las dos, que es exactamente como se destruiria trabajo

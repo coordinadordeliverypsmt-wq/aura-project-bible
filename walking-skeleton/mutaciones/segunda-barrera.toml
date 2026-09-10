@@ -1,4 +1,7 @@
 incremento = "Segunda barrera anti-falsos-positivos + identidad de la oportunidad (2026-08-31)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/control-plane"
 pruebas = ["test_red_segunda_barrera.py", "test_red_codigo_muerto_completo.py"]
 timeout_s = 300
 

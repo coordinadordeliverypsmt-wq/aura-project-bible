@@ -1,4 +1,7 @@
 incremento = "Completar `eliminar_codigo_muerto`: las cinco formas, borrado por ast (2026-08-31)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/control-plane"
 pruebas = ["test_red_codigo_muerto_completo.py"]
 timeout_s = 300
 

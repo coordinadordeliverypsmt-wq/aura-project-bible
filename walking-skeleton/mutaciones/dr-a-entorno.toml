@@ -1,4 +1,7 @@
 incremento = "DR-A · septima fuente: observacion del entorno de ejecucion (2026-09-05)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/control-plane"
 # La garantia de DR-A no es «detectar Ollama»: es detectarlo SIN mentir y SIN poder tocarlo. Cada
 # mutante abre una via para que la fuente invente una ausencia, afirme sobre lo que no pudo observar,
 # se vuelva ejecutable, pierda la estabilidad del id o deje de encenderse. Todos deben morir.

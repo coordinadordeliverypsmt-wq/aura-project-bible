@@ -1,4 +1,7 @@
 incremento = "DR-E · representacion generica Oportunidad -> Propuesta (2026-09-05)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/control-plane"
 # La garantia de DR-E no es «producir una propuesta»: es producirla SIN inventar lo que nadie ha
 # pensado. Cada mutante abre una via para rellenar un hueco de juicio con un default plausible,
 # autorizar sola, ascender una accion HUMAN, o confundir un hecho con un desconocimiento.

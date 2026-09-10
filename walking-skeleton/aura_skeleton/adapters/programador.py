@@ -1,4 +1,9 @@
-"""Ejecutor Programador: propone cambios VERIFICABLES, no escribe ficheros.
+"""Ejecutor Programador: propone cambios VERIFICABLES; no CONSERVA nada que la verificacion no respalde.
+
+CORRECCION DE LA PRIMERA LINEA (H6, auditoria ALERTA-006 del 2026-09-09). Antes decia «no escribe
+ficheros», y era falso: escribe (`write_bytes`, lineas 125/129/143), verifica, y revierte byte a byte
+si la verificacion falla. El comportamiento siempre fue correcto; la descripcion no. Es el patron
+«declarado != real» del §5 de CLAUDE.md, y se corrige donde nacio: en la frase.
 
 LA DISTINCION QUE PIDIO EL CEO (2026-08-03). Un agente que "escribe archivos" deja el repositorio en
 manos de quien acierte; este propone un cambio y **solo lo conserva si la verificacion lo respalda**.

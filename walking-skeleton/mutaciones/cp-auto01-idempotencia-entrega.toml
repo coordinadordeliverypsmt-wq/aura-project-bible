@@ -1,4 +1,7 @@
 incremento = "CP · AUTO-01 idempotencia de entrega en pendientes() (2026-08-25)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/communication-plane"
 # Dos garantias a la vez, y en tension: una tarea repetida NO son dos tareas, PERO el log sigue
 # siendo append-only. Un mutante que resuelva la primera rompiendo la segunda debe morir.
 pruebas = ["test_red_communication_plane.py::test_publicar_dos_veces_el_mismo_mensaje_no_lo_duplica",

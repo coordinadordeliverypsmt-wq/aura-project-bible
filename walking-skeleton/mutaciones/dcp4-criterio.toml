@@ -1,4 +1,7 @@
 incremento = "D-CP-4 = C · el criterio nombra una capacidad registrada y procede del Control Plane (2026-08-23)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/communication-plane"
 # Degrada las garantias de las dos partes de la decision del CEO: A (catalogo cerrado) y B (origen).
 # Se ejecuta con --raiz sobre entorno/communication-plane.
 pruebas = [

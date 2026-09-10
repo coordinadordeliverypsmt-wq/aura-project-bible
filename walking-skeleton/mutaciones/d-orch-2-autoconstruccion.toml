@@ -1,4 +1,7 @@
 incremento = "D-ORCH-2 (parte determinada) + primera autoconstruccion gobernada (2026-08-26)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/control-plane"
 pruebas = ["test_red_autoconstruccion.py", "test_red_criterios_22.py"]
 timeout_s = 240
 
@@ -70,6 +73,9 @@ sustituir = '''    if False:
 
 [[mutante]]
 id = "AC-M7"
+# RE-ANCLADO 2026-09-09: el codigo se movio durante el trabajo de esta sesion y el patron dejo de
+# coincidir. La garantia es la MISMA; lo que cambio es donde vive. Quedaba invisible porque el
+# auditor resolvia este plano contra la raiz del producto (defecto corregido el mismo dia).
 garantia = "la zona es una LISTA BLANCA: por descarte entraria el producto entero"
 fichero = "autoconstruccion.py"
 # Reapuntado 2026-08-30: el producto y la gobernanza se rechazan ahora ANTES, por segmento de ruta,
@@ -79,14 +85,8 @@ pruebas = ["test_red_criterios_22.py::test_la_zona_real_sigue_siendo_la_declarad
            "test_red_autoconstruccion.py::test_el_producto_tampoco_entra_en_esta_primera_capacidad"]
 # Reapuntado el 2026-08-30: la lista blanca perdio la excepcion incondicional de `/tmp`, que era un
 # agujero del guardarrail de produccion abierto para que las pruebas pasaran.
-buscar = '''    return _ZONA_PERMITIDA in texto
-
-
-def observar'''
-sustituir = '''    return True
-
-
-def observar'''
+buscar = '''    return _ZONA_PERMITIDA in texto'''
+sustituir = '''    return True'''
 
 [[mutante]]
 id = "AC-M8"

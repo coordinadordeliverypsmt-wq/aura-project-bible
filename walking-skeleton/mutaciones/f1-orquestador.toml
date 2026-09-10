@@ -1,4 +1,7 @@
 incremento = "DP-DEVELOPMENT-ORCHESTRATOR · F1 = C1 + C2 (2026-08-26)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/control-plane"
 # Degrada las garantias que F1 anade a entorno/control-plane/control_plane.py: event log
 # append-only encadenado (C1, cierra P3), lock (C2, cierra P2) y transiciones gobernadas
 # (C2, cierra P4).

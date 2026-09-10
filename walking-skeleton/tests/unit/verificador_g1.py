@@ -96,7 +96,26 @@ def _excluidos() -> set[str]:
     manifiesto (D-G1-2, 2026-08-18). **Excluir no es autorizar:** significa que su escritura no es
     persistencia de datos cuya destruccion deba gobernar esta regla. La exclusion es visible y
     discutible, nunca silenciosa."""
-    return {x["modulo"] for x in _mutaciones().get("excluido", [])}
+    return {x["modulo"] for x in _mutaciones().get("excluido", []) if not x.get("opera")}
+
+
+def _excluidos_por_operacion() -> dict[str, set[str]]:
+    """Exclusión **por operación**, no por módulo (D-A006-4, decisión del CEO 2026-09-09).
+
+    Excluir un módulo entero lo vuelve invisible: cualquier escritura futura dejaría de detectarse, y
+    eso convierte una exclusión en una autorización genérica. El CEO lo prohibió expresamente —*«la
+    regla debe continuar detectando una nueva escritura no declarada»*—, así que una entrada con
+    `opera` exime **solo esas operaciones**. Un `unlink` nuevo en un módulo que solo declaró
+    `write_bytes` se sigue acusando.
+
+    Las exclusiones sin `opera` (kill switch, centro de gobierno) siguen siendo de módulo completo:
+    fueron aprobadas así en D-G1-2 y no se tocan.
+    """
+    fuera: dict[str, set[str]] = {}
+    for x in _mutaciones().get("excluido", []):
+        if x.get("opera"):
+            fuera.setdefault(x["modulo"], set()).update(x["opera"])
+    return fuera
 
 
 def _excepciones() -> dict[str, set[str]]:
@@ -398,6 +417,62 @@ def _atributos_por_capa5(arbol: ast.AST, almacenes: set[str]) -> set[str]:
     return resueltos
 
 
+_CACHE_POR_EL_MOTOR: dict[str, bool] | None = None
+
+
+def operaciones_que_alcanzan_el_motor() -> dict[str, bool]:
+    """Operaciones de almacén cuyo **destinatario** enruta por el Motor Único.
+
+    **Por qué existe (D-A006-3).** R-A perseguía por NOMBRE, y un criterio nominal se equivoca en las
+    dos direcciones a la vez: acusaba `orchestrator -> crear` y `-> desactivar`, que desde F4 pasan por
+    el motor, mientras que la propiedad que `ALERTA-005` protege no es «no llames a ciertos símbolos»
+    sino *«toda ejecución pasa por el motor único; ninguna ruta alternativa»*. Lo que hace violación a
+    una llamada no es su nombre: es **no alcanzar la autoridad**.
+
+    Si el método destinatario enruta por el motor, llamarlo NO es una ruta alternativa: **es la ruta
+    única**. Acusarlo obligaría a una lista de excepciones, y una lista de excepciones acaba siendo la
+    puerta por la que entra lo que no debía.
+
+    Se **deriva** del manifiesto y del código, como todo lo demás aquí: no hay lista escrita a mano.
+    Si mañana `crear` dejara de enrutar por el motor, esta función lo diría sola y R-A volvería a
+    acusarla — que es exactamente la regresión que debe detectarse.
+    """
+    global _CACHE_POR_EL_MOTOR
+    if _CACHE_POR_EL_MOTOR is None:
+        mapa: dict[str, bool] = {}
+        for almacen in _mutaciones().get("almacen", []):
+            ruta = RAIZ / almacen["modulo"]
+            if not ruta.exists():
+                continue
+            arbol = ast.parse(ruta.read_text(encoding="utf-8"))
+            for nodo in ast.walk(arbol):
+                if not isinstance(nodo, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    continue
+                if nodo.name in mapa and mapa[nodo.name]:
+                    continue
+                mapa[nodo.name] = _enruta_por_el_motor(nodo)
+        _CACHE_POR_EL_MOTOR = mapa
+    return _CACHE_POR_EL_MOTOR
+
+
+def _enruta_por_el_motor(fn: ast.AST) -> bool:
+    """True si el cuerpo llama a `.ejecutar(...)` sobre un atributo de motor.
+
+    Se exige **las dos cosas** —el método `ejecutar` y un receptor que se llame motor—, no una:
+    `self._almacen.ejecutar(...)` no es el Motor Único, y aceptarla sería el mismo error nominal en
+    el otro sentido.
+    """
+    for nodo in ast.walk(fn):
+        if not (isinstance(nodo, ast.Call) and isinstance(nodo.func, ast.Attribute)):
+            continue
+        if nodo.func.attr != "ejecutar":
+            continue
+        receptor = nodo.func.value
+        if isinstance(receptor, ast.Attribute) and receptor.attr.lstrip("_") == "motor":
+            return True
+    return False
+
+
 def analizar_fichero(ruta: Path, autorizado_para: frozenset[str]) -> list[Hallazgo]:
     """R-A y R-B sobre un fichero. `autorizado_para` son las operaciones que este módulo puede usar."""
     arbol = ast.parse(Path(ruta).read_text(encoding="utf-8"))
@@ -406,6 +481,8 @@ def analizar_fichero(ruta: Path, autorizado_para: frozenset[str]) -> list[Hallaz
     atributos |= _atributos_por_capa5(arbol, clases)  # capa 5 (D-G1-4)
     perseguidas = operaciones_de_ra()
     autorizado_disco = _rel(Path(ruta)) in (_persistencia_autorizada() | _excluidos())
+    # Exención POR OPERACIÓN: exime lo declarado y solo lo declarado (D-A006-4).
+    ops_exentas = _excluidos_por_operacion().get(_rel(Path(ruta)), set())
     hallazgos: list[Hallazgo] = []
 
     for nodo in ast.walk(arbol):
@@ -415,6 +492,12 @@ def analizar_fichero(ruta: Path, autorizado_para: frozenset[str]) -> list[Hallaz
 
         # --- R-A: operación de almacén desde módulo no autorizado.
         if isinstance(fn, ast.Attribute) and fn.attr in perseguidas and fn.attr not in autorizado_para:
+            # **Alcance de autoridad, no nombre (D-A006-3).** Si el destinatario enruta por el motor,
+            # esta llamada NO es una ruta alternativa: es la ruta única. Va aquí y no en una lista de
+            # excepciones porque es una PROPIEDAD del código, y si el código la pierde, R-A vuelve a
+            # acusar sin que nadie tenga que acordarse de quitar una entrada.
+            if operaciones_que_alcanzan_el_motor().get(fn.attr):
+                continue
             if _receptor(nodo, nombres, atributos) == "almacen":
                 hallazgos.append(Hallazgo(
                     regla="R-A", fichero=_rel(Path(ruta)), linea=nodo.lineno, operacion=fn.attr,
@@ -424,10 +507,14 @@ def analizar_fichero(ruta: Path, autorizado_para: frozenset[str]) -> list[Hallaz
         if autorizado_disco:
             continue
         if isinstance(fn, ast.Name) and fn.id == "open" and _abre_para_escribir(nodo):
+            if "open" in ops_exentas:
+                continue
             hallazgos.append(Hallazgo(
                 regla="R-B", fichero=_rel(Path(ruta)), linea=nodo.lineno, operacion="open",
                 detalle="apertura de fichero en modo de escritura"))
         elif isinstance(fn, ast.Attribute) and _es_escritura_de_disco(fn):
+            if fn.attr in ops_exentas:
+                continue
             hallazgos.append(Hallazgo(
                 regla="R-B", fichero=_rel(Path(ruta)), linea=nodo.lineno, operacion=fn.attr,
                 detalle="escritura o borrado directo en disco"))

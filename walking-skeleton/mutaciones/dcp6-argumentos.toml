@@ -1,4 +1,7 @@
 incremento = "D-CP-6 = (a) · esquema de argumentos en la ruta del criterio (2026-08-23)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/communication-plane"
 # Cierra R-1 para las 4 capacidades que D-CP-4 admite como criterio. Las otras 29 no se tocan.
 pruebas = ["test_red_dcp6_argumentos.py", "test_red_dcp4_criterio.py"]
 timeout_s = 60

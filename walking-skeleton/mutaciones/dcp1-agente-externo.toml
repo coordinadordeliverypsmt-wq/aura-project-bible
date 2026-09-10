@@ -1,4 +1,7 @@
 incremento = "D-CP-1 · ciclo instalar->ejecutar->retirar del agente externo (2026-08-25)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/agente-externo"
 # Las dos barreras del contrato (§2 necesidad, §3 politica de datos) y la garantia mas facil de
 # falsear: declarar el ciclo cerrado mientras el agente sigue en la maquina.
 pruebas = ["test_red_ciclo_bajo_demanda.py"]

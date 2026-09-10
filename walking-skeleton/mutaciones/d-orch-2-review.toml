@@ -1,4 +1,7 @@
 incremento = "D-ORCH-2 · nivel REVIEW construido y apagado (2026-08-26)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/control-plane"
 pruebas = ["test_red_review.py"]
 timeout_s = 240
 
@@ -72,24 +75,33 @@ sustituir = '''    return True'''
 
 [[mutante]]
 id = "RV-M8"
+# RE-ANCLADO 2026-09-09: el codigo se movio durante el trabajo de esta sesion y el patron dejo de
+# coincidir. La garantia es la MISMA; lo que cambio es donde vive. Quedaba invisible porque el
+# auditor resolvia este plano contra la raiz del producto (defecto corregido el mismo dia).
 garantia = "los CUATRO criterios de D22 se comprueban: basta uno para rechazar"
 fichero = "review.py"
-pruebas = ["test_red_review.py::test_basta_UN_criterio_incumplido_para_que_no_cumpla",
+pruebas = ["test_red_review.py::test_el_criterio_de_ALCANCE_se_comprueba_sobre_una_base_que_CUMPLE",
+           "test_red_review.py::test_las_CINCO_PREGUNTAS_D21_se_exigen_a_una_tarea_que_NO_es_tecnica_acotada",
+           "test_red_review.py::test_basta_UN_criterio_incumplido_para_que_no_cumpla",
            "test_red_review.py::test_el_veredicto_aplica_los_CUATRO_criterios_de_D22"]
-buscar = '''    if not tarea.get("d21_afirmativas"):
-        fallos.append("cinco_preguntas_d21")'''
-sustituir = '''    if False:
-        fallos.append("cinco_preguntas_d21")'''
+buscar = '''        if not tarea.get("d21_afirmativas"):
+            fallos.append("cinco_preguntas_d21")'''
+sustituir = '''        if False:
+            fallos.append("cinco_preguntas_d21")'''
 
 [[mutante]]
 id = "RV-M9"
+# RE-ANCLADO 2026-09-09: el codigo se movio durante el trabajo de esta sesion y el patron dejo de
+# coincidir. La garantia es la MISMA; lo que cambio es donde vive. Quedaba invisible porque el
+# auditor resolvia este plano contra la raiz del producto (defecto corregido el mismo dia).
 garantia = "el criterio de ALCANCE se comprueba (D22: «sin cambio de alcance»)"
 fichero = "review.py"
-pruebas = ["test_red_review.py::test_basta_UN_criterio_incumplido_para_que_no_cumpla"]
-buscar = '''    if tarea.get("cambia_alcance"):
+pruebas = ["test_red_review.py::test_el_criterio_de_ALCANCE_se_comprueba_sobre_una_base_que_CUMPLE",
+           "test_red_review.py::test_las_CINCO_PREGUNTAS_D21_se_exigen_a_una_tarea_que_NO_es_tecnica_acotada"]
+buscar = '''    if tarea.get("cambia_alcance") and "alcance" not in fallos:
         fallos.append("alcance")'''
 sustituir = '''    if False:
-        fallos.append("alcance")'''
+        fallos.append("alcance")  # re-anclado'''
 
 [[mutante]]
 id = "RV-M10"

@@ -9,7 +9,7 @@ import re
 from pathlib import Path
 
 from .. import observability as obs
-from ..contracts import HISTORICO, Event
+from ..contracts import HISTORICO, Event, es_escritura_pasiva
 from ..observability import Timer
 from . import intencion
 from .almacen_senales import AlmacenSenales
@@ -1774,9 +1774,19 @@ class Orchestrator:
             # salida conserva intacto el motivo original: una PREGUNTA no se almacena nunca, porque al
             # repetirla se cubriria a si misma con cobertura 1,00 y ADR-0014 dejaria de activarse.
             kind = "episodica" if destino == intencion.RECUPERABLE else HISTORICO
-            await self.memory.write(
-                uid, kind, f"usuario dijo: {text}", {"trace_id": tid, "fuente": "conversacion"}
-            )
+            # **PARADA, Opción B (CEO, 2026-09-09).** La parada bloquea las acciones del Motor Único
+            # y NO la conversación: con ella armada, AURA puede seguir registrando lo que se dijo.
+            # Pero solo lo que esté DECLARADO pasivo — `contracts.es_escritura_pasiva` es una
+            # whitelist, así que un `kind` nuevo queda bloqueado hasta que alguien lo declare. El
+            # olvido no concede: ése es el sentido de fail-closed.
+            if self._sistema_detenido() and not es_escritura_pasiva(kind):
+                obs.log("CORE", "parada", f"escritura NO pasiva bloqueada por PARADA: {kind}", tid,
+                        audit=True)
+                destino = None
+            if destino is not None:
+                await self.memory.write(
+                    uid, kind, f"usuario dijo: {text}", {"trace_id": tid, "fuente": "conversacion"}
+                )
         await self._capturar_senales(uid, tid, text)
         buffer = self._dialogue.setdefault(uid, [])
         buffer.append((text, say))

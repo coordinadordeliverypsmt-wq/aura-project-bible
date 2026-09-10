@@ -55,9 +55,19 @@ def auditar_garantias(raiz: str, trace_id: str = "-") -> dict:
 
     for toml in sorted((base / "mutaciones").glob("*.toml")):
         datos = tomllib.loads(toml.read_text(encoding="utf-8"))
+        # RAIZ DEL CATALOGO. **Un mutante no vive necesariamente en el plano del producto.** El arnes
+        # ya lo sabia -acepta `--raiz`, y asi se corren los catalogos del plano de control-, pero el
+        # auditor resolvia SIEMPRE contra `base` y daba AUSENTE a todo lo que no fuera producto:
+        # 583 de 588 «garantias que no protegen nada» eran este defecto, no garantias rotas. Es el
+        # patron «declarado != real» cometido por el auditor cuyo oficio es cazarlo.
+        #
+        # Se DECLARA en el TOML en vez de adivinarse: probar raices hasta que una encaje acertaria
+        # casi siempre y mentiria el resto, y un homonimo entre planos resolveria al fichero
+        # equivocado sin avisar. Sin `raiz`, el plano es el del producto -que es lo que era antes-.
+        raiz_catalogo = base / str(datos.get("raiz", "")) if datos.get("raiz") else base
         for m in datos.get("mutante", []):
             total += 1
-            fichero = base / str(m.get("fichero", ""))
+            fichero = raiz_catalogo / str(m.get("fichero", ""))
             buscar, sustituir = str(m.get("buscar", "")), str(m.get("sustituir", ""))
             ident = f"{toml.name}:{m.get('id')}"
 

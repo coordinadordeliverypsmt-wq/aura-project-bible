@@ -1,4 +1,7 @@
 incremento = "CP · D-CP-8=C metodo entregar() (2026-08-25)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/communication-plane"
 # La garantia: la ruta de entrega APLICA la barrera en vez de declararla. El cuerpo llega marcado
 # como dato no confiable y anidado, nunca fundido con las instrucciones del receptor.
 pruebas = ["test_red_dcp8_cableado.py::test_la_ruta_de_entrega_marca_el_mensaje_como_dato_no_confiable",

@@ -43,7 +43,9 @@ sustituir = '''        "Tu color favorito es azul.",'''
 id = "HD-M6"
 garantia = "se aceptarian entradas que NO son hechos declarados (preferencias, patrones observados)"
 fichero = "aura_skeleton/core/orchestrator.py"
-buscar = '''        hechos = [e for e in vivas if e.get("clase") == ClaseSenal.HECHO_DECLARADO.value]'''
+# PATRON ACTUALIZADO (2026-09-10): la linea crecio con el filtro de vigencia de AMP-AURA.
+buscar = '''        hechos = [e for e in vivas
+                  if e.get("clase") == ClaseSenal.HECHO_DECLARADO.value and e.get("valid_until") is None]'''
 sustituir = '''        hechos = list(vivas)'''
 
 [[mutante]]

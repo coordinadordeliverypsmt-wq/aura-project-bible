@@ -60,5 +60,8 @@ sustituir = '''            guardadas += 1'''
 id = "RSN-M7"
 descripcion = "el registro de la senal pierde su tipo: lo procedimental se guarda como semantico"
 fichero = "aura_skeleton/core/ejecutor_modelo_usuario.py"
-buscar = '''                user_id, args.get("tipo", "semantica"), args["contenido"], args.get("procedencia", {})'''
-sustituir = '''                user_id, "semantica", args["contenido"], args.get("procedencia", {})'''
+# PATRON ACTUALIZADO (2026-09-10, AMP-AURA etapas 1-2): la llamada cabe en una linea desde que el
+# contenido y la procedencia se preparan antes (la procedencia recibe los campos de vigencia). La
+# garantia es la misma: el `tipo` de la senal no se pierde.
+buscar = '''            await self._memoria.write(user_id, args.get("tipo", "semantica"), contenido, procedencia)'''
+sustituir = '''            await self._memoria.write(user_id, "semantica", contenido, procedencia)'''

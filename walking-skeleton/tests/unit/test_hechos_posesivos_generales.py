@@ -298,3 +298,47 @@ async def test_el_valor_se_corta_en_el_primer_conector():
     assert res["say"] == "Tu coche es rojo."
     assert "viejo" not in res["say"]
     assert espia.llamadas == 0
+
+
+# ============== 13 · LA CONVERSACIÓN NO INTERROGATIVA SIGUE SIENDO DEL MODELO --
+#
+# Única garantía de la lista de la misión M3 que no tenía prueba propia: las demás —conocimiento,
+# razonamiento, consejo, ausencia, terceros, valor literal, redeclaración— ya están cubiertas arriba o
+# en `test_hecho_declarado_sin_llm.py`.
+
+
+@pytest.mark.asyncio
+async def test_una_afirmacion_conversacional_va_al_modelo_no_a_la_ruta_de_hechos():
+    """«Hoy tuve un día difícil» no pregunta por un atributo: no la puede atender la ruta directa.
+
+    Medido a través del producto: `provider=ollama`, una llamada. La ruta de hechos solo responde
+    interrogativas posesivas sobre algo declarado; todo lo demás sigue su camino.
+    """
+    mem = SimpleMemory()
+    orq, espia = _sistema(mem)
+    await _declarar(mem, "Mi cumpleaños es el 10 de mayo")
+
+    res = await _turno(orq, "Hoy tuve un día difícil.")
+
+    assert "cumpleaños" not in (res.get("say") or ""), "la ruta de hechos no puede atender esto"
+    assert espia.llamadas == 1, "la conversación es del modelo"
+
+
+@pytest.mark.asyncio
+async def test_una_suposicion_sin_cifra_NO_la_atiende_la_ruta_de_hechos():
+    """Comportamiento PREEXISTENTE, medido y declarado aquí para que quede fijado lo que esta misión
+    sí garantiza: «Si tengo un caballo y vendo uno, ¿cuántos me quedan?» **no** la absorbe la respuesta
+    directa de memoria.
+
+    Lo que hace hoy es caer en la guarda de ausencia de `ADR-0014` —`dominio=memoria`, 0 llamadas—
+    porque `es_cognicion_general` exige una cifra y «uno» no es un dígito. Eso NO lo introdujo esta
+    ruta y no se toca aquí: la garantía que esta prueba fija es que el dominio no es `modelo_usuario`.
+    """
+    mem = SimpleMemory()
+    orq, espia = _sistema(mem)
+    await _declarar(mem, "Mi cumpleaños es el 10 de mayo")
+
+    res = await _turno(orq, "Si tengo un caballo y vendo uno, ¿cuántos me quedan?")
+
+    assert res.get("dominio") != "modelo_usuario", "la ruta de hechos no puede absorber un razonamiento"
+    assert "cumpleaños" not in (res.get("say") or "")

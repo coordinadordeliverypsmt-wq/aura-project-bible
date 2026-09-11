@@ -27,6 +27,7 @@ from .estado_autonomo import (
     redactar_oportunidades,
     redactar_ultima_tarea,
 )
+from .identidad_memoria import atributo_declarado, atributo_preguntado
 from .modelo_usuario import describir_conocimiento, explicar_entrada
 from .notificaciones import notificacion_de_accion
 from .registro import RegistroAdaptadores
@@ -255,30 +256,10 @@ _PAT_CONSULTA_PREFERENCIA = ("que prefiero", "cuales son mis preferencias", "que
 # el dato es del usuario y se le repite COMO EL LO ESCRIBIO -«cumpleaños», no «cumpleanos»; «Seat León»,
 # no «seat leon»- (ADR-0017, fidelidad al modelo). De ahi `[^\W\d_]`, que acepta letras acentuadas; la
 # comparacion del atributo si se hace normalizada, para que la pregunta case con la declaracion.
-_ATRIBUTO_DECLARADO = re.compile(
-    r"\bmi ([^\W\d_]+(?: [^\W\d_]+)?) (?:es|son)\s+(?:el|la|los|las|un|una|unos|unas)?\s*(.+)$",
-    re.IGNORECASE)
-# `_normalizar` conserva «¿» -solo quita diacriticos-, asi que el anclaje tiene que admitirlo: sin esto
-# «¿Cual es mi cumpleanos?» no casaba y el turno se iba al modelo.
-_ATRIBUTO_PREGUNTADO = re.compile(r"^¿?(?:cual|cuales) (?:es|son) mi ([a-z]+(?: [a-z]+)?)\s*\??$")
-
-
-def _atributo_preguntado(t: str) -> str | None:
-    """El atributo que una pregunta posesiva nombra, o None si no es una de ellas."""
-    hallado = _ATRIBUTO_PREGUNTADO.match(t.strip())
-    return hallado.group(1).strip() if hallado else None
-
-
-def _atributo_declarado(contenido: str) -> tuple[str, str] | None:
-    """El par (atributo, valor) de una declaracion posesiva, extraido de SU PROPIA frase."""
-    hallado = _ATRIBUTO_DECLARADO.search(contenido)
-    if not hallado:
-        return None
-    # No glotona, igual que `_valor_declarado`: «mi coche es rojo y viejo» declara el coche, no la
-    # coletilla. Se corta en el primer conector o signo.
-    bruto = re.split(r"\s+(?:y|pero|aunque|porque)\s+|[,;.]", hallado.group(2))[0]
-    valor = bruto.strip(" .,;:!?")
-    return (hallado.group(1).strip(), valor) if valor else None
+# La gramatica vive en `identidad_memoria` desde AMP-AURA etapas 1-2: el EJECUTOR la necesita para
+# versionar al escribir y no puede importar este modulo (seria circular). Una sola fuente de verdad.
+_atributo_preguntado = atributo_preguntado
+_atributo_declarado = atributo_declarado
 
 
 def _valor_declarado(contenido: str, patron: str) -> str | None:
@@ -1329,7 +1310,13 @@ class Orchestrator:
         # Solo entradas de clase HECHO_DECLARADO: emparejar el regex contra CUALQUIER entrada viva
         # devolvia como hecho lo que era una preferencia o un patron observado, borrando la
         # distincion declarado/observado que la ampliacion de 4.4 §1 existe para preservar.
-        hechos = [e for e in vivas if e.get("clase") == ClaseSenal.HECHO_DECLARADO.value]
+        # Y solo las VIGENTES: una entrada con `valid_until` fue superseded por una redeclaracion y
+        # pertenece al historial, no al presente (AMP-AURA etapas 1-2). Sin este filtro la respuesta
+        # correcta dependeria del ORDEN de llegada —el `reversed` de abajo—, que es una coincidencia
+        # afortunada, no una garantia: basta que el almacen devuelva otro orden para que AURA afirme
+        # un hecho caducado. Las entradas heredadas no tienen el campo, valen None y siguen vigentes.
+        hechos = [e for e in vivas
+                  if e.get("clase") == ClaseSenal.HECHO_DECLARADO.value and e.get("valid_until") is None]
         for preguntas, patron, plantilla, ausencia in _CONSULTAS_DE_HECHO:
             if not _cae_en(t, preguntas):
                 continue

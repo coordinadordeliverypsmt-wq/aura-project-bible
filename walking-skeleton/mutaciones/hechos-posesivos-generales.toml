@@ -58,7 +58,10 @@ sustituir = '''            for entrada in hechos:
 [[mutante]]
 id = "HP-M7"
 garantia = "el valor se normaliza: el usuario recibe «seat leon» donde escribio «Seat Leon»"
-fichero = "aura_skeleton/core/orchestrator.py"
+# FICHERO ACTUALIZADO (2026-09-10, AMP-AURA etapas 1-2): la extraccion se movio intacta a
+# `identidad_memoria.py` para que el EJECUTOR pudiera versionar con la misma gramatica. La garantia
+# no cambia —el valor se devuelve como el usuario lo escribio (ADR-0017)—, solo su direccion.
+fichero = "aura_skeleton/core/identidad_memoria.py"
 buscar = '''    hallado = _ATRIBUTO_DECLARADO.search(contenido)'''
 sustituir = '''    hallado = _ATRIBUTO_DECLARADO.search(_normalizar(contenido))'''
 
@@ -66,13 +69,16 @@ sustituir = '''    hallado = _ATRIBUTO_DECLARADO.search(_normalizar(contenido))'
 id = "HP-M8"
 garantia = "la ruta acepta entradas que no son hechos declarados (observadas, preferencias)"
 fichero = "aura_skeleton/core/orchestrator.py"
-buscar = '''        hechos = [e for e in vivas if e.get("clase") == ClaseSenal.HECHO_DECLARADO.value]'''
+# PATRON ACTUALIZADO (2026-09-10): la linea crecio con el filtro de vigencia de AMP-AURA.
+buscar = '''        hechos = [e for e in vivas
+                  if e.get("clase") == ClaseSenal.HECHO_DECLARADO.value and e.get("valid_until") is None]'''
 sustituir = '''        hechos = list(vivas)'''
 
 [[mutante]]
 id = "HP-M9"
 garantia = "el valor deja de cortarse: «mi coche es rojo y viejo» devolveria la coletilla entera"
-fichero = "aura_skeleton/core/orchestrator.py"
+# FICHERO ACTUALIZADO (2026-09-10): misma mudanza que HP-M7.
+fichero = "aura_skeleton/core/identidad_memoria.py"
 buscar = '''    bruto = re.split(r"\s+(?:y|pero|aunque|porque)\s+|[,;.]", hallado.group(2))[0]
     valor = bruto.strip(" .,;:!?")'''
 sustituir = '''    valor = hallado.group(2).strip(" .,;:!?")'''

@@ -61,6 +61,13 @@ class ModeloUsuario:
                 "clase": i.get("provenance", {}).get("clase"),
                 "refutada": i.get("provenance", {}).get("refutada", False),
                 "ts": i.get("provenance", {}).get("ts"),
+                # Historial y vigencia (AMP-AURA etapas 1-2). Se exponen por la MISMA puerta que el
+                # resto de la procedencia: si no salieran por `ver`, el historial existiria en el
+                # disco y el usuario no podria verlo — que es no tenerlo (ADR-0017 §3).
+                "version": i.get("provenance", {}).get("version"),
+                "supersedes": i.get("provenance", {}).get("supersedes"),
+                "valid_from": i.get("provenance", {}).get("valid_from"),
+                "valid_until": i.get("provenance", {}).get("valid_until"),
             }
             for i in self._entradas(user_id)
         ]

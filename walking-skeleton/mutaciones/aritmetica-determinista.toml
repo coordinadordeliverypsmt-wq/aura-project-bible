@@ -13,9 +13,11 @@ id = "AR-M1"
 garantia = "la aritmetica se resuelve ANTES del modelo: si no, 'cuanto es 1+1' vuelve a ser 'Entendido.'"
 fichero = "aura_skeleton/core/orchestrator.py"
 pruebas = ["tests/integration/test_aritmetica_determinista.py::test_la_operacion_la_resuelve_EL_NUCLEO_y_es_correcta"]
-buscar = '''        respuesta = resolver_aritmetica(text)
-        if respuesta is not None:'''
-sustituir = '''        respuesta = resolver_aritmetica(text)
+# RE-ANCLADO 2026-09-13 (frontera cognitiva, D-FC-4 = A): la llamada paso a `resolver_formal`, que
+# para una expresion pura devuelve lo mismo. La garantia no cambia: sin la rama, la cuenta cae al modelo.
+buscar = '''        formal = resolver_formal(text)
+        if formal is not None:'''
+sustituir = '''        formal = resolver_formal(text)
         if False:'''
 
 # --------- 2 · LAS CUENTAS SALEN ---------
@@ -197,7 +199,13 @@ id = "AR-M19"
 garantia = "la superficie va DESPUES de las que ya existian: no puede robarles ninguna frase"
 fichero = "aura_skeleton/core/aritmetica.py"
 pruebas = ["tests/integration/test_aritmetica_determinista.py::test_las_COTAS_impiden_bloquear_el_turno"]
-buscar = '''    if not texto or len(texto) > MAX_CARACTERES:
+# RE-ANCLADO 2026-09-13 (frontera cognitiva): `resolver_formal` (D-FC-4 = A) repite el MISMO guard
+# textual al principio de su propia funcion, asi que el patron corto paso a aparecer 2 veces. Se
+# amplia con el cierre del docstring de `expresion_en` -unico en el fichero- para volver a apuntar
+# EXACTAMENTE a la misma linea y a la misma garantia que antes: nada mas cambia.
+buscar = '''    es?»- para que no puedan responderse por separado y contradecirse."""
+    if not texto or len(texto) > MAX_CARACTERES:
         return None'''
-sustituir = '''    if not texto:
+sustituir = '''    es?»- para que no puedan responderse por separado y contradecirse."""
+    if not texto:
         return None'''

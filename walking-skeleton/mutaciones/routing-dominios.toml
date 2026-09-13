@@ -142,8 +142,10 @@ id = "RD-M14"
 garantia = "el DOMINIO viaja con el turno: sin el, comprobar el enrutamiento seria mirarle la cara al texto"
 fichero = "aura_skeleton/core/orchestrator.py"
 pruebas = ["tests/integration/test_routing_dominios.py::test_cada_entrada_llega_a_SU_dominio"]
-buscar = '''                              "marks": dict(t.marks), "dominio": dominio or ("llm" if prov != "core" else "")}'''
-sustituir = '''                              "marks": dict(t.marks), "dominio": ""}'''
+# RE-ANCLADO 2026-09-13 (frontera cognitiva, D-FC-1): el resultado gano la clave aditiva `estatus` y la
+# linea ya no cierra el diccionario. Misma garantia, misma degradacion.
+buscar = '''                              "marks": dict(t.marks), "dominio": dominio or ("llm" if prov != "core" else ""),'''
+sustituir = '''                              "marks": dict(t.marks), "dominio": "",'''
 
 [[mutante]]
 id = "RD-M15"

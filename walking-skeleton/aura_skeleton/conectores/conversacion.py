@@ -230,3 +230,17 @@ class ConectorConversacion:
                 # registrar "hubo una senal sobre un tercero" ya seria un rastro sobre esa persona.
                 continue
         return senales
+
+
+def es_declaracion_de_hecho_propio(texto: str) -> bool:
+    """True si el usuario DECLARA un hecho sobre si mismo («me llamo Mauricio», «trabajo en logistica»).
+
+    Es el MISMO criterio con el que la captura clasifica un enunciado como `HECHO_DECLARADO`: una sola
+    definicion, no una segunda lista que pudiera divergir. Por eso excluye lo que la captura excluye
+    -hechos de terceros, preferencias, estados de animo, preguntas-.
+
+    Funcion pura y sin estado: no observa, no guarda ni encola nada. Que el hecho se registre sigue
+    siendo asunto exclusivo de `ConectorConversacion.recoger`; quien consulta esta funcion solo sabe
+    QUE CLASE de enunciado es, nunca si la captura llego a guardarlo.
+    """
+    return _clasificar(_normalizar(texto)) is ClaseSenal.HECHO_DECLARADO

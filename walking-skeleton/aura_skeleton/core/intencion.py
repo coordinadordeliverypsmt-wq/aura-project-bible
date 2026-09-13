@@ -487,4 +487,272 @@ def es_cognicion_general(texto: str) -> bool:
             and any(q in n for q in _PIDE_CANTIDAD):
         return True
 
+    # Hipotesis FISICA de consecuencia sin cifra (D-FC-5 = A, T5). Medido antes de activarla: 0 de
+    # las 24 negativas, 0 de las 77+172 consultas de las dos baterias, 0 fugas en 24 ataques ya
+    # escritos y 20 nuevos contra esta forma, 12 de 12 positivas (`test_frontera_referente.py`).
+    if _es_hipotesis_de_consecuencia(texto):
+        return True
+
     return any(p in n for p in _MARCOS_COGNITIVOS) and c.contenido == INCIERTO
+
+
+# ------------------------------------------ HIPOTESIS DE CONSECUENCIA SIN CIFRA (D-FC-5 = A, T5) --
+#
+# POR QUE EXISTE. «si meto la mano en agua caliente que me pasa?» (T5) caia en la pared: es una
+# suposicion, pero sin cifra ni pregunta de cantidad, y el «me» hace que el eje 2 diga HECHO_USUARIO.
+# Pregunta por una CONSECUENCIA fisica de una premisa que viene en el propio turno; no hay ningun dato
+# del usuario que recuperar.
+#
+# LA FORMA ES DELIBERADAMENTE ESTRECHA. Una suposicion sin cifra fue exactamente la que abrio tres
+# fugas («si hoy es martes, a que hora ceno?»). Por eso no basta el operador: hacen falta CUATRO
+# condiciones positivas o de freno, cada una cerrada:
+#
+#   1. el turno EMPIEZA por el operador («si», «supongamos que»...) y TERMINA en un interrogativo de
+#      consecuencia cerrado —o empieza por el interrogativo y sigue «si <premisa>» hasta el final—.
+#      Nada puede colgar detras: «...que me pasa y a que hora ceno?» no casa;
+#   2. la premisa NOMBRA un verbo de accion fisica de una lista cerrada. «si me llamo pedro», «si
+#      cumplo anos» o «si hoy es martes» no nombran ninguno, y por eso no pasan;
+#   3. la premisa NO contiene un verbo de hecho del usuario (`_VERBOS_YO`), ni un interrogativo, ni
+#      deixis temporal/biografica, ni una referencia a lo que se le dio o dijo a AURA;
+#   4. el turno entero no lleva posesivo propio ni marcador de evocacion.
+#
+# Todas las listas solo pueden ESTRECHAR: lo que no casa sigue el camino de hoy bit a bit.
+
+#: Interrogativos de consecuencia. Cerrados. Ordenados por longitud al usarse, para que «que me
+#: pasaria» no se lea como «que pasa» seguido de basura.
+_CONSECUENCIA = (
+    "que me pasa", "que me pasaria", "que me puede pasar", "que me podria pasar",
+    "que te pasa", "que te pasaria", "que le pasa", "que le pasaria",
+    "que pasa", "que pasaria", "que ocurre", "que ocurriria", "que sucede", "que sucederia",
+)
+
+#: Operadores de suposicion admitidos en posicion INICIAL para esta rama.
+_OPERADOR_HIPOTESIS = ("si", "supongamos que", "supon que", "imagina que")
+
+#: Verbos de accion o proceso FISICO. **Lista cerrada.** Se excluyen a proposito los que ya son
+#: `_VERBOS_YO` (`toco`, `como`, `juego`...), los que colisionan con `_ORDEN` (`pon`, `apaga`, `sube`)
+#: y los de ingesta (`bebo`, `tomo`, `trago`): una pregunta de ingesta es salud, y su politica es de
+#: `dominio_sensible`, no de esta superficie. `acerca` falta porque es tambien «acerca de».
+_PREMISA_FISICA = (
+    "meto", "metes", "mete", "metemos", "meten", "metiera", "metieras",
+    "pongo", "pones", "pone", "ponemos", "ponen", "pusiera", "pusieras",
+    "caigo", "caes", "cae", "caemos", "caen", "cayera", "cayeras",
+    "mezclo", "mezclas", "mezcla", "mezclamos", "mezclan", "mezclara",
+    "caliento", "calientas", "calienta", "calientan", "calentara",
+    "congelo", "congelas", "congela", "congelan", "congelara",
+    "respiro", "respiras", "respira", "respirara",
+    "miro", "miras", "mira", "mirara",
+    "salto", "saltas", "salta", "saltara",
+    "sumerjo", "sumerges", "sumerge",
+    "expongo", "expones", "expone", "expusiera",
+    "lanzo", "lanzas", "lanza", "lanzara",
+    "suelto", "sueltas", "suelta", "soltara",
+    "tocas", "toca", "tocara",
+    "choca", "chocan", "chocara", "chocaran",
+    "explota", "explotan", "explotara",
+    "desaparece", "desaparecen", "desapareciera", "desaparecieran",
+    "derrite", "derriten", "derritiera", "funde", "funden", "evapora", "hierve", "hirviera",
+)
+
+#: Deixis que ancla la premisa en la VIDA del usuario o en lo que ya se le dio a AURA. Freno cerrado.
+_DEIXIS_PERSONAL = (
+    "hoy", "manana", "ayer", "anoche", "anteayer",
+    "lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo",
+    "cumpleanos", "aniversario",
+    "te di", "te dije", "te deje", "te pase", "te pedi", "te mande", "te ensene", "te envie",
+)
+
+#: Posesivos propios del freno de esta rama: `_POSESIVO_PROPIO` mas la primera persona del plural.
+_POSESIVO_HIPOTESIS = _POSESIVO_PROPIO + ("nuestro", "nuestra", "nuestros", "nuestras")
+
+
+def _premisa_de_consecuencia(bordes: str) -> str | None:
+    """La premisa de una hipotesis de consecuencia, o None si el turno no tiene esa forma exacta."""
+    t = " ".join(bordes.split())
+    consecuencias = sorted(_CONSECUENCIA, key=len, reverse=True)
+    for op in _OPERADOR_HIPOTESIS:
+        if t.startswith(op + " "):
+            resto = t[len(op) + 1:]
+            for c in consecuencias:
+                if resto.endswith(" " + c):
+                    return resto[: -len(c) - 1].strip() or None
+            return None
+    for c in consecuencias:
+        if t.startswith(c + " si "):
+            return t[len(c) + 4:].strip() or None
+    return None
+
+
+def _es_hipotesis_de_consecuencia(texto: str) -> bool:
+    """True si el turno es una hipotesis FISICA que pregunta por su consecuencia, sin nada personal.
+
+    No exige `PREGUNTA` ni evocacion: esas condiciones las pone `es_cognicion_general`, que es quien
+    la llama. Aqui solo vive la forma y sus frenos.
+    """
+    n = normalizar(texto)
+    bordes = _con_bordes(n)
+    if _nombra(bordes, _POSESIVO_HIPOTESIS):
+        return False
+    premisa = _premisa_de_consecuencia(bordes)
+    if premisa is None:
+        return False
+    p = f" {premisa} "
+    if not _nombra(p, _PREMISA_FISICA):
+        return False
+    return not (_nombra(p, _VERBOS_YO) or _nombra(p, _INTERROGATIVOS) or _nombra(p, _DEIXIS_PERSONAL))
+
+
+# --------------------------------------------------- FRONTERA COGNITIVA · REFERENTE (D-FC, 2026-09-13) --
+#
+# POR QUE EXISTE. La pared de `ADR-0014` responde «No tengo ningun recuerdo» a TODA interrogativa que
+# nadie reclame. Eso protege 24/24, pero tambien atrapa preguntas cuyo referente NO es el usuario:
+# «que desarrollas en este momento?» (T8) interroga a AURA, no a la memoria personal. `referente`
+# nombra DE QUIEN habla el turno componiendo predicados que ya existen; no es un clasificador nuevo,
+# no mira ningun modelo y no decide ninguna ruta: el orquestador la decide con esta etiqueta.
+
+REFERENTE_USUARIO = "usuario"
+REFERENTE_AURA = "aura"
+REFERENTE_MUNDO = "mundo"
+REFERENTE_CONVERSACION = "conversacion"
+REFERENTE_INCIERTO = "incierto"
+
+#: Marcos en SEGUNDA PERSONA que interrogan a AURA sobre si misma. **Lista positiva y cerrada.**
+#: Se casan como segmento de palabras completo (`_nombra`), salvo las raices de `_RAICES_SOBRE_AURA`.
+#: Ninguno lleva un verbo en primera persona: «a que me dedico?» o «que hago si...?» son del usuario y
+#: no pueden casar aqui. `que sabes de mi` tampoco: es soberania del modelo de usuario y va antes.
+_MARCOS_SOBRE_AURA = (
+    "que desarrollas", "que estas desarrollando", "en que estas desarrollando",
+    "que estas haciendo", "que haces ahora", "que haces en este momento", "que haces ahorita",
+    "en que trabajas", "en que andas", "a que te dedicas",
+    "por que estas detenida", "por que estas detenido", "por que estas parada", "por que estas parado",
+    "por que estas bloqueada", "por que estas bloqueado", "por que te detuviste", "por que te paraste",
+    "por que te has detenido", "por que te has parado",
+    "que capacidades tienes", "cuales son tus capacidades", "que puedes hacer", "que sabes hacer",
+    "que tareas tienes", "cuales son tus tareas", "cual es tu estado", "que estas ejecutando",
+)
+
+#: Raices para inflexiones del mismo marco («en que estas trabajando/trabajado»). Se exige el borde
+#: IZQUIERDO de palabra; el derecho queda libre a proposito, y solo para estas raices.
+_RAICES_SOBRE_AURA = ("en que estas trabaj",)
+
+#: Freno: el objeto de la pregunta es algo del usuario («que estas haciendo con mis archivos?»). Es la
+#: misma leccion que `_RE_OBJETO_AJENO` del orquestador: con objeto ajeno, no es una pregunta sobre AURA.
+_OBJETO_DEL_USUARIO = _POSESIVO_HIPOTESIS + ("me", "conmigo", "yo")
+
+
+def es_consulta_sobre_aura(texto: str) -> bool:
+    """True si el turno interroga a AURA, en segunda persona, sobre si misma.
+
+    Superficie **positiva y cerrada**: solo casa lo que `_MARCOS_SOBRE_AURA` nombra. Exige acto
+    `PREGUNTA` y ninguna marca de primera persona en el turno —con un objeto del usuario deja de ser
+    una pregunta sobre AURA—. Un error aqui manda al usuario a una respuesta sobre el estado de AURA;
+    nunca abre la memoria personal al modelo.
+    """
+    if acto_de_habla(texto) != PREGUNTA:
+        return False
+    n = normalizar(texto)
+    bordes = _con_bordes(n)
+    if _nombra(bordes, _OBJETO_DEL_USUARIO) or any(p in n for p in MARCADORES_DE_EVOCACION):
+        return False
+    t = " " + " ".join(bordes.split()) + " "
+    return _nombra(t, _MARCOS_SOBRE_AURA) or any(f" {r}" in t for r in _RAICES_SOBRE_AURA)
+
+
+# -------------------------------------------------------------- DOMINIOS SENSIBLES (D-FC-2, CEO) --
+
+#: Marcos que piden afirmaciones sobre una persona. Se casan sobre el texto normalizado, sin depender
+#: de mayusculas: «quien es jesus cristo» y «Quién es Jesús Cristo» son el mismo turno.
+_MARCOS_PERSONA = ("quien es ", "quien fue ", "quien era ", "quien invento", "quien escribio",
+                   "quien descubrio")
+
+#: Lexico cerrado por dominio. Coincidencia por PALABRA COMPLETA. Se evitan a proposito los ambiguos
+#: con uso cotidiano frecuente: «papa» (tuberculo/padre), «receta» (cocina), «acciones» (actos),
+#: «ala», «hacienda» (finca), «bolsa» suelta.
+_DOMINIOS_SENSIBLES = (
+    ("salud", (
+        "medicamento", "medicamentos", "medicina", "medicinas", "dosis", "sobredosis",
+        "enfermedad", "enfermedades", "sintoma", "sintomas", "diagnostico", "diagnosticos",
+        "tratamiento", "tratamientos", "pastilla", "pastillas", "cancer", "tumor", "embarazo",
+        "embarazada", "paracetamol", "ibuprofeno", "aspirina", "antibiotico", "antibioticos",
+        "vacuna", "vacunas", "infeccion", "fiebre", "alergia", "diabetes", "depresion", "suicidio",
+        "intoxicacion", "veneno",
+    )),
+    ("derecho", (
+        "ley", "leyes", "demanda", "demandar", "abogado", "abogada", "juicio", "juez", "tribunal",
+        "denuncia", "denunciar", "delito", "delitos", "herencia", "testamento", "divorcio", "multa",
+        "ilegal", "legal", "carcel", "despido",
+    )),
+    ("finanzas", (
+        "invertir", "inversion", "inversiones", "hipoteca", "prestamo", "prestamos", "credito",
+        "criptomoneda", "criptomonedas", "bitcoin", "impuesto", "impuestos", "deuda", "deudas",
+        "bolsa de valores", "declaracion de la renta",
+    )),
+    ("religion", (
+        "jesus", "cristo", "jesucristo", "dios", "dioses", "biblia", "coran", "islam", "mahoma",
+        "buda", "budismo", "iglesia", "religion", "religiones", "religioso", "religiosa",
+        "cristianismo", "judaismo", "catolico", "catolica", "vaticano", "profeta", "virgen maria",
+    )),
+)
+
+
+def dominio_sensible(texto: str) -> str | None:
+    """Dominio sensible del turno, o None. **Politica D-FC-2 (CEO, 2026-09-13).**
+
+    Devuelve `"salud"`, `"derecho"`, `"finanzas"`, `"religion"` o `"personas_reales"`, evaluados en
+    ESE orden: el primer dominio lexico que casa gana, y `personas_reales` —que se detecta por el marco
+    de la pregunta, no por el lexico— va el ultimo. «quien es Jesus Cristo?» sale `religion`.
+
+    **Deliberadamente conservadora.** Listas cerradas, coincidencia por palabra completa sobre texto
+    normalizado, sin modelo. Un falso positivo hace que AURA se abstenga de transmitir una respuesta
+    del modelo que podria haber sido correcta; un falso negativo dejaria pasar una afirmacion sin
+    verificar sobre salud, ley, dinero, fe o una persona real. Se prefiere el primer error.
+    `personas_reales` cubre TODA pregunta «quien es/fue/era/invento/escribio/descubrio», sea o no el
+    nombre de alguien famoso: el Core no puede saber si la persona existe.
+
+    No decide la ruta ni el estatus: devuelve una etiqueta que el orquestador aplica.
+    """
+    n = normalizar(texto)
+    bordes = " " + " ".join(_con_bordes(n).split()) + " "
+    for dominio, lexico in _DOMINIOS_SENSIBLES:
+        if _nombra(bordes, lexico):
+            return dominio
+    if any(f" {m}" in bordes for m in _MARCOS_PERSONA):
+        return "personas_reales"
+    return None
+
+
+# ---------------------------------------------------------------------------------- REFERENTE --
+
+def referente(texto: str) -> str:
+    """De quien habla el turno. **Funcion pura que solo COMPONE predicados existentes.**
+
+    Orden, y por que es ese:
+
+    1. `REFERENTE_AURA` si `es_consulta_sobre_aura` — ya excluye todo turno con primera persona.
+    2. `REFERENTE_USUARIO` si hay posesivo propio o marcador de evocacion. Es el freno duro, y va
+       ANTES que el mundo: ni una suposicion con cifra que ademas nombre «mi» sale como MUNDO.
+    3. `REFERENTE_MUNDO` si `es_cognicion_general`. Va ANTES que el eje 2 a proposito: el eje 2 dice
+       `HECHO_USUARIO` ante cualquier «me» o «tengo», y eso marcaria como del usuario «¿que me
+       recomiendas para dormir?» o «si tengo 1 caballo y vendo 1, cuantos me quedan?», cuyas premisas
+       vienen en el turno. `es_cognicion_general` ya exige sus propios frenos (evocacion, posesivo en
+       consejo, eje 2 `INCIERTO` en los marcos) y es la superficie medida contra las 24.
+    4. `REFERENTE_USUARIO` si el eje 2 dice que el turno aporta algo del mundo del usuario.
+    5. `REFERENTE_CONVERSACION` si el acto es `SOCIAL`.
+    6. `REFERENTE_INCIERTO` en todo lo demas — y el orquestador lo trata con la pared por defecto.
+
+    Invariante probado: ninguna de las 24 negativas ni ningun ataque escrito sale `REFERENTE_MUNDO`.
+    """
+    if es_consulta_sobre_aura(texto):
+        return REFERENTE_AURA
+    n = normalizar(texto)
+    bordes = _con_bordes(n)
+    if _nombra(bordes, _POSESIVO_HIPOTESIS) or any(p in n for p in MARCADORES_DE_EVOCACION):
+        return REFERENTE_USUARIO
+    if es_cognicion_general(texto):
+        return REFERENTE_MUNDO
+    c = clasificar(texto)
+    if c.contenido in (HECHO_USUARIO, CONOCIMIENTO_PROCEDURAL, COMPROMISO_FUTURO):
+        return REFERENTE_USUARIO
+    if c.acto == SOCIAL:
+        return REFERENTE_CONVERSACION
+    return REFERENTE_INCIERTO

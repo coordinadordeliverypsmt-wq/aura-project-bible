@@ -13,7 +13,7 @@ from ..contracts import HISTORICO, Event, es_escritura_pasiva
 from ..observability import Timer
 from . import intencion
 from .almacen_senales import AlmacenSenales
-from .aritmetica import resolver as resolver_aritmetica
+from .aritmetica import resolver_formal
 from .automatizacion import MotorAutomatizacion
 from .autorizacion import es_autorizacion, resolver
 from .autorizacion import identificador_en as identificador_de_decision
@@ -27,6 +27,7 @@ from .estado_autonomo import (
     redactar_oportunidades,
     redactar_ultima_tarea,
 )
+from .estatus import CORE, Estatus, asignar, linea_de_contexto, presentar
 from .identidad_memoria import atributo_declarado, atributo_preguntado
 from .modelo_usuario import describir_conocimiento, explicar_entrada
 from .notificaciones import notificacion_de_accion
@@ -134,13 +135,39 @@ _PIDE_ACCION = ("abre", "abrir", "enciende", "encender", "apaga", "apagar", "bus
                 "diagnostica", "diagnosticar", "recuerdame", "crea ", "crear ", "organiza")
 
 
+def _es_turno_cognitivo(texto: str) -> bool:
+    """La compuerta que deja salir un turno hacia el modelo por la excepcion cognitiva de la pared.
+
+    D-FC-5 (superficie MUNDO positiva y cerrada) + referente: `es_cognicion_general` reconoce la FORMA
+    de una pregunta general, pero no DE QUIEN habla; `referente` pone el posesivo y la evocacion por
+    delante de la cognicion. Con las dos, un posesivo nunca sale al modelo por esta puerta -«si mi hija
+    tiene 7 años, cuantos cumplira...?» es cognicion por forma y del usuario por referente-.
+
+    Es una funcion PURA y de modulo a proposito: hoy otra superficie anterior (`resolver_formal`)
+    reclama ese ejemplo antes de llegar aqui, asi que por la cascada la garantia no se veria. Que otra
+    ruta lo intercepte antes es una circunstancia del orden, no una proteccion: la compuerta tiene que
+    sostenerse sola (verificacion de mutacion FC-M13).
+    """
+    return intencion.es_cognicion_general(texto) and intencion.referente(texto) == intencion.REFERENTE_MUNDO
+
+
 def _pide_accion(texto: str) -> bool:
     """Si el usuario esta pidiendo que AURA **haga** algo, no que le responda algo.
 
     Decide si el catalogo de acciones viaja en el prompt. Es deliberadamente **generoso**: ante la
     duda se manda el catalogo, porque perder una accion seria peor que pagar contexto de mas."""
     t = _normalizar(texto)
-    return any(v in t for v in _PIDE_ACCION)
+    return any(v in t for v in _PIDE_ACCION) or _RE_PIDE_ESCRIBIR.search(t) is not None
+
+
+#: «escribe»/«escribir» como peticion de accion (frontera cognitiva, 2026-09-13). Hallazgo medido: con
+#: el Core forzando `consulta` en modo cognitivo (mandato §20), «Escribe 'version nueva' en notas.txt»
+#: caia en modo cognitivo porque el verbo faltaba en `_PIDE_ACCION`, y `escribir_archivo` -capacidad
+#: de LISTA ROJA ya catalogada- quedaba inalcanzable; con Ollama real el esquema cognitivo ya descartaba
+#: esa accion. NO va en la tupla porque alli se compara por SUBCADENA y «describe» contiene «escribe».
+#: Se exige palabra completa, y se excluye la forma impersonal «se escribe» («¿como se escribe hola en
+#: ingles?» pregunta por ortografia, no pide escribir nada).
+_RE_PIDE_ESCRIBIR = re.compile(r"(?<!\bse )\bescrib(?:e|ir)\b")
 
 
 def _es_consulta_de_memoria(texto: str) -> bool:
@@ -983,6 +1010,83 @@ def _resumen_formacion() -> str:
     return seccion
 
 
+# ---------------------------------------------- FRONTERA COGNITIVA · ESTATUS POR RUTA (D-FC-1..8) --
+#
+# El estatus lo decide `estatus.asignar` en `_finalizar_turno`, y SOLO alli. Las rutas del Core se
+# limitan a DECLARAR cual es el suyo (D-FC-1 = A); una ruta que no declara nada es HECHO. Lo que viene
+# de un proveedor es PROPUESTA pida lo que pida la ruta: esa parte no la decide este fichero.
+
+#: D-FC-7/f: un router sin proveedor utilizable cierra el turno por el Core. Antes el turno quedaba sin
+#: `_done` y `wait` expiraba: un fallo silencioso con apariencia de cuelgue.
+_ABSTENCION_SIN_PROVEEDOR = "Mi modelo local no está disponible ahora mismo; inténtalo de nuevo en unos minutos."
+
+#: D-FC-6 = A: acuse por voz antes de esperar al modelo. Lo redacta el Core: no afirma nada del mundo.
+_ACUSE_CONSULTA_MODELO = "Déjame consultarlo con mi modelo local; puede tardar un poco."
+
+#: Acuse del Core a una declaracion de hecho propio («me llamo Mauricio»). Deliberadamente NO dice «lo
+#: he guardado» ni «lo recordare»: la captura corre despues, puede estar bloqueada por la parada, y la
+#: restriccion 2 del gate del CEO prohibe que su resultado influya en lo que AURA contesta.
+_ACUSE_DECLARACION = "Entendido."
+
+#: D-FC-2 = B: nombre legible de cada dominio sensible que `intencion.dominio_sensible` puede devolver.
+#: Un dominio nuevo sin entrada aqui cae en el texto generico de `_abstencion_sensible`: la abstencion
+#: se mantiene aunque la redaccion sea menos precisa (ante la duda, no se transmite).
+_TEMA_SENSIBLE = {
+    "salud": "salud",
+    "derecho": "temas legales",
+    "finanzas": "finanzas",
+    "personas_reales": "personas reales",
+    "religion": "religión",
+}
+
+
+def _abstencion_sensible(dominio: str) -> str:
+    tema = _TEMA_SENSIBLE.get(dominio, "este tema")
+    return (f"Sobre {tema} no te doy respuestas generadas por mi modelo local: no puedo verificarlas "
+            f"y podrían ser falsas.")
+
+
+#: Textos con los que una superficie del Core declara que NO tiene el dato (ADR-0014). **Como distingue
+#: la ruta su ausencia, y por que asi:** las superficies (`_atender_modelo_usuario`, `_describir_*`)
+#: devuelven `str`, y pruebas existentes las llaman directamente esperando `str`. Cambiarles la firma a
+#: `(texto, estatus)` tocaria ~20 retornos y esas pruebas para decir lo mismo. Estos textos son
+#: CONSTANTES DEL CORE -no del modelo-, asi que la igualdad exacta es determinista y no interpreta nada.
+#: El riesgo es el de siempre, «declarado != real»: que alguien reescriba un retorno y aqui quede el
+#: antiguo. `test_estatus_epistemico` lo cierra por ejecucion: cada literal debe seguir apareciendo en el
+#: codigo que lo produce, y las ausencias reales de cada superficie deben salir AUSENCIA.
+_AUSENCIAS_DEL_CORE = frozenset({
+    *(ausencia for _, _, _, ausencia in _CONSULTAS_DE_HECHO),
+    describir_conocimiento([]),
+    "Todavía no me has dicho qué prefieres.",
+    "Ahora mismo no estoy afirmando nada sobre ti.",
+    "No he encontrado eso para olvidarlo.",
+    "No he encontrado eso para corregirlo.",
+    "No tengo ningún objetivo activo registrado en el estado operativo ahora mismo.",
+    "No tengo ningún objetivo activo, así que no hay nada bloqueado ahora mismo.",
+    "No me consta ninguna decisión pendiente en mi estado actual.",
+    "No me consta el estado de mi cola de trabajo.",
+    "No me consta mi historial de trabajos.",
+    "No tengo registro de mi propio ciclo de trabajo ahora mismo.",
+    "No me consta ninguna tarea ejecutada en mi historial.",
+    "No encuentro el Plan de Formación en el repositorio; no puedo declarar qué he aprendido.",
+    "El Plan de Formación existe pero no tiene una sección de capacidades aprendidas.",
+    _SIN_PENDIENTES,
+})
+
+#: Preguntas con las que el Core pide precision en vez de adivinar (D-FC-4 = A).
+_ACLARACIONES_DEL_CORE = frozenset({_DESAMBIGUAR, _ACLARACION_APRENDIDO_DE_MI})
+
+
+def _estatus_del_core(respuesta: str) -> Estatus:
+    """Estatus que DECLARA una superficie del Core segun su propio texto. No es `asignar`: no ve el
+    proveedor y no puede producir PROPUESTA. Solo traduce las constantes de arriba; lo demas, HECHO."""
+    if respuesta in _AUSENCIAS_DEL_CORE:
+        return Estatus.AUSENCIA
+    if respuesta in _ACLARACIONES_DEL_CORE:
+        return Estatus.ACLARACION
+    return Estatus.HECHO
+
+
 class Orchestrator:
     """Coordina el turno conversacional. NO ejecuta acciones por su cuenta (M2.5, ALERTA-005).
 
@@ -1007,6 +1111,7 @@ class Orchestrator:
         estado_operativo=None,
         estado_autonomo=None,
         decisiones=None,
+        reconocer_declaracion=None,
     ):
         self.bus, self.memory, self.router = bus, memory, router
         self.perm, self.voice = permissions, voice
@@ -1031,6 +1136,10 @@ class Orchestrator:
         # se comporta exactamente igual que en M2. La captura observa el turno; no participa en
         # ninguna decision (restriccion 2 del gate del CEO).
         self.contexto = contexto
+        # Reconocedor de declaraciones de hecho propio. OPCIONAL, como `contexto`: con None el turno
+        # sigue exactamente el camino anterior. Es un PUERTO y no un import porque el criterio vive en
+        # `conectores.conversacion` (el mismo que usa la captura) y `core` no depende de `conectores`.
+        self.reconocer_declaracion = reconocer_declaracion
         # Un adaptador suelto se envuelve; el resto del codigo trabaja siempre contra un registro.
         if hasattr(adaptadores, "para"):
             self.registro = adaptadores
@@ -1058,8 +1167,12 @@ class Orchestrator:
         self._timers: dict[str, Timer] = {}
         self._done: dict[str, asyncio.Event] = {}
         self._results: dict[str, dict] = {}
-        self._dialogue: dict[str, list[tuple[str, str]]] = {}  # memoria de trabajo por usuario
+        # Memoria de trabajo por usuario: (usuario, say SIN marca, estatus). D-FC-8 = B: el estatus viaja
+        # con el turno para que una propuesta del modelo nunca pueda reentrar desnuda en el prompt.
+        self._dialogue: dict[str, list[tuple[str, str, Estatus]]] = {}
         self._DIALOG_N = 6
+        # D-FC-6: turnos que ahora mismo esperan al modelo. Lo lee `__main__._esperar_con_acuse`.
+        self._en_modelo: set[str] = set()
         bus.subscribe("perception.turn_end", self.on_turn)
 
     async def handle_utterance(self, user_id, audio_text, trace_id):
@@ -1074,16 +1187,27 @@ class Orchestrator:
         await asyncio.wait_for(self._done[trace_id].wait(), timeout)
         return self._results.get(trace_id)
 
+    def turno_en_modelo(self, trace_id: str) -> bool:
+        """D-FC-6: True mientras el turno espera la respuesta del proveedor; False antes y despues.
+        Permite a la superficie decir «estoy consultando mi modelo» solo cuando es verdad."""
+        return trace_id in self._en_modelo
+
     async def on_turn(self, ev: Event):
         tid = ev.trace_id
         uid = ev.user_id
         text = ev.payload["text"]
         t = self._timers.get(tid) or Timer()
+        # FRONTERA COGNITIVA (D-FC-1..8): de quien habla el turno. Se calcula UNA vez y se registra al
+        # principio para que la auditoria vea el referente aunque el turno lo atienda una superficie
+        # anterior. No decide nada por si solo: las ramas de abajo lo consultan.
+        ref = intencion.referente(text)
+        obs.log("CORE", "referente", f"referente={ref}", tid)
         # Soberania del modelo del usuario: inspeccionar/entender/corregir/olvidar lo que AURA sabe de ti.
         if self.modelo_usuario is not None:
             resp = await self._atender_modelo_usuario(uid, text)
             if resp is not None:
-                await self._finalizar_turno(uid, tid, text, resp, "core", t, dominio="modelo_usuario")
+                await self._finalizar_turno(uid, tid, text, resp, "core", t, dominio="modelo_usuario",
+                                            estatus=_estatus_del_core(resp))
                 return
         # Superficie del Centro de Notificaciones: "¿que ha pasado mientras no estaba?" se responde con
         # lo que AURA hizo, sin consultar memoria ni LLM (es un hecho del sistema, no una inferencia).
@@ -1124,16 +1248,21 @@ class Orchestrator:
             return
         # La consulta de tareas ya no exige `estado_operativo`: con el ciclo autonomo cableado
         # tiene fuente propia, y sin ninguna de las dos NO se desvia (cae al camino de siempre).
+        # Las superficies de estado declaran AUSENCIA con su propio texto de «no me consta» (D-FC-1).
         if (self.estado_operativo is not None or self.estado_autonomo is not None) and _es_consulta_de_tareas(text):
-            await self._finalizar_turno(uid, tid, text, self._describir_tareas(), "core", t, dominio="estado_autonomo")
+            resp = self._describir_tareas()
+            await self._finalizar_turno(uid, tid, text, resp, "core", t, dominio="estado_autonomo",
+                                        estatus=_estatus_del_core(resp))
             return
         if self.estado_autonomo is not None and _es_consulta_de_evolucion(text):
-            await self._finalizar_turno(uid, tid, text, self._describir_evolucion(text), "core", t,
-                                        dominio="evolucion")
+            resp = self._describir_evolucion(text)
+            await self._finalizar_turno(uid, tid, text, resp, "core", t,
+                                        dominio="evolucion", estatus=_estatus_del_core(resp))
             return
         if self.estado_autonomo is not None and _es_consulta_de_ultima_tarea(text):
-            await self._finalizar_turno(uid, tid, text, self._describir_ultima_tarea(), "core", t,
-                                        dominio="historial")
+            resp = self._describir_ultima_tarea()
+            await self._finalizar_turno(uid, tid, text, resp, "core", t,
+                                        dominio="historial", estatus=_estatus_del_core(resp))
             return
         # Autorizacion humana (CEO, 2026-09-01). Va ANTES de la ausencia de memoria y del LLM porque
         # conceder un permiso es un HECHO del sistema, no una inferencia (ADR-0014). Y lo unico que
@@ -1145,19 +1274,42 @@ class Orchestrator:
             return
         # Los dos dominios que caian en la memoria del usuario, que no sabe nada de ellos.
         if self.estado_autonomo is not None and _es_consulta_de_decisiones(text):
-            await self._finalizar_turno(uid, tid, text, self._describir_decisiones(text), "core", t,
-                                        dominio="decisiones")
+            resp = self._describir_decisiones(text)
+            await self._finalizar_turno(uid, tid, text, resp, "core", t,
+                                        dominio="decisiones", estatus=_estatus_del_core(resp))
             return
         if self.estado_autonomo is not None and _es_consulta_de_oportunidades(text):
-            await self._finalizar_turno(uid, tid, text, self._describir_oportunidades(), "core", t,
-                                        dominio="oportunidades")
+            resp = self._describir_oportunidades()
+            await self._finalizar_turno(uid, tid, text, resp, "core", t,
+                                        dominio="oportunidades", estatus=_estatus_del_core(resp))
             return
         if self.estado_operativo is not None:
             if _es_consulta_de_gobierno(text):
-                await self._finalizar_turno(uid, tid, text, self._describir_bloqueo(), "core", t, dominio="gobierno")
+                resp = self._describir_bloqueo()
+                await self._finalizar_turno(uid, tid, text, resp, "core", t, dominio="gobierno",
+                                            estatus=_estatus_del_core(resp))
                 return
         if _es_consulta_de_formacion(text):
-            await self._finalizar_turno(uid, tid, text, _resumen_formacion(), "core", t, dominio="formacion")
+            resp = _resumen_formacion()
+            await self._finalizar_turno(uid, tid, text, resp, "core", t, dominio="formacion",
+                                        estatus=_estatus_del_core(resp))
+            return
+        # **AURA SOBRE SI MISMA (D-FC-3 = A).** «que desarrollas en este momento?» (T8) no nombraba
+        # ninguna de las superficies de arriba y caia en la pared: «No tengo ningun recuerdo» para una
+        # pregunta que no es sobre el usuario. Va DESPUES de las superficies de estado -que ya atienden
+        # «que tareas tienes», «por que estas bloqueada» o «que capacidades tienes» y conservan la
+        # precedencia- y ANTES de la aritmetica, de la pared y del modelo: el modelo nunca redacta lo
+        # que AURA hace. Reutiliza `_describir_tareas`; no hay un segundo calculo del estado.
+        #
+        # Exige una fuente de estado conectada, con la MISMA disciplina que la consulta de tareas: un
+        # orquestador construido a mano sin estado operativo sigue el camino que ya existia -la pared,
+        # que tambien es el Core, AUSENCIA y 0 llamadas- y `test_conversacion_ventana_so` lo fija. En
+        # produccion `composicion.py` cablea siempre el estado operativo, asi que T8 llega aqui.
+        if (self.estado_operativo is not None or self.estado_autonomo is not None) \
+                and intencion.es_consulta_sobre_aura(text):
+            resp = self._describir_aura()
+            await self._finalizar_turno(uid, tid, text, resp, "core", t, dominio="aura",
+                                        estatus=_estatus_del_core(resp))
             return
         # Aritmetica determinista (CEO, 2026-09-01). «cuanto es 1+1» no tenia superficie, recorria la
         # cascada entera y la contestaba el enrutador con su respuesta enlatada: «Entendido.». Una
@@ -1168,10 +1320,22 @@ class Orchestrator:
         # ninguna frase. Y antes de la memoria y del modelo, que es lo que el defecto pedia. El
         # reconocimiento ademas es estrecho: o la frase empieza por una entradilla declarada, o el
         # texto ENTERO es una expresion -- «borra 2 archivos» no lo es.
-        respuesta = resolver_aritmetica(text)
-        if respuesta is not None:
-            obs.log("CORE", "aritmetica", f"resuelta en el nucleo, sin LLM: {text[:40]!r}", tid)
-            await self._finalizar_turno(uid, tid, text, respuesta, "core", t, dominio="aritmetica")
+        #
+        # D-FC-4 = A: `resolver_formal` amplia la misma superficie a problemas verbales de una premisa
+        # y una operacion (T6). Para una expresion pura devuelve exactamente lo que devolvia
+        # `resolver_aritmetica`. Si la frase tiene forma cuantitativa pero no se puede resolver con
+        # certeza, el Core PREGUNTA (ACLARACION): el modelo nunca hace de calculadora.
+        formal = resolver_formal(text)
+        if formal is not None:
+            clase, respuesta = formal
+            if clase == Estatus.HECHO.value:
+                obs.log("CORE", "aritmetica", f"resuelta en el nucleo, sin LLM: {text[:40]!r}", tid)
+                await self._finalizar_turno(uid, tid, text, respuesta, "core", t, dominio="aritmetica",
+                                            estatus=Estatus.HECHO)
+            else:
+                obs.log("CORE", "formal", f"infradeterminado -> aclaracion, sin LLM: {text[:40]!r}", tid)
+                await self._finalizar_turno(uid, tid, text, respuesta, "core", t, dominio="formal",
+                                            estatus=Estatus.ACLARACION)
             return
         # **SUPERFICIE COGNITIVA (M3, 2026-09-09).** `_es_consulta_de_memoria` NO se toca: sigue
         # diciendo que toda interrogativa es una consulta de memoria, y por eso la garantia de 24/24
@@ -1184,7 +1348,10 @@ class Orchestrator:
         # NO es la via que se descarto. Estrechar la puerta bajaba la proteccion a 17/24; esto la deja
         # intacta y desvia por delante. La asimetria es la tesis: un error aqui no contesta una
         # pregunta general, no expone un hecho personal.
-        cognicion_general = intencion.es_cognicion_general(text)
+        #
+        # D-FC: la excepcion de cognicion exige ADEMAS que el referente sea el MUNDO. La compuerta vive en
+        # `_es_turno_cognitivo` para que se pruebe por si misma y no por el orden de la cascada.
+        cognicion_general = _es_turno_cognitivo(text)
         hits = await self.memory.recall(uid, text)
         t.mark("memory")
         # ADR-0014: la ausencia de memoria es un HECHO, no una inferencia. Si el usuario
@@ -1195,27 +1362,84 @@ class Orchestrator:
             obs.log(
                 "CORE", "grounding", "memoria vacia -> respuesta determinista (sin llamada al LLM)", tid, audit=True
             )
-            await self._finalizar_turno(uid, tid, text, say, "core", t, dominio="memoria")
+            await self._finalizar_turno(uid, tid, text, say, "core", t, dominio="memoria",
+                                        estatus=Estatus.AUSENCIA)
+            return
+        # **DECLARACION DE HECHO PROPIO (2026-09-13).** «me llamo Mauricio» no es pregunta ni orden: no
+        # tocaba ninguna superficie y caia aqui, al modelo, que en modo cognitivo solo puede devolver un
+        # `say` (el Core ya fuerza `consulta`). Medido con Ollama real: 263 s para decir «Entendido.».
+        # El hecho NO lo registra esta rama: lo registra la captura en `_finalizar_turno`, igual que
+        # antes, y DESPUES de decidir la respuesta (restriccion 2 del gate del CEO: la captura observa,
+        # no participa). Por eso el acuse es fijo y no depende de que la captura haya guardado nada.
+        # El criterio es el de la captura, INYECTADO (una sola definicion). Va despues de todas las
+        # superficies existentes -no les roba ninguna frase- y exige que el turno no pida ademas una
+        # accion: «me llamo Mauricio y enciende la luz» conserva su camino hacia el router.
+        if (self.reconocer_declaracion is not None and self.reconocer_declaracion(text)
+                and not _pide_accion(text)):
+            obs.log("CORE", "declaracion", "hecho propio declarado -> acuse del Core, sin llamada al LLM", tid)
+            await self._finalizar_turno(uid, tid, text, _ACUSE_DECLARACION, "core", t, dominio="declaracion",
+                                        estatus=Estatus.HECHO)
             return
 
         ctx = " | ".join(h["content"] for h in hits) if hits else "(sin recuerdos relevantes)"
         buffer = self._dialogue.get(uid, [])
-        recent = "\n".join(f"(previo) tu: {u} | AURA: {a}" for u, a in buffer) or "(inicio de la conversacion)"
+        # D-FC-8 = B: cada turno previo reentra CON su estatus. Una propuesta del modelo aparece como
+        # `AURA [PROPUESTA_NO_VERIFICADA]: ...` y nunca desnuda: sin la etiqueta, el modelo leeria su
+        # propia salida anterior como si AURA la hubiera afirmado, y la reforzaria turno a turno.
+        recent = "\n".join(linea_de_contexto(u, a, e) for u, a, e in buffer) or "(inicio de la conversacion)"
         prompt = f"[contexto memoria: {ctx}]\n[conversacion reciente:\n{recent}]\nUsuario: {text}"
         # **El catalogo solo si hay accion que pedir.** Ante la duda, `_pide_accion` es generoso:
         # perder una accion seria peor que pagar contexto de mas.
         # Una consulta COGNITIVA nunca carga el catalogo, ni aunque `_pide_accion` sea generoso:
         # medido, el catalogo de acciones era el 71 % del tiempo de ingesta del turno.
         modo = "accion" if (_pide_accion(text) and not cognicion_general) else "cognitivo"
+        # **DOMINIO SENSIBLE (D-FC-2 = B).** En salud, derecho, finanzas, personas reales y religion el
+        # Core se abstiene de transmitir conocimiento generado: un 0,5 B fabrico una falsedad grave sobre
+        # T7 y AURA la habria dicho con su voz. Se decide ANTES de llamar al modelo -0 llamadas, nada que
+        # filtrar despues- y solo en modo cognitivo: una orden no es una afirmacion de conocimiento, y
+        # sus garantias son las del motor y los permisos.
+        sensible = intencion.dominio_sensible(text) if modo == "cognitivo" else None
+        if sensible is not None:
+            obs.log("CORE", "sensible", f"dominio={sensible} -> abstencion, sin llamada al LLM", tid, audit=True)
+            await self._finalizar_turno(uid, tid, text, _abstencion_sensible(sensible), "core", t,
+                                        dominio="sensible", estatus=Estatus.ABSTENCION)
+            return
         obs.log("LLM", "routing", f"modo={modo}", tid)
+        # D-FC-6: acuse inmediato por voz antes de la espera. Es accesorio: si la voz falla, el turno
+        # sigue -- perder el acuse no puede costar la respuesta.
         try:
-            prov, out = await self.router.route(prompt, tid, modo)
-        except TypeError:
-            # Un router con la firma anterior —los dobles de prueba, por ejemplo— sigue funcionando.
-            # El modo es una mejora de contexto, no un cambio de contrato.
-            prov, out = await self.router.route(prompt, tid)
+            await self.voice.tts(_ACUSE_CONSULTA_MODELO, tid)
+        except Exception as e:
+            obs.log("WARN", "voice", f"acuse de espera no emitido (turno no afectado): {e}", tid)
+        self._en_modelo.add(tid)
+        try:
+            try:
+                prov, out = await self.router.route(prompt, tid, modo)
+            except TypeError:
+                # Un router con la firma anterior —los dobles de prueba, por ejemplo— sigue funcionando.
+                # El modo es una mejora de contexto, no un cambio de contrato.
+                prov, out = await self.router.route(prompt, tid)
+        except RuntimeError as e:
+            # `ProveedoresNoDisponibles` es subclase de RuntimeError: se captura por la base para que el
+            # nucleo no importe `modules.router` (core no depende de modules). Sin esto el turno moria
+            # sin `_done` y `wait` expiraba: el usuario veia un cuelgue, no una respuesta.
+            obs.log("WARN", "router", f"sin proveedor utilizable -> abstencion del Core: {e}", tid, audit=True)
+            self._en_modelo.discard(tid)
+            await self._finalizar_turno(uid, tid, text, _ABSTENCION_SIN_PROVEEDOR, CORE, t,
+                                        dominio="proveedor_no_disponible", estatus=Estatus.ABSTENCION)
+            return
+        finally:
+            self._en_modelo.discard(tid)
         t.mark("llm")
         action, args, say = _parse_decision(out, tid)
+        # **EL LLM NUNCA EJECUTA (mandato §20: en modo cognitivo, action != ejecutable).** El esquema de
+        # `providers_real` ya impide que Ollama nombre una accion al decodificar, pero esa es una
+        # barrera DEL PROVEEDOR: otro proveedor, o un doble, podria devolverla igual. ADR-0014 §4: una
+        # garantia no puede depender de que un modelo se comporte. Aqui la impone el Core, sin mirar
+        # que proveedor respondio: un turno cognitivo nunca llega al motor.
+        if modo == "cognitivo" and action != "consulta":
+            obs.log("CORE", "cognitivo", f"accion propuesta {action} descartada", tid, audit=True)
+            action, args = "consulta", {}
         if action != "consulta":
             evento = {"action": action, "args": args}
             # Las automatizaciones del usuario reaccionan al evento ANTES de ejecutar la accion que lo
@@ -1532,6 +1756,19 @@ class Orchestrator:
         # porque fabricaria un total que no existe en ninguna de las dos fuentes.
         return f"{del_ciclo}\n\nAparte, en el tablero de objetivos del producto:\n{resumen}"
 
+    def _describir_aura(self) -> str:
+        """Responde lo que AURA hace ahora mismo desde su estado REAL (D-FC-3 = A, T8).
+
+        No calcula nada nuevo: la parada sale de `_sistema_detenido` y el trabajo de `_describir_tareas`,
+        la misma funcion que ya contesta «que tareas tienes» (y cuyo «no tengo ningun objetivo activo»
+        es la AUSENCIA honesta, INV-9). Con la parada echada se dice primero: es el hecho que mas cambia
+        la lectura del resto, y deja de ser una ausencia.
+        """
+        tareas = self._describir_tareas()
+        if self._sistema_detenido():
+            return f"La parada de emergencia está echada: ahora mismo no ejecuto ninguna acción.\n{tareas}"
+        return tareas
+
     def _actividad_autonoma(self) -> str | None:
         """Que dice el ciclo autonomo, o `None` si no hay fuente que lo diga."""
         if self.estado_autonomo is None:
@@ -1806,16 +2043,26 @@ class Orchestrator:
         except Exception as e:
             obs.log("WARN", "senales", f"captura fallida (turno no afectado): {e}", tid)
 
-    async def _finalizar_turno(self, uid, tid, text, say, prov, t, dominio: str = ""):
+    async def _finalizar_turno(self, uid, tid, text, say, prov, t, dominio: str = "",
+                               estatus: Estatus | None = None):
         """Cierre comun del turno: persistencia, memoria de trabajo, voz, metricas y resultado.
 
         `dominio` dice QUE FUENTE respondio. `provider` solo distingue nucleo de modelo, y con nueve
         superficies deterministas eso ya no basta para auditar el enrutamiento: «core» no dice si la
         respuesta salio del estado autonomo, de las decisiones o de la aritmetica. Sin este dato, la
         unica forma de comprobar que una pregunta llego a su dominio seria mirarle la cara al texto,
-        que es exactamente como se cuela un enrutamiento roto."""
+        que es exactamente como se cuela un enrutamiento roto.
+
+        `estatus` es lo que la RUTA declara (D-FC-1 = A). No es la decision: la decision es
+        `asignar(prov, estatus)`, aqui y en ningun otro sitio, y con un proveedor que no es el Core
+        sale PROPUESTA pida lo que pida la ruta. Todo lo que el usuario ve pasa por `presentar`."""
+        e = asignar(prov, estatus)
+        self._en_modelo.discard(tid)
         if dominio:
             obs.log("CORE", "routing", f"dominio={dominio}", tid)
+        obs.log("CORE", "estatus", f"estatus={e.value}", tid, audit=True)
+        # Lo que ve y oye el usuario. La marca de propuesta la escribe el Core (D-FC-2 = B).
+        visible = presentar(say, e)
         destino = intencion.destino_de_memoria(text)
         if destino is not None:
             # **M-1, eje 2 (DP-D-M-7) + HISTORICO NO RECUPERABLE (CEO, 2026-09-09).** Antes la
@@ -1844,17 +2091,23 @@ class Orchestrator:
                 await self.memory.write(
                     uid, kind, f"usuario dijo: {text}", {"trace_id": tid, "fuente": "conversacion"}
                 )
+        # D-FC-8 = B: la captura de senales y la memoria ven SOLO el texto del usuario (arriba y aqui);
+        # el `say` del modelo no alimenta ninguna de las dos por ningun camino.
         await self._capturar_senales(uid, tid, text)
         buffer = self._dialogue.setdefault(uid, [])
-        buffer.append((text, say))
+        # Se guarda el say SIN marca y con su estatus: la etiqueta de contexto la pone
+        # `linea_de_contexto` al construir el prompt, y una marca duplicada no aportaria nada.
+        buffer.append((text, say, e))
         del buffer[: max(0, len(buffer) - self._DIALOG_N)]  # conserva las ultimas N (memoria de trabajo)
-        await self.voice.tts(say, tid)
+        await self.voice.tts(visible, tid)
         t.mark("tts")
         total = t.total_ms()
         obs.log("LAT", "orchestrator", f"latencia total {total:.1f} ms (proveedor={prov})", tid, audit=True)
         # `dominio` es ADITIVO: quien ya leia `provider` sigue leyendo lo mismo. Se declara siempre,
         # y vale "llm" cuando respondio el proveedor, para que no haya un hueco silencioso.
-        self._results[tid] = {"say": say, "provider": prov, "latency_ms": total,
-                              "marks": dict(t.marks), "dominio": dominio or ("llm" if prov != "core" else "")}
+        # `estatus` es igual de aditivo (D-FC-1): nadie que leyera las claves anteriores las pierde.
+        self._results[tid] = {"say": visible, "provider": prov, "latency_ms": total,
+                              "marks": dict(t.marks), "dominio": dominio or ("llm" if prov != "core" else ""),
+                              "estatus": e.value}
         if tid in self._done:
             self._done[tid].set()

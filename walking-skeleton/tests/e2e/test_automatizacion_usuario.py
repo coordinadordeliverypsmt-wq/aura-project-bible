@@ -31,6 +31,7 @@ from aura_skeleton.adapters.voice import VoiceAdapterMock
 from aura_skeleton.bus import InProcessEventBus
 from aura_skeleton.core.automatizacion import MotorAutomatizacion
 from aura_skeleton.core.ejecutor_reglas import EjecutorReglas
+from aura_skeleton.core.estatus import MARCA_PROPUESTA
 from aura_skeleton.core.orchestrator import Orchestrator
 from aura_skeleton.core.permissions import PermissionManager
 from aura_skeleton.core.registro import RegistroAdaptadores
@@ -584,7 +585,10 @@ async def test_frases_mundanas_con_marcador_de_cancelacion_no_secuestran_el_turn
         "Deja de llover.",
     ):
         say = await _decir(aura, frase)
-        assert say == "Entendido.", f"{frase!r} fue secuestrada por el nucleo de automatizaciones: {say!r}"
+        # D-FC-1/D-FC-2 (2026-09-13): la respuesta del proveedor es PROPUESTA y lleva la marca del Core.
+        assert say == f"{MARCA_PROPUESTA} Entendido.", (
+            f"{frase!r} fue secuestrada por el nucleo de automatizaciones: {say!r}"
+        )
 
 
 @pytest.mark.asyncio

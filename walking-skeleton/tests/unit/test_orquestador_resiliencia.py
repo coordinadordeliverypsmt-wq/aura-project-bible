@@ -7,6 +7,7 @@ import pytest
 from aura_skeleton.adapters.home_assistant import HomeAssistantMock
 from aura_skeleton.adapters.voice import VoiceAdapterMock
 from aura_skeleton.bus import InProcessEventBus
+from aura_skeleton.core.estatus import MARCA_PROPUESTA
 from aura_skeleton.core.orchestrator import Orchestrator
 from aura_skeleton.core.permissions import PermissionManager
 from aura_skeleton.modules.memory import SimpleMemory
@@ -61,7 +62,8 @@ async def test_json_con_texto_alrededor_se_extrae():
     await orch.handle_utterance("u", _ORDEN_QUE_LLEGA_AL_LLM, "T")
     res = await orch.wait("T")
     assert res["provider"] == "raw", "el turno no llego al LLM: la prueba no ejercita el parsing"
-    assert res["say"] == "Listo"
+    # D-FC-1/D-FC-2 (2026-09-13): un turno del modelo es PROPUESTA y lleva delante la marca del Core.
+    assert res["say"] == f"{MARCA_PROPUESTA} Listo"
 
 
 @pytest.mark.asyncio
@@ -74,5 +76,8 @@ async def test_claves_faltantes_usan_valores_seguros():
     # se atendió algo, y ante un `say` ausente el usuario no puede distinguir esa confirmación de una
     # respuesta real. Lo que se prueba aquí sigue siendo lo mismo —que el defecto seguro se aplica—;
     # lo que cambia es cuál es.
-    assert res["say"] == "No he sabido qué responder a eso.", "el valor seguro por defecto dejo de aplicarse"
+    # D-FC-1/D-FC-2 (2026-09-13): el turno lo cerro el proveedor, asi que lleva la marca de propuesta.
+    assert res["say"] == f"{MARCA_PROPUESTA} No he sabido qué responder a eso.", (
+        "el valor seguro por defecto dejo de aplicarse"
+    )
     assert "entendido" not in res["say"].lower(), "una confirmación no es una respuesta"

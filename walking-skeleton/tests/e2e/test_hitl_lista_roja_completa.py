@@ -42,6 +42,9 @@ async def test_toda_accion_roja_se_detiene(action):
         VoiceAdapterMock(),
         HomeAssistantMock(),
     )
-    await orch.handle_utterance("u", "x", "T")
+    # FRONTERA COGNITIVA (mandato §20, 2026-09-13): un turno cognitivo nunca llega al motor. «x» no pide
+    # ninguna accion; la garantia -una accion roja propuesta en la conversacion se detiene en HITL- se
+    # ejercita con una frase que SI la pide.
+    await orch.handle_utterance("u", "ejecuta la accion", "T")
     res = await orch.wait("T")
     assert "No ejecute" in res["say"], f"accion roja {action} NO fue detenida (falso negativo HITL)"

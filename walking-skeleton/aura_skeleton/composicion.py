@@ -31,7 +31,7 @@ from .adapters.voice import VoiceAdapterMock
 from .artefactos import ModelResolver
 from .bus import InProcessEventBus
 from .conectores.computador import ConectorComputador
-from .conectores.conversacion import ConectorConversacion
+from .conectores.conversacion import ConectorConversacion, es_declaracion_de_hecho_propio
 from .conectores.hogar import ConectorHogar
 from .contracts import Adapter, MemoryStore, ModelProvider, VoiceAdapter
 from .core.activation_context_builder import ActivationContextBuilder
@@ -58,6 +58,7 @@ from .core.registro import RegistroAdaptadores
 from .core.reglas import AlmacenReglas
 from .modules.memory import PersistentMemory
 from .modules.memory_semantic import SemanticMemory
+from .modules.providers_real import OllamaProvider
 from .modules.router import ModelRouter
 
 
@@ -146,6 +147,51 @@ def _memoria_por_nivel(estado: Estado, ruta: str) -> tuple[MemoryStore, str, str
     return PersistentMemory(ruta), "N1 (almacen minimo)", motivo
 
 
+def _timeout_proveedor_desde_entorno() -> tuple[int, str]:
+    """Lee `AURA_OLLAMA_TIMEOUT_S`, o usa el defecto que YA declara `OllamaProvider` (180s, D-FC-7:
+    prohibido cambiar el valor numerico). Se lee AQUI, no solo en el constructor del proveedor,
+    porque el defecto que `os.getenv` resuelve alli era invisible: `--verificar` no lo mostraba y el
+    timeout efectivo medido (900s, por `~/.profile`) no coincidia con nada que `Configuracion`
+    declarase. Un valor invalido falla explicito: un timeout mal escrito y silenciosamente ignorado
+    es el mismo patron "declarado != real" que este proyecto ya ha pagado 8 veces.
+    """
+    crudo = os.environ.get("AURA_OLLAMA_TIMEOUT_S")
+    if crudo is None:
+        return OllamaProvider.DEFAULT_TIMEOUT_S, "defecto_del_codigo"
+    try:
+        valor = int(crudo)
+    except ValueError as e:
+        raise ValueError(
+            f"AURA_OLLAMA_TIMEOUT_S={crudo!r} no es un entero valido; corrige la variable de entorno"
+        ) from e
+    if valor <= 0:
+        raise ValueError(f"AURA_OLLAMA_TIMEOUT_S={valor} debe ser positivo (segundos)")
+    return valor, "entorno:AURA_OLLAMA_TIMEOUT_S"
+
+
+#: VALOR OPERATIVO, no propiedad arquitectonica (regla del proyecto, CEO 2026-08-04): no hay forma de
+#: derivar formalmente cuanto tarda un Ollama local en recuperarse tras un fallo. 60s es una eleccion
+#: practica de partida, dependiente del hardware y de la causa del fallo; se recalibra con evidencia
+#: de uso real (§ formacion), nunca se publica como techo del sistema.
+_ENFRIAMIENTO_CIRCUITO_DEFECTO_S = 60.0
+
+
+def _enfriamiento_circuito_desde_entorno() -> tuple[float, str]:
+    """Analogo a `_timeout_proveedor_desde_entorno` para `AURA_CIRCUITO_ENFRIAMIENTO_S`."""
+    crudo = os.environ.get("AURA_CIRCUITO_ENFRIAMIENTO_S")
+    if crudo is None:
+        return _ENFRIAMIENTO_CIRCUITO_DEFECTO_S, "defecto_del_codigo"
+    try:
+        valor = float(crudo)
+    except ValueError as e:
+        raise ValueError(
+            f"AURA_CIRCUITO_ENFRIAMIENTO_S={crudo!r} no es un numero valido; corrige la variable de entorno"
+        ) from e
+    if valor <= 0:
+        raise ValueError(f"AURA_CIRCUITO_ENFRIAMIENTO_S={valor} debe ser positivo (segundos)")
+    return valor, "entorno:AURA_CIRCUITO_ENFRIAMIENTO_S"
+
+
 @dataclass
 class Configuracion:
     """Configuracion del arranque. Se lee del entorno; **no se edita codigo para cambiarla**.
@@ -167,6 +213,15 @@ class Configuracion:
     # (recursos vacios) -> las capacidades operan en su nivel minimo. La deteccion real de hardware es
     # una capacidad latente-prevista (DetectorPerfil): C1/C2 no la implementan; el perfil se inyecta.
     perfil: PerfilHardware = field(default_factory=PerfilHardware)
+    # Timeout del proveedor LLM (D-FC-7): declarado, no oculto en el constructor de `OllamaProvider`.
+    # `fuente_timeout_proveedor` distingue "vino de tu entorno" de "es el defecto del codigo" -- la
+    # ausencia de esa distincion fue exactamente por que un timeout de 900s (del `~/.profile` del
+    # usuario) parecia el defecto de 180s del codigo hasta que se midio.
+    timeout_proveedor_s: int = field(default_factory=lambda: _timeout_proveedor_desde_entorno()[0])
+    fuente_timeout_proveedor: str = field(default_factory=lambda: _timeout_proveedor_desde_entorno()[1])
+    # Enfriamiento del circuit breaker (D-FC-7). VALOR OPERATIVO, ver `_ENFRIAMIENTO_CIRCUITO_DEFECTO_S`.
+    enfriamiento_circuito_s: float = field(default_factory=lambda: _enfriamiento_circuito_desde_entorno()[0])
+    fuente_enfriamiento_circuito: str = field(default_factory=lambda: _enfriamiento_circuito_desde_entorno()[1])
 
     @classmethod
     def desde_entorno(cls) -> Configuracion:
@@ -194,6 +249,7 @@ class Sistema:
     materializaciones: tuple[Materializacion, ...]  # lo que se consiguio ENSAMBLAR
     ruta_memoria: str
     ruta_audit: str
+    config: Configuracion  # arranque: expone timeout/enfriamiento/fuente al informe (D-FC-7)
 
     @property
     def capacidades_activas_efectivas(self) -> tuple[str, ...]:
@@ -282,15 +338,33 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
     # --- Modelo y voz ------------------------------------------------------
     if config.usar_stack_real:
         from .adapters.voice_real import WhisperPiperVoice
-        from .modules.providers_real import OllamaProvider
 
-        proveedores: list[ModelProvider] = [OllamaProvider("ollama", config.modelo)]
+        # El timeout se pasa EXPLICITO (D-FC-7): `OllamaProvider` ya sabe leer su propio entorno,
+        # pero eso es justo lo que lo hacia invisible aqui. Pasarlo como argumento garantiza que el
+        # valor que se ejecuta es el mismo que `Configuracion` acaba de declarar y que `--verificar`
+        # va a mostrar -- una sola fuente de verdad, no dos lecturas del mismo entorno que podrian
+        # divergir si algo cambia la variable entre una y otra.
+        proveedores: list[ModelProvider] = [
+            OllamaProvider("ollama", config.modelo, timeout_s=config.timeout_proveedor_s)
+        ]
         voz: VoiceAdapter = WhisperPiperVoice(piper_voice=os.environ.get("AURA_PIPER_VOICE", ""))
     else:
         from .modules.router import MockProvider
 
         proveedores = [MockProvider("mock", 100, healthy=True)]
         voz = VoiceAdapterMock()
+    obs.log(
+        "BOOT",
+        "composicion",
+        f"proveedor LLM: stack={'real' if config.usar_stack_real else 'mock'} "
+        f"timeout={config.timeout_proveedor_s}s (fuente: {config.fuente_timeout_proveedor}); "
+        f"circuito: enfriamiento={config.enfriamiento_circuito_s}s "
+        f"(fuente: {config.fuente_enfriamiento_circuito}), "
+        "politica CERRADO -> [fallo] -> ABIERTO -> [enfriamiento] -> SEMIABIERTO -> "
+        "[UNA prueba] -> CERRADO o ABIERTO de nuevo",
+        "-",
+        audit=True,
+    )
 
     # --- Capacidades por perfil (C2, ADR-0021/D45/D46) ---------------------
     # El Capability Manager decide el estado de cada capacidad SOLO desde el PerfilHardware. La
@@ -395,7 +469,7 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
     orquestador = Orchestrator(
         InProcessEventBus(),
         memoria,
-        ModelRouter(proveedores, config.presupuesto_latencia_ms),
+        ModelRouter(proveedores, config.presupuesto_latencia_ms, enfriamiento_s=config.enfriamiento_circuito_s),
         permisos,
         voz,
         registro_adaptadores,
@@ -408,6 +482,10 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
         # estas bloqueada?" leen el MISMO almacen que expone `sistema.estado_operativo` y que
         # `--gobierno` ya publica -- nunca un segundo estado que pudiera divergir.
         estado_operativo=estado_operativo,
+        # «me llamo Mauricio» se acusa en el Core sin llamar al modelo (medido: 263 s con Ollama para
+        # un «Entendido.»). Se inyecta el MISMO criterio con el que la captura clasifica el hecho: una
+        # sola definicion, y `core` sigue sin importar `conectores`.
+        reconocer_declaracion=es_declaracion_de_hecho_propio,
         # Ciclo autonomo de AURORA (CEO, 2026-09-01): "¿en que estas trabajando?" se contesta con lo
         # que el motor autonomo REGISTRO, no con la memoria del usuario. Es un PUERTO opcional: si el
         # plano de control no esta -un despliegue del producto sin entorno de desarrollo-, la fuente
@@ -448,4 +526,5 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
         materializaciones=materializaciones,
         ruta_memoria=ruta_memoria,
         ruta_audit=ruta_audit,
+        config=config,
     )

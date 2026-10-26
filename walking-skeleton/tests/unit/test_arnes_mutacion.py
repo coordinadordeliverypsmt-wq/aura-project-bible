@@ -26,6 +26,19 @@ from herramientas import mutar
 from herramientas.mutar import ejecutar
 
 
+@pytest.fixture(autouse=True)
+def _copias_aisladas_en_el_tmp_de_pytest(tmp_path_factory, monkeypatch):
+    """Las copias aisladas del arnés (regla 6) caen en el tmp de pytest, que pytest retira, y no en el /tmp del
+    sistema. Medido 2026-10-25: al mutar el propio arnés, los mutantes que desactivan su limpieza (A3, AL-M8)
+    dejaban ~30 copias de juguete en /tmp por ejecución. Directorio HERMANO del proyecto de juguete, nunca hijo
+    (la guarda «copia dentro del proyecto» lo rechazaría). TMPDIR también para el arnés lanzado en subproceso."""
+    import tempfile
+
+    destino = tmp_path_factory.mktemp("copias-del-arnes")
+    monkeypatch.setenv("TMPDIR", str(destino))
+    monkeypatch.setattr(tempfile, "tempdir", str(destino))
+
+
 def _crear_proyecto_juguete(tmp_path: Path) -> None:
     """Mini-proyecto: un modulo con dos funciones y una prueba que cubre solo una de ellas.
 
@@ -351,15 +364,17 @@ def test_la_verificacion_de_restauracion_esta_viva(tmp_path, monkeypatch):
     """Si la restauracion fallara en silencio, el arnes dejaria el repositorio corrupto sin avisar."""
     _crear_proyecto_juguete(tmp_path)
     toml = _toml_de_un_mutante(tmp_path, "return a + b", "return 0")
-    real = Path.write_bytes
+    real = mutar._escribir_atomico
 
-    def sabotea_la_restauracion(self, datos):
-        # Deja pasar la escritura del mutante pero ignora la restauracion: simula un disco que miente.
-        if b"return 0" in datos:
-            return real(self, datos)
-        return len(datos)
+    def sabotea_la_restauracion(ruta, datos):
+        # Deja pasar la escritura del mutante (y el diario) pero ignora la restauracion: simula un disco que
+        # miente. Desde 2026-10-06 el arnes escribe con `_escribir_atomico` (temporal + os.replace), no con
+        # `Path.write_bytes`: el sabotaje va a esa costura para seguir ejercitando la verificacion.
+        if b"return 0" in datos or ruta.name == mutar._DIARIO:
+            return real(ruta, datos)
+        return None
 
-    monkeypatch.setattr(Path, "write_bytes", sabotea_la_restauracion)
+    monkeypatch.setattr(mutar, "_escribir_atomico", sabotea_la_restauracion)
     with pytest.raises(RuntimeError, match="restaurar"):
         ejecutar(str(toml), raiz=str(tmp_path))
 
@@ -408,13 +423,13 @@ def _crear_proyecto_que_cuelga(tmp_path: Path) -> None:
 
             def trabajo():
                 proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(20)"])
-                Path("pid_hijo.txt").write_text(str(proc.pid))
+                Path(RUTA_PID).write_text(str(proc.pid))
                 if condicion_de_parada():
                     return "listo"
                 while True:
                     pass  # bucle infinito real: reproduce el bug de motor-ciclo.toml M2/M3
             """
-        ),
+        ).replace("RUTA_PID", repr(str(tmp_path / "pid_hijo.txt"))),  # absoluta: pytest corre en una copia aislada
         encoding="utf-8",
     )
     tests_dir = tmp_path / "tests"
@@ -558,3 +573,251 @@ def test_timeout_s_del_toml_se_pasa_a_ejecutar_pytest(tmp_path, monkeypatch):
 
     assert capturados, "nunca se llamo a _ejecutar_pytest: la prueba de juguete no es valida"
     assert all(t == 12.5 for t in capturados), f"timeout_s del TOML no llego a _ejecutar_pytest: {capturados}"
+
+
+# --------------------------------------------------------------------------------------------
+# La mutacion NUNCA escribe en el arbol original (2026-10-25).
+#
+# Medido `[EJEC]`: el servicio `aura-receptor-nodos` (credencial real) carga 67 modulos del worktree, y el
+# despertador de AURORA importa el plano de control ANTES de comprobar PARADA. Una bateria muto en el sitio
+# `composicion.py` y `ejecutor_modelo_usuario.py`, que el receptor carga: un reinicio en esa ventana habria
+# arrancado produccion con un mutante. El arnes trabaja ahora sobre una COPIA aislada fuera del proyecto; el
+# arbol original solo se lee.
+
+
+def _huella(raiz: Path) -> dict[str, tuple[str, int]]:
+    """Contenido y mtime de cada fichero: «no se toco» exige las dos cosas (restaurar cambia el mtime)."""
+    import hashlib
+
+    return {
+        str(p.relative_to(raiz)): (hashlib.sha256(p.read_bytes()).hexdigest(), p.stat().st_mtime_ns)
+        for p in sorted(raiz.rglob("*"))
+        if p.is_file() and not ({"__pycache__", ".pytest_cache"} & set(p.parts))
+    }
+
+
+def _espiar_pytest(monkeypatch, original: Path, interrumpir_en: int | None = None) -> list[tuple[str, dict]]:
+    """Registra en que raiz corre cada pytest y como esta el arbol ORIGINAL en ese instante."""
+    vistas: list[tuple[str, dict]] = []
+    real = mutar._ejecutar_pytest
+
+    def espia(pruebas, raiz, timeout_s):
+        vistas.append((raiz, _huella(original)))
+        if interrumpir_en is not None and len(vistas) == interrumpir_en:
+            raise KeyboardInterrupt
+        return real(pruebas, raiz, timeout_s)
+
+    monkeypatch.setattr(mutar, "_ejecutar_pytest", espia)
+    return vistas
+
+
+def test_mientras_corre_el_mutante_el_arbol_original_no_cambia_ni_en_contenido_ni_en_mtime(tmp_path, monkeypatch):
+    _crear_proyecto_juguete(tmp_path)
+    toml = _toml_de_un_mutante(tmp_path, "return a + b", "return 0")
+    antes = _huella(tmp_path)
+    vistas = _espiar_pytest(monkeypatch, tmp_path)
+
+    resultado = ejecutar(str(toml), raiz=str(tmp_path))
+
+    assert resultado.detectados == 1, "control: el mutante se aplico (en algun sitio) y una prueba lo mato"
+    assert len(vistas) == 2, vistas  # base + mutante
+    assert all(huella == antes for _, huella in vistas), "el arbol original cambio mientras pytest corria"
+    assert _huella(tmp_path) == antes, "el arbol original quedo con otro contenido o mtime"
+
+
+def test_pytest_corre_en_una_copia_fuera_del_proyecto_que_se_borra_al_terminar(tmp_path, monkeypatch):
+    _crear_proyecto_juguete(tmp_path)
+    toml = _toml_de_un_mutante(tmp_path, "return a + b", "return 0")
+    vistas = _espiar_pytest(monkeypatch, tmp_path)
+
+    ejecutar(str(toml), raiz=str(tmp_path))
+
+    for raiz, _ in vistas:
+        assert not Path(raiz).resolve().is_relative_to(tmp_path.resolve()), f"pytest corrio dentro del proyecto: {raiz}"
+        assert Path(raiz).name == tmp_path.name, "la copia conserva el nombre del proyecto (rutas relativas)"
+    assert not any(Path(raiz).exists() for raiz, _ in vistas), "la copia aislada no se borro al terminar"
+
+
+def test_una_interrupcion_durante_el_mutante_no_toca_el_original_y_borra_la_copia(tmp_path, monkeypatch):
+    _crear_proyecto_juguete(tmp_path)
+    toml = _toml_de_un_mutante(tmp_path, "return a + b", "return 0")
+    antes = _huella(tmp_path)
+    vistas = _espiar_pytest(monkeypatch, tmp_path, interrumpir_en=2)
+
+    with pytest.raises(KeyboardInterrupt):
+        ejecutar(str(toml), raiz=str(tmp_path))
+
+    assert len(vistas) == 2, "control: la interrupcion llego con el mutante aplicado"
+    assert _huella(tmp_path) == antes
+    assert not (tmp_path / mutar._DIARIO).exists(), "el diario de la mutacion no pertenece al arbol original"
+    assert not Path(vistas[-1][0]).exists(), "la copia aislada no se borro tras la interrupcion"
+
+
+def test_en_un_repositorio_se_copia_el_proyecto_entero_sin_git(tmp_path, monkeypatch):
+    """Las pruebas reales leen ficheros hermanos (`entorno/`, `milestones/`): se copia la raiz del repositorio."""
+    proyecto = tmp_path / "repo"
+    sub = proyecto / "sub"
+    sub.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(proyecto)], check=True)
+    (proyecto / "hermano.txt").write_text("dato hermano", encoding="utf-8")
+    _crear_proyecto_juguete(sub)
+    (sub / "tests" / "test_hermano.py").write_text(
+        "from pathlib import Path\n\n\ndef test_ve_al_hermano():\n"
+        "    assert (Path.cwd().parent / 'hermano.txt').read_text() == 'dato hermano'\n",
+        encoding="utf-8",
+    )
+    toml = _escribir_toml(
+        sub,
+        """\
+        incremento = "juguete"
+        pruebas = ["tests/test_modulo_juguete.py", "tests/test_hermano.py"]
+
+        [[mutante]]
+        id = "M1"
+        garantia = "sumar suma"
+        fichero = "modulo_juguete.py"
+        buscar = '''return a + b'''
+        sustituir = '''return 0'''
+        """,
+    )
+    vistas: list[str] = []
+    real = mutar._ejecutar_pytest
+
+    def espia(pruebas, raiz, timeout_s):
+        vistas.append(raiz)
+        assert not (Path(raiz).parent / ".git").exists(), "la copia arrastro el .git del repositorio"
+        return real(pruebas, raiz, timeout_s)
+
+    monkeypatch.setattr(mutar, "_ejecutar_pytest", espia)
+    resultado = ejecutar(str(toml), raiz=str(sub))
+
+    assert resultado.base_verde and resultado.detectados == 1, resultado
+    assert vistas and all(Path(r).name == "sub" and Path(r).parent.name == "repo" for r in vistas), vistas
+
+
+def test_si_la_copia_cayera_dentro_del_proyecto_el_arnes_se_niega_sin_mutar_nada(tmp_path, monkeypatch):
+    """TMPDIR apuntando dentro del proyecto haria que la «copia aislada» viviera en el arbol: se rechaza."""
+    import tempfile
+
+    _crear_proyecto_juguete(tmp_path)
+    toml = _toml_de_un_mutante(tmp_path, "return a + b", "return 0")
+    dentro = tmp_path / "tmp-dentro"
+    dentro.mkdir()
+    antes = _huella(tmp_path)
+    real = tempfile.mkdtemp
+    monkeypatch.setattr(mutar.tempfile, "mkdtemp", lambda prefix=None: real(prefix=prefix, dir=str(dentro)))
+
+    with pytest.raises(RuntimeError, match="dentro del proyecto"):
+        ejecutar(str(toml), raiz=str(tmp_path))
+    assert _huella(tmp_path) == antes, "el arnes toco el proyecto aunque rechazo la copia"
+    assert list(dentro.iterdir()) == [], "el directorio rechazado no se retiro"
+
+
+@pytest.mark.parametrize("como", ["absoluto", "relativo_que_sale"])
+def test_un_fichero_declarado_fuera_de_la_raiz_no_se_muta_nunca(tmp_path, tmp_path_factory, como):
+    """`Path(raiz) / fichero` descarta la raiz si `fichero` es absoluto, y `../` sale de ella: la copia aislada no
+    protegeria nada (revision de seguridad 2026-10-25 (w), MEDIO). Se rechaza ANTES de leer o escribir."""
+    _crear_proyecto_juguete(tmp_path)
+    ajeno = tmp_path_factory.mktemp("fuera") / "ajeno.py"
+    ajeno.write_text("def sumar(a, b):\n    return a + b\n", encoding="utf-8")
+    huella_ajena = (ajeno.read_bytes(), ajeno.stat().st_mtime_ns)
+    fichero = str(ajeno) if como == "absoluto" else str(Path("..") / ajeno.parent.name / ajeno.name)
+    toml = _escribir_toml(
+        tmp_path,
+        f"""\
+        incremento = "juguete"
+        pruebas = ["tests/test_modulo_juguete.py"]
+
+        [[mutante]]
+        id = "M1"
+        garantia = "fuera de la raiz"
+        fichero = '''{fichero}'''
+        buscar = '''return a + b'''
+        sustituir = '''return 0'''
+        """,
+    )
+
+    resultado = ejecutar(str(toml), raiz=str(tmp_path))
+
+    assert [r.estado for r in resultado.resultados] == ["AMBIGUO"], resultado
+    assert "fuera de la raiz" in resultado.resultados[0].pruebas_que_fallaron
+    assert (ajeno.read_bytes(), ajeno.stat().st_mtime_ns) == huella_ajena, "se escribio un fichero fuera de la raiz"
+
+
+def test_al_arrancar_se_retiran_las_copias_huerfanas_y_solo_ellas(tmp_path):
+    """Un SIGKILL no ejecuta el `finally`: la copia queda. El siguiente arranque retira las copias cuyo arnes dueño
+    ya no existe; nunca la de un arnes vivo ni un directorio sin marca de dueño (revision de codigo, MEDIO)."""
+    import json
+    import tempfile
+
+    temporal = Path(tempfile.gettempdir())
+    muerto = subprocess.Popen(["true"])
+    muerto.wait()
+
+    def copia(nombre: str, dueno: int | None) -> Path:
+        d = temporal / f"{mutar._PREFIJO_COPIA}{nombre}"
+        (d / "proyecto").mkdir(parents=True)
+        if dueno is not None:
+            campos = mutar._estado_proc(dueno)
+            inicio = campos[19] if campos and len(campos) > 19 else "0"
+            (d / mutar._MARCA_DUENO).write_text(json.dumps({"pid": dueno, "inicio": inicio}), encoding="utf-8")
+        return d
+
+    huerfana, viva, sin_marca = copia("huerfana", muerto.pid), copia("viva", os.getpid()), copia("sin-marca", None)
+    _crear_proyecto_juguete(tmp_path)
+
+    ejecutar(str(_toml_de_un_mutante(tmp_path, "return a + b", "return 0")), raiz=str(tmp_path))
+
+    assert not huerfana.exists(), "la copia huerfana (dueño muerto) no se retiro"
+    assert viva.exists(), "se retiro la copia de un arnes vivo"
+    assert sin_marca.exists(), "se retiro un directorio sin marca de dueño"
+
+
+def test_sin_git_se_copia_la_raiz_pedida_y_el_arnes_sigue(tmp_path, monkeypatch):
+    real = mutar.subprocess.run
+
+    def sin_git(argv, *a, **k):
+        if argv and argv[0] == "git":
+            raise FileNotFoundError("git")
+        return real(argv, *a, **k)
+
+    monkeypatch.setattr(mutar.subprocess, "run", sin_git)
+    _crear_proyecto_juguete(tmp_path)
+    resultado = ejecutar(str(_toml_de_un_mutante(tmp_path, "return a + b", "return 0")), raiz=str(tmp_path))
+    assert resultado.base_verde and resultado.detectados == 1, resultado
+
+
+def test_control_un_fichero_hermano_dentro_del_repositorio_copiado_si_se_muta(tmp_path):
+    """Control de la contencion: `../x` es legitimo si sigue DENTRO del repositorio copiado (p. ej. los mutantes de
+    `../entorno/scripts/voz-usb.sh` desde walking-skeleton). El limite es la copia, no la raiz pedida."""
+    proyecto = tmp_path / "repo"
+    sub = proyecto / "sub"
+    sub.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(proyecto)], check=True)
+    (proyecto / "modulo_hermano.py").write_text("def sumar(a, b):\n    return a + b\n", encoding="utf-8")
+    (sub / "tests").mkdir()
+    (sub / "tests" / "test_hermano.py").write_text(
+        "import sys\nfrom pathlib import Path\n\nsys.path.insert(0, str(Path.cwd().parent))\n"
+        "from modulo_hermano import sumar\n\n\ndef test_suma():\n    assert sumar(2, 3) == 5\n",
+        encoding="utf-8",
+    )
+    toml = _escribir_toml(
+        sub,
+        """\
+        incremento = "juguete"
+        pruebas = ["tests/test_hermano.py"]
+
+        [[mutante]]
+        id = "M1"
+        garantia = "el hermano suma"
+        fichero = '''../modulo_hermano.py'''
+        buscar = '''return a + b'''
+        sustituir = '''return 0'''
+        """,
+    )
+    original = (proyecto / "modulo_hermano.py").read_bytes()
+
+    resultado = ejecutar(str(toml), raiz=str(sub))
+
+    assert [r.estado for r in resultado.resultados] == ["detectado"], resultado
+    assert (proyecto / "modulo_hermano.py").read_bytes() == original

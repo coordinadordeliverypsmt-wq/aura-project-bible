@@ -1,0 +1,6 @@
+feat(nucleo): runtime de aura_skeleton (CM2, receptor y nodos, voz, cognicion local, memoria declarativa)
+
+Nucleo indivisible: el receptor (python3 -m aura_skeleton --receptor-nodos) y el cron de CM2 entran por aura_skeleton.__main__ (cierre de 85 ficheros). Incluye reloj_cm2, receptor_nodos, nodos, sus pruebas y mutaciones, entorno/nodos y los scripts de voz. Particion verificada: PROPUESTA-PARTICION-INTEGRACION.md §8 (commit 1 de 7).
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_018FPxs18b7xW6kGYPWppnL1

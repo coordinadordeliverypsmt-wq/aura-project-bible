@@ -1,0 +1,29 @@
+==> PREFLIGHT CHECK — entorno AURA — 2026-10-26 14:27:59
+
+-- Almacenamiento USB --
+  [ OK ] USB detectado: /dev/sdb1 (label AURORA_EXT)
+  [ OK ] USB montado en: /media/majo1230/AURORA_EXT
+  [ OK ] Punto de montaje coincide con el esperado
+  [ OK ] USB escribible por majo1230
+
+-- Espacio disponible --
+  [ OK ] Disco interno: 4G libres (min 2G)
+  [ OK ] USB: 2G libres (min 1G)
+
+-- Ollama --
+  [ OK ] Ollama en ejecucion (PID 1130)
+  [ OK ] Modelos en el USB (verificado por dispositivo: /dev/sdb1)
+  [ OK ] Sin modelos duplicados en disco interno
+
+-- Swap --
+  [ OK ] Swap activo en USB: /media/majo1230/AURORA_EXT/.swap/swapfile_aurora
+  [ OK ] Swap comprimido en RAM: /dev/zram0 (no es disco)
+
+-- Hooks del proyecto --
+  [ OK ] pre-push activo (Quality Gate obligatorio antes de publicar)
+
+======================================================
+ESTADO: APTO
+======================================================
+
+PREFLIGHT_EXIT=0

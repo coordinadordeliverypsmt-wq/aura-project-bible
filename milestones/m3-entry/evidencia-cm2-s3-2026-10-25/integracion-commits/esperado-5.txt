@@ -1,0 +1,9 @@
+entorno/control-plane/aura.py
+entorno/control-plane/control_plane.py
+entorno/control-plane/.gitignore
+entorno/control-plane/motor_autonomia.py
+entorno/control-plane/mutaciones/reanudacion-tras-caida.toml
+entorno/control-plane/planificador.py
+entorno/control-plane/test_red_reanudacion_tras_caida.py
+walking-skeleton/mutaciones/f1-orquestador.toml
+walking-skeleton/mutaciones/motor-autonomia.toml

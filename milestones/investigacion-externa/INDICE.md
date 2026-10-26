@@ -37,6 +37,8 @@ relacionadas: [IE-…]
 ## Licencia y precauciones
 ```
 
+**Uso ante un defecto difícil:** ver [`PROCEDIMIENTO-DEFECTO-DIFICIL.md`](PROCEDIMIENTO-DEFECTO-DIFICIL.md) (13 pasos; la base orienta y **no** autoriza cambios).
+
 ## Índice por área
 
 | ID | Repositorio | Área | Estado | Decisión en una línea |
@@ -92,6 +94,18 @@ Síntesis, matriz y diseño: `SINTESIS-2026-10-22-DVR-AGENTES-CAMARAS.md`.
 |---|---|---|---|---|
 | IE-030 | SharpAI/DeepCamera | camaras-moviles | investigado | ADAPTAR solo el contrato de evento (procedencia, `retriable`, p95). Facial/ReID/nube descartados (Decisión B, D24). MIT |
 | IE-031 | crazyrob425/aistalker | camaras-moviles | descartado | Reconocimiento facial + seguimiento de personas: contraejemplo exacto de la Decisión B. GPL-3.0 |
+| IE-032 | Louis-CFM/coucou | herramientas-de-desarrollo | prototipo-aislado-futuro | Supervisión de sesiones de Claude Code: hooks globales que reenvían toda la sesión y aprobación de un clic sin lista roja. No en el equipo real; prototipo aislado solo con acta y 9 controles; patrones reutilizables. MIT (marca reservada) |
+| IE-033 | yujinrobot/korus | robotica | descartado | ROS1 Hydro/Indigo, Python 2, abandonado desde 2015, sin licencia y con dependencias privadas; no gestiona nodos de cómputo; no hay robótica en el cronograma |
+| IE-034 | hexo-ai/sia | asistentes (auto-mejora) | descartado como código | Sin compuerta entre generaciones y `bypassPermissions` en el host. Lección: la métrica de aceptación no puede estar al alcance de quien propone (HAL-034-1, contrastado en AURA: brecha de defensa en profundidad, MEDIA). MIT |
+| IE-035 | A-EVO-Lab/a-evolve | asistentes (auto-mejora) | descartado | Compuerta que acepta sin datos retenidos; issue de seguridad #28 abierta; sin fichero LICENSE. Referencia: rollback como commit nuevo |
+| IE-036 | ANative-Lab/EvoAgentX | asistentes (auto-mejora) | descartado | `bash -c` con lista negra por regex; el HITL inactivo se autoaprueba; issues de seguridad abiertas. MIT |
+| IE-037 | selfimproving-agent/Awesome-Self-Improving-Agents | asistentes (bibliografía) | referencia | Lista curada con 15 entradas pertinentes **sin verificar**; contiene enlaces erróneos y no es fuente primaria. Leer CTIM-Rover antes de cualquier DP de memoria de experiencias (HAL-037-1). MIT |
+| IE-038 | Tencent-Hunyuan/Hy-Memory | asistentes (memoria) | no adoptar el motor | Usa nube por defecto (claves DeepSeek y DashScope) y deja que el LLM decida las contradicciones (contra ADR-0014). Referencia: esquema hecho↔experiencia con procedencia (HAL-038-1, MEDIA). Apache-2.0 |
+| IE-039 | dp-web4/SAGE | asistentes (memoria) | adaptar solo la idea | Consolidación determinista con procedencia (fuentes con sha256 y versiones `vN` con `supersedes`, sin borrar), HAL-039-1, ALTA. **AGPL-3.0 y PATENTS no comercial: no copiar código** |
+| IE-040 | microsoft/agent-governance-toolkit | redes-seguridad | referencia | `allow` por defecto sin políticas; mTLS acepta un certificado autofirmado sin registro. Encontró una **brecha confirmada en AURA**: borrar la cola del log no se detecta (HAL-040-2, `[EJEC-AURA]`, deuda, requiere DP). MIT |
+| IE-041 | agent-passport-system/agent-passport-system | redes-seguridad | adaptar ideas | Catálogo de rechazos «firma válida, afirmación inválida» (HAL-041-1) y vínculo tarea↔resultado obligatorio (HAL-041-2), para la delegación. Gateway fuera del repositorio. Apache-2.0 |
+| IE-042 | oxdeai/oxdeai | redes-seguridad | adaptar el patrón | Guard que falla cerrado; campos mínimos de la orden firmada (HAL-042-1); verificador sin modo permisivo (HAL-042-2). Ojo: su `verifyAuthorization` es permisivo por defecto. Apache-2.0 |
+| IE-043 | aws-samples/sample-agentstorming (threat-model.md) | redes-seguridad | adoptar el método | Método de modelo de amenazas y verificación de órdenes firmadas sobre los bytes exactos, con frescura y monotonía (HAL-043-1); SO_PEERCRED para el firmador (HAL-043-3). Ejemplo sin pentest. MIT-0 |
 
 ## Candidatas pendientes (ordenadas; ninguna se construye sin DP o decisión)
 

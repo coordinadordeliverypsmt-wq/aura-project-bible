@@ -1,0 +1,6 @@
+feat(arnes): mutacion en copia aislada (regla 6) y registro del Quality Gate
+
+Arnes de mutacion que nunca muta el worktree: copia aislada, contencion de 'fichero', retirada de copias huerfanas. Registro estructurado del gate. Incluye el rename ya preparado de arnes-validador-comandos.toml a retiradas/. Particion verificada: PROPUESTA-PARTICION-INTEGRACION.md §8 (commit 3 de 7, ejecutado primero para conservar el staging previo).
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_018FPxs18b7xW6kGYPWppnL1

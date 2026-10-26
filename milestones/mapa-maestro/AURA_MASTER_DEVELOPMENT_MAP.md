@@ -938,3 +938,33 @@ botella es ahora el STT (Whisper base ≈ 5,5 s por turno en HC-1). Mejorar no e
   verificación publicada. Cierra `resultado_ambiguo` cuando se apruebe. Evaluado ENCAJA CON CONDICIONES, incorporadas.
 - **Delegación a nodos:** criterios de aceptación y prerrequisitos definidos; `DP-NODO-01` intacto.
 - **Orden del §16:** sin cambios. **S3 sigue abierto.**
+
+### 2026-10-26 (n) · Integración ejecutada en la rama de trabajo (7 commits, sin merge)
+
+- **Commits:** `ac64b9c`, `81a0d57`, `646a9ce`, `7c4af11`, `9f13935`, `9f238d6` y `bf13a47` sobre `6dad6af`.
+- **Validación:** cada instantánea por separado, sin fallos nuevos. La final con **QG PASS 3842**, preflight APTO y
+  control-plane en vivo 1433/0.
+- **Auditoría:** independiente, CONSISTENTE. Registros reales no integrados.
+- **Sin merge a main ni push:** pendiente de autorización.
+- **DP de `autoconstruccion`:** diseño completo y revisado, sin implementar.
+- **Delegación:** propuesta con requisitos de seguridad. `DP-NODO-01` intacto.
+- **Orden del §16:** sin cambios. **S3 sigue abierto.**
+
+### 2026-10-26 (o) · Investigación externa IE-032 (Coucou) e IE-033 (KORUS): sin cambio de cronograma
+
+- **Coucou:** prototipo aislado futuro, solo con acta; no en el equipo real.
+- **KORUS:** descartado.
+- **Orden del §16 sin cambios:** no se crea ningún hito nuevo ni ninguna línea de robótica. **S3 sigue abierto.**
+
+### 2026-10-26 (p) · Base de conocimiento de ingeniería (IE-034..IE-043) y consolidación de diseños, sin cambio de cronograma
+
+- **Base y procedimiento:** 10 fichas nuevas con SHA fijado, auditoría de evidencia APTO, y el procedimiento
+  «defecto difícil» (la base orienta y no autoriza).
+- **Hallazgos sobre AURA:**
+  - **Deuda `D-LOG-1`** (cola del log sin ancla, confirmada ejecutando en copia).
+  - HAL-034-1: brecha de defensa en profundidad, MEDIA.
+- **DP sin implementar:**
+  - `autoconstruccion`, con la cobertura D1-D3 completa;
+  - delegación, con STRIDE formal y 5 ALTOS abiertos.
+- **Integración:** 7 commits verificados documentalmente, sin merge.
+- **Orden del §16 sin cambios. S3 sigue abierto.**

@@ -1,0 +1,6 @@
+docs: DP, mapa maestro, capacidades, checkpoint, checklist, gobierno y panel de progreso
+
+Decision Packages (recuperacion tras caidas, autoconstruccion, delegacion a nodos), propuesta de particion, mapa maestro y capacidades.json, CHECKPOINT y CHECKLIST, CLAUDE.md y .claude/{agents,rules}, panel de progreso con sus pruebas, y scripts de entorno restantes. Particion verificada: PROPUESTA-PARTICION-INTEGRACION.md §8 (commit 7 de 7).
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_018FPxs18b7xW6kGYPWppnL1

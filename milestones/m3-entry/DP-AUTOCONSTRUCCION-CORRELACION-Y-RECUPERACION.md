@@ -317,3 +317,46 @@ nuevo dejó `completada` por recuperación vuelven a verse `resultado_ambiguo`.
 
 Todas se suman a los criterios del §11.8, cuyo criterio 5 se amplía con los logs sintéticos.
 
+
+## 13. Matriz de cobertura frente a los requisitos del CEO (2026-10-26) y estados de D2
+
+**Estado del documento:** diseño completo y revisado dos veces (§10 y §12). **No implementado ni autorizado.** Haber
+documentado D1, D2 y D3 **no** autoriza a implementarlos.
+
+### 13.1 D2: los cuatro estados que pide el CEO
+
+La verificación **precede** a la promoción por construcción: la promoción solo se alcanza si pasa la guarda `if not (efecto and sano)` (L1301-1308; la llamada a
+`_promover_si_procede`, que invoca a `_promover` (L1042), está en L1313), y el diario solo pasa a `promovido` (L1078)
+después de releer el vivo (L1066-1068). Por eso «verificación
+pendiente» **no es un estado del vivo**, sino de una promoción interrumpida **antes** de quedar registrada. Ninguna caída
+convierte una verificación desconocida en una satisfactoria.
+
+| Estado pedido | Qué es en el diseño | Cómo se observa | Desenlace |
+|---|---|---|---|
+| **Promoción realizada** | Diario `promovido` **con** la verificación real copiada (I3) | Diario en disco y, cuando se registra, `cambio_aplicado{tarea, intento, recuperado?}` | Recuperar → **verificación confirmada** |
+| **Verificación pendiente** | Diario `preparado` (vivo a medio promover), o `promovido` **sin** los campos de verificación (diario anterior al contrato) | `recuperar()` en el motor antes de planificar; el motor para con «recuperacion pendiente» si hay bloqueo u ocupación | `preparado` → se **restaura** el original → `interrumpida_reintentable`. Sin campos → **resultado ambiguo** |
+| **Verificación confirmada** | `cambio_aplicado` con `efecto_verificado is True`, `verificacion_sana is True` y `revertido is False`, ya sea normal o recuperado | `estado_de` → `completada` (monótona) | Fin |
+| **Resultado ambiguo** | `cambio_aplicado` sin la verificación completa (`verificacion_no_registrada: true`), o un diario inválido (BLOQUEO) | `estado_de` → `resultado_ambiguo`; o `promociones_bloqueadas` | No elegible. **Requiere a una persona.** Nunca se reintenta automáticamente |
+
+**Idempotencia** (I2): por cada `(tarea, intento)`, como mucho un `cambio_aplicado`. El diario se borra **después** de
+`recuperacion_al_arranque`. Recuperar dos veces no duplica (R3).
+
+### 13.2 Cobertura de cada requisito
+
+| Requisito del CEO | Sección |
+|---|---|
+| D1 · `cambio_aplicado` identifica tarea e intento | §2 pieza 1-2; I1 (§11.2), acotado a la vía `review`/motor y con `ciclo()` marcado `via:"ciclo"` (§12) |
+| D1 · prohibido atribuir por orden | I1, I5 y §2 pieza 4; mutante «volver a atribuir por orden» (§5.10) |
+| D1 · contrato de eventos antiguos y nuevos | §4, I5, §11.6 (sin migración, recorrido de solo lectura del log real más logs sintéticos, §12) |
+| D2 · el diario registra la verificación real | §2 pieza 3 (valores **reales**, C1), I3 |
+| D2 · una caída no convierte lo desconocido en satisfactorio | I3 y §13.1 (sin campos → `resultado_ambiguo`) |
+| D2 · los cuatro estados | §13.1 |
+| D2 · sin duplicación al recuperar | I2, §11.4 y R3 (§12.2) |
+| D3 · un único mecanismo de sincronización compatible | §2 pieza 6: `registrar_evento_si` + `derivar`, sin primitiva nueva (C5); I4 |
+| D3 · carreras y pruebas deterministas | R1 con pausa inyectada entre leer y añadir, y control mutante que colisiona **siempre** (§12.2) |
+| D3 · caída entre asignar y persistir | §12: el cálculo solo existe en memoria y el cerrojo muere con el proceso, así que no queda número huérfano. El cerrojo garantiza la **unicidad**, no la recuperación |
+| Invariantes, transiciones, idempotencia y rollback | §11.2, §12.1, §11.4 y §11.7 |
+| Criterios de aceptación y pruebas de carrera | §11.8 y §12.2 (incluidos C1, C3, C4 e I1 `ciclo`) |
+
+**Defectos documentales corregidos en esta revisión:** ninguno en las secciones existentes. Se añade esta matriz, que
+hace explícitos los cuatro estados de D2, que antes solo estaban implícitos en el §3 y el §12.1.

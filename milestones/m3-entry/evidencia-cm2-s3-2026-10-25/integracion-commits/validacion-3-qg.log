@@ -1,0 +1,200 @@
+commit 3 ac64b9c9bdd634fd7702e8ddba4b493ce6a97623 exportado en /home/majo1230/.claude/jobs/d6cb894c/tmp/integracion/export-3-dxx8
+
+==> 1/5 Formato (ruff format --check)
+Would reformat: aura_skeleton/adapters/estado_autonomo_cp.py
+Would reformat: aura_skeleton/core/almacen_senales.py
+Would reformat: aura_skeleton/core/aritmetica.py
+Would reformat: aura_skeleton/core/autorizacion.py
+Would reformat: aura_skeleton/core/decisiones.py
+Would reformat: aura_skeleton/core/ejecutor_modelo_usuario.py
+Would reformat: aura_skeleton/core/ejecutor_reglas.py
+Would reformat: aura_skeleton/core/estado_autonomo.py
+Would reformat: aura_skeleton/core/intencion.py
+Would reformat: aura_skeleton/core/modelo_usuario.py
+Would reformat: aura_skeleton/core/orchestrator.py
+Would reformat: aura_skeleton/core/permissions.py
+Would reformat: aura_skeleton/core/reglas.py
+Would reformat: aura_skeleton/modules/memory.py
+Would reformat: aura_skeleton/modules/providers_real.py
+Would reformat: tests/integration/test_aritmetica_determinista.py
+Would reformat: tests/integration/test_autorizacion_conversacional.py
+Would reformat: tests/integration/test_routing_dominios.py
+Would reformat: tests/integration/test_ui_limpia_y_estado_autonomo.py
+Would reformat: tests/unit/test_cognicion_local.py
+Would reformat: tests/unit/test_contrato_cognitivo.py
+Would reformat: tests/unit/test_conversacion_natural_local.py
+Would reformat: tests/unit/test_f2_kill_switch_universal.py
+Would reformat: tests/unit/test_f3_catalogo_sujeto.py
+Would reformat: tests/unit/test_f3_clase_soberania.py
+Would reformat: tests/unit/test_f4_reglas_y_senales.py
+Would reformat: tests/unit/test_f4_soberania_por_el_motor.py
+Would reformat: tests/unit/test_frontera_cognitiva.py
+Would reformat: tests/unit/test_g1_ruta_unica.py
+Would reformat: tests/unit/test_g7_lapida_append_only.py
+Would reformat: tests/unit/test_garantias_motor_unico.py
+Would reformat: tests/unit/test_garantias_vigentes.py
+Would reformat: tests/unit/test_hecho_declarado_sin_llm.py
+Would reformat: tests/unit/test_hechos_posesivos_generales.py
+Would reformat: tests/unit/test_historico_no_recuperable.py
+Would reformat: tests/unit/test_kill_switch_soberania.py
+Would reformat: tests/unit/test_m1_clasificacion_intencion.py
+Would reformat: tests/unit/test_modelo_usuario.py
+Would reformat: tests/unit/test_modelo_usuario_mvp.py
+Would reformat: tests/unit/test_parada_escritura_pasiva.py
+Would reformat: tests/unit/test_reglas.py
+Would reformat: tests/unit/verificador_g1.py
+42 files would be reformatted, 154 files already formatted
+  [FAIL] formato
+
+==> 2/5 Analisis estatico (ruff check)
+All checks passed!
+  [ OK ] lint
+
+==> 3/5 Tipado (mypy)
+aura_skeleton/core/estado_autonomo.py:107: error: Name "partes" already defined on line 91  [no-redef]
+aura_skeleton/composicion.py:426: error: Argument 1 to "registrar" of "RegistroAdaptadores" has incompatible type "EjecutorModeloUsuario"; expected "Adapter"  [arg-type]
+aura_skeleton/composicion.py:426: note: Following member(s) of "EjecutorModeloUsuario" have conflicts:
+aura_skeleton/composicion.py:426: note:     capabilities: expected "list[str]", got "tuple[str, str, str]"
+aura_skeleton/composicion.py:434: error: Argument 1 to "registrar" of "RegistroAdaptadores" has incompatible type "EjecutorReglas"; expected "Adapter"  [arg-type]
+aura_skeleton/composicion.py:434: note: Following member(s) of "EjecutorReglas" have conflicts:
+aura_skeleton/composicion.py:434: note:     capabilities: expected "list[str]", got "tuple[str]"
+Found 3 errors in 2 files (checked 68 source files)
+  [FAIL] tipado
+
+==> 4/5 Pruebas (pytest: unit/integration/e2e/performance)
+..................................s..................................... [  3%]
+........................................................................ [  7%]
+........................................................................ [ 10%]
+........................................................................ [ 14%]
+........................................................................ [ 18%]
+........................................................................ [ 21%]
+........................................................................ [ 25%]
+......................................................................F. [ 29%]
+........................................................................ [ 32%]
+........................................................................ [ 36%]
+........................................................................ [ 40%]
+........................................................................ [ 43%]
+........................................................................ [ 47%]
+........................................................................ [ 50%]
+........................................................................ [ 54%]
+........................................................................ [ 58%]
+........................................................................ [ 61%]
+........................................................................ [ 65%]
+........................................................................ [ 69%]
+........................................................................ [ 72%]
+........................................................................ [ 76%]
+...........................................................F............ [ 80%]
+........................................................................ [ 83%]
+........................................................................ [ 87%]
+........................................................................ [ 91%]
+........................................................................ [ 94%]
+........................................................................ [ 98%]
+..................................                                       [100%]
+=================================== FAILURES ===================================
+_____ test_e2e_una_tarea_que_falla_siempre_no_detiene_el_resto_del_backlog _____
+
+tmp_path = PosixPath('/tmp/pytest-of-majo1230/pytest-1263/test_e2e_una_tarea_que_falla_s0')
+
+    @pytest.mark.asyncio
+    async def test_e2e_una_tarea_que_falla_siempre_no_detiene_el_resto_del_backlog(tmp_path):
+        """E2E exigida por el acta (condición 9), sobre el sistema COMPUESTO y su latido real.
+    
+        Una tarea cuyo responsable no tiene ejecutor falla en CADA intento -es el modo de fallo más
+        reproducible que existe-. El resto del backlog debe terminarse igualmente, y el ciclo debe
+        detenerse por falta de trabajo, no por girar sobre la tarea rota.
+        """
+        from aura_skeleton.composicion import Configuracion, componer
+    
+        cfg = Configuracion(datos=str(tmp_path), raices_permitidas=(str(tmp_path),), usar_stack_real=False)
+        s = componer(cfg)
+        s.estado_operativo.registrar(
+            Tarea(objetivo_id="obj", tarea_id="t-rota", descripcion="sin ejecutor", responsable="inexistente")
+        )
+        # `diagnostico` y no `auditor`: el auditor mide las garantías REALES del repositorio, así que un
+        # mutante desapuntado en cualquier arnés hacía fallar esta prueba por una razón ajena -pasó, y
+        # AURORA hizo lo correcto: detectó las garantías rotas y bloqueó la tarea-. El diagnóstico no
+        # depende del estado del repo, así que aquí mide lo que dice medir.
+        s.estado_operativo.registrar(
+            Tarea(objetivo_id="obj", tarea_id="t-sana", descripcion="diagnosticar", responsable="diagnostico")
+        )
+        buzon = AlmacenDecisiones(str(tmp_path / "decisiones"))
+        buzon.solicitar("proponer_cambio", {"t": "t-rota"}, "efecto", "tr:t-rota")
+        buzon.aprobar(huella_de("proponer_cambio", {"t": "t-rota"}, "efecto"))
+    
+        await s.motor_ciclo.correr("obj", max_latidos=20)
+    
+        tareas = {t.tarea_id: t for t in s.estado_operativo.tareas("obj")}
+>       assert tareas["t-sana"].estado == "terminada", "el trabajo sano no salió adelante"
+E       AssertionError: el trabajo sano no salió adelante
+E       assert 'bloqueada' == 'terminada'
+E         
+E         - terminada
+E         + bloqueada
+
+tests/integration/test_limite_reintentos.py:209: AssertionError
+----------------------------- Captured stderr call -----------------------------
+  [BOOT ] composicion    trace=- proveedor LLM: stack=mock timeout=900s (fuente: entorno:AURA_OLLAMA_TIMEOUT_S); circuito: enfriamiento=60.0s (fuente: defecto_del_codigo), politica CERRADO -> [fallo] -> ABIERTO -> [enfriamiento] -> SEMIABIERTO -> [UNA prueba] -> CERRADO o ABIERTO de nuevo audit=True
+  [BOOT ] composicion    trace=- capacidades (estado EFECTIVO): activas=[] degradadas=['memoria'] latentes=[]; memoria -> N1 (almacen minimo) audit=True
+  [AUTO ] estado-autonomo trace=- sin plano de control: ausente
+  [BOOT ] composicion    trace=- AURA lista: 21 capacidades, 3 fuentes de contexto, stack=mock audit=True
+  [EST  ] estado-operativo trace=- t-rota -> abierta audit=True
+  [EST  ] estado-operativo trace=- t-sana -> abierta audit=True
+  [EST  ] estado-operativo trace=- t-rota -> bloqueada audit=True
+  [EST  ] estado-operativo trace=- auto-5d22fda5ff78 -> abierta audit=True
+  [EST  ] estado-operativo trace=- t-rota -> abierta audit=True
+  [CICLO] motor-ciclo    trace=- 1 tarea(s) reabiertas por decision del CEO audit=True
+  [AUTO ] ejecutor       trace=- [director:programador] DETENIDA proponer_cambio: dry-run no viable: un cambio necesita fichero y patron a sustituir audit=True
+  [EST  ] estado-operativo trace=- auto-5d22fda5ff78 -> bloqueada audit=True
+  [EST  ] estado-operativo trace=- t-rota -> bloqueada audit=True
+  [EST  ] estado-operativo trace=- t-rota -> abierta audit=True
+  [CICLO] motor-ciclo    trace=- 1 tarea(s) reabiertas por decision del CEO audit=True
+  [EST  ] estado-operativo trace=- t-rota -> bloqueada audit=True
+  [EST  ] estado-operativo trace=- t-rota -> bloqueada audit=True
+  [AUDIT] permissions    trace=- lista verde diagnosticar_estado -> auto-ejecucion audit=True
+  [AUDIT] ejecutor-auditor trace=- garantias: 1076/1084 vigentes audit=True
+  [DIAG ] ejecutor-diagnostico trace=- estado: con incidencias audit=True
+  [AUTO ] ejecutor       trace=- [director:diagnostico] ejecuto diagnosticar_estado audit=True
+  [EST  ] estado-operativo trace=- t-sana -> bloqueada audit=True
+  [EST  ] estado-operativo trace=- auto-6247a13eab4c -> abierta audit=True
+  [AUTO ] ejecutor       trace=- [director:programador] DETENIDA proponer_cambio: dry-run no viable: un cambio necesita fichero y patron a sustituir audit=True
+  [EST  ] estado-operativo trace=- auto-6247a13eab4c -> bloqueada audit=True
+  [CICLO] motor-ciclo    trace=- corrida terminada: 6 tarea(s) atendidas audit=True
+_____________ test_todas_las_garantias_declaradas_siguen_vigentes ______________
+
+    def test_todas_las_garantias_declaradas_siguen_vigentes():
+        r = auditar_garantias(_RAIZ)
+    
+>       assert r["ok"], (
+            f"{len(r['rotas'])} de {r['declaradas']} garantias declaradas ya NO protegen nada:\n"
+            + "\n".join(f"  · {x['mutante']}: {x['problema']} — {x['detalle']}" for x in r["rotas"])
+            + "\n\nAmplia el patron `buscar` hasta que vuelva a coincidir y sea unico."
+        )
+E       AssertionError: 8 de 1084 garantias declaradas ya NO protegen nada:
+E           · codigo-muerto-completo.toml:CMC-M11: AUSENTE — el patron ya no aparece
+E           · cp-estado-defectos.toml:EDF-M6: AUSENTE — el patron ya no aparece
+E           · cp-g3-ciclo-de-vida.toml:G3-M2: AUSENTE — el patron ya no aparece
+E           · d-orch-2-autoconstruccion.toml:AC-M10: AUSENTE — el patron ya no aparece
+E           · dr-f-3d-2-veracidad.toml:V-M4: AUSENTE — el patron ya no aparece
+E           · dr-f-3d-2-veracidad.toml:V-M6: AUSENTE — el patron ya no aparece
+E           · segunda-barrera.toml:SB-M5: AUSENTE — el patron ya no aparece
+E           · segunda-barrera.toml:SB-M8: AUSENTE — el patron ya no aparece
+E         
+E         Amplia el patron `buscar` hasta que vuelva a coincidir y sea unico.
+E       assert False
+
+tests/unit/test_garantias_vigentes.py:23: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_limite_reintentos.py::test_e2e_una_tarea_que_falla_siempre_no_detiene_el_resto_del_backlog
+FAILED tests/unit/test_garantias_vigentes.py::test_todas_las_garantias_declaradas_siguen_vigentes
+2 failed, 1975 passed, 1 skipped in 210.61s (0:03:30)
+  [FAIL] pruebas
+
+==> 5/5 Contratos (pytest tests/test_contracts.py)
+........                                                                 [100%]
+8 passed in 0.05s
+  [ OK ] contratos
+
+======================================================
+QUALITY GATE: FAIL — corrige lo anterior
+======================================================
+RC=1

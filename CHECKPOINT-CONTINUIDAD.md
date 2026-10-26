@@ -11506,3 +11506,236 @@ Haciendo `git add` por rutas, comprobando antes de cada commit que el staging no
 2. Des-stagear el rename.
 3. Ejecutar `commit-1.paths` a `commit-7.paths` con `git add --pathspec-from-file`.
 4. Pasar el QG en los commits 1, 3, 5 y 7.
+
+## 2026-10-26 (ad) · Integración EJECUTADA en `worktree-m3-entry`: 7 commits verificados (sin merge, push ni PR)
+
+**Autorización del CEO:** ejecutar la partición corregida en la rama de trabajo. Merge, push y PR siguen prohibidos.
+**Disenso registrado:** la lista de reglas de la Fase 2 decía «no ejecutar `git commit`», contra la línea A. Se aplicó la
+autorización específica y reiterada (A, contexto y límite final). Si no era la intención, se deshace con
+`git reset --soft 6dad6af`, sin tocar el árbol.
+
+### Acciones de esta sesión
+
+**Commits, en orden topológico 3, 1, 2, 4, 5, 6, 7.** El 3 va primero para que el rename **preexistente** entre
+en su commit sin des-stagearlo, preservando así el staging.
+
+| # | SHA | Rutas | Validación sobre su **instantánea** (`git archive`, no el worktree) |
+|---|---|---|---|
+| 3 · arnés y gate | `ac64b9c` | 13 (rename D+A) | QG FAIL, **idéntico al de la base `6dad6af`**: formato 42/42, los mismos 3 errores de tipado, las mismas 2 pruebas. 0 fallos nuevos y 40 pruebas nuevas en verde |
+| 1 · núcleo `aura_skeleton` | `81a0d57` | 249 | QG: formato, lint y tipado OK. Solo falla `test_garantias_vigentes` (8 rotas, todas preexistentes; 0 nuevas) |
+| 2 · red de `_ruta_red` | `646a9ce` | 4 | Sus 18 pruebas, RC=0 |
+| 4 · control-plane previo | `7c4af11` | 72 (69 más 3 `.py` previos) | Suite del control-plane: 4 fallos. **Control:** con los datos vivos copiados pasan 2, y quedan los 2 dependientes de la ruta, ya demostrados. 0 fallos debidos al commit |
+| 5 · recuperación tras caídas | `9f13935` | 9 | Suite con datos: 1429 passed y 2 fallos de ruta. QG: 1 garantía rota de 1760 (`cp-g3-ciclo-de-vida.toml:G3-M2`, preexistente) |
+| 6 · evidencias | `9f238d6` | 272 | Colección: 3749 y 1435, 0 errores |
+| 7 · documentación y panel | `bf13a47` | 83 | **QG PASS**: 3842/3/17, RC=0 |
+
+**Criterio de gate de los commits intermedios** (declarado): ninguna instantánea añade un fallo respecto a la
+anterior, y la final pasa entera. Las garantías rotas bajan de 13 (en HEAD) a 8, 8, 1 y 0.
+
+**Validación final en el árbol vivo:**
+
+- QG **PASS** 3842/3/17, EXIT=0;
+- `preflight-check.sh` **APTO**;
+- suite del control-plane **1433 passed, 1 skipped, 1 xfailed, 0 failed**, con los 2 tests dependientes de la ruta
+  pasando aquí.
+
+**Auditoría independiente (`auditor-consistencia`): CONSISTENTE.**
+
+- 7 commits lineales con sus trailers; main y origin/main siguen en `d933a08`.
+- Cada commit contiene exactamente su lista.
+- Ningún fichero excluido ni secreto; `git diff 6dad6af HEAD` sobre `estado.json` y `eventos.jsonl` está **vacío**.
+- Blobs del par 4→5 verificados.
+- Árbol final igual al worktree salvo lo excluido, índice vacío y rename completo.
+
+**Incidencias de esta sesión:**
+
+- **Ayudante del commit 3:** `git add` no acepta una ruta ya borrada y stageada. Se corrigió con
+  `git rm --cached --ignore-unmatch` para las rutas borradas; el índice no cambió.
+- **Fallos en el QG intermedio:** eran todos preexistentes en `6dad6af` o dependían de los datos y la ruta excluidos.
+  Se demostró con comparaciones equivalentes.
+
+**Documentos (B y C):**
+
+- `DP-AUTOCONSTRUCCION…` §11-§12: D1, D2 y D3 con invariantes, transiciones, idempotencia, pruebas de carrera
+  deterministas, migración, rollback y criterios. Dos revisiones del arquitecto: ENCAJA CON CONDICIONES, incorporadas.
+  **Sin implementar.**
+- `DP-DELEGACION-NODOS.md` §10-§11: contrato operativo y requisitos de seguridad. La revisión de seguridad dio APTA CON
+  CONDICIONES, con 3 ALTOS: firma de tareas y de resultados, y fijación por SPKI con aprovisionamiento fuera de banda y
+  fallo cerrado. **`DP-NODO-01` sin cambios.**
+
+### Resultados históricos (no se volvieron a ejecutar)
+
+- Mutación 29/29.
+- 4 revisiones de la recuperación.
+- QG en vivo PASS de las 12:25.
+
+### Fuera de los commits (pendiente del próximo)
+
+- Esta entrada, el mapa (n) y la ficha.
+- `evidencia-…/integracion-commits/`.
+- Las §12 del DP de `autoconstruccion` y §11 del de delegación, si se editaron después del commit 7.
+
+### Producción
+
+- PARADA armada.
+- `estado.json` `9a7b5841…` sin cambios.
+- `eventos.jsonl` con 3726 líneas, solo `despertar_rechazado` del cron a las :00 y :30.
+- Receptor 972 con `NRestarts=0`; cron sin cambios.
+
+### Pendiente de autorización
+
+1. Merge `--no-ff` a main y push, o PR.
+2. Implementar el DP de `autoconstruccion`.
+3. Acta de delegación, tras resolver los 3 ALTOS de seguridad.
+4. Lo heredado.
+
+## 2026-10-26 (ae) · Auditoría de Coucou y KORUS (solo investigación; sin instalar ni integrar)
+
+**Estado `[EJEC]`:** HEAD `bf13a47`; main = origin/main `d933a08`; staging vacío; PARADA armada; `estado.json`
+`9a7b5841…`. Sin cambios en el código de AURA. Codex, OpenCode, AgentShield, bandit y semgrep **no están instalados**.
+
+**Herramientas:** Graphify (query de hooks y notificaciones, PARADA y autoridad, robótica y cronograma).
+
+**Agentes:**
+
+- `general-purpose` ×2: investigación remota con `gh api`, sin clonar;
+- `arquitecto-evaluador`;
+- `security-reviewer`;
+- `auditor-consistencia`: contraste de 15 afirmaciones contra las fuentes.
+
+**Resultado** (fichas `milestones/investigacion-externa/IE-032-coucou.md` e `IE-033-korus.md` y el índice IE):
+
+- **Coucou** (`@47d1c2d`): **PROTOTIPO AISLADO FUTURO**, pendiente de acta, y **no en el equipo real**.
+  - **Lo que prevalece es la seguridad**, con tres ALTOS:
+    - hooks globales sin matcher que reenvían prompts, comandos y ediciones;
+    - aprobación de un clic sin lista roja, también desde el móvil;
+    - cadena de suministro joven y sin firma independiente.
+  - **Patrones reutilizables ya, sin código:**
+    - socket con SO_PEERCRED;
+    - backup y diff antes de reescribir la configuración;
+    - fallo abierto hacia el terminal;
+    - no aprobar lo truncado.
+  - **Pendiente de verificar:** el canal `chat*` del phone link y si existe confirmación en `open_app`.
+- **KORUS:** **DESCARTAR POR AHORA**. ROS1 Hydro/Indigo y Python 2, abandonado desde 2015, sin licencia, con
+  dependencias privadas en Bitbucket y sin orquestación de nodos de cómputo. **No existe una línea de robótica en el
+  cronograma.**
+- **Contrato de seguridad** para cualquier integración futura: 9 reglas en `IE-032` §«Contrato de seguridad». AURA
+  conserva la autoridad y PARADA.
+
+**`capacidades.json`, cronograma y normas:** sin cambios. No se instaló, descargó ni ejecutó código externo. Las copias
+de texto que usaron los agentes se borraron de `/tmp`.
+
+**Pendiente de decisión del CEO:** un acta para el prototipo aislado de Coucou, solo si hay una necesidad observada.
+
+## 2026-10-26 (af) · Continuidad de la integración, D1-D3 y delegación consolidados, y base de conocimiento IE-034..IE-043
+
+**Estado `[EJEC]`, 16:2x:**
+
+- HEAD `bf13a47`; los 7 commits presentes con los mismos SHA; main = origin/main `d933a08`; staging vacío.
+- PARADA armada; `estado.json` `9a7b5841…`; el log solo crece con `despertar_rechazado` del cron.
+- **Sin commit:** todo lo de esta entrada es documental.
+
+### Acciones de esta sesión
+
+**A · Integración (verificación documental, sin volver a ejecutar el QG):**
+
+- 0 rutas excluidas en `git diff 6dad6af HEAD`; `estado.json` y `eventos.jsonl` no integrados.
+- Cada log de `evidencia-…/integracion-commits/` corresponde al SHA de su commit.
+- Los fallos intermedios históricos se conservan.
+- **Resultados históricos, no reejecutados:** QG 3842/3/17, preflight APTO, control-plane 1433/0.
+
+**B · `DP-AUTOCONSTRUCCION…` §13:**
+
+- Matriz de cobertura frente a los requisitos del CEO.
+- Los 4 estados de D2, explícitos: promoción realizada, verificación pendiente, verificación confirmada y resultado
+  ambiguo.
+- Referencias de línea corregidas (L1078, L1301-1308, L1313).
+- **No implementado ni autorizado.**
+
+**C · `DP-DELEGACION-NODOS.md` §12-§12.6:**
+
+- STRIDE formal: activos, fronteras, las 6 categorías, compromiso del nodo, fallo cerrado y 5 estados del resultado.
+- Revisión de seguridad independiente: COMPLETO CON CONDICIONES, con 14 correcciones incorporadas.
+- **ALTOS abiertos:**
+  - A1, firma de tareas;
+  - A2, firma de resultados;
+  - A3, fijación SPKI;
+  - N1, replay tras reinicio, con `emitida_en` y `epoch_hc1`;
+  - N2, custodia de la clave de HC-1 en un firmador único.
+- «Diseñado» pasa a «REQUERIDO, no implementado».
+- `DP-NODO-01` sin cambios; ninguna tarea remota.
+
+**D · IE-032 (Coucou) e IE-033 (KORUS):** sin cambios; decisiones vigentes.
+
+**E · Base de conocimiento:** fichas IE-034 a IE-043 con SHA fijado, por lectura remota con `gh api`, sin clonar,
+instalar ni ejecutar. Investigadores: auto-mejora, memoria y gobernanza.
+
+| IE | Repositorio | Decisión |
+|---|---|---|
+| 034 | sia | Descartado como código |
+| 035 | a-evolve | Descartado |
+| 036 | EvoAgentX | Descartado |
+| 037 | awesome-self-improving | Referencia |
+| 038 | Hy-Memory | No adoptar el motor |
+| 039 | SAGE | Adaptar la idea; AGPL más patentes, no copiar |
+| 040 | AGT | Referencia |
+| 041 | APS | Adaptar ideas |
+| 042 | oxdeai | Adaptar el patrón |
+| 043 | agentstorming | Adoptar el método |
+
+**Auditoría de evidencia (`auditor-consistencia`): APTO.**
+
+- 10 SHA y 10 licencias confirmados.
+- 6 de las 7 afirmaciones ALTA confirmadas y 1 con matiz; ninguna refutada.
+- No hay código copiado ni benchmarks presentados como reproducidos.
+
+**Hallazgos sobre AURA misma:**
+
+- **HAL-040-2 → deuda `D-LOG-1`** (`milestones/m3-entry/DEUDA-LOG-COLA-SIN-ANCLA.md` y su fila en el CHECKLIST).
+  - Borrar los últimos eventos completos de `eventos.jsonl` **no lo detecta** `verificar_integridad_log`.
+  - **Confirmado ejecutando** sobre una copia (yo y, de forma independiente, el auditor): `integro: True` con 2 eventos
+    menos.
+  - Requiere DP (`control_plane.py`).
+- **HAL-034-1:**
+  - **Refutado** para los caminos actuales: el descubrimiento excluye `test_*` y los 2 contratos no solapan perímetro y
+    pruebas.
+  - **Queda una brecha de defensa en profundidad:** la puerta de escritura no protege las pruebas por sí misma.
+  - Reclasificado a MEDIA; requiere DP.
+
+**F · `milestones/investigacion-externa/PROCEDIMIENTO-DEFECTO-DIFICIL.md`:** 13 pasos; la base orienta y **no**
+autoriza. Enlazado desde el índice.
+
+**Auditoría de continuidad:** 8 discrepancias MENORES, todas corregidas:
+
+- el frontmatter `estado` alineado con el índice;
+- las menciones de prioridad en IE-034;
+- el formato `HAL-NNN-n` en el procedimiento;
+- la fila 4 del §12.4;
+- el encabezado del §12;
+- las líneas del §13.1;
+- el registro de la deuda;
+- este CHECKPOINT y el mapa.
+
+### Incidencias de procedimiento
+
+- Los agentes ejecutaron `gh api` (solo lectura) con el **sandbox de red desactivado**, porque dentro no había red.
+- Sus copias de texto en `/tmp` (`/tmp/sg`, `/tmp/hy` y `/tmp/aud`, que incluía una copia del log real) se **retiraron**.
+- No había ningún ejecutable entre ellas.
+
+### Sin cambios
+
+- Código.
+- Configuración, hooks, `~/.claude/settings.json`, cron, Ollama y OmniRoute.
+- `capacidades.json` y el cronograma.
+- `DP-NODO-01`.
+
+### Pendiente de autorización
+
+1. Merge a main o PR.
+2. Implementar D1-D3.
+3. DP de `D-LOG-1`.
+4. DP de HAL-034-1.
+5. Delegación remota: bloqueada por A1-A3, N1 y N2.
+6. Prototipo de Coucou: no autorizado.
+7. KORUS: descartado.
+8. Ideas externas: solo con evidencia, experimento aislado y DP.

@@ -267,3 +267,118 @@ aprobado** (§11 de ese DP). La delegación no puede implementarse antes de que 
 - la primera capacidad, con su verificador.
 
 `DP-NODO-01` sigue sin cambios.
+
+## 12. Análisis formal de amenazas (STRIDE) de la delegación propuesta (2026-10-26, documental)
+
+**Estado:** propuesta documental. **No se ha ejecutado ninguna tarea remota.** `DP-NODO-01` sigue vigente sin cambios
+(solo latidos). Siguen **abiertos los tres ALTOS** del §11 (A1-A3), a los que la revisión del §12.6 añade **N1** (replay tras reinicio) y **N2** (custodia de la clave de HC-1):
+
+- **A1:** las tareas de HC-1 firmadas.
+- **A2:** los resultados del nodo firmados.
+- **A3:** fijación de la identidad TLS del servidor por SPKI, aprovisionada fuera de banda, con fallo cerrado.
+
+### 12.1 Activos
+
+| Activo | Por qué importa |
+|---|---|
+| **Log de HC-1** (`eventos.jsonl`, cadena de hash) | Fuente de verdad (ADR-0023). Lo que entre en él cuenta como hecho |
+| **Clave de firma de tareas de HC-1** (A1) | Quien la tenga puede ordenar ejecuciones a los nodos |
+| **Clave de firma del nodo** (A2) y **credencial NATS por nodo** | Quien las tenga puede hacerse pasar por el nodo |
+| **CA privada y SPKI fijada de HC-1** (A3) | Raíz de la autenticación del canal |
+| **Sandbox y ejecutor del nodo** | Donde se ejecuta código por encargo |
+| **PARADA, lista roja y autoridad humana** | Ninguna vía remota puede rodearlas |
+
+### 12.2 Fronteras de confianza
+
+1. **HC-1, entre el control-plane y el publicador NATS:** dentro del mismo proceso o usuario, que es de confianza.
+2. **Red LAN, entre HC-1 y el nodo:** **no** es de confianza. En la LAN hay IoT, un DVR y una PS5.
+3. **Nodo, entre el agente y el ejecutor:** el ejecutor **no** es de confianza para el agente (separación de procesos,
+   M6).
+4. **Entrada de resultados a HC-1:** **toda** salida del nodo es entrada hostil hasta que se verifica.
+
+### 12.3 STRIDE
+
+| Categoría | Amenaza concreta | Control requerido | Estado |
+|---|---|---|---|
+| **S** · suplantación del **servidor** | Un dispositivo de la LAN con un certificado de la misma CA se hace pasar por HC-1 | A3: fijación SPKI, aprovisionamiento fuera de banda, TOFU prohibido, **fallo cerrado** y TLS 1.3 como mínimo | **ABIERTO** |
+| **S** · suplantación del **nodo** | Credencial NATS filtrada o compartida, o un resultado publicado en el subject de otro nodo | Credencial **por nodo** y nunca compartida; `id_nodo` igual al subject también en `nodo.resultado.*`; firma del resultado con la clave del nodo (A2) | **ABIERTO** (A2) |
+| **T** · manipulación de la **tarea** | Alterar capacidad, argumentos o `caduca_en` en tránsito, o inyectar una tarea | Firma Ed25519 de HC-1 sobre JSON canónico versionado (A1); el nodo verifica **antes de nada** y revalida contra su lista local (M5) | **ABIERTO** (A1) |
+| **T** · manipulación del **resultado** | Resultado falsificado o alterado | Firma del nodo sobre `{…, hash_tarea, salida}` (A2) **y** verificación independiente en HC-1 (M3). La firma prueba **quién**, no **que sea correcto** | **ABIERTO** (A2) |
+| **R** · repudio | El nodo niega haber recibido o ejecutado; HC-1 no puede probar qué ordenó | Eventos `tarea_delegada`, `tarea_aceptada` (acuse firmado), `resultado_remoto` y `resultado_remoto_rechazado` en la cadena de hash de HC-1, con la orden y el resultado firmados | REQUERIDO, no implementado (§10.2) |
+| **R** · **replay** y caducidad | Reenviar una tarea o un resultado antiguo, incluso tras reiniciar el nodo | `caduca_en` absoluto y firmado; reloj NTP con tolerancia; uuid4 de CSPRNG; rechazar lo emitido antes del arranque del nodo; HC-1 descarta resultados que no sean del intento en curso | REQUERIDO, no implementado; **insuficiente hasta N1** |
+| **I** · fuga de información | Argumentos o resultados con datos sensibles; credenciales accesibles al ejecutor | Ejecutor sin acceso a credenciales ni claves (Landlock); capacidades declaradas sin datos personales; salida ≤ 64 KiB | REQUERIDO, no implementado (M6) |
+| **I** · reutilización de credenciales | Credencial NATS de un nodo usada para publicar en `nodo.tarea.*` | Permisos NATS exactos por usuario: deny de `nodo.tarea.*` para los nodos, sin comodines ni `$SYS`/`$JS` (M1) | REQUERIDO, no implementado (M1) |
+| **D** · denegación de servicio | Inundación de resultados que llenan el log append-only; tareas en vuelo sin límite; acuses que alargan la vida de una tarea | Tope de rechazos por nodo y ventana; límite de tareas en vuelo; techo de duración que los acuses **no** prorrogan (M3, M4) | REQUERIDO, no implementado |
+| **E** · elevación de privilegios | Una tarea que se convierte en orden del SO; un nodo que amplía su propio sobre de capacidades | Ejecutor = **tabla de funciones fija**, sin `exec` ni shell; lista delegable configurada en HC-1 y aprobada por el CEO, nunca autodeclarada (M5); usuario dedicado sin sudo | REQUERIDO, no implementado |
+| **E** · rodear la autoridad de AURA | Una acción remota que evita PARADA, la lista roja o el motor único | Toda delegación pasa por el mismo circuito que lo local: planificador, `review`, PARADA y lista roja. El nodo **no tiene autoridad** | REQUERIDO, no implementado; **depende de N2** |
+
+**Compromiso del nodo** (el escenario más grave aceptado):
+
+- Un nodo comprometido puede devolver **resultados falsos pero bien firmados**. Lo único que lo detiene es la
+  **verificación independiente en HC-1** (M3): **sin verificador, la capacidad no es delegable**.
+- **Respuesta:** revocar la clave y la credencial del nodo, retirar sus permisos NATS, cancelar sus tareas en vuelo y
+  marcar `resultado_ambiguo` en los intentos afectados. No hay rotación silenciosa.
+
+**Interrupciones:** se aplica el contrato de `DP-RECUPERACION-TRAS-CAIDAS` con el ejecutor remoto
+`{id_nodo, id_ejecucion}`:
+
+- nodo OFFLINE o caducado → `interrumpida_reintentable`;
+- intentos agotados → `agotada`, con su evento.
+
+**Autorización, auditoría y revocación:**
+
+- **Autorización:** el acta del CEO por nodo y por capacidad.
+- **Auditoría:** la cadena de hash.
+- **Revocación:** la clave de tareas, las fijaciones y las credenciales (B1).
+
+**Fallo cerrado:** cualquier error de firma, de fijación, de reloj o de verificación → **no se ejecuta** en el nodo y
+**no se incorpora** en HC-1. Se registra el evento de seguridad.
+
+### 12.4 Cinco estados de un resultado remoto (ninguno implica el siguiente)
+
+| # | Estado | Qué lo prueba | ¿Cuenta como trabajo hecho? |
+|---|---|---|---|
+| 1 | **Tarea aceptada** | Acuse **firmado** por el nodo, con el `id_ejecucion` exacto | No. Solo hace que el ejecutor cuente como «vivo» dentro del techo de duración |
+| 2 | **Tarea ejecutada** | Declaración del nodo | **No**: es una afirmación del nodo |
+| 3 | **Resultado firmado** | Firma válida del nodo sobre `{…, hash_tarea, salida}` | **No**: prueba **quién** lo envía, no que sea correcto |
+| 4 | **Resultado validado por HC-1** | El verificador propio de HC-1, en una copia confinada, da `verificado: true` | **Todavía no.** `completada` exige el estado 5 (N6, §12.6): si HC-1 cae entre validar y registrar, la tarea queda en recuperación y se repite la validación |
+| 5 | **Resultado incorporado a la evidencia** | `resultado_remoto{verificado: true}` en la cadena de hash de HC-1, con la orden y el resultado firmados | Es lo que queda como **hecho auditable** |
+
+**Un latido no demuestra ejecución ni integridad:** solo dice que el nodo está ONLINE.
+
+### 12.5 Brechas que quedan antes de cualquier acta
+
+- Resolver A1, A2 y A3 por escrito, con la elección explícita de SPKI y del esquema de firmas.
+- Elegir la primera capacidad delegable, con su **verificador** en HC-1.
+- Fijar la tolerancia de reloj y la fuente NTP.
+- Concretar la configuración NATS exacta.
+- Escribir las pruebas negativas obligatorias (B3) con su control.
+- **Revisión de seguridad independiente** de este STRIDE.
+
+### 12.6 Revisión independiente del STRIDE (`security-reviewer`): COMPLETO CON CONDICIONES. Correcciones incorporadas
+
+**Convención** (N13): en la columna de estado del §12.3, «REQUERIDO, no implementado» sustituye a «Diseñado». **Nada
+de la delegación está implementado ni probado.** El vocabulario de estado es {ABIERTO, REQUERIDO, PROBADO}.
+
+| # | Hallazgo | Corrección del diseño |
+|---|---|---|
+| **N1 · ALTO** | Replay tras reiniciar el nodo: la orden firmada no lleva cuándo se emitió | La orden firmada (A1) añade **`emitida_en`** (hora de HC-1) y **`epoch_hc1`** (contador monótono de sesión de HC-1, persistido en su log). El nodo rechaza: (a) toda orden con `emitida_en` anterior a su propio arranque; (b) toda orden de un `epoch_hc1` menor que el último visto. Hasta sincronizar el reloj (N5), lo rechaza **todo** |
+| **N2 · ALTO** | Custodia de la clave de firma de tareas de HC-1 | **Firmador único:** un proceso o servicio aparte, con un usuario propio, que es el **único** que lee la clave y que solo firma peticiones de la vía planificador → `review` → PARADA → lista roja. Cada firma queda registrada en la cadena de hash (`tarea_firmada{hash, quién}`). Otros procesos del usuario de HC-1 **no** pueden firmar. **Compromiso de HC-1 o de la clave:** revocar la clave (nueva clave fuera de banda), avisar a los nodos para que rechacen la anterior por `epoch` o por huella, cuarentena de lo firmado desde la sospecha (N10). Fila STRIDE: **E · robo de la clave de firma → ABIERTO** |
+| N3 | Broker NATS sin modelar | **Activo y frontera:** el broker **no es de confianza** para integridad ni autenticidad (las firmas de extremo a extremo de A1 y A2 lo hacen irrelevante). Su compromiso solo degrada la **disponibilidad** (puede descartar, retrasar o reordenar). Quien administra su configuración controla los permisos de M1: configuración bajo acta y auditada |
+| N4 | Compromiso de la CA | **Fila S · CA comprometida → ABIERTO.** La fijación SPKI de A3 protege al servidor. Para los clientes: sustituir la CA, reemitir los certificados de nodo y revocar los anteriores (lista de huellas permitidas de nodo en HC-1). La autenticidad de las tareas y resultados no depende de la CA, sino de A1 y A2 |
+| N5 | Reloj y NTP manipulables desde la LAN | **Fila T · reloj → ABIERTO.** Fuente de tiempo **autenticada**: NTS, o la hora de HC-1 dentro de un mensaje firmado. Un nodo recién arrancado o sin RTC **rechaza todo** hasta sincronizar dentro de la tolerancia |
+| N6 | Vocabulario de estados disperso entre §7, §10.1 y §12.4; `completada` prematura | **Vocabulario único**, el del §12.4. Equivalencias: §7 «aceptada» y §10.1 «aceptada» = estado 1; §7 y §10.1 «declarada/ejecutada» = estado 2; §7 «verificada» = estados 4 y 5. **`completada` exige el estado 5** (registrado en la cadena), no solo el 4. Si HC-1 cae entre validar y registrar, la tarea queda en recuperación y se repite la validación |
+| N7 | El acuse no tiene formato firmado | El acuse firmado es `{v, tarea, intento, id_nodo, id_ejecucion, hash_tarea, recibida_en}`, firmado con la clave del nodo (A2). «Vivo» se define **solo** en M7 (§11); las menciones de `:110`, `:138` y `:213` remiten a ella |
+| N8 | Downgrade del esquema | El nodo fija una **`v` mínima** sin negociación: rechaza cualquier `v` menor, igual que los campos desconocidos (B6) |
+| N9 | Verificador de HC-1 envenenado por una entrada hostil | **Fila D/E · verificador → REQUERIDO:** proceso confinado (el mismo aislamiento estricto que la verificación local), límites de CPU, memoria y tiempo, tamaño acotado y prueba negativa con control |
+| N10 | Resultados ya incorporados de un nodo comprometido después | **Cuarentena retroactiva:** desde la ventana de sospecha, los resultados de ese nodo pasan a `resultado_ambiguo` (evento `resultado_remoto_en_cuarentena`, que se añade al catálogo del §10.2). No se borra nada: es append-only |
+| N11 | Canales laterales en el sandbox | **Mitigado y aceptado:** sandbox nuevo por tarea, `/tmp` privado, uid dedicado y una sola tarea a la vez por nodo. El canal lateral de temporización se **acepta** como residual |
+| N12 | Aprovisionamiento fuera de banda y clave del nodo | **Activo:** la huella inicial se verifica por un canal físico (presencia en el equipo). La clave del nodo solo la lee el agente, y su compromiso es el escenario «nodo comprometido» |
+| N14 | Verificar recomputando anula el valor de delegar | **Una capacidad solo es delegable si se puede verificar más barato que ejecutarla**, o de forma independiente. Si no, no se delega |
+
+**Estado tras la revisión:**
+
+- **ALTOS abiertos:** A1, A2, A3, N1 y N2.
+- **Resto:** requisitos documentados, sin implementar.
+- **Nada autoriza ejecución remota ni cambia `DP-NODO-01`.**
+

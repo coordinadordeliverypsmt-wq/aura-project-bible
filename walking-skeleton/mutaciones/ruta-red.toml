@@ -1,0 +1,58 @@
+incremento = "_ruta_red: AURA_RED declarado vacio = «sin red» en --nodos y --receptor-nodos (2026-10-25)"
+# Defecto medido: `os.environ.get("AURA_RED") or _RED_POR_DEFECTO` trataba "" como ausente y el CLI caia en el
+# ~/.aura-red REAL (credencial y PKI del receptor), al contrario que el vigia y el plano de control.
+# NADA en paralelo con este arnes (CLAUDE.md §2).
+pruebas = ["tests/unit/test_ruta_red.py", "tests/integration/test_cli_nodos.py"]
+timeout_s = 300
+
+[[mutante]]
+id = "R1"
+garantia = "el vacio declarado vuelve a resolver al directorio por defecto (el defecto original)"
+fichero = "aura_skeleton/__main__.py"
+buscar = '''    if declarado is not None and not declarado.strip():
+        return None'''
+sustituir = '''    if False:
+        return None'''
+
+[[mutante]]
+id = "R2"
+garantia = "un valor de solo espacios deja de ser «sin red»"
+fichero = "aura_skeleton/__main__.py"
+buscar = '''if declarado is not None and not declarado.strip():'''
+sustituir = '''if declarado is not None and not declarado:'''
+
+[[mutante]]
+id = "R3"
+garantia = "--nodos sin red intenta leer un registro inexistente en vez de decirlo"
+fichero = "aura_skeleton/__main__.py"
+buscar = '''    if ruta is None:
+        print("AURA: red de nodos desactivada (AURA_RED declarado vacio)")
+        return 0
+'''
+sustituir = ''''''
+
+[[mutante]]
+id = "R4"
+garantia = "--receptor-nodos sin red intenta leer credencial y CA"
+fichero = "aura_skeleton/__main__.py"
+buscar = '''    if ruta is None:
+        print("AURA: no se puede arrancar el receptor de nodos: AURA_RED declarado vacio (sin red)", file=sys.stderr)
+        return 2
+'''
+sustituir = ''''''
+
+[[mutante]]
+id = "R5"
+garantia = "--receptor-nodos sin red sale como si hubiera terminado bien"
+fichero = "aura_skeleton/__main__.py"
+buscar = '''AURA_RED declarado vacio (sin red)", file=sys.stderr)
+        return 2'''
+sustituir = '''AURA_RED declarado vacio (sin red)", file=sys.stderr)
+        return 0'''
+
+[[mutante]]
+id = "R6"
+garantia = "la ausencia de AURA_RED deja de resolver al directorio por defecto"
+fichero = "aura_skeleton/__main__.py"
+buscar = '''    return os.path.expanduser(declarado or _RED_POR_DEFECTO)'''
+sustituir = '''    return os.path.expanduser(declarado or "")'''

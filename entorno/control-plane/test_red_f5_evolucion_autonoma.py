@@ -30,20 +30,49 @@ PLANO = pathlib.Path(__file__).parent
 RAIZ = PLANO.resolve().parents[1]
 
 
+#: Un fichero REAL del plano que el anillo puede trabajar. El fixture necesita uno que exista —las
+#: condiciones de `contrato.evaluar` comprueban que la fuente sea verificable— y que **no** sea
+#: intocable, porque lo que estas pruebas ejercitan es el camino feliz: «un contrato completo es
+#: IMPLEMENTABLE». Hasta el 2026-09-20 ese papel lo hacía `review.py`, y dejó de servir cuando el
+#: acta del CEO lo metió en `_INTOCABLES` junto a `autoconstruccion.py`, `ciclo_autonomo.py` y
+#: `planificador.py`. El cambio de nombre **no ablanda ninguna prueba**: el caso «un intocable NO
+#: entra en el perímetro» se sigue ejerciendo aparte, y ahora con cuatro nombres más.
+_TRABAJABLE = "estancamiento.py"
+
+#: **El verbo se PREGUNTA, no se asume.** Estas pruebas evaluan contratos contra el plano real
+#: (`directorio=PLANO`), asi que su veredicto depende del acta que el CEO tenga registrada: cuando
+#: `DR-E` reemplazo a `DR-D` el 2026-09-16, `eliminar_codigo_muerto` salio del alcance —`_alcance()`
+#: devuelve el del ULTIMO `review_habilitado`, sin acumular— y cinco pruebas de este fichero se
+#: pusieron en rojo sin que nadie hubiera tocado el mecanismo que dicen medir.
+#:
+#: Lo que estas pruebas afirman es *«un contrato completo, con un verbo que el acta vigente
+#: autoriza, es IMPLEMENTABLE»*. Derivar el verbo del historial dice exactamente eso y deja de
+#: romperse cada vez que el CEO firma. **No relaja ninguna barrera**: el caso «verbo fuera de
+#: alcance» se sigue ejerciendo aparte, y sigue teniendo que bloquear.
+_EN_ALCANCE = rv._alcance(PLANO)
+_VERBO_AUTORIZADO = _EN_ALCANCE[0] if _EN_ALCANCE else None
+
+#: `eliminar_codigo_muerto` exige `simbolo`; `implementar_incremento_especificado` exige
+#: `buscar`/`sustituir`. El fixture tiene que declarar la regla que le toca al verbo vigente.
+_REGLA_DEL_VERBO = ({"operacion": "sustituir_texto", "buscar": "X = 1", "sustituir": "X = 2"}
+                    if _VERBO_AUTORIZADO == "implementar_incremento_especificado"
+                    else "es_eliminable() decide, quitar_simbolo() ejecuta")
+
+
 def _completo(**cambios):
     """Un contrato que pasa las nueve condiciones. Es un **fixture**, no una capacidad real: no se
     registra en el plan, no se ejecuta y no existe fuera de estas pruebas."""
     base = {
         "id": "FIXTURE-1", "nombre": "capacidad de prueba", "version": "1", "estado": "AUTORIZADA",
         "intencion": "ejercitar el contrato sin inventar una capacidad",
-        "entradas": [{"nombre": "fichero", "fuente": str(PLANO / "review.py"), "formato": "py"}],
-        "salidas": [{"resultado": "simbolo retirado", "destino": str(PLANO / "review.py")}],
-        "regla_de_transformacion": "es_eliminable() decide, quitar_simbolo() ejecuta",
+        "entradas": [{"nombre": "fichero", "fuente": str(PLANO / _TRABAJABLE), "formato": "py"}],
+        "salidas": [{"resultado": "simbolo retirado", "destino": str(PLANO / _TRABAJABLE)}],
+        "regla_de_transformacion": _REGLA_DEL_VERBO,
         "fuentes_de_verdad": {"autoridad": [str(PLANO / "autoconstruccion.py")], "referencia": []},
-        "perimetro": {"modificables": [str(PLANO / "review.py")], "fuera_de_alcance": []},
+        "perimetro": {"modificables": [str(PLANO / _TRABAJABLE)], "fuera_de_alcance": []},
         "autoridad": {"nivel": "REVIEW", "acta": "DEC-ORCH-2",
                       "parte_de_aura": "ejecutar", "parte_del_ceo": "autorizar"},
-        "ejecutor": {"verbo": "eliminar_codigo_muerto"},
+        "ejecutor": {"verbo": _VERBO_AUTORIZADO},
         "efectos": {"permitidos": ["retirar un simbolo"], "prohibidos": [], "reversible": True},
         "verificacion": {"invariantes": ["INV-9"],
                          "pruebas_minimas": [str(PLANO / "test_red_autoconstruccion.py")],

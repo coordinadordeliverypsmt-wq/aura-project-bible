@@ -202,14 +202,11 @@ pruebas = ["test_red_controles_14.py::test_la_huella_del_criterio_no_se_puede_fa
 # Reapuntado 2026-08-30: la formula vive ahora en el Control Plane — la puerta la deriva, no la recibe.
 fichero = "control_plane.py"
 buscar = '''    return hashlib.sha256(
-        json.dumps(criterio, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
-
-
-def registrar_criterio_fijado'''
-sustituir = '''    return str(criterio.get("capacidad", ""))
-
-
-def registrar_criterio_fijado'''
+        json.dumps(criterio, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()'''
+# Reanclado 2026-09-20: `def registrar_criterio_fijado` dejo de ser adyacente —las dos puertas de
+# autoridad se insertaron en medio—. El ancla es ahora solo la formula, que sigue siendo unica; la
+# garantia no cambia: degradar el sha256 a un nombre a la vista tiene que seguir detectandose.
+sustituir = '''    return str(criterio.get("capacidad", ""))'''
 
 # ============================================ A6-A11 · CRITERIOS DE ACEPTACION --
 
@@ -573,7 +570,8 @@ fichero = "control_plane.py"
 pruebas = ["test_red_auditoria_2.py::test_no_se_puede_forjar_un_criterio_con_registrar_evento_en_crudo",
            "test_red_auditoria_2.py::test_la_via_gobernada_del_criterio_SI_funciona"]
 buscar = '''EVENTOS_GOBERNADOS = frozenset({_EVENTO_DE_ESTADO, "criterio_fijado", "criterio_verificado",
-                                "cuota_observada"})'''
+                                "cuota_observada",
+                                "review_habilitado", "propuesta_autorizada"})'''
 sustituir = '''EVENTOS_GOBERNADOS = frozenset({_EVENTO_DE_ESTADO})'''
 
 [[mutante]]

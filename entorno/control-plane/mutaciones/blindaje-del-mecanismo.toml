@@ -1,0 +1,149 @@
+# BLINDAJE DEL MECANISMO (CEO, 2026-09-20) — antes del primer acto autonomo.
+#
+# Que se protege: el mecanismo que decide que puede tocar el anillo deja de ser escribible POR el
+# anillo. `_INTOCABLES` pasa de 4 a 8 entradas y la tarea empieza a llevar la identidad del contrato
+# que la autoriza.
+#
+# **Por que hay un mutante por cada entrada nueva y no uno solo para la tupla.** Un unico mutante que
+# vaciara la tupla entera moriria con cualquiera de las cuatro pruebas y no diria nada sobre las otras
+# tres: bastaria una para dar la garantia por cubierta. Quitando UNA sola entrada cada vez, un hueco
+# de cobertura en cualquiera de los cuatro ficheros aparece como superviviente con nombre y apellido.
+#
+# Los dos ultimos mutantes degradan el CABLEADO, no la logica: el campo que transporta la identidad
+# del contrato y la resolucion del nombre real. El mutante «la composicion no enciende las
+# automatizaciones» sobrevivio una vez con 426 pruebas en verde, y era ALERTA-005 otra vez.
+#
+# Como se ejecuta (nunca en paralelo con nada):
+#   cd walking-skeleton
+#   python3 -m herramientas.mutar ../entorno/control-plane/mutaciones/blindaje-del-mecanismo.toml \
+#           --raiz ../entorno/control-plane
+
+incremento = "BLINDAJE DEL MECANISMO (CEO, 2026-09-20): _INTOCABLES 4 -> 8 y la tarea lleva su contrato"
+pruebas = ["test_red_blindaje_del_mecanismo.py", "test_red_tarea_lleva_su_contrato.py"]
+timeout_s = 300
+
+
+[[mutante]]
+id = "BM-M1"
+garantia = "`autoconstruccion.py` es intocable: es LA PUERTA de escritura — zona, autorizacion, intocables y PARADA. Si el anillo la reescribe, ningun otro fichero la restaura"
+fichero = "orquestador.py"
+pruebas = ["test_red_blindaje_del_mecanismo.py::test_el_anillo_no_puede_reescribir_el_mecanismo_que_lo_gobierna[autoconstruccion.py]",
+           "test_red_blindaje_del_mecanismo.py::test_los_cuatro_constan_en_la_barrera[autoconstruccion.py]"]
+buscar = '''_INTOCABLES = ("orquestador.py", "politica-orquestador.toml", "control_plane.py", "conftest.py",
+               "autoconstruccion.py", "review.py", "ciclo_autonomo.py", "planificador.py")'''
+sustituir = '''_INTOCABLES = ("orquestador.py", "politica-orquestador.toml", "control_plane.py", "conftest.py",
+               "review.py", "ciclo_autonomo.py", "planificador.py")'''
+
+
+[[mutante]]
+id = "BM-M2"
+garantia = "`review.py` es intocable: define que significa «autorizado» — materia reservada, alcance y habilitar"
+fichero = "orquestador.py"
+pruebas = ["test_red_blindaje_del_mecanismo.py::test_el_anillo_no_puede_reescribir_el_mecanismo_que_lo_gobierna[review.py]",
+           "test_red_blindaje_del_mecanismo.py::test_los_cuatro_constan_en_la_barrera[review.py]",
+           "test_red_blindaje_del_mecanismo.py::test_la_proteccion_se_aplica_por_NOMBRE_RESUELTO_no_por_la_ruta_escrita"]
+buscar = '''_INTOCABLES = ("orquestador.py", "politica-orquestador.toml", "control_plane.py", "conftest.py",
+               "autoconstruccion.py", "review.py", "ciclo_autonomo.py", "planificador.py")'''
+sustituir = '''_INTOCABLES = ("orquestador.py", "politica-orquestador.toml", "control_plane.py", "conftest.py",
+               "autoconstruccion.py", "ciclo_autonomo.py", "planificador.py")'''
+
+
+[[mutante]]
+id = "BM-M3"
+garantia = "`ciclo_autonomo.py` es intocable: `clasificar()` decide AUTO/REVIEW/HUMAN para toda tarea, en las dos vias de produccion"
+fichero = "orquestador.py"
+pruebas = ["test_red_blindaje_del_mecanismo.py::test_el_anillo_no_puede_reescribir_el_mecanismo_que_lo_gobierna[ciclo_autonomo.py]",
+           "test_red_blindaje_del_mecanismo.py::test_los_cuatro_constan_en_la_barrera[ciclo_autonomo.py]"]
+buscar = '''_INTOCABLES = ("orquestador.py", "politica-orquestador.toml", "control_plane.py", "conftest.py",
+               "autoconstruccion.py", "review.py", "ciclo_autonomo.py", "planificador.py")'''
+sustituir = '''_INTOCABLES = ("orquestador.py", "politica-orquestador.toml", "control_plane.py", "conftest.py",
+               "autoconstruccion.py", "review.py", "planificador.py")'''
+
+
+[[mutante]]
+id = "BM-M4"
+garantia = "`planificador.py` es intocable: ensambla `fichero`/`buscar`/`sustituir`, y nada aguas abajo comprueba que la tarea se corresponda con un contrato"
+fichero = "orquestador.py"
+pruebas = ["test_red_blindaje_del_mecanismo.py::test_el_anillo_no_puede_reescribir_el_mecanismo_que_lo_gobierna[planificador.py]",
+           "test_red_blindaje_del_mecanismo.py::test_los_cuatro_constan_en_la_barrera[planificador.py]"]
+buscar = '''_INTOCABLES = ("orquestador.py", "politica-orquestador.toml", "control_plane.py", "conftest.py",
+               "autoconstruccion.py", "review.py", "ciclo_autonomo.py", "planificador.py")'''
+sustituir = '''_INTOCABLES = ("orquestador.py", "politica-orquestador.toml", "control_plane.py", "conftest.py",
+               "autoconstruccion.py", "review.py", "ciclo_autonomo.py")'''
+
+
+[[mutante]]
+id = "BM-M5"
+garantia = "el blindaje no puede convertirse en PARALISIS: `observatorio.py` —destino del incremento autorizado— tiene que seguir siendo escribible"
+fichero = "orquestador.py"
+pruebas = ["test_red_blindaje_del_mecanismo.py::test_CONTROL_el_objetivo_del_primer_incremento_SIGUE_siendo_escribible",
+           "test_red_blindaje_del_mecanismo.py::test_CONTROL_un_fichero_ordinario_del_plano_sigue_siendo_trabajable"]
+buscar = '''_INTOCABLES = ("orquestador.py", "politica-orquestador.toml", "control_plane.py", "conftest.py",
+               "autoconstruccion.py", "review.py", "ciclo_autonomo.py", "planificador.py")'''
+sustituir = '''_INTOCABLES = ("orquestador.py", "politica-orquestador.toml", "control_plane.py", "conftest.py",
+               "autoconstruccion.py", "review.py", "ciclo_autonomo.py", "planificador.py",
+               "observatorio.py")'''
+
+
+[[mutante]]
+id = "BM-M6"
+garantia = "EL CABLEADO: la tarea transporta la identidad del contrato que la autoriza. Sin ella la tarea viaja sola y nadie puede comprobar la correspondencia"
+fichero = "planificador.py"
+pruebas = ["test_red_tarea_lleva_su_contrato.py::test_la_tarea_lleva_la_identidad_del_contrato_que_la_autoriza"]
+buscar = '''        "contrato": oportunidad.detalle.get("numero", ""),'''
+sustituir = '''        "contrato": "",'''
+
+
+[[mutante]]
+id = "BM-M7"
+garantia = "una tarea SIN contrato declara el vacio y no lo inventa: un relleno pareceria una autorizacion real aguas abajo"
+fichero = "planificador.py"
+pruebas = ["test_red_tarea_lleva_su_contrato.py::test_una_tarea_sin_contrato_lo_declara_VACIO_no_lo_inventa"]
+buscar = '''        "contrato": oportunidad.detalle.get("numero", ""),'''
+sustituir = '''        "contrato": oportunidad.detalle.get("numero", "CONTRATO-PRESUNTO"),'''
+
+# --- LAS CUATRO ENTRADAS ORIGINALES (auditado el 2026-09-21) ---
+#
+# `BM-M1..M5` cubrian las cuatro entradas que el acta del CEO **anadio** en 2026-09-20, y ninguna de
+# las cuatro **originales**. Borrar `orquestador.py` de la tupla —donde vive la propia tupla— no
+# hacia fallar nada declarado. Se cierran aqui, en el mismo catalogo, porque son la misma garantia.
+
+[[mutante]]
+id = "BM-M8"
+garantia = "`orquestador.py` es intocable: ahi vive la PROPIA tupla `_INTOCABLES` y `puede_tocar()`. Si el anillo pudiera reescribirlo, podria borrarse la barrera entera — la escalada mas directa que existe"
+fichero = "orquestador.py"
+pruebas = ["test_red_vocabulario_constructivo.py::test_D_J_K_no_se_puede_tocar_lo_intocable[orquestador.py]"]
+buscar = '''_INTOCABLES = ("orquestador.py", "politica-orquestador.toml", "control_plane.py", "conftest.py",
+               "autoconstruccion.py", "review.py", "ciclo_autonomo.py", "planificador.py")'''
+sustituir = '''_INTOCABLES = ("politica-orquestador.toml", "control_plane.py", "conftest.py",
+               "autoconstruccion.py", "review.py", "ciclo_autonomo.py", "planificador.py")'''
+
+[[mutante]]
+id = "BM-M9"
+garantia = "`politica-orquestador.toml` es intocable: declara que acciones son AUTO. Reescribirlo seria concederse niveles de autonomia por edicion de fichero, que es justo lo que ADR-0003 reserva al CEO"
+fichero = "orquestador.py"
+pruebas = ["test_red_vocabulario_constructivo.py::test_D_J_K_no_se_puede_tocar_lo_intocable[politica-orquestador.toml]"]
+buscar = '''_INTOCABLES = ("orquestador.py", "politica-orquestador.toml", "control_plane.py", "conftest.py",
+               "autoconstruccion.py", "review.py", "ciclo_autonomo.py", "planificador.py")'''
+sustituir = '''_INTOCABLES = ("orquestador.py", "control_plane.py", "conftest.py",
+               "autoconstruccion.py", "review.py", "ciclo_autonomo.py", "planificador.py")'''
+
+[[mutante]]
+id = "BM-M10"
+garantia = "`control_plane.py` es intocable: es el log append-only y las puertas gobernadas. Quien pudiera editarlo podria fabricar autoridad y borrar su propio rastro (ADR-0023: el historial es la unica fuente de verdad)"
+fichero = "orquestador.py"
+pruebas = ["test_red_vocabulario_constructivo.py::test_D_J_K_no_se_puede_tocar_lo_intocable[control_plane.py]"]
+buscar = '''_INTOCABLES = ("orquestador.py", "politica-orquestador.toml", "control_plane.py", "conftest.py",
+               "autoconstruccion.py", "review.py", "ciclo_autonomo.py", "planificador.py")'''
+sustituir = '''_INTOCABLES = ("orquestador.py", "politica-orquestador.toml", "conftest.py",
+               "autoconstruccion.py", "review.py", "ciclo_autonomo.py", "planificador.py")'''
+
+[[mutante]]
+id = "BM-M11"
+garantia = "`conftest.py` es intocable: gobierna como corren las pruebas. Reescribirlo permitiria neutralizar la bateria que verifica todo lo demas — las garantias seguirian declaradas y dejarian de medirse"
+fichero = "orquestador.py"
+pruebas = ["test_red_vocabulario_constructivo.py::test_D_J_K_no_se_puede_tocar_lo_intocable[conftest.py]"]
+buscar = '''_INTOCABLES = ("orquestador.py", "politica-orquestador.toml", "control_plane.py", "conftest.py",
+               "autoconstruccion.py", "review.py", "ciclo_autonomo.py", "planificador.py")'''
+sustituir = '''_INTOCABLES = ("orquestador.py", "politica-orquestador.toml", "control_plane.py",
+               "autoconstruccion.py", "review.py", "ciclo_autonomo.py", "planificador.py")'''

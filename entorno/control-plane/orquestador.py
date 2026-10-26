@@ -56,7 +56,33 @@ NIVEL_POR_DEFECTO = "HUMAN"
 # Ficheros que el orquestador no puede tocar **por su propia naturaleza**, no por configuracion: su
 # codigo, su politica y la autoridad operacional de la que depende. Un ejecutor que puede reescribir
 # cualquiera de los tres puede concederse lo que quiera en la iteracion siguiente.
-_INTOCABLES = ("orquestador.py", "politica-orquestador.toml", "control_plane.py", "conftest.py")
+#
+# **AMPLIADA A OCHO POR ACTA DEL CEO (2026-09-20), ANTES DEL PRIMER ACTO AUTONOMO.** Se midio que la
+# tupla de cuatro protegia 4 de los 22 modulos de produccion del plano: los otros 18 eran escribibles
+# por la puerta del anillo, **incluida `autoconstruccion.py`, que ES la puerta**. El mecanismo que
+# decide que es escribible no se protegia a si mismo. Ninguna via era explotable —el anillo no puede
+# redactar contratos, y `milestones/` esta fuera de su zona— pero la proteccion era CIRCUNSTANCIAL,
+# no estructural: dependia de que nunca existiera un contrato que los nombrara. Los cuatro que se
+# anaden lo son por FUNCION DE AUTORIDAD, no por cantidad:
+#
+#   · `autoconstruccion.py` — la puerta fisica: zona + autorizacion humana + intocables + PARADA. Si
+#     se degrada aqui, ningun otro fichero lo restaura. Ademas aloja la copia local de
+#     `AUTORIDADES_HUMANAS` que `review.habilitar` consulta como si fuera la fuente.
+#   · `review.py`         — define que significa «autorizado»: materia reservada, alcance, habilitar.
+#   · `ciclo_autonomo.py` — `clasificar()` decide AUTO/REVIEW/HUMAN para toda tarea, en ambas vias.
+#   · `planificador.py`   — ensambla `fichero`/`buscar`/`sustituir`, y nada aguas abajo comprueba que
+#     la tarea se corresponda con un contrato.
+#
+# **NO se protege `observatorio.py`**: es el destino del primer incremento autorizado (DR-E) y debe
+# seguir siendo escribible. Un blindaje que impide el trabajo autorizado no es un blindaje: es una
+# averia. `test_red_blindaje_del_mecanismo.py` lo fija como caso de control.
+#
+# Esto **RESTRINGE**, no concede: reduce el alcance operativo del anillo. Y no le anade friccion a
+# ningun humano — la tupla solo la consultan la puerta de escritura del anillo
+# (`autoconstruccion.ejecutar`) y el evaluador de contratos (`contrato.evaluar`); ningun hook de git
+# ni el Quality Gate la aplican.
+_INTOCABLES = ("orquestador.py", "politica-orquestador.toml", "control_plane.py", "conftest.py",
+               "autoconstruccion.py", "review.py", "ciclo_autonomo.py", "planificador.py")
 
 # `§7.1`: el sobre lleva punteros, no la historia. Estas restricciones son las permanentes del CEO y
 # viajan en **todos** los sobres: no dependen de la tarea.
@@ -355,9 +381,13 @@ def _hay_proceso_con(marca: str) -> bool:
 
 
 def mutacion_en_curso() -> bool:
-    """Mientras `herramientas.mutar` corre, el arbol **no contiene el codigo real**: muta los
-    ficheros en el sitio. Medir entonces es medir un mutante y reportarlo como si fuera el producto.
-    Ya ocurrio (CEO, 2026-08-09) y estuvo a un paso de declarar rota una garantia que estaba sana.
+    """¿Esta corriendo `herramientas.mutar`? Mientras corre, no se mide ni se trabaja.
+
+    Hasta el 2026-10-25 el arnes mutaba los ficheros **en el sitio** y el arbol no contenia el codigo
+    real: medir entonces era medir un mutante y reportarlo como si fuera el producto. Ya ocurrio (CEO,
+    2026-08-09) y estuvo a un paso de declarar rota una garantia que estaba sana. Desde la regla 6 del
+    arnes muta una COPIA aislada y el arbol no cambia; esta exclusion se mantiene por la regla «NADA
+    en paralelo con el arnes» (`CLAUDE.md` §2) y como defensa en profundidad.
 
     Se mira `/proc` y no `pgrep`: es la misma informacion sin depender de un binario externo, y un
     control de seguridad que se cae porque falta una herramienta no es un control. Se excluye el

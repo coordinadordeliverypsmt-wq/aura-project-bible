@@ -133,10 +133,29 @@ def test_el_descubrimiento_ya_NO_la_propone_como_trabajo():
     assert op.detalle["contrato"] == ct.COMPLETADA
 
 
-def test_la_cola_esta_vacia_y_sigue_vacia_en_el_siguiente_despertar():
-    """Idempotencia: la capacidad completada permanece completada."""
-    for _ in range(2):
-        assert pl.cola(PLANO, fm.formacion(PLANO, PLANO)) == []
+def test_la_capacidad_COMPLETADA_no_reaparece_en_el_siguiente_despertar():
+    """Idempotencia: la capacidad completada permanece completada.
+
+    **Antes esto afirmaba que la cola estaba VACIA**, y era cierto mientras la sexta fuente era el
+    unico contrato del plano. Dejo de serlo cuando el CEO registro `DR-E` y aparecio un contrato
+    nuevo con trabajo legitimo pendiente: la cola paso a tener un elemento y la prueba se puso en
+    rojo **por un cambio de mundo, no por un defecto**.
+
+    Lo que esta prueba mide —y lo que da nombre al fichero— es que lo ya completado NO vuelve.
+    Afirmar «la cola esta vacia» lo decia por casualidad; afirmar «lo completado no esta en la cola,
+    y la cola no cambia entre despertares» lo dice de verdad y sobrevive a que haya trabajo nuevo.
+    """
+    completadas = [o.detalle["numero"] for o in fm.formacion(PLANO, PLANO)
+                   if o.estado == des.FALSO_HUECO]
+    assert completadas, "sin ninguna capacidad completada esta prueba no mide nada"
+
+    primera = pl.cola(PLANO, fm.formacion(PLANO, PLANO))
+    segunda = pl.cola(PLANO, fm.formacion(PLANO, PLANO))
+
+    assert [t["id"] for t in primera] == [t["id"] for t in segunda], "la cola cambio sola"
+    for tarea in primera:
+        assert tarea.get("contrato") not in completadas, (
+            f"{tarea.get('contrato')!r} ya estaba completada y vuelve a ofrecerse como trabajo")
 
 
 def test_no_se_contaminan_los_sandboxes(tmp_path):

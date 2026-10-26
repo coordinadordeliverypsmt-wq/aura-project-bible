@@ -170,7 +170,7 @@ def test_el_EJECUTOR_se_niega_aunque_la_tarea_llegue_por_otra_via(tmp_path):
                                        "forma": "import", "motivo": "por la puerta de atrás"})
     ac.autorizar(tmp_path, propuesta["id"], por="ceo", acta="acta real")
     with pytest.raises(ac.NoEliminable):
-        ac.ejecutar(tmp_path, propuesta, autoridad="ceo", verificacion=lambda: True)
+        ac.ejecutar(tmp_path, propuesta, autoridad="ceo", verificacion=lambda raiz: True)
     assert fichero.read_text(encoding="utf-8") == original, "no se tocó el fichero"
 
 
@@ -185,7 +185,7 @@ def test_el_rechazo_del_ejecutor_QUEDA_REGISTRADO(tmp_path):
                                        "forma": "import", "motivo": "x"})
     ac.autorizar(tmp_path, propuesta["id"], por="ceo", acta="acta")
     with pytest.raises(ac.NoEliminable):
-        ac.ejecutar(tmp_path, propuesta, autoridad="ceo", verificacion=lambda: True)
+        ac.ejecutar(tmp_path, propuesta, autoridad="ceo", verificacion=lambda raiz: True)
     tipos = [e["tipo"] for e in cp.leer_eventos(tmp_path)]
     assert "eliminacion_rechazada" in tipos
 
@@ -215,7 +215,7 @@ def test_CONTROL_una_oportunidad_legitima_SI_recorre_el_circuito_entero(tmp_path
         encoding="utf-8")
     _con_acta(tmp_path)
 
-    informe = motor.trabajar(tmp_path, zona, verificacion=lambda: True, max_tareas=5)
+    informe = motor.trabajar(tmp_path, zona, verificacion=lambda raiz: True, max_tareas=5)
     texto = fichero.read_text(encoding="utf-8")
 
     assert informe["ejecutadas"] == 2, informe        # json y _sobra: los dos legitimos
@@ -233,7 +233,7 @@ def test_CONTROL_la_barrera_no_bloquea_la_capacidad_entera(tmp_path):
     (zona / "m.py").write_text("def _sobra():\n    return 1\n\n\ndef v():\n    return 2\n",
                                encoding="utf-8")
     _con_acta(tmp_path)
-    assert motor.trabajar(tmp_path, zona, verificacion=lambda: True, max_tareas=3)["ejecutadas"] == 1
+    assert motor.trabajar(tmp_path, zona, verificacion=lambda raiz: True, max_tareas=3)["ejecutadas"] == 1
 
 
 # ==================================================== LA IDENTIDAD DE UNA OPORTUNIDAD --
@@ -286,7 +286,7 @@ def test_AURA_no_pierde_la_segunda_tarea_cuando_ocupa_la_linea_de_la_primera(tmp
     fichero.write_text("import json\n\n\ndef _sobra():\n    return 1\n\n\ndef v():\n    return 2\n",
                        encoding="utf-8")
     _con_acta(tmp_path)
-    informe = motor.trabajar(tmp_path, zona, verificacion=lambda: True, max_tareas=5)
+    informe = motor.trabajar(tmp_path, zona, verificacion=lambda raiz: True, max_tareas=5)
     texto = fichero.read_text(encoding="utf-8")
     assert informe["ejecutadas"] == 2, informe
     assert "import json" not in texto and "_sobra" not in texto
@@ -313,7 +313,7 @@ def test_si_el_BORRADO_no_hace_nada_no_se_declara_efecto(tmp_path, monkeypatch):
     propuesta = ac.proponer(tmp_path, {"simbolo": "_sobra", "fichero": str(fichero),
                                        "forma": "funcion", "motivo": "muerto"})
     ac.autorizar(tmp_path, propuesta["id"], por="ceo", acta="acta")
-    resultado = ac.ejecutar(tmp_path, propuesta, autoridad="ceo", verificacion=lambda: True)
+    resultado = ac.ejecutar(tmp_path, propuesta, autoridad="ceo", verificacion=lambda raiz: True)
 
     assert resultado["efecto_verificado"] is False, "el símbolo sigue ahí: no hubo efecto"
     assert resultado["revertido"] is True

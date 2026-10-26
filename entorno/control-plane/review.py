@@ -124,6 +124,15 @@ class RevisorNoIndependiente(RuntimeError):
     """El proponente intento revisarse. `1.1:94`: «No aprueba su propio trabajo»."""
 
 
+class TareaSinContratoQueLaAutorice(RuntimeError):
+    """La tarea no se corresponde con el contrato que dice autorizarla — o no cita ninguno.
+
+    Es distinto de `ReviewNoHabilitado`: alli el acta no cubre el VERBO; aqui el verbo esta
+    autorizado y lo que no encaja es **esta escritura concreta** con lo que el contrato declaro.
+    Separarlas importa porque el diagnostico es opuesto: una se arregla con un acta, la otra
+    significa que alguien pretende escribir algo que nadie aprobo."""
+
+
 # ------------------------------------------------------------------- la puerta --
 
 def habilitar(directorio, por: str, acta: str, alcance: tuple[str, ...]) -> dict:
@@ -137,9 +146,14 @@ def habilitar(directorio, por: str, acta: str, alcance: tuple[str, ...]) -> dict
     fuera = [a for a in alcance if es_materia_reservada(a)]
     if fuera:
         raise MateriaReservada(f"el alcance incluye materia reservada al CEO por D22: {fuera}")
-    registro = {"por": por, "acta": acta, "alcance": list(alcance)}
-    cp.registrar_evento(pathlib.Path(directorio), "review_habilitado", registro)
-    return {**registro, "alcance": tuple(alcance)}
+    # **Por la puerta gobernada, no por la primitiva del log** (acta del CEO, 2026-09-20). Las
+    # comprobaciones de arriba seguian siendo correctas y dejaron de ser suficientes en cuanto se
+    # midio que `cp.registrar_evento` aceptaba el evento en crudo: la garantia no era esta funcion,
+    # era que fuese el UNICO camino. La puerta repite autoridad y acta —a proposito: quien escribe
+    # el evento es quien tiene que negarse— y anade la monotonicidad del alcance.
+    registro = cp.registrar_review_habilitado(pathlib.Path(directorio), por=por, acta=acta,
+                                              alcance=tuple(alcance))["datos"]
+    return {**registro, "alcance": tuple(registro["alcance"])}
 
 
 def habilitado(directorio=None) -> bool:
@@ -162,10 +176,12 @@ def alcance_actual(directorio) -> tuple[str, ...]:
 
 
 def _alcance(directorio) -> tuple[str, ...]:
-    for evento in reversed(cp.leer_eventos(pathlib.Path(directorio))):
-        if evento["tipo"] == "review_habilitado":
-            return tuple(evento["datos"].get("alcance", ()))
-    return ()
+    """Delega en `control_plane.alcance_de_review`: **un solo interprete** del mismo hecho (`INV-7`).
+
+    Vive alli porque la puerta que ESCRIBE necesita saber lo mismo que quien LEE —para poder negar
+    una ampliacion hay que conocer el alcance vigente—, y dos deducciones del mismo hecho son dos
+    verdades esperando a divergir."""
+    return cp.alcance_de_review(pathlib.Path(directorio))
 
 
 def en_alcance(directorio, accion: str) -> bool:
@@ -389,10 +405,129 @@ def permite_seguir(veredicto) -> bool:
 
 # ------------------------------------------------------------------ el circuito --
 
+def _exigir_correspondencia_con_el_contrato(tarea: dict, accion: str) -> dict | None:
+    """**La tarea tiene que ser la que su contrato autorizo.** Quinta puerta (CEO, 2026-09-20).
+
+    Las otras cuatro comprueban el VERBO —que sea delegable, que tenga ejecutor, que REVIEW este
+    encendido y que el acta lo cubra—. Ninguna mira **esta escritura concreta**. Medido antes de
+    escribir esta funcion: una tarea que declaraba venir de un contrato y cambiaba el fichero, la
+    operacion o los textos llegaba a la escritura sin que nada lo notara.
+
+    **Por que aqui y no en `autoconstruccion.ejecutar`.** Dos lineas mas abajo, `ac.proponer()`
+    convierte la tarea en una `propuesta` que ya NO lleva el identificador del contrato: este es el
+    ultimo punto donde el dato existe. Y es la puerta por la que pasa todo el mundo — las dos vias
+    de produccion convergen aqui, y `autoconstruccion.ciclo` no tiene llamante (ALERTA-005).
+
+    **Fallo cerrado** (ADR-0003, «ante la duda, roja»): citar un contrato que no existe se rechaza
+    igual que uno que no corresponde. Tratar el fichero ausente como «nada que comprobar» haria de
+    inventarse un nombre la forma mas barata de saltarse la barrera entera.
+
+    **Lo que NO exige contrato.** El codigo muerto no nace de uno, y obligarlo habria roto la
+    capacidad anterior. La linea se traza por el verbo: `implementar_incremento_especificado` solo
+    lo produce `formacion.py` a partir de un contrato, asi que ese verbo sin contrato no es «una
+    tarea sin contrato» — es una que perdio la autorizacion que la justifica.
+
+    El import es **diferido a proposito**: `contrato` importa `review`, y a nivel de modulo esto
+    seria un ciclo. Dentro de la funcion no lo es — para cuando se ejecuta, `review` ya esta
+    completo en `sys.modules`—, y es un patron que este plano ya usa en otros modulos.
+
+    **Deuda condicionada** (CLAUDE.md §7): `autoconstruccion.ciclo()` llama a `ejecutar()` por su
+    cuenta, sin pasar por aqui. Hoy no tiene ningun llamante de produccion, asi que la barrera cubre
+    las dos vias reales. **Si algun dia lo tuviera**, necesitaria su propia comprobacion o dejar de
+    llamar a `ejecutar()` directamente: seria la geometria de ALERTA-005 otra vez."""
+    import contrato as ct
+
+    identificador = str(tarea.get("contrato") or "").strip()
+
+    if not identificador:
+        if accion == ACCION_DE_EVOLUCION:
+            raise TareaSinContratoQueLaAutorice(
+                f"{accion!r} solo nace de un contrato y esta tarea no cita ninguno: sin el no hay "
+                f"forma de saber que escritura se autorizo")
+        return None                              # codigo muerto: legitimo sin contrato
+
+    declarado = ct.contrato_de(identificador)
+    if declarado is None:
+        raise TareaSinContratoQueLaAutorice(
+            f"la tarea cita el contrato {identificador!r} y no consta en {ct.CONTRATOS}: una "
+            f"autorizacion que no se puede ir a leer es indistinguible de una inventada")
+
+    if not ct.corresponde_tarea_a_contrato(tarea, declarado):
+        raise TareaSinContratoQueLaAutorice(
+            f"la tarea no se corresponde con el contrato {identificador!r} que dice autorizarla "
+            f"(fichero {tarea.get('fichero')!r}, operacion {tarea.get('operacion')!r}): el contrato "
+            f"acota QUE se escribe, no solo quien puede escribir")
+
+    # Se devuelve el contrato YA LEIDO. Volver a abrirlo mas abajo seria interpretarlo dos veces, y
+    # `INV-7` dice que el plan se interpreta en un solo punto y no se reinterpreta.
+    return declarado
+
+
+def _verificador_de_review(contrato: dict, directorio):
+    """El verificador del contrato, atado a la COPIA que reciba. **Cada prueba se remapea a la copia**:
+    los contratos reales declaran rutas ABSOLUTAS al arbol vivo, y ejecutarlas tal cual cargaba el
+    modulo ORIGINAL (medido), de modo que se verificaba el original y se declaraba aislado. Una prueba
+    que no cae dentro de `directorio` no se puede aislar: no se ejecuta nada (`no_aislable`).
+    **Confinamiento ESTRICTO OBLIGATORIO** (`aislamiento.preparar_estricto`, FASE B del PROMPT 03): ESCRITURA
+    solo en la copia (+ el temporal del informe, que ademas es su `TMPDIR`) y `/dev/null`; LECTURA solo del
+    interprete, la stdlib, las librerias dinamicas, los paquetes de pytest y la copia (NO `/etc`, `/proc`,
+    `$HOME`, el plano vivo ni `sys.path` del padre); RED denegada (Landlock TCP + seccomp: TCP, UDP, unix,
+    netlink, packet, io_uring); senales y sockets unix abstractos acotados al dominio. Tambien para hijos y
+    nietos. Si CUALQUIER control falta (ABI<6, sin seccomp, confinador que no declare todos los controles
+    de `ais.CONTROLES_ESTRICTOS`) NO se ejecuta nada y el estado es `sin_confinamiento` (rechazo): degradar
+    en silencio daria por verificado algo sin aislar. Un fallo al aplicar las reglas en el hijo es
+    `error_infraestructura`. Limites no mitigados: ver `aislamiento.py`.
+    Devuelve `ac.ResultadoVerificacion`; `confinada=True` solo si la ejecucion ocurrio con TODOS los controles."""
+    import aislamiento as ais
+    import verificador as vf
+    minimas = [str(p) for p in (((contrato or {}).get("verificacion") or {}).get("pruebas_minimas") or [])
+               if str(p).strip()]
+    base = pathlib.Path(directorio).resolve()
+
+    def verificar(raiz) -> "ac.ResultadoVerificacion":
+        raiz = pathlib.Path(raiz)
+        remapeadas = []
+        for prueba in minimas:
+            # Las relativas se interpretan como hoy: contra el directorio (cwd del verificador).
+            ruta = pathlib.Path(prueba)
+            ruta = (ruta if ruta.is_absolute() else base / ruta).resolve()
+            try:
+                remapeadas.append(str(raiz / ruta.relative_to(base)))
+            except ValueError:
+                return ac.ResultadoVerificacion(
+                    "no_aislable", False, False, f"la prueba {prueba} esta fuera de {base}")
+        try:
+            if ais.abi_disponible() <= 0:
+                return ac.ResultadoVerificacion("sin_confinamiento", True, False,
+                                                "este kernel no ofrece Landlock: no se verifica")
+            try:
+                confinar = ais.preparar_estricto(raiz)
+            except ais.ConfinamientoInsuficiente as exc:
+                return ac.ResultadoVerificacion("sin_confinamiento", True, False,
+                                                f"confinamiento estricto no disponible: {exc}")
+            controles = getattr(confinar, "controles", None) or {}
+            faltan = [c for c in ais.CONTROLES_ESTRICTOS if controles.get(c) is not True]
+            if getattr(confinar, "abi", 0) <= 0 or getattr(confinar, "completo", False) is not True or faltan:
+                return ac.ResultadoVerificacion("sin_confinamiento", True, False,
+                                                f"el confinador no declara el modo estricto completo: {faltan}")
+            informe = vf.ejecutar_pruebas(remapeadas, raiz, confinar=confinar)
+        except ais.ConfinamientoInsuficiente as exc:      # al componer con el temporal del informe
+            return ac.ResultadoVerificacion("sin_confinamiento", True, False, str(exc))
+        except Exception as exc:  # noqa: BLE001 — no medir no es fallar la prueba
+            return ac.ResultadoVerificacion("error_infraestructura", True, False, repr(exc))
+        if informe.agotado:
+            return ac.ResultadoVerificacion("error_infraestructura", True, True, "plazo agotado")
+        return ac.ResultadoVerificacion("sano" if informe.sano else "fallo", True, True,
+                                        informe.salida[-500:])
+
+    return verificar
+
+
 def ejecutar_bajo_review(directorio, tarea: dict, propuesto_por: str, autoridad: str,
                          verificacion=None, revisor: str | None = None) -> dict:
-    """`clasificar → revisar → ejecutar → verificar → registrar`, con cuatro puertas antes de tocar
-    nada: materia reservada, nivel habilitado, alcance del acta y veredicto sin objeciones."""
+    """`clasificar → revisar → ejecutar → verificar → registrar`, con **cinco** puertas antes de
+    tocar nada: materia reservada, ejecutor construido, nivel habilitado, alcance del acta y
+    **correspondencia con el contrato** — mas el veredicto sin objeciones."""
     directorio = pathlib.Path(directorio)
     accion = tarea.get("accion", "")
 
@@ -414,6 +549,11 @@ def ejecutar_bajo_review(directorio, tarea: dict, propuesto_por: str, autoridad:
         raise ReviewNoHabilitado(
             f"{accion!r} esta fuera del alcance que el acta habilito {_alcance(directorio)}: "
             f"habilitar REVIEW no es un cheque en blanco")
+    contrato_declarado = _exigir_correspondencia_con_el_contrato(tarea, accion)
+    # **Validar el verificador al ENTRAR**: antes de veredicto, `proponer` y `registrar_propuesta_autorizada`.
+    # Un verificador sin raiz lanzaba `VerificadorSinRaiz` solo DENTRO de `ejecutar`, ya registradas la
+    # propuesta y su autorizacion.
+    ac._exigir_raiz(verificacion)
 
     # `§8.3` · **degradacion**, cableada a la ruta real tras la 3.a auditoria independiente:
     # *«si no hay revisor disponible, la tarea que exige revision pasa a WAITING_FOR_REVIEW y
@@ -451,10 +591,22 @@ def ejecutar_bajo_review(directorio, tarea: dict, propuesto_por: str, autoridad:
                                          "buscar": tarea.get("buscar"),
                                          "sustituir": tarea.get("sustituir"),
                                          "motivo": f"{accion} bajo REVIEW"})
-    cp.registrar_evento(directorio, "propuesta_autorizada",
-                        {"id": propuesta["id"], "autorizada_por": f"REVIEW:{revisor}",
-                         "acta": f"alcance habilitado por acta del CEO; veredicto de {revisor}"})
+    cp.registrar_propuesta_autorizada(
+        directorio, propuesta["id"], autorizada_por=f"{cp.PREFIJO_REVIEW}{revisor}",
+        acta=f"alcance habilitado por acta del CEO; veredicto de {revisor}")
+    # **EL LISTON LO PONE EL CONTRATO** (CEO, 2026-09-20). Sin esto, el punto de entrada empaquetado
+    # pasa `verificacion=None`, el ejecutor trata «no se sabe» como fallo y **revierte todo cambio**:
+    # medido en sandbox, una tarea impecable se aplicaba y se deshacia, asi que ninguna podia
+    # completarse jamas. El verificador se deriva de las `pruebas_minimas` del contrato que YA se
+    # cargo en la quinta puerta —quien decide que hay que comprobar es quien autorizo el cambio, no
+    # el ejecutor—. Un verificador explicito del llamante gana: esto rellena el hueco, no lo pisa.
+    if verificacion is None and contrato_declarado is not None:
+        # Sobre la raiz que RECIBA: `ejecutar` verifica en una copia aislada, no en el arbol vivo.
+        verificacion = _verificador_de_review(contrato_declarado, directorio)
     resultado = ac.ejecutar(directorio, propuesta, autoridad=autoridad, verificacion=verificacion)
     return {"ejecutado": not resultado["revertido"], "revisor": revisor, "objeciones": [],
             "efecto_verificado": resultado["efecto_verificado"],
-            "revertido": resultado["revertido"], "propuesta": propuesta["id"]}
+            "revertido": resultado["revertido"], "propuesta": propuesta["id"],
+            # Lo que el ejecutor declara sobre COMO se verifico: no se descarta al subir de nivel.
+            **{k: resultado[k] for k in ("verificacion_aislada", "ejecucion_confinada", "promovido",
+                                         "motivo") if k in resultado}}

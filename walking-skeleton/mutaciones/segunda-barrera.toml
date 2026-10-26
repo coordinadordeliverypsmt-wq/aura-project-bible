@@ -56,10 +56,14 @@ garantia = "BYPASS: el EJECUTOR consulta la barrera antes de tocar el fichero"
 fichero = "autoconstruccion.py"
 pruebas = ["test_red_segunda_barrera.py::test_el_EJECUTOR_se_niega_aunque_la_tarea_llegue_por_otra_via",
            "test_red_segunda_barrera.py::test_el_rechazo_del_ejecutor_QUEDA_REGISTRADO"]
-buscar = '''    puede, motivo = es_eliminable(original, propuesta["simbolo"], forma)
-    if not puede:'''
-sustituir = '''    puede, motivo = es_eliminable(original, propuesta["simbolo"], forma)
-    if False:'''
+# RE-ANCLADO 2026-09-14: el bloque paso a vivir dentro del `else:` del despacho por operacion
+# (`sustituir_texto` vs `eliminar_codigo_muerto`) anadido despues, asi que gano un nivel de
+# indentacion (8 espacios en vez de 4). La garantia es la MISMA: el ejecutor sigue consultando
+# `es_eliminable` antes de tocar el fichero. Verificado unico con `grep -c` en autoconstruccion.py.
+buscar = '''        puede, motivo = es_eliminable(original, propuesta["simbolo"], forma)
+        if not puede:'''
+sustituir = '''        puede, motivo = es_eliminable(original, propuesta["simbolo"], forma)
+        if False:'''
 
 [[mutante]]
 id = "SB-M6"
@@ -87,9 +91,15 @@ garantia = "FAIL-CLOSED: lo que no consta en el fichero no se borra"
 fichero = "autoconstruccion.py"
 pruebas = ["test_red_segunda_barrera.py::test_la_barrera_rechaza_lo_que_NO_EXISTE",
            "test_red_autoconstruccion.py::test_AURA_no_declara_exito_sin_comprobar_el_efecto"]
-buscar = '''    if _nodo_de(arbol, simbolo, forma) is None:
+# RE-ANCLADO 2026-09-14: `es_eliminable` paso a guardar el nodo en una variable (`nodo = _nodo_de(...)`)
+# antes de comprobarlo, en vez de llamarlo inline dentro del `if`. Misma garantia (fail-closed: lo
+# que no existe no se borra); el patron ahora incluye la asignacion para seguir siendo UNICO —hay
+# otra `_nodo_de(...)/is None` identica en `quitar_simbolo()`, que retorna `texto` en vez de `False`.
+buscar = '''    nodo = _nodo_de(arbol, simbolo, forma)
+    if nodo is None:
         return False, f"{simbolo!r} no consta como {forma} en este fichero"'''
-sustituir = '''    if False:
+sustituir = '''    nodo = _nodo_de(arbol, simbolo, forma)
+    if False:
         return False, f"{simbolo!r} no consta como {forma} en este fichero"'''
 
 [[mutante]]
@@ -109,9 +119,11 @@ id = "SB-M10"
 garantia = "el rechazo del ejecutor QUEDA REGISTRADO: uno que no consta es indistinguible de no intentarlo"
 fichero = "autoconstruccion.py"
 pruebas = ["test_red_segunda_barrera.py::test_el_rechazo_del_ejecutor_QUEDA_REGISTRADO"]
-buscar = '''        cp.registrar_evento(directorio, "eliminacion_rechazada",'''
-sustituir = '''        _ = lambda *a, **k: None
-        _(directorio, "eliminacion_rechazada",'''
+# RE-ANCLADO 2026-10-22: el bloque tiene 12 espacios de indentacion (dentro del `else:` del despacho);
+# con 8 el mutante rompia la sintaxis (AMBIGUO) en vez de degradar. Misma garantia y degradacion.
+buscar = '''            cp.registrar_evento(directorio, "eliminacion_rechazada",'''
+sustituir = '''            _ = lambda *a, **k: None
+            _(directorio, "eliminacion_rechazada",'''
 
 # --------- LA IDENTIDAD DE LA OPORTUNIDAD ---------
 

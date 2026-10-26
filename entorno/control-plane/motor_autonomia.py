@@ -133,6 +133,7 @@ def trabajar(directorio, raiz, verificacion=None, max_tareas: int = 5) -> dict:
         if not resultado.get("ejecutado"):
             if resultado.get("revertido"):
                 informe["revertidas"] += 1
+                _registrar_si_agoto_su_presupuesto(directorio, tarea)
                 return _detener(directorio, informe, "verificacion fallida", tarea["id"], desde=arranque)
             return _detener(directorio, informe, "objeciones del revisor", tarea["id"], desde=arranque)
 
@@ -140,6 +141,43 @@ def trabajar(directorio, raiz, verificacion=None, max_tareas: int = 5) -> dict:
         informe["ejecutadas_ids"].append(tarea["id"])
 
     return _detener(directorio, informe, "limite de seguridad", desde=arranque)
+
+
+#: El evento que da constancia de que una tarea agoto su presupuesto de reintentos. **No es un
+#: evento gobernado**: no concede estado ni autoridad, informa. Gobernarlo seria confundir informar
+#: con permitir.
+EVENTO_PRESUPUESTO_AGOTADO = "presupuesto_de_tarea_agotado"
+
+
+def _registrar_si_agoto_su_presupuesto(directorio, tarea: dict) -> None:
+    """Deja constancia de que esta tarea ya no volvera a intentarse.
+
+    **El silencio que cierra.** `planificador.elegible()` concede una tarea revertida *«mientras
+    quede presupuesto»* y la apaga al llegar a `TOPE_DE_REINTENTOS`: a partir de ahi devuelve
+    `False` para siempre y la tarea desaparece de la cola **sin que nada lo diga**. Auditando el
+    historial habia que reconstruir a mano `intentos_de(t) >= TOPE and not completada(t)` sobre cada
+    tarea para descubrir que una oportunidad autorizada habia quedado abandonada. Es el patron
+    «declarado != real» aplicado al trabajo pendiente: el diagnostico seguia informando de una
+    oportunidad real que el motor ya nunca iba a intentar.
+
+    **No cambia nada de lo que decide.** Ni el tope, ni `elegible()`, ni la cola: la tarea se apaga
+    exactamente cuando se apagaba. Lo unico que cambia es que ahora se sabe.
+
+    **No se registra dos veces.** Volver a mirar no es volver a agotar; un log que repite el mismo
+    hecho deja de ser un conteo."""
+    id_tarea = tarea.get("id")
+    if not id_tarea or plan.intentos_de(directorio, id_tarea) < plan.TOPE_DE_REINTENTOS:
+        return
+    ya_consta = any(e["tipo"] == EVENTO_PRESUPUESTO_AGOTADO
+                    and (e.get("datos") or {}).get("id") == id_tarea
+                    for e in cp.leer_eventos(pathlib.Path(directorio)))
+    if ya_consta:
+        return
+    cp.registrar_evento(directorio, EVENTO_PRESUPUESTO_AGOTADO,
+                        {"id": id_tarea, "origen": tarea.get("origen", ""),
+                         "intentos": plan.intentos_de(directorio, id_tarea),
+                         "motivo": "reintentos agotados sin dejar efecto; hace falta evidencia "
+                                   "nueva —otra oportunidad, con otra identidad— para volver"})
 
 
 def diagnostico(directorio, raiz) -> dict:

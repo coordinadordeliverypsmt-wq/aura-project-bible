@@ -1,0 +1,119 @@
+# EL VERIFICADOR — `ejecutar_pruebas`, el eslabon que faltaba (CEO, 2026-09-20).
+#
+# Que se protege: que el veredicto «el arbol quedo sano» salga de CONTAR cuantas pruebas corrieron y
+# cuantas pasaron, y no del codigo de salida de pytest. Los tres falsos positivos que esto cierra se
+# reprodujeron antes de construirlo: `PYTEST_ADDOPTS=--collect-only` heredado, un `conftest.py` que
+# omite todo, y una bateria que no recoge nada. Los tres dan returncode 0 y ninguno significa «paso».
+#
+# **VF-M1 es el mutante del CABLEADO y el que mas importa.** Borra el enchufe y deja el verificador
+# entero intacto —construido, probado y documentado— sin que proteja nada: `verificacion` vuelve a
+# ser `None`, el ejecutor revierte todo y ninguna tarea puede completarse. Si sobreviviera, el
+# eslabon estaria «declarado, no real», que es el patron que este proyecto ya ha pagado ocho veces.
+#
+# Como se ejecuta (nunca en paralelo con nada):
+#   cd walking-skeleton
+#   python3 -m herramientas.mutar ../entorno/control-plane/mutaciones/verificador.toml \
+#           --raiz ../entorno/control-plane
+
+incremento = "VERIFICADOR (CEO, 2026-09-20): ejecutar_pruebas cuenta, y el liston lo pone el contrato"
+pruebas = ["test_red_verificador.py", "test_red_tarea_atada_a_su_contrato.py"]
+timeout_s = 600
+
+
+[[mutante]]
+id = "VF-M1"
+garantia = "EL CABLEADO: si nadie pasa verificador, se deriva del contrato. Sin el enchufe, `verificacion` vuelve a ser None y NINGUNA tarea puede completarse jamas"
+fichero = "review.py"
+# Las dos primeras son las que EJERCITAN el enchufe (pasan `verificacion=None`). Las otras dos
+# llaman al verificador directamente y no lo tocan: declararlas solas dejo sobrevivir a este
+# mutante en la primera pasada, que es el error de «elegir mal las pruebas» documentado en CLAUDE.md.
+pruebas = ["test_red_verificador.py::test_EL_CABLEADO_sin_verificador_explicito_se_deriva_del_contrato",
+           "test_red_verificador.py::test_EL_CABLEADO_con_la_bateria_del_contrato_en_ROJO_revierte"]
+# RE-ANCLADO 2026-10-23 (candidato aislado, fases A/B): el enchufe ya no importa `verificador` en
+# review.py (lo hace `_verificador_de_review`). Misma degradacion: el enchufe se desactiva.
+buscar = '''    if verificacion is None and contrato_declarado is not None:
+        # Sobre la raiz'''
+sustituir = '''    if False:
+        # Sobre la raiz'''
+
+
+# VF-M2 retirado: su garantia (`ejecutadas > 0`) resulto ser una clausula MUERTA —
+# `ejecutadas > omitidas` ya la implicaba—. La mutacion lo descubrio al sobrevivir. Se
+# retiro la clausula del codigo en vez de inventarle una prueba.
+
+[[mutante]]
+id = "VF-M3"
+garantia = "una bateria ENTERAMENTE OMITIDA no es un arbol sano: el conftest hostil del red team salia con returncode 0"
+fichero = "verificador.py"
+pruebas = ["test_red_verificador.py::test_un_conftest_hostil_que_omite_TODO_no_declara_sano_el_arbol"]
+buscar = '''                and self.ejecutadas > self.omitidas'''
+sustituir = '''                and self.ejecutadas >= self.omitidas'''
+
+
+[[mutante]]
+id = "VF-M4"
+garantia = "las pruebas FALLIDAS cuentan: sin esto el veredicto ignora el motivo por el que existe"
+fichero = "verificador.py"
+pruebas = ["test_red_verificador.py::test_una_bateria_en_ROJO_declara_el_arbol_enfermo",
+           "test_red_verificador.py::test_el_liston_lo_pone_el_CONTRATO_y_no_el_ejecutor"]
+buscar = '''                and self.fallidas == 0'''
+sustituir = '''                and self.fallidas >= 0'''
+
+
+[[mutante]]
+id = "VF-M5"
+garantia = "el entorno se CONSTRUYE, no se hereda: `PYTEST_ADDOPTS` heredado convierte cualquier ejecucion en un exit 0 vacio"
+fichero = "verificador.py"
+pruebas = ["test_red_verificador.py::test_PYTEST_ADDOPTS_heredado_NO_puede_declarar_sano_un_arbol_roto"]
+buscar = '''    entorno = {k: os.environ[k] for k in _ENTORNO_MINIMO if k in os.environ}'''
+sustituir = '''    entorno = dict(os.environ)'''
+
+
+[[mutante]]
+id = "VF-M6"
+garantia = "agotar el plazo NO es pasar: nadie llego a decidir, y un mutante que cuelga colgaria el ciclo entero"
+fichero = "verificador.py"
+# La de extremo a extremo no basta: al agotar el plazo el conteo ya sale a cero y `sano` es False
+# por otra via. Solo la prueba que AISLA el veredicto distingue esta garantia de la vecina.
+pruebas = ["test_red_verificador.py::test_agotar_el_PLAZO_no_es_pasar_aunque_los_conteos_parezcan_sanos",
+           "test_red_verificador.py::test_una_bateria_que_NO_TERMINA_a_tiempo_no_se_declara_sana"]
+buscar = '''        return (not self.agotado
+                and self.ejecutadas > self.omitidas'''
+sustituir = '''        return (True
+                and self.ejecutadas > self.omitidas'''
+
+
+[[mutante]]
+id = "VF-M7"
+garantia = "si el VERIFICADOR revienta, el veredicto es rojo: fallar en abierto declararia sano un arbol que nadie pudo medir"
+fichero = "verificador.py"
+pruebas = ["test_red_verificador.py::test_con_el_ARNES_DE_MUTACION_corriendo_el_verificador_se_niega"]
+buscar = '''    except Exception:
+        return False'''
+sustituir = '''    except Exception:
+        return True'''
+
+
+[[mutante]]
+id = "VF-M8"
+garantia = "no se mide mientras el ARNES DE MUTACION corre: el arbol no contiene el codigo real y se estaria midiendo un mutante"
+fichero = "verificador.py"
+# 2026-10-06: la vigilancia durante y al final de la bateria tambien detecta el arnes, asi que lo que SOLO
+# protege esta linea es negarse ANTES de lanzar pytest. Esa es la prueba que la distingue.
+pruebas = ["test_red_verificador.py::test_con_el_ARNES_DE_MUTACION_corriendo_el_verificador_se_niega",
+           "test_red_verificador_ciclo_de_vida.py::test_con_el_arnes_corriendo_al_empezar_no_se_lanza_ni_un_proceso"]
+buscar = '''    if orquestador.mutacion_en_curso():'''
+sustituir = '''    if False:'''
+
+
+[[mutante]]
+id = "VF-M9"
+garantia = "un informe ILEGIBLE cuenta como cero ejecutadas: si no se puede contar, no se puede afirmar que la bateria paso"
+fichero = "verificador.py"
+# Desde fuera no se alcanza la rama de error: pytest escribe un informe legible incluso cuando
+# falla. Hay que llamar al contador con un informe ilegible para ejercer la garantia.
+pruebas = ["test_red_verificador.py::test_un_informe_ILEGIBLE_cuenta_como_CERO_ejecutadas"]
+buscar = '''    except (ET.ParseError, OSError):
+        return (0, 0, 0, 0)'''
+sustituir = '''    except (ET.ParseError, OSError):
+        return (1, 0, 0, 0)'''

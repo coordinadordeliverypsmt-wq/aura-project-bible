@@ -104,9 +104,12 @@ garantia = "el EFECTO se comprueba releyendo el arbol, no buscando texto"
 fichero = "autoconstruccion.py"
 pruebas = ["test_red_codigo_muerto_completo.py::test_AURA_ejecuta_las_CUATRO_formas_encadenadas",
            "test_red_codigo_muerto_completo.py::test_si_la_verificacion_falla_se_REVIERTE_cualquiera_de_las_formas"]
-buscar = '''    efecto = _existe_simbolo(original, propuesta["simbolo"], forma) \
-        and not _existe_simbolo(tras_el_cambio, propuesta["simbolo"], forma)'''
-sustituir = '''    efecto = "def " + propuesta["simbolo"] + "(" in original'''
+# RE-ANCLADO 2026-10-22 (candidato aislado): la comprobacion vive ahora en `efecto_en`, dentro de
+# `_aplicar_en_copia`. Misma garantia (el efecto se comprueba releyendo el arbol); misma degradacion
+# (buscar texto en `original` en vez de preguntarle al parser). Unico en el fichero.
+buscar = '''        return _existe_simbolo(original, propuesta["simbolo"], forma) \
+            and not _existe_simbolo(tras_el_cambio, propuesta["simbolo"], forma)'''
+sustituir = '''        return "def " + propuesta["simbolo"] + "(" in original'''
 
 [[mutante]]
 id = "CMC-M12"

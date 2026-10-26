@@ -1,0 +1,75 @@
+incremento = "BLINDAJE DEL ANILLO (CEO, 2026-09-16): tres barreras que decian proteger y no protegian — acta por substring, verificacion ausente declarada sana, y PARADA no consultada en la puerta de escritura"
+pruebas = ["test_red_blindaje_del_anillo.py"]
+timeout_s = 300
+
+[[mutante]]
+id = "BA-M1"
+garantia = "un FRAGMENTO de texto vuelve a acreditar un acta: citar `acta = \"D\"` bastaria para autorizar un contrato"
+fichero = "contrato.py"
+pruebas = ["test_red_blindaje_del_anillo.py::test_un_fragmento_de_acta_no_acredita_autorizacion"]
+buscar = '''        registrada = str(datos.get("acta", ""))
+        if registrada and _identificador_de_acta(registrada) == citado:
+            return True'''
+sustituir = '''        if citado in str(datos):
+            return True'''
+
+[[mutante]]
+id = "BA-M2"
+garantia = "el identificador del acta deja de extraerse: se compara la prosa entera y el contrato real (que cita el acta completa) dejaria de acreditarse"
+fichero = "contrato.py"
+pruebas = ["test_red_blindaje_del_anillo.py::test_CONTROL_un_acta_real_sigue_acreditandose"]
+buscar = '''    return acta.split("·")[0].split(":")[0].strip()'''
+sustituir = '''    return acta.strip()'''
+
+[[mutante]]
+id = "BA-M3"
+garantia = "«no se midio» vuelve a ser «salio bien»: sin verificador el ejecutor firma verificacion_sana=True"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_blindaje_del_anillo.py::test_sin_verificador_el_arbol_NO_puede_declararse_sano",
+           "test_red_blindaje_del_anillo.py::test_CONTROL_con_verificador_en_verde_si_se_declara_sano"]
+# RE-ANCLADO 2026-10-23 (candidato aislado, fases A/B): la derivacion de `sano` vive ahora en
+# `_aplicar_en_copia`. Misma degradacion: sin verificador (resultado None) se firma sano=True.
+buscar = '''    sano = (None if resultado_v is None else'''
+sustituir = '''    sano = (True if resultado_v is None else'''
+
+[[mutante]]
+id = "BA-M4"
+garantia = "la PARADA deja de bloquear la puerta de escritura: con el kill switch armado, el ejecutor escribe igual"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_blindaje_del_anillo.py::test_la_PARADA_bloquea_la_puerta_de_escritura_no_solo_el_despertar",
+           "test_red_blindaje_del_anillo.py::test_CONTROL_sin_PARADA_la_ejecucion_sigue_su_curso",
+           # Desde el candidato aislado hay una SEGUNDA puerta de PARADA tras la verificacion: sin esta
+           # prueba (que exige que no se cree ni copia) la primera puerta quedaba redundante.
+           "test_red_candidato_aislado.py::test_PARADA_armada_no_crea_copia_ni_diario"]
+buscar = '''    if orquestador.parada_solicitada(directorio):
+        raise ParadaActiva(
+            f"PARADA armada en {directorio}: no se escribe nada.'''
+sustituir = '''    if False:
+        raise ParadaActiva(
+            f"PARADA armada en {directorio}: no se escribe nada.'''
+
+[[mutante]]
+id = "BA-M5"
+garantia = "un cambio no verificado deja de revertirse: el arbol queda tocado sin que nadie haya comprobado que sigue sano"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_blindaje_del_anillo.py::test_sin_verificador_el_arbol_NO_puede_declararse_sano",
+           "test_red_blindaje_del_anillo.py::test_CONTROL_con_verificador_en_rojo_se_revierte"]
+buscar = '''    if not (efecto and sano):'''
+sustituir = '''    if not (efecto and sano is not None and sano) and sano is not None:'''
+
+[[mutante]]
+id = "BA-M6"
+garantia = "la puerta de escritura deja de mirar los INTOCABLES: el ejecutor vuelve a poder reescribir el fichero que decide su propia autoridad"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_blindaje_del_anillo.py::test_la_puerta_de_escritura_respeta_los_INTOCABLES",
+           "test_red_blindaje_del_anillo.py::test_CONTROL_un_fichero_ordinario_del_plano_si_se_puede_tocar"]
+buscar = '''    if nombre_real in orquestador._INTOCABLES or ruta.name in orquestador._INTOCABLES:'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "BA-M7"
+garantia = "la comprobacion deja de resolver el nombre: un symlink con otro nombre apuntando a un intocable burla la barrera"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_blindaje_del_anillo.py::test_un_symlink_con_nombre_inocente_no_burla_la_barrera"]
+buscar = '''        nombre_real = ruta.resolve().name'''
+sustituir = '''        nombre_real = ruta.name'''

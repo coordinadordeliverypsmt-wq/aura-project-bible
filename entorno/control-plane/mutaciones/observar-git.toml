@@ -1,0 +1,41 @@
+incremento = '''observar_git devuelve rutas que existen: renombrados y rutas entrecomilladas (2026-10-06)'''
+# Ejecutar: cd walking-skeleton && python3 -m herramientas.mutar ../entorno/control-plane/mutaciones/observar-git.toml --raiz ../entorno/control-plane
+pruebas = ["test_red_observar_git_renombrado.py", "test_control_plane.py"]
+timeout_s = 120
+
+[[mutante]]
+id = "OG-M1"
+garantia = '''el origen de un renombrado se cuela como si fuera otra ruta modificada'''
+fichero = "control_plane.py"
+buscar = '''        if entrada[0] in "RC" or entrada[1] in "RC":
+            i += 1'''
+sustituir = '''        if False:
+            i += 1'''
+
+[[mutante]]
+id = "OG-M2"
+garantia = '''vuelve el formato de lineas: `viejo -> nuevo` y rutas entrecomilladas'''
+fichero = "control_plane.py"
+buscar = '''    crudo = _git("status", "--porcelain", "-z", crudo=True)'''
+sustituir = '''    crudo = _git("status", "--porcelain", crudo=True)'''
+
+[[mutante]]
+id = "OG-M3"
+garantia = '''el recorte por posicion vuelve a comerse un caracter del nombre'''
+fichero = "control_plane.py"
+buscar = '''        rutas.append(entrada[3:])'''
+sustituir = '''        rutas.append(entrada[4:])'''
+
+[[mutante]]
+id = "OG-M4"
+garantia = '''la salida cruda se recorta y la primera entrada pierde su columna de estado vacia'''
+fichero = "control_plane.py"
+buscar = '''            return r.stdout if crudo else r.stdout.strip()'''
+sustituir = '''            return r.stdout.strip()'''
+
+[[mutante]]
+id = "OG-M5"
+garantia = '''el arbol se declara limpio aunque haya cambios'''
+fichero = "control_plane.py"
+buscar = '''        "limpio": crudo == "" if crudo is not None else None,'''
+sustituir = '''        "limpio": True,'''

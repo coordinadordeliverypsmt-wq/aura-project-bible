@@ -1,0 +1,30 @@
+# CONTENCION DEL AMBITO EN `formacion` (2026-09-21).
+#
+# Que se protege: un contrato solo produce oportunidad si su objetivo cuelga del `ambito` derivado
+# de `directorio`. Es lo que impide que un descubrimiento montado sobre un arbol acabe proponiendo
+# trabajo sobre otro — la clase de fallo que ya costo 49 lineas del fichero del acta.
+#
+# **Por que existe este catalogo.** La barrera tenia prueba
+# (`test_no_se_contaminan_los_sandboxes`) y NO tenia mutante: nadie habia comprobado que esa prueba
+# la protegiera de verdad. Una barrera con prueba pero sin red es una promesa con testigo.
+#
+# Como se ejecuta (nunca en paralelo con nada):
+#   cd walking-skeleton
+#   python3 -m herramientas.mutar ../entorno/control-plane/mutaciones/contencion-del-ambito.toml \
+#           --raiz ../entorno/control-plane
+
+incremento = "CONTENCION DEL AMBITO (2026-09-21): un contrato fuera del ambito no produce trabajo"
+# 2026-10-25: la base verifica SOLO la prueba que usa su unico mutante (CA-M1 declara la suya). Las otras dos de
+# test_red_capacidad_completada.py miden el plano REAL en su ruta real (contratos con rutas absolutas; la tarea
+# se identifica por la ruta del contrato) y fallan en la copia aislada del arnes (regla 6): ningun mutante las usa.
+pruebas = ["test_red_capacidad_completada.py::test_no_se_contaminan_los_sandboxes"]
+timeout_s = 300
+
+
+[[mutante]]
+id = "CA-M1"
+garantia = "el AMBITO acota: sin el, un contrato cuyo objetivo vive fuera del arbol de trabajo produciria trabajo sobre otro arbol"
+fichero = "formacion.py"
+pruebas = ["test_red_capacidad_completada.py::test_no_se_contaminan_los_sandboxes"]
+buscar = '''        if ambito is None or not objetivo or not pathlib.Path(objetivo).resolve().is_relative_to(ambito):'''
+sustituir = '''        if not objetivo:'''

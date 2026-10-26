@@ -41,10 +41,18 @@ sustituir = '''    verificados.append("cinco_preguntas_d21")'''
 id = "V-M4"
 descripcion = "consistencia se declara verificada sin tener fuente de verdad"
 fichero = "review.py"
-buscar = '''    declarados.append("consistencia")
-    if not tarea.get("respeta_decisiones"):'''
-sustituir = '''    verificados.append("consistencia")
-    if not tarea.get("respeta_decisiones"):'''
+# RE-ANCLADO 2026-09-14: `aplicar_criterios` gano `evaluar_decisiones` (evalua la lista enumerada de
+# decisiones aplicables) y el `declarados.append("consistencia")` suelto se convirtio en el `else`
+# de "sin decisiones_aplicables, se conserva el comportamiento anterior". La garantia es la MISMA
+# (sin fuente de verdad completa, consistencia se declara, nunca se verifica); se ancla a ese `else`
+# y a la linea de `respeta_decisiones` que lo sigue, que juntas son unicas (grep -c = 1) — hay otros
+# dos `declarados.append("consistencia")` en el fichero, dentro del `if decisiones:`.
+buscar = '''    else:
+        declarados.append("consistencia")
+    if not tarea.get("respeta_decisiones", True) and "consistencia" not in fallos:'''
+sustituir = '''    else:
+        verificados.append("consistencia")
+    if not tarea.get("respeta_decisiones", True) and "consistencia" not in fallos:'''
 
 [[mutante]]
 id = "V-M5"
@@ -57,8 +65,11 @@ sustituir = '''    if tarea.get("materia_reservada"):'''
 id = "V-M6"
 descripcion = "el juicio deja de distinguir lo verificado de lo declarado"
 fichero = "review.py"
-buscar = '''            "verificados": tuple(verificados), "declarados": tuple(declarados)}'''
-sustituir = '''            "verificados": tuple(verificados) + tuple(declarados), "declarados": ()}'''
+# RE-ANCLADO 2026-09-14: el dict de retorno gano las claves `no_aplica` y `decisiones` (DR-F-3d-4),
+# asi que la linea de `verificados`/`declarados` ya no cierra con `}`: ahora termina en coma. Misma
+# garantia; unico en el fichero (grep -c = 1).
+buscar = '''            "verificados": tuple(verificados), "declarados": tuple(declarados),'''
+sustituir = '''            "verificados": tuple(verificados) + tuple(declarados), "declarados": (),'''
 
 [[mutante]]
 id = "V-M7"

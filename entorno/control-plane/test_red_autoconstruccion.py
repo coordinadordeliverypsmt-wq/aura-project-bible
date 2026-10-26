@@ -203,7 +203,7 @@ def test_el_cambio_es_REVERSIBLE_y_se_revierte_si_la_verificacion_falla(tmp_path
     objetivo.write_text(fuente, encoding="utf-8")
     p = ac.proponer(d, {"simbolo": "_muerta", "fichero": str(objetivo), "motivo": "muerto"})
     ac.autorizar(d, p["id"], por="ceo", acta="acta")
-    resultado = ac.ejecutar(d, p, autoridad="ceo", verificacion=lambda: False)
+    resultado = ac.ejecutar(d, p, autoridad="ceo", verificacion=lambda raiz: False)
     assert resultado["revertido"] is True
     assert objetivo.read_text(encoding="utf-8") == fuente, "el árbol vuelve a como estaba"
 
@@ -215,7 +215,7 @@ def test_un_cambio_verificado_se_CONSERVA_y_queda_registrado(tmp_path):
                         encoding="utf-8")
     p = ac.proponer(d, {"simbolo": "_muerta", "fichero": str(objetivo), "motivo": "muerto"})
     ac.autorizar(d, p["id"], por="ceo", acta="acta")
-    resultado = ac.ejecutar(d, p, autoridad="ceo", verificacion=lambda: True)
+    resultado = ac.ejecutar(d, p, autoridad="ceo", verificacion=lambda raiz: True)
     assert resultado["revertido"] is False and resultado["efecto_verificado"] is True
     texto = objetivo.read_text(encoding="utf-8")
     assert "_muerta" not in texto and "def viva" in texto
@@ -243,13 +243,13 @@ def test_AURA_no_declara_exito_sin_comprobar_el_efecto(tmp_path):
                         "motivo": "muerto"})
     ac.autorizar(d, p["id"], por="ceo", acta="acta")
     with pytest.raises(ac.NoEliminable):
-        ac.ejecutar(d, p, autoridad="ceo", verificacion=lambda: True)
+        ac.ejecutar(d, p, autoridad="ceo", verificacion=lambda raiz: True)
     assert objetivo.read_text(encoding="utf-8") == original, "no se toca lo que no hay que tocar"
 
     # Y la garantía original, con un símbolo que **sí** existe: el efecto se comprueba releyendo.
     real = ac.proponer(d, {"simbolo": "_m", "fichero": str(objetivo), "motivo": "muerto"})
     ac.autorizar(d, real["id"], por="ceo", acta="acta")
-    resultado = ac.ejecutar(d, real, autoridad="ceo", verificacion=lambda: True)
+    resultado = ac.ejecutar(d, real, autoridad="ceo", verificacion=lambda raiz: True)
     assert resultado["efecto_verificado"] is True
     assert "_m" not in objetivo.read_text(encoding="utf-8")
 
@@ -263,7 +263,7 @@ def test_el_ciclo_completo_encadena_los_ocho_pasos(tmp_path):
     objetivo.write_text("def viva():\n    return 1\n\n\ndef _m1():\n    return 2\n"
                         "\n\ndef _m2():\n    return 3\n", encoding="utf-8")
     informe = ac.ciclo(d, [objetivo], autoridad_humana="ceo", acta="acta del CEO",
-                       verificacion=lambda: True, max_cambios=5)
+                       verificacion=lambda raiz: True, max_cambios=5)
     assert informe["observados"] == 2
     assert informe["propuestos"] == 2
     assert informe["autorizados"] == 2
@@ -278,7 +278,7 @@ def test_el_ciclo_SIN_autoridad_humana_llega_hasta_PROPONER_y_se_detiene(tmp_pat
     d = pathlib.Path(tmp_path)
     objetivo = d / "s.py"
     objetivo.write_text("def _m():\n    return 1\n", encoding="utf-8")
-    informe = ac.ciclo(d, [objetivo], autoridad_humana=None, acta="", verificacion=lambda: True)
+    informe = ac.ciclo(d, [objetivo], autoridad_humana=None, acta="", verificacion=lambda raiz: True)
     assert informe["propuestos"] == 1
     assert informe["autorizados"] == 0 and informe["aplicados"] == 0
     assert informe["detenido_en"] == "autorizar"
@@ -291,7 +291,7 @@ def test_el_ciclo_es_FINITO(tmp_path):
     objetivo.write_text("".join(f"def _m{i}():\n    return {i}\n\n\n" for i in range(10)),
                         encoding="utf-8")
     informe = ac.ciclo(d, [objetivo], autoridad_humana="ceo", acta="a",
-                       verificacion=lambda: True, max_cambios=3)
+                       verificacion=lambda raiz: True, max_cambios=3)
     assert informe["aplicados"] <= 3
 
 

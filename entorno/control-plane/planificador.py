@@ -80,6 +80,22 @@ def a_tarea(oportunidad) -> dict | None:
         "operacion": oportunidad.detalle.get("operacion", "eliminar_codigo_muerto"),
         "buscar": oportunidad.detalle.get("buscar"),
         "sustituir": oportunidad.detalle.get("sustituir"),
+        # **La identidad del contrato que autoriza esta tarea** (CEO, 2026-09-20). `formacion` ya la
+        # sabia —la guarda en `detalle["numero"]`— y aqui se perdia: la tarea seguia viaje sola y
+        # nadie aguas abajo podia comprobar que se correspondiera con ninguna autorizacion.
+        # `review.ejecutar_bajo_review` y `autoconstruccion.ejecutar` verifican zona, intocables,
+        # alcance del verbo y unicidad del patron —todo correcto— y nada de eso ata la tarea al
+        # contrato que la produjo.
+        #
+        # **Vacio cuando no hay contrato, nunca un relleno.** El codigo muerto no nace de un
+        # contrato; declararle uno inventado seria peor que no declarar nada, porque aguas abajo
+        # pareceria una autorizacion real. Es el mismo criterio que `detalle`: un campo rellenado
+        # por obligacion no informa de nada.
+        #
+        # Esto solo TRANSPORTA el dato. Verificarlo antes de escribir es
+        # `contrato.corresponde_tarea_a_contrato()`, y enchufarlo en la puerta de ejecucion es un
+        # acto aparte: toca el circuito de escritura y no se hace de paso.
+        "contrato": oportunidad.detalle.get("numero", ""),
         "objetivo": oportunidad.justificacion,
         "criterio_de_finalizacion": dict(oportunidad.criterio_de_finalizacion),
         "evidencia_requerida": dict(oportunidad.evidencia_requerida),

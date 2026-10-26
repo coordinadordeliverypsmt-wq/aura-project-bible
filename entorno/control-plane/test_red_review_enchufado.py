@@ -53,7 +53,7 @@ def test_sin_revisor_capaz_la_ruta_REAL_de_review_ESPERA(tmp_path, monkeypatch):
     tarea = _preparado(tmp_path, monkeypatch)
     monkeypatch.setattr(review, "revisores_capaces", lambda: ())
     resultado = review.ejecutar_bajo_review(tmp_path, tarea, propuesto_por="aura",
-                                            autoridad="orquestador", verificacion=lambda: True)
+                                            autoridad="orquestador", verificacion=lambda raiz: True)
     assert resultado["ejecutado"] is False
     assert resultado.get("estado") == cp.ESTADO_REVISION
 
@@ -65,7 +65,7 @@ def test_sin_revisor_capaz_el_fichero_NO_se_toca(tmp_path, monkeypatch):
     antes = (tmp_path / "modulo.py").read_text(encoding="utf-8")
     monkeypatch.setattr(review, "revisores_capaces", lambda: ())
     review.ejecutar_bajo_review(tmp_path, tarea, propuesto_por="aura", autoridad="orquestador",
-                               verificacion=lambda: True)
+                               verificacion=lambda raiz: True)
     assert (tmp_path / "modulo.py").read_text(encoding="utf-8") == antes
 
 
@@ -74,7 +74,7 @@ def test_con_revisor_capaz_la_ruta_real_SIGUE_funcionando(tmp_path, monkeypatch)
     aprobó y vio funcionar."""
     tarea = _preparado(tmp_path, monkeypatch)
     resultado = review.ejecutar_bajo_review(tmp_path, tarea, propuesto_por="aura",
-                                            autoridad="orquestador", verificacion=lambda: True)
+                                            autoridad="orquestador", verificacion=lambda raiz: True)
     assert resultado["ejecutado"] is True
     assert "_muerta" not in (tmp_path / "modulo.py").read_text(encoding="utf-8")
     assert "viva" in (tmp_path / "modulo.py").read_text(encoding="utf-8")
@@ -95,7 +95,7 @@ def test_la_espera_NO_es_una_aprobacion(tmp_path, monkeypatch):
     tarea = _preparado(tmp_path, monkeypatch)
     monkeypatch.setattr(review, "revisores_capaces", lambda: ())
     resultado = review.ejecutar_bajo_review(tmp_path, tarea, propuesto_por="aura",
-                                            autoridad="orquestador", verificacion=lambda: True)
+                                            autoridad="orquestador", verificacion=lambda raiz: True)
     assert resultado["ejecutado"] is False
     assert not resultado.get("objeciones"), "no hay veredicto: no hay ni objeciones ni conformidad"
     assert rev.autoriza(None) is False

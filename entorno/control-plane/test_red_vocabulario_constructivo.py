@@ -95,14 +95,14 @@ def _propuesta_autorizada(tmp_path, contenido=_ANTES, **extra):
 
 def test_G_la_operacion_valida_se_ejecuta_y_se_verifica_el_efecto(tmp_path):
     objetivo, p = _propuesta_autorizada(tmp_path)
-    r = ac.ejecutar(tmp_path, p, autoridad="CEO", verificacion=lambda: True)
+    r = ac.ejecutar(tmp_path, p, autoridad="CEO", verificacion=lambda raiz: True)
     assert r["efecto_verificado"] is True and r["revertido"] is False
     assert objetivo.read_text(encoding="utf-8") == _DESPUES
 
 
 def test_H_si_la_verificacion_falla_se_revierte(tmp_path):
     objetivo, p = _propuesta_autorizada(tmp_path)
-    r = ac.ejecutar(tmp_path, p, autoridad="CEO", verificacion=lambda: False)
+    r = ac.ejecutar(tmp_path, p, autoridad="CEO", verificacion=lambda raiz: False)
     assert r["revertido"] is True
     assert objetivo.read_text(encoding="utf-8") == _ANTES, "el rollback no dejo el original"
 

@@ -173,7 +173,7 @@ def test_circuito_REVIEW_completo_cuando_el_CEO_lo_habilita(tmp_path):
         d, {"id": "T-R", "accion": "eliminar_codigo_muerto", "fichero": str(objetivo),
             "simbolo": "_muerta", "cambia_alcance": False, "respeta_decisiones": True,
             "d21_afirmativas": True, "materia_reservada": False},
-        propuesto_por="aura", autoridad="orquestador", verificacion=lambda: True)
+        propuesto_por="aura", autoridad="orquestador", verificacion=lambda raiz: True)
 
     assert resultado["ejecutado"] is True and resultado["efecto_verificado"] is True
     assert resultado["revisor"] != "aura", "revisor independiente del proponente"
@@ -196,7 +196,7 @@ def test_bajo_REVIEW_el_cambio_sigue_siendo_REVERSIBLE(tmp_path):
         d, {"id": "T", "accion": "eliminar_codigo_muerto", "fichero": str(objetivo),
             "simbolo": "_muerta", "cambia_alcance": False, "respeta_decisiones": True,
             "d21_afirmativas": True, "materia_reservada": False},
-        propuesto_por="aura", autoridad="orquestador", verificacion=lambda: False)
+        propuesto_por="aura", autoridad="orquestador", verificacion=lambda raiz: False)
     assert resultado["revertido"] is True
     assert objetivo.read_text(encoding="utf-8") == fuente
 

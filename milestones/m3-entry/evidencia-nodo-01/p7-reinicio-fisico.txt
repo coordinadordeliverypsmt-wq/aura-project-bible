@@ -1,0 +1,17 @@
+## Prueba 7 — reinicio FÍSICO del N450 → vuelve solo, misma identidad · comprobado 2026-10-04T09:22:02-05:00
+arranque del equipo (uptime -s): 2026-10-04 07:49:13
+identidad: "nodo_id": "bac41ce92abc4fb9bac4187cec6d727d"
+runsvdir del usuario (lanzado por @reboot):  1592 dom oct  4 07:49:42 2026 /bin/sh -c /usr/bin/runsvdir -P /home/MariaJose/.aura-nodo/servicios
+ 1593 dom oct  4 07:49:42 2026 /usr/bin/runsvdir -P /home/MariaJose/.aura-nodo/servicios
+agente: run: aura-nodo: (pid 1599) 5541s; run: log: (pid 1598) 5541s
+estado local: {"nodo_id": "bac41ce92abc4fb9bac4187cec6d727d", "nombre": "nodo-01", "arranque": "56403d1881b34b818612a68afe66b152", "secuencia": 536, "conectado": true, "ultimo_envio_ok": 1791123722.817002, "ultimo_error": null, "actualizado": 1791123722.8170292}
+primeras líneas del log tras el arranque:
+2026-10-04_12:49:55.31361   [INFO ] nodo-agente    trace=- arranque 56403d18 nodo bac41ce9 'nodo-01'
+2026-10-04_12:49:56.46772   [WARN ] nodo-agente    trace=- nats: gaierror
+2026-10-04_12:49:57.92091   [INFO ] nodo-agente    trace=- conectado a HC-1 como nodo-bac41ce92abc4fb9bac4187cec6d727d
+2026-10-04_13:51:58.76658   [WARN ] nodo-agente    trace=- nats: gaierror
+HC-1 —
+receptor de nodos: VIVO (hace 4 s)
+nodo-01 [bac41ce9…]  ONLINE  — latido reciente y métricas mínimas completas
+  último latido: hace 4 s · primer contacto: 2026-10-04 05:03:47 · reinicios: 3 · secuencia 536 · agente nodo-agente/1
+RESULTADO: el equipo arrancó a las 07:49:13; runsvdir (@reboot) levantó el agente sin intervención; HC-1 lo ve ONLINE con el MISMO nodo_id bac41ce9… y reinicios 2→3.

@@ -1,0 +1,113 @@
+{
+  "datos": "/tmp/multiturno-_jdgdrmu",
+  "turnos": [
+    {
+      "turno": 1,
+      "pregunta": "que es la fotosintesis?",
+      "provider": "ollama",
+      "dominio": "llm",
+      "say": "Esto lo genera mi modelo local y no está verificado: La fotosynthesi es un proceso de transformación de las moléculas químicas, especialmente en el cromo, a formas más comunes y las sustancias natural",
+      "medida": {
+        "modo": "cognitivo",
+        "reloj_s": 64.21,
+        "prompt_caracteres": 132,
+        "ingesta_tokens": 158,
+        "ingesta_s": 40.07,
+        "generacion_tokens": 56,
+        "generacion_s": 18.34,
+        "total_s": 64.15,
+        "carga_s": 5.68
+      }
+    },
+    {
+      "turno": 2,
+      "pregunta": "por que el cielo es azul?",
+      "provider": "ollama",
+      "dominio": "llm",
+      "say": "Esto lo genera mi modelo local y no está verificado: El cielo azul se debe principalmente al clima continental. Los estados ocasionales del Sol provienen de las partículas de gas en nuestro sistema so",
+      "medida": {
+        "modo": "cognitivo",
+        "reloj_s": 51.31,
+        "prompt_caracteres": 328,
+        "ingesta_tokens": 217,
+        "ingesta_s": 19.71,
+        "generacion_tokens": 77,
+        "generacion_s": 31.03,
+        "total_s": 51.3,
+        "carga_s": 0.53
+      }
+    },
+    {
+      "turno": 3,
+      "pregunta": "que es un agujero negro?",
+      "provider": "ollama",
+      "dominio": "llm",
+      "say": "Esto lo genera mi modelo local y no está verificado: Un agujero negro es un tipo de granizo o espuma. Puede formarse en áreas muy seca o cuando el viento está soplando con fuerza y constante.",
+      "medida": {
+        "modo": "cognitivo",
+        "reloj_s": 66.79,
+        "prompt_caracteres": 639,
+        "ingesta_tokens": 300,
+        "ingesta_s": 42.67,
+        "generacion_tokens": 62,
+        "generacion_s": 23.58,
+        "total_s": 66.79,
+        "carga_s": 0.52
+      }
+    },
+    {
+      "turno": 4,
+      "pregunta": "que es un volcan?",
+      "provider": "ollama",
+      "dominio": "llm",
+      "say": "Esto lo genera mi modelo local y no está verificado: Un volcan es una fuentes de lava donde el agua y los matices salpican a gran velocidad entre las rocas.",
+      "medida": {
+        "modo": "cognitivo",
+        "reloj_s": 43.2,
+        "prompt_caracteres": 843,
+        "ingesta_tokens": 361,
+        "ingesta_s": 20.8,
+        "generacion_tokens": 48,
+        "generacion_s": 21.8,
+        "total_s": 43.2,
+        "carga_s": 0.59
+      }
+    },
+    {
+      "turno": 5,
+      "pregunta": "que significa la palabra resiliencia?",
+      "provider": "ollama",
+      "dominio": "llm",
+      "say": "Esto lo genera mi modelo local y no está verificado: La palabra 'resiliencia' se refiere a la capacidad de adaptarse y sobrevivir frente a obstáculos o desafíos, especialmente en el contexto de la vid",
+      "medida": {
+        "modo": "cognitivo",
+        "reloj_s": 76.78,
+        "prompt_caracteres": 1032,
+        "ingesta_tokens": 413,
+        "ingesta_s": 30.1,
+        "generacion_tokens": 88,
+        "generacion_s": 45.97,
+        "total_s": 76.77,
+        "carga_s": 0.69
+      }
+    },
+    {
+      "turno": 6,
+      "pregunta": "que es la materia oscura?",
+      "provider": "ollama",
+      "dominio": "llm",
+      "say": "Esto lo genera mi modelo local y no está verificado: La materia oscura se refiere a las partes de nuestro planeta que están profundamente ocultas bajo la superficie del mar o el suelo, y son conocidas",
+      "medida": {
+        "modo": "cognitivo",
+        "reloj_s": 120.36,
+        "prompt_caracteres": 1356,
+        "ingesta_tokens": 504,
+        "ingesta_s": 29.93,
+        "generacion_tokens": 133,
+        "generacion_s": 89.88,
+        "total_s": 120.35,
+        "carga_s": 0.53
+      }
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+  [BOOT ] composicion    trace=- hogar: REAL via Home Assistant http://127.0.0.1:8123 (API running.) audit=True
+  [BOOT ] composicion    trace=- proveedor LLM: stack=mock modelo=(mock) timeout=900s (fuente: entorno:AURA_OLLAMA_TIMEOUT_S); circuito: enfriamiento=60.0s (fuente: defecto_del_codigo), politica CERRADO -> [fallo] -> ABIERTO -> [enfriamiento] -> SEMIABIERTO -> [UNA prueba] -> CERRADO o ABIERTO de nuevo audit=True
+  [BOOT ] composicion    trace=- perfil de hardware: sin métricas (inyectado vacío) audit=True
+  [BOOT ] composicion    trace=- capacidades (estado EFECTIVO): activas=[] degradadas=['memoria'] latentes=[]; memoria -> N1 (almacen minimo) audit=True
+  [AUTO ] estado-autonomo trace=- ciclo autonomo legible
+  [BOOT ] composicion    trace=- AURA lista: 25 capacidades, 3 fuentes de contexto, stack=mock audit=True
+  [VOICE] voice-stt      trace=27a26260 transcripcion: 'enciende la tele de la sala'
+  [EVENT] event-bus      trace=27a26260 publish perception.turn_end event_id=593a08ff10c6
+  [CORE ] referente      trace=27a26260 referente=incierto
+  [AUDIT] permissions    trace=27a26260 lista verde encender_dispositivo -> auto-ejecucion audit=True
+  [ACT  ] ha-real        trace=27a26260 EJECUTA turn_on sobre media_player.tv_sala_fmilia_medina_un43ru7100fxza audit=True
+  [ACT  ] ha-real        trace=27a26260 media_player.tv_sala_fmilia_medina_un43ru7100fxza: off -> on (verificado=True) audit=True
+  [AUTO ] ejecutor       trace=27a26260 [conversacion] ejecuto encender_dispositivo audit=True
+  [CORE ] orden          trace=27a26260 capacidad encender_dispositivo ejecutada por orden del usuario audit=True
+  [CORE ] routing        trace=27a26260 dominio=orden_de_capacidad
+  [CORE ] estatus        trace=27a26260 estatus=hecho audit=True
+  [MEM  ] memory         trace=27a26260 write [historico] 'usuario dijo: enciende la tele de la sal'
+  [CORE ] memoria-trabajo trace=27a26260 resultado retenido en la ventana de trabajo: 1/9 turnos (DR-4); no persiste fuera del proceso audit=True
+  [VOICE] voice-tts      trace=27a26260 AURA dice: "Listo: Home Assistant ve la TV de la sala encendida."
+  [LAT  ] orchestrator   trace=27a26260 latencia total 10652.1 ms (proveedor=core) audit=True
+PRE  lectura directa HA 2026-10-22T18:56:54.593-05:00 ('off', '2026-10-22T23:52:44.802919+00:00', None)
+adaptador de hogar: ['HomeAssistantReal']
+ORDEN enviada a AURA 2026-10-22T18:56:54.835-05:00 «enciende la tele de la sala»
+RESPUESTA de AURA 2026-10-22T18:57:05.490-05:00 (10.7 s)
+POST lectura directa HA 2026-10-22T18:57:05.490-05:00 ('on', '2026-10-22T23:57:05.383722+00:00', None)
+POST+10s lectura directa HA 2026-10-22T18:57:15.492-05:00 ('on', '2026-10-22T23:57:05.383722+00:00', None)
+modelo consultado: 0
+PS5 lectura DDP (solo SRCH, sin órdenes) 2026-10-22T18:57:33-05:00
+respuestas DDP: 1
+ ip=.36 | estado-linea: HTTP/1.1 200 Ok | observacion: {'nombre': '[nombre de la consola]'}
+PS5 relectura 2026-10-22T18:57:49-05:00 | linea: HTTP/1.1 200 Ok | host-type: PS5 | claves presentes: ['device-discovery-protocol-version', 'host-name', 'host-request-port', 'host-type', 'system-version']
+HA 2026-10-22T18:57:49-05:00 media_player.samsung_6_series_55_un55ku6000 on 2026-10-22T23:50:38.484380+00:00
+HA 2026-10-22T18:57:49-05:00 media_player.tv_sala_fmilia_medina_un43ru7100fxza on 2026-10-22T23:57:05.383722+00:00

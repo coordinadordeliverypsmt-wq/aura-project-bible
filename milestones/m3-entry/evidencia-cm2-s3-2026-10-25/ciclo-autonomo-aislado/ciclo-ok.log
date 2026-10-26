@@ -1,0 +1,9 @@
+estricto_disponible: True
+CICLO 1: {"ejecutadas": 1, "motivo_de_parada": "cola agotada"}
+  modulo tras el ciclo 1: 'def viva():\n    return 2\n'
+CICLO 2: {"ejecutadas": 0, "motivo_de_parada": "cola agotada"}
+verificaciones: [{'raiz_es_copia': True, 'sano': True, 'raiz': '/tmp/aura-candidato-9w81sqif', 'contenido': ['entorno/control-plane/modulo_inocuo.py', 'entorno/control-plane/test_modulo_inocuo.py'], 'salida': '.                                                                        [100%]\n1 passed in 0.02s\n', 'codigo': 0}]
+eventos: ['review_habilitado', 'motor_iniciado', 'descubrimiento_realizado', 'tarea_planificada', 'veredicto_emitido', 'propuesta_registrada', 'propuesta_autorizada', 'cambio_aplicado', 'descubrimiento_realizado', 'ciclo_detenido', 'motor_iniciado', 'descubrimiento_realizado', 'ciclo_detenido']
+cambio_aplicado: [{"promovido": true, "efecto_verificado": true, "verificacion_sana": true, "revertido": false, "verificacion_aislada": true, "motivo": null}]
+integridad del log del sandbox: {'integro': True, 'eventos': 13, 'cola_truncada': False, 'motivo': 'cadena completa'}
+SANDBOX /tmp/aura-e2e-doc08p7z

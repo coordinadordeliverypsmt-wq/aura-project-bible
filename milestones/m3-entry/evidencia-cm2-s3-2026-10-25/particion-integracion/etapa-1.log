@@ -1,0 +1,22 @@
+=== ETAPA 1  2026-10-26T13:00:09-05:00
+ficheros copiados 249
+--- (0) imports internos sin resolver (AST, lazy incluidos)
+imports internos sin resolver: 0
+imports CP sin resolver: 0
+--- (a1) receptor/CM2: import aura_skeleton.__main__ (cwd=walking-skeleton)
+aura_skeleton.core.reloj_cm2 OK
+aura_skeleton.adapters.receptor_nodos OK
+aura_skeleton.core.nodos OK
+flag --receptor-nodos en __main__: True | --medir-cm2: True
+rc=0
+--- (a2) despertador: import despertador (cwd=control-plane)
+despertador importado OK; verificador/aislamiento: False False
+rc=0
+--- (b) pytest --collect-only walking-skeleton
+rc=0
+  recogidos: 3691 | ficheros con tests (modo -q): 199 | lineas ERROR: 0
+  ultima linea: 
+--- (b) pytest --collect-only entorno/control-plane
+rc=0
+  recogidos: 966 | ficheros con tests (modo -q): 0 | lineas ERROR: 0
+  ultima linea: 966 tests collected in 2.38s

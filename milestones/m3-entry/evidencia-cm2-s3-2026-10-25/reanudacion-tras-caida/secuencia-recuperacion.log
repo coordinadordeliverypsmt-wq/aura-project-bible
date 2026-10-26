@@ -1,0 +1,6 @@
+1-3. tarea iniciada y proceso muerto por SIGKILL durante la verificacion: rc = -9
+     identidad del ejecutor registrada: {'pid': 141126, 'inicio': '9086650'} arranque: 80cf74bd...
+4.   deteccion: estado = interrumpida_reintentable | fichero intacto: True
+5-7. supervisor reiniciado (proceso NUEVO): ejecutadas/parada = 1 cola agotada | estado = completada | _muerta retirada: True
+8.   persistido: intentos = 2 | promociones = 1 | log: cadena completa
+9-10. segunda ejecucion: ejecutadas/parada = 0 cola agotada | estado = completada | promociones = 1

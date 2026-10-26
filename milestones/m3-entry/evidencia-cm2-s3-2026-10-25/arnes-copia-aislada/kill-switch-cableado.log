@@ -1,0 +1,14 @@
+Arnés: muta una copia aislada (/tmp/aura-mutar-2_9qrb2i/m3-entry/entorno/control-plane); el árbol original solo se lee.
+Arnes de mutacion: ../entorno/control-plane/mutaciones/kill-switch-cableado.toml
+Base en verde. Mutantes evaluados: 4
+  [OK] KS-M1 (detectado): EL MOTOR: el kill switch se consulta en CADA vuelta. Un interruptor mirado solo al arrancar no detiene lo que ya empezo, que es justo cuando hace falta detenerlo
+        FAILED test_red_motor_autonomia.py::test_el_kill_switch_detiene_el_motor - au...
+  [OK] KS-M2 (detectado): EL DESPERTADOR: no se despierta con PARADA armada. Sin esto, el sistema se reanudaria solo despues de que un humano lo parase a mano — el peor fallo posible de un kill switch
+        FAILED test_red_despertador.py::test_el_kill_switch_impide_despertar - Failed...
+  [OK] KS-M3 (detectado): EL OBSERVATORIO: con PARADA armada el estado se informa BLOQUEADA. Un panel que no refleja que alguien paro el sistema a mano miente sobre el hecho mas fuerte que hay
+        FAILED test_red_observatorio.py::test_el_KILL_SWITCH_manda_sobre_cualquier_otra_lectura
+  [OK] KS-M4 (detectado): EL BUCLE DEL ORQUESTADOR: consulta PARADA en cada iteracion y deja constancia con el evento `parada_de_emergencia`
+        FAILED test_red_f1_orquestador.py::test_el_kill_switch_detiene_el_bucle_del_orquestador
+
+Total: 4 detectados, 0 sobreviven, 0 no aplicados, 0 ambiguos, 0 en timeout
+exit=0

@@ -1,0 +1,13 @@
+## Prueba 4 — reinicio de los servicios de AURA en HC-1 (bus + receptor) → el nodo se vuelve a registrar · 2026-10-04T05:09:56-05:00
+servicios: active active 
+RESULTADO: nodo ONLINE de nuevo tras 1 s; el registro previo se recargó (primer contacto conservado)
+receptor de nodos: VIVO (hace 1 s)
+nodo-01 [bac41ce9…]  ONLINE  — latido reciente y métricas mínimas completas
+  último latido: hace 10 s · primer contacto: 2026-10-04 05:03:47 · reinicios: 2 · secuencia 19 · agente nodo-agente/1
+linger (servicios arrancan sin sesión tras reiniciar HC-1): Linger=yes
+unidades habilitadas: enabled enabled 
+## Prueba 4 (confirmación) — latido NUEVO recibido por el receptor reiniciado (Sun 2026-10-04 05:09:57 -05)
+receptor de nodos: VIVO (hace 5 s)
+nodo-01 [bac41ce9…]  ONLINE  — latido reciente y métricas mínimas completas
+  último latido: hace 4 s · primer contacto: 2026-10-04 05:03:47 · reinicios: 2 · secuencia 20 · agente nodo-agente/1
+RESULTADO: secuencia 20 > 19 ⇒ el receptor reiniciado recibió latidos nuevos del nodo

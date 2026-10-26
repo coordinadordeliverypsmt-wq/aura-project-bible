@@ -1,0 +1,218 @@
+--- a/walking-skeleton/aura_skeleton/__main__.py
++++ b/walking-skeleton/aura_skeleton/__main__.py
+@@ -469,8 +469,13 @@
+ _USUARIO_RECEPTOR = "receptor"
+ 
+ 
+-def _ruta_red() -> str:
+-    return os.path.expanduser(os.environ.get("AURA_RED") or _RED_POR_DEFECTO)
++def _ruta_red() -> str | None:
++    """La red de nodos del CLI. `AURA_RED` declarado y vacio = «sin red», como `crear_vigia_nodos` y
++    `estado_autonomo_cp`; ausente = `~/.aura-red`."""
++    declarado = os.environ.get("AURA_RED")
++    if declarado is not None and not declarado.strip():
++        return None
++    return os.path.expanduser(declarado or _RED_POR_DEFECTO)
+ 
+ 
+ def _nodos() -> int:
+@@ -480,6 +485,9 @@
+     from .core.nodos import LatidoInvalido
+ 
+     ruta = _ruta_red()
++    if ruta is None:
++        print("AURA: red de nodos desactivada (AURA_RED declarado vacio)")
++        return 0
+     try:
+         registro = leer_registro(ruta)
+         recursos = DetectorHardwareLocal(ruta).detectar().recursos
+@@ -540,6 +548,9 @@
+     from .adapters.receptor_nodos import ReceptorNodos
+ 
+     ruta = _ruta_red()
++    if ruta is None:
++        print("AURA: no se puede arrancar el receptor de nodos: AURA_RED declarado vacio (sin red)", file=sys.stderr)
++        return 2
+     ca = os.path.join(ruta, "pki", "ca.crt")
+     try:
+         password = _leer_credencial(os.path.join(ruta, "receptor.credencial"))
+--- a/walking-skeleton/tests/conftest.py
++++ b/walking-skeleton/tests/conftest.py
+@@ -59,10 +59,10 @@
+ def _sin_red_real_por_defecto(monkeypatch, tmp_path_factory):
+     """El CLI de nodos (`--nodos`, `--receptor-nodos`) NUNCA resuelve el `~/.aura-red` real dentro de la bateria.
+ 
+-    `_sin_red_de_nodos_real` fija `AURA_RED=""`, que para el vigia significa «sin red»; pero `__main__._ruta_red`
+-    trata la cadena vacia como ausencia y cae en `~/.aura-red`, con la credencial y la PKI REALES del receptor
+-    (medido 2026-10-25). Aqui se desvia SOLO el valor por defecto que ve la bateria; el comportamiento de
+-    produccion de `_ruta_red` no cambia (su correccion espera autorizacion: `tests/unit/test_ruta_red.py`).
++    `_sin_red_de_nodos_real` fija `AURA_RED=""`, que significa «sin red» para el vigia y, desde la correccion de
++    `__main__._ruta_red` (2026-10-25), tambien para el CLI. Antes el CLI trataba la cadena vacia como ausencia y
++    caia en `~/.aura-red`, con la credencial y la PKI REALES del receptor. Esta fixture se conserva como defensa
++    en profundidad: desvia el valor por defecto que ve la bateria (AURA_RED ausente) a un temporal por prueba.
+     Limite: un SUBPROCESO `python -m aura_skeleton` no hereda este parche; las pruebas que lo lanzan fijan
+     `AURA_RED` explicito (`test_cli_nodos.py`, `test_nodo_e2e_nats.py`).
+     """
+--- a/walking-skeleton/tests/unit/test_ruta_red.py
++++ b/walking-skeleton/tests/unit/test_ruta_red.py
+@@ -10,9 +10,9 @@
+ 
+ - **Bateria** (corregido): `_sin_red_real_por_defecto` desvia `_RED_POR_DEFECTO` a un temporal por prueba.
+   Ninguna prueba en proceso puede resolver el directorio real, este ausente o vacia la variable.
+-- **Produccion** (PENDIENTE DE AUTORIZACION): que `""` signifique «sin red» tambien en el CLI. Lo especifican
+-  las pruebas `xfail(strict=True)` de abajo. Hoy fallan a proposito; el dia que se autorice e implante el
+-  cambio pasaran, `strict` hara fallar la bateria y obligara a quitar la marca. Nadie lo olvida.
++- **Produccion** (corregido): `""` (o solo espacios) significa «sin red» tambien en el CLI. `--nodos` lo dice y
++  sale con 0; `--receptor-nodos` sale con 2 ANTES de leer credencial o CA y de conectar. Las pruebas `PROPUESTA_*`
++  eran `xfail(strict=True)` mientras el cambio esperaba autorizacion; al aplicarlo se retiro la marca.
+ 
+ El servicio de produccion (`aura-receptor-nodos.service`) fija `AURA_RED` explicito: el cambio no le afecta.
+ """
+@@ -32,14 +32,6 @@
+ 
+ ID_TRAMPA = "e" * 32
+ 
+-PENDIENTE = pytest.mark.xfail(
+-    strict=True,
+-    reason=(
+-        "PENDIENTE DE AUTORIZACION del CEO: `_ruta_red` debe tratar AURA_RED='' como «sin red», igual que "
+-        "`crear_vigia_nodos` y `estado_autonomo_cp`. Hoy lo trata como ausente y cae en ~/.aura-red"
+-    ),
+-)
+-
+ 
+ def _red_real() -> str:
+     return os.path.realpath(os.path.expanduser("~/.aura-red"))
+@@ -68,7 +60,7 @@
+     else:
+         monkeypatch.setenv("AURA_RED", valor)
+     ruta = principal._ruta_red()
+-    # `None` es «sin red»: lo que devolvera `_ruta_red` para AURA_RED="" cuando se autorice la propuesta.
++    # `None` es «sin red»: lo que devuelve `_ruta_red` para AURA_RED="" desde la correccion.
+     assert ruta is None or os.path.realpath(ruta) != _red_real(), "la bateria resolvio el ~/.aura-red REAL"
+ 
+ 
+@@ -94,17 +86,16 @@
+ 
+ 
+ def test_receptor_con_red_explicita_sin_credencial_no_arranca_ni_conecta(monkeypatch, tmp_path, capsys):
+-    """Sin credencial sale con 2 ANTES de abrir ninguna conexion (control de la prueba PENDIENTE de abajo)."""
++    """Sin credencial sale con 2 ANTES de abrir ninguna conexion (control de la prueba PROPUESTA de abajo)."""
+     monkeypatch.setenv("AURA_RED", str(tmp_path))
+     monkeypatch.setenv("AURA_RED_URL", "tls://127.0.0.1:1")
+     assert principal.main(["--receptor-nodos"]) == 2
+     assert str(tmp_path / "receptor.credencial") in capsys.readouterr().err
+ 
+ 
+-# ------------------------------------------- comportamiento PROPUESTO para AURA_RED="" (pendiente) --
++# --------------------------------------------- AURA_RED="" = «sin red» (corregido 2026-10-25) --
+ 
+ 
+-@PENDIENTE
+ def test_PROPUESTA_vacia_es_sin_red_y_nodos_no_lee_el_directorio_por_defecto(monkeypatch, tmp_path, capsys):
+     defecto = tmp_path / "defecto"
+     _escribir_registro(defecto)
+@@ -114,7 +105,6 @@
+     assert "nodo-trampa" not in capsys.readouterr().out, "AURA_RED='' leyo el registro del directorio por defecto"
+ 
+ 
+-@PENDIENTE
+ def test_PROPUESTA_vacia_el_receptor_no_busca_credencial_en_el_directorio_por_defecto(monkeypatch, tmp_path, capsys):
+     defecto = tmp_path / "defecto"
+     monkeypatch.setattr(principal, "_RED_POR_DEFECTO", str(defecto))
+@@ -127,9 +117,10 @@
+ # ---------------------------------------- subprocesos: el parche en proceso NO llega a un hijo --
+ #
+ # `_sin_red_real_por_defecto` solo protege dentro del proceso de pytest. Un `python -m aura_skeleton --nodos` o
+-# `--receptor-nodos` lanzado en subproceso hereda `AURA_RED=""` de la bateria y, mientras la propuesta no se
+-# autorice, resolveria el `~/.aura-red` REAL: el receptor leeria la credencial real y conectaria al nats-server
+-# real de 127.0.0.1:4222 (revision de seguridad 2026-10-25 (u), MEDIO). Guardia estatica, mismo patron que
++# `--receptor-nodos` lanzado en subproceso hereda la bateria. Hasta la correccion de `_ruta_red`, `AURA_RED=""`
++# resolvia el `~/.aura-red` REAL: el receptor leia la credencial real y conectaba al nats-server real de
++# 127.0.0.1:4222 (revision de seguridad 2026-10-25 (u), MEDIO). Se conserva como defensa en profundidad: un
++# subproceso SIN `AURA_RED` seguiria cayendo en el directorio por defecto real. Guardia estatica, mismo patron que
+ # `test_ninguna_prueba_del_repo_puede_iniciar_el_reloj_real`. Limite: es por fichero; no ve un `env` mal armado.
+ 
+ _LANZA_CLI_DE_NODOS = re.compile(r"[\"']--(?:receptor-)?nodos[\"']")
+@@ -162,3 +153,20 @@
+         'env = {**os.environ, "AURA_RED": str(tmp)}; subprocess.run([sys.executable, "-m", "aura_skeleton", "--nodos"])'
+     )
+     assert _sin_red_propia(sin) and not _sin_red_propia(con)
++
++
++@pytest.mark.parametrize("valor", ["", "   ", "\t", "\n"], ids=["vacia", "espacios", "tabulador", "salto"])
++def test_solo_espacios_tambien_es_sin_red_en_nodos_y_receptor(monkeypatch, tmp_path, capsys, valor):
++    """`declarado.strip()`: un valor solo de espacios es tan «vacio» como `""` (mismo criterio que el vigia)."""
++    defecto = tmp_path / "defecto"
++    _escribir_registro(defecto)
++    monkeypatch.setattr(principal, "_RED_POR_DEFECTO", str(defecto))
++    monkeypatch.setenv("AURA_RED", valor)
++    monkeypatch.setenv("AURA_RED_URL", "tls://127.0.0.1:1")
++    assert principal.main(["--nodos"]) == 0
++    salida = capsys.readouterr().out
++    # En positivo: sin `.strip()`, "   " seria una ruta relativa sin registro y lo negativo pasaria igual.
++    assert "red de nodos desactivada" in salida and "nodo-trampa" not in salida, salida
++    assert principal.main(["--receptor-nodos"]) == 2
++    error = capsys.readouterr().err
++    assert "AURA_RED declarado vacio" in error and str(defecto) not in error, error
+--- /dev/null
++++ b/walking-skeleton/mutaciones/ruta-red.toml
+@@ -0,0 +1,58 @@
++incremento = "_ruta_red: AURA_RED declarado vacio = «sin red» en --nodos y --receptor-nodos (2026-10-25)"
++# Defecto medido: `os.environ.get("AURA_RED") or _RED_POR_DEFECTO` trataba "" como ausente y el CLI caia en el
++# ~/.aura-red REAL (credencial y PKI del receptor), al contrario que el vigia y el plano de control.
++# NADA en paralelo con este arnes (CLAUDE.md §2).
++pruebas = ["tests/unit/test_ruta_red.py", "tests/integration/test_cli_nodos.py"]
++timeout_s = 300
++
++[[mutante]]
++id = "R1"
++garantia = "el vacio declarado vuelve a resolver al directorio por defecto (el defecto original)"
++fichero = "aura_skeleton/__main__.py"
++buscar = '''    if declarado is not None and not declarado.strip():
++        return None'''
++sustituir = '''    if False:
++        return None'''
++
++[[mutante]]
++id = "R2"
++garantia = "un valor de solo espacios deja de ser «sin red»"
++fichero = "aura_skeleton/__main__.py"
++buscar = '''if declarado is not None and not declarado.strip():'''
++sustituir = '''if declarado is not None and not declarado:'''
++
++[[mutante]]
++id = "R3"
++garantia = "--nodos sin red intenta leer un registro inexistente en vez de decirlo"
++fichero = "aura_skeleton/__main__.py"
++buscar = '''    if ruta is None:
++        print("AURA: red de nodos desactivada (AURA_RED declarado vacio)")
++        return 0
++'''
++sustituir = ''''''
++
++[[mutante]]
++id = "R4"
++garantia = "--receptor-nodos sin red intenta leer credencial y CA"
++fichero = "aura_skeleton/__main__.py"
++buscar = '''    if ruta is None:
++        print("AURA: no se puede arrancar el receptor de nodos: AURA_RED declarado vacio (sin red)", file=sys.stderr)
++        return 2
++'''
++sustituir = ''''''
++
++[[mutante]]
++id = "R5"
++garantia = "--receptor-nodos sin red sale como si hubiera terminado bien"
++fichero = "aura_skeleton/__main__.py"
++buscar = '''AURA_RED declarado vacio (sin red)", file=sys.stderr)
++        return 2'''
++sustituir = '''AURA_RED declarado vacio (sin red)", file=sys.stderr)
++        return 0'''
++
++[[mutante]]
++id = "R6"
++garantia = "la ausencia de AURA_RED deja de resolver al directorio por defecto"
++fichero = "aura_skeleton/__main__.py"
++buscar = '''    return os.path.expanduser(declarado or _RED_POR_DEFECTO)'''
++sustituir = '''    return os.path.expanduser(declarado or "")'''

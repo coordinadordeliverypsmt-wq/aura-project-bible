@@ -1,0 +1,22 @@
+{
+  "caso": "incierta",
+  "tipo": "abierta",
+  "variante": "actual",
+  "texto": "que es la materia oscura?",
+  "reloj_s": 42.55,
+  "total_s": 42.47,
+  "carga_s": 0.95,
+  "ingesta_tokens": 148,
+  "ingesta_s": 7.87,
+  "generacion_tokens": 51,
+  "generacion_s": 33.64,
+  "generacion_tok_s": 1.516,
+  "motivo_fin": "stop",
+  "json_valido": true,
+  "claves": [
+    "action",
+    "say"
+  ],
+  "say": "La materia oscura se refiere a un estado intermedio entre el cálido y el frío, con temperaturas comprendidas entre 500 y 600 grados Celsius.",
+  "respuesta_cruda": "{\"say\": \"La materia oscura se refiere a un estado intermedio entre el cálido y el frío, con temperaturas comprendidas entre 500 y 600 grados Celsius.\",\"action\":\"consulta\"}"
+}

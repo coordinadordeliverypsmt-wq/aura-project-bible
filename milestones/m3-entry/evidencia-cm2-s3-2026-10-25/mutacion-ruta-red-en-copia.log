@@ -1,0 +1,27 @@
+Arnés: muta una copia aislada (/tmp/aura-mutar-90ciuklw/walking-skeleton); el árbol original solo se lee.
+Arnes de mutacion: mutaciones/ruta-red.toml
+Base en verde. Mutantes evaluados: 6
+  [OK] R1 (detectado): el vacio declarado vuelve a resolver al directorio por defecto (el defecto original)
+        FAILED tests/unit/test_ruta_red.py::test_PROPUESTA_vacia_es_sin_red_y_nodos_no_lee_el_directorio_por_defecto
+        FAILED tests/unit/test_ruta_red.py::test_PROPUESTA_vacia_el_receptor_no_busca_credencial_en_el_directorio_por_defecto
+        FAILED tests/unit/test_ruta_red.py::test_solo_espacios_tambien_es_sin_red_en_nodos_y_receptor[espacios]
+  [OK] R2 (detectado): un valor de solo espacios deja de ser «sin red»
+        FAILED tests/unit/test_ruta_red.py::test_solo_espacios_tambien_es_sin_red_en_nodos_y_receptor[espacios]
+        FAILED tests/unit/test_ruta_red.py::test_solo_espacios_tambien_es_sin_red_en_nodos_y_receptor[tabulador]
+  [OK] R3 (detectado): --nodos sin red intenta leer un registro inexistente en vez de decirlo
+        FAILED tests/unit/test_ruta_red.py::test_PROPUESTA_vacia_es_sin_red_y_nodos_no_lee_el_directorio_por_defecto
+        FAILED tests/unit/test_ruta_red.py::test_solo_espacios_tambien_es_sin_red_en_nodos_y_receptor[espacios]
+        FAILED tests/unit/test_ruta_red.py::test_solo_espacios_tambien_es_sin_red_en_nodos_y_receptor[tabulador]
+  [OK] R4 (detectado): --receptor-nodos sin red intenta leer credencial y CA
+        FAILED tests/unit/test_ruta_red.py::test_PROPUESTA_vacia_el_receptor_no_busca_credencial_en_el_directorio_por_defecto
+        FAILED tests/unit/test_ruta_red.py::test_solo_espacios_tambien_es_sin_red_en_nodos_y_receptor[espacios]
+        FAILED tests/unit/test_ruta_red.py::test_solo_espacios_tambien_es_sin_red_en_nodos_y_receptor[tabulador]
+  [OK] R5 (detectado): --receptor-nodos sin red sale como si hubiera terminado bien
+        FAILED tests/unit/test_ruta_red.py::test_PROPUESTA_vacia_el_receptor_no_busca_credencial_en_el_directorio_por_defecto
+        FAILED tests/unit/test_ruta_red.py::test_solo_espacios_tambien_es_sin_red_en_nodos_y_receptor[espacios]
+        FAILED tests/unit/test_ruta_red.py::test_solo_espacios_tambien_es_sin_red_en_nodos_y_receptor[tabulador]
+  [OK] R6 (detectado): la ausencia de AURA_RED deja de resolver al directorio por defecto
+        FAILED tests/unit/test_ruta_red.py::test_ausente_resuelve_al_directorio_por_defecto
+
+Total: 6 detectados, 0 sobreviven, 0 no aplicados, 0 ambiguos, 0 en timeout
+exit=0

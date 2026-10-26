@@ -1,0 +1,4 @@
+walking-skeleton/mutaciones/ruta-red.toml
+walking-skeleton/mutaciones/sin-dispositivos-reales.toml
+walking-skeleton/tests/unit/test_ruta_red.py
+walking-skeleton/tests/unit/test_sin_dispositivos_reales.py

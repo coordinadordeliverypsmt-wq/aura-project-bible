@@ -1,0 +1,13 @@
+{"level": "BOOT", "module": "composicion", "msg": "hogar: REAL via Home Assistant http://127.0.0.1:8123 (API running.)", "trace_id": "-", "audit": true, "ts": 1792713414.7648005, "seq": 1}
+{"level": "BOOT", "module": "composicion", "msg": "proveedor LLM: stack=mock modelo=(mock) timeout=900s (fuente: entorno:AURA_OLLAMA_TIMEOUT_S); circuito: enfriamiento=60.0s (fuente: defecto_del_codigo), politica CERRADO -> [fallo] -> ABIERTO -> [enfriamiento] -> SEMIABIERTO -> [UNA prueba] -> CERRADO o ABIERTO de nuevo", "trace_id": "-", "audit": true, "ts": 1792713414.7687366, "seq": 2}
+{"level": "BOOT", "module": "composicion", "msg": "perfil de hardware: sin métricas (inyectado vacío)", "trace_id": "-", "audit": true, "ts": 1792713414.770317, "seq": 3}
+{"level": "BOOT", "module": "composicion", "msg": "capacidades (estado EFECTIVO): activas=[] degradadas=['memoria'] latentes=[]; memoria -> N1 (almacen minimo)", "trace_id": "-", "audit": true, "ts": 1792713414.7718658, "seq": 4}
+{"level": "BOOT", "module": "composicion", "msg": "AURA lista: 25 capacidades, 3 fuentes de contexto, stack=mock", "trace_id": "-", "audit": true, "ts": 1792713414.7783008, "seq": 5}
+{"level": "AUDIT", "module": "permissions", "msg": "lista verde encender_dispositivo -> auto-ejecucion", "trace_id": "27a26260acb2", "audit": true, "ts": 1792713414.8377075, "seq": 6}
+{"level": "ACT", "module": "ha-real", "msg": "EJECUTA turn_on sobre media_player.tv_sala_fmilia_medina_un43ru7100fxza", "trace_id": "27a26260acb2", "audit": true, "ts": 1792713414.8531888, "seq": 7}
+{"level": "ACT", "module": "ha-real", "msg": "media_player.tv_sala_fmilia_medina_un43ru7100fxza: off -> on (verificado=True)", "trace_id": "27a26260acb2", "audit": true, "ts": 1792713425.4500883, "seq": 8}
+{"level": "AUTO", "module": "ejecutor", "msg": "[conversacion] ejecuto encender_dispositivo", "trace_id": "27a26260acb2", "audit": true, "ts": 1792713425.4761143, "seq": 9}
+{"level": "CORE", "module": "orden", "msg": "capacidad encender_dispositivo ejecutada por orden del usuario", "trace_id": "27a26260acb2", "audit": true, "ts": 1792713425.4774413, "seq": 10}
+{"level": "CORE", "module": "estatus", "msg": "estatus=hecho", "trace_id": "27a26260acb2", "audit": true, "ts": 1792713425.4787517, "seq": 11}
+{"level": "CORE", "module": "memoria-trabajo", "msg": "resultado retenido en la ventana de trabajo: 1/9 turnos (DR-4); no persiste fuera del proceso", "trace_id": "27a26260acb2", "audit": true, "ts": 1792713425.4848824, "seq": 12}
+{"level": "LAT", "module": "orchestrator", "msg": "latencia total 10652.1 ms (proveedor=core)", "trace_id": "27a26260acb2", "audit": true, "ts": 1792713425.4872947, "seq": 13}

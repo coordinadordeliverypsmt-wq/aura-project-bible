@@ -1,0 +1,1008 @@
+--- a/entorno/control-plane/planificador.py
++++ b/entorno/control-plane/planificador.py
+@@ -22,6 +22,7 @@
+ from __future__ import annotations
+ 
+ import hashlib
++import os
+ import pathlib
+ 
+ import control_plane as cp
+@@ -119,15 +120,119 @@
+                for e in cp.leer_eventos(pathlib.Path(directorio)))
+ 
+ 
++class TareaNoElegible(RuntimeError):
++    """Se intento dejar constancia de una tarea que ya no es elegible (en curso por otro, completada o agotada)."""
++
++
++def _arranque() -> str:
++    """Identidad del arranque de la maquina: tras un reinicio, ningun proceso anterior sigue vivo."""
++    try:
++        return pathlib.Path("/proc/sys/kernel/random/boot_id").read_text().strip()
++    except OSError:
++        return ""
++
++
++#: `_inicio_de` no puede saberlo (/proc ilegible: `hidepid`, otro espacio de nombres). Ante la duda, VIVO.
++_DESCONOCIDO = "?"
++
++
++def _existe(pid: int) -> bool:
++    """`kill(pid, 0)`: solo `ESRCH` prueba que el proceso no existe; `EPERM` es que existe y es ajeno."""
++    try:
++        os.kill(pid, 0)
++    except ProcessLookupError:
++        return False
++    except PermissionError:
++        return True
++    return True
++
++
++def _inicio_de(pid: int) -> str | None:
++    """starttime (campo 22 de `/proc/<pid>/stat`); None si el proceso NO existe o es zombi; `_DESCONOCIDO` si
++    existe la duda (no se puede leer). Confundir «no puedo leer» con «murio» reabriria la ejecucion duplicada."""
++    try:
++        campos = pathlib.Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()
++        estado, inicio = campos[0], campos[19]
++    except (FileNotFoundError, ProcessLookupError):
++        return None if not _existe(pid) else _DESCONOCIDO  # con `hidepid=2` un pid vivo tampoco aparece en /proc
++    except (OSError, IndexError):
++        return _DESCONOCIDO
++    return None if estado == "Z" else inicio
++
++
++def _identidad_del_ejecutor() -> dict | None:
++    """pid + starttime + arranque: el pid SOLO no basta (se reutiliza) y el starttime solo no basta (se repite
++    tras un reinicio). Los tres juntos identifican un proceso concreto de un arranque concreto."""
++    inicio, arranque = _inicio_de(os.getpid()), _arranque()
++    if not inicio or inicio == _DESCONOCIDO or not arranque:
++        return None  # sin /proc fiable: mejor «historico» (conservador) que una identidad que atascaria la tarea
++    return {"pid": os.getpid(), "inicio": inicio, "arranque": arranque}
++
++
++def _ejecutor_vivo(ejecutor: dict) -> bool:
++    """¿Sigue vivo EXACTAMENTE el proceso que dejo la constancia? Ante la duda (sin datos legibles), si."""
++    try:
++        pid, inicio, arranque = int(ejecutor["pid"]), str(ejecutor["inicio"]), str(ejecutor["arranque"])
++    except (KeyError, TypeError, ValueError):
++        return True
++    if not arranque or not inicio:
++        return True
++    if arranque != _arranque():
++        return False
++    actual = _inicio_de(pid)
++    if actual == _DESCONOCIDO:
++        return True
++    return actual == inicio
++
++
++def _ultima_planificada(directorio, id_tarea: str) -> dict | None:
++    datos = None
++    for evento in cp.leer_eventos(pathlib.Path(directorio)):
++        if evento["tipo"] == "tarea_planificada" and evento["datos"].get("id") == id_tarea:
++            datos = evento["datos"]
++    return datos
++
++
++def _cierre_sin_resultado(directorio, id_tarea: str) -> str | None:
++    """¿El ultimo intento termino SIN `cambio_aplicado` por una decision del propio ciclo? Elevada a decision humana,
++    esperando revisor u objetada: nada de eso es una interrupcion y la tarea NO se reofrece."""
++    cierre = None
++    for evento in cp.leer_eventos(pathlib.Path(directorio)):
++        datos = evento.get("datos") or {}
++        if datos.get("id") != id_tarea:
++            continue
++        if evento["tipo"] == "tarea_planificada":
++            cierre = None
++        elif evento["tipo"] == "decision_requerida":
++            cierre = "elevada"
++        elif evento["tipo"] == "revision_sin_revisor_capaz":
++            cierre = "esperando_revisor"
++        elif evento["tipo"] == "veredicto_emitido" and datos.get("cumple") is False:
++            cierre = "objetada"
++    return cierre
++
++
+ def registrar_planificada(directorio, tarea: dict) -> dict:
+     """Deja constancia **antes** de ejecutar, y con su origen.
+ 
+     Lo que se registra aqui es la intencion, no el resultado: marcar el resultado antes de tenerlo es
+     el defecto que la 3.a auditoria encontro en `registrar_sesion`, y que quemaba toda tarea `AUTO`
+-    en su primer intento."""
+-    return cp.registrar_evento(pathlib.Path(directorio), "tarea_planificada", {
+-        "id": tarea["id"], "origen": tarea["origen"], "accion": tarea["accion"],
+-        "fichero": tarea["fichero"], "riesgo": tarea["riesgo"]})
++    en su primer intento.
++
++    **Con la identidad del ejecutor y comprobando bajo el cerrojo del log** (DP-RECUPERACION-TRAS-CAIDAS): una
++    tarea interrumpida solo puede volver a planificarse si nadie la ha replanificado ya; dos supervisores que la
++    vean interrumpida a la vez no pueden ejecutarla dos veces."""
++    directorio = pathlib.Path(directorio)
++    datos = {"id": tarea["id"], "origen": tarea["origen"], "accion": tarea["accion"],
++             "fichero": tarea["fichero"], "riesgo": tarea["riesgo"]}
++    ejecutor = _identidad_del_ejecutor()
++    if ejecutor is not None:
++        datos["ejecutor"] = ejecutor
++    evento = cp.registrar_evento_si(directorio, "tarea_planificada", datos,
++                                    lambda: elegible(directorio, tarea["id"]))
++    if evento is None:
++        raise TareaNoElegible(f"{tarea['id']}: {estado_de(directorio, tarea['id'])}")
++    return evento
+ 
+ 
+ #: **El tope de intentos, y no es un numero inventado.** Sale del modelo que este plano ya tiene:
+@@ -146,6 +251,8 @@
+     for evento in cp.leer_eventos(pathlib.Path(directorio)):
+         if evento["tipo"] == "tarea_planificada":
+             mio = evento["datos"].get("id") == id_tarea
++            if mio:
++                resultado = None  # un intento NUEVO: el resultado de uno anterior no es el suyo
+         elif evento["tipo"] == "cambio_aplicado" and mio:
+             resultado = evento["datos"]
+     return resultado
+@@ -166,32 +273,66 @@
+     asi que mirar solo `revertido` bastaria; escribirlas las tres es lo que impide que un cambio en
+     esa derivacion abra una puerta aqui sin que nadie se entere. Y un evento sin los campos no
+     concede: la duda nunca completa."""
+-    resultado = resultado_de(directorio, id_tarea)
+-    if not resultado:
+-        return False
++    return any(_dejo_efecto(r) for r in _resultados_de(directorio, id_tarea))
++
++
++def _dejo_efecto(resultado: dict) -> bool:
+     return (resultado.get("efecto_verificado") is True
+             and resultado.get("verificacion_sana") is True
+             and resultado.get("revertido") is False)
+ 
+ 
++def _resultados_de(directorio, id_tarea: str) -> list[dict]:
++    """Los resultados de TODOS los intentos. **Completada es monotona**: un efecto verificado no se deshace porque un
++    log heredado replanificase la tarea despues (lo que `registrar_planificada` ya no permite)."""
++    resultados, mio = [], False
++    for evento in cp.leer_eventos(pathlib.Path(directorio)):
++        if evento["tipo"] == "tarea_planificada":
++            mio = evento["datos"].get("id") == id_tarea
++        elif evento["tipo"] == "cambio_aplicado" and mio:
++            resultados.append(evento["datos"])
++    return resultados
++
++
++def estado_de(directorio, id_tarea: str) -> str:
++    """El estado OBSERVABLE de una tarea (DP-RECUPERACION-TRAS-CAIDAS §2), **solo desde el log**. Once respuestas:
++
++    nunca · en_curso (ejecutor vivo) · completada (algun intento dejo efecto; monotona) · revertida_reintentable ·
++    interrumpida_reintentable (ejecutor muerto, otro arranque o pid reutilizado) · agotada (sin presupuesto) ·
++    elevada · esperando_revisor · objetada (el intento cerro SIN resultado por una decision del ciclo) ·
++    sin_resultado_historico (constancia anterior al contrato, sin `ejecutor`) · resultado_ambiguo (ni completada ni
++    revertida). Solo `nunca` y los dos `*_reintentable` conceden."""
++    intentos = intentos_de(directorio, id_tarea)
++    if intentos == 0:
++        return "nunca"
++    if completada(directorio, id_tarea):
++        return "completada"
++    resultado = resultado_de(directorio, id_tarea)
++    if resultado is not None:
++        if not resultado.get("revertido", False):
++            return "resultado_ambiguo"  # ni completada ni revertida: ante la duda, no
++        return "revertida_reintentable" if intentos < TOPE_DE_REINTENTOS else "agotada"
++    cierre = _cierre_sin_resultado(directorio, id_tarea)
++    if cierre is not None:
++        return cierre
++    ejecutor = (_ultima_planificada(directorio, id_tarea) or {}).get("ejecutor")
++    if ejecutor is None:
++        return "sin_resultado_historico"
++    if _ejecutor_vivo(ejecutor):
++        return "en_curso"
++    return "interrumpida_reintentable" if intentos < TOPE_DE_REINTENTOS else "agotada"
++
++
+ def elegible(directorio, id_tarea: str) -> bool:
+     """Si la tarea puede entrar en la cola. **Ante la duda, no.**
+ 
+-    Cuatro respuestas, y solo una concede: nunca intentada -> si; completada -> no; planificada y sin
+-    resultado todavia -> no (puede estar corriendo, y duplicarla es el defecto que
+-    `registrar_planificada` existe para evitar); revertida -> si, **mientras quede presupuesto**.
++    Concede solo `nunca` y los dos `*_reintentable` de `estado_de`: planificada y sin resultado con el ejecutor
++    VIVO (o sin poder saberlo) -> no, porque duplicarla es el defecto que `registrar_planificada` existe para
++    evitar; revertida o interrumpida -> si, **mientras quede presupuesto**.
+ 
+     Una reversion no es un permiso permanente: es el resto de un presupuesto acotado. Agotado, la
+     tarea se apaga y hace falta evidencia nueva —otra oportunidad, con otra identidad— para volver."""
+-    intentos = intentos_de(directorio, id_tarea)
+-    if intentos == 0:
+-        return True
+-    resultado = resultado_de(directorio, id_tarea)
+-    if resultado is None:
+-        return False
+-    if not resultado.get("revertido", False):
+-        return False
+-    return intentos < TOPE_DE_REINTENTOS
++    return estado_de(directorio, id_tarea) in ("nunca", "revertida_reintentable", "interrumpida_reintentable")
+ 
+ 
+ def cola(directorio, oportunidades) -> list[dict]:
+--- a/entorno/control-plane/control_plane.py
++++ b/entorno/control-plane/control_plane.py
+@@ -1268,8 +1268,10 @@
+     "validar_tareas",       # valida el borde de persistencia: solo lanza, nunca concede
+     "_exigir_humano_para_completar",   # rechaza; es la puerta, no lo que la cruza
+     "registrar_evento",     # primitiva publica: NIEGA los eventos que conceden estado
++    "registrar_evento_si",  # la misma primitiva, condicionada y atomica: NIEGA los mismos eventos
+     "pedir_revision",       # mueve a WAITING_FOR_REVIEW o DECISION_REQUIRED; nunca a COMPLETED
+     "esperar_por_cuota",    # mueve a WAITING_FOR_QUOTA; nunca a COMPLETED
++    "registrar_planificada",  # constancia de INTENCION (tarea_planificada); rechaza si no es elegible; nunca concede
+     # La maquinaria de vigilancia. **Nombra** las señales porque su trabajo es encontrarlas, asi que
+     # se delata sola en cuanto el barrido se amplio a las privadas. Inspecciona; no concede nada.
+     "modulos_vigilados", "invocables_vigilados", "invocables_sin_clasificar",
+@@ -1886,6 +1888,12 @@
+         return _registrar_sin_lock(directorio, tipo, datos)
+ 
+ 
++def _negar_gobernado(tipo: str) -> None:
++    raise EventoNoGobernado(
++        f"un evento {tipo!r} crudo fabricaria estado sin gobierno: "
++        f"usa la funcion gobernada que le corresponde ({_PUERTA_DE[tipo]})")
++
++
+ def registrar_evento(directorio: pathlib.Path, tipo: str, datos: dict | None = None) -> dict:
+     """**C1 · cierra P3.** Anade una linea al log. Nunca reescribe ninguna anterior.
+ 
+@@ -1896,10 +1904,24 @@
+         # `guardar()` —que escribe lo que le den sin interpretarlo— este evento **produce estado**:
+         # la proyeccion lo aplica como bueno. Si se aceptase a pelo, el gobierno de `transicion()`
+         # seria decorativo, porque bastaria rodearlo.
+-        raise EventoNoGobernado(
+-            f"un evento {tipo!r} crudo fabricaria estado sin gobierno: "
+-            f"usa la funcion gobernada que le corresponde ({_PUERTA_DE[tipo]})")
++        _negar_gobernado(tipo)
++    with lock_estado(directorio):
++        return _registrar_sin_lock(directorio, tipo, datos)
++
++
++def registrar_evento_si(directorio: pathlib.Path, tipo: str, datos: dict | None, condicion) -> dict | None:
++    """**Comprobar y anadir, atomicamente.** `condicion()` se evalua **con el cerrojo del log tomado**, y el evento
++    solo se anade si devuelve verdadero; si no, devuelve `None` y no escribe nada.
++
++    Existe para que nadie fuera de este modulo necesite `_registrar_sin_lock`, que **no** aplica la guardia de
++    `EVENTOS_GOBERNADOS` (DP-RECUPERACION-TRAS-CAIDAS: dos supervisores no pueden planificar la misma tarea).
++    Niega los eventos gobernados igual que `registrar_evento`, **antes** de evaluar la condicion. `condicion` puede
++    leer el log (`leer_eventos` no toma el cerrojo) pero no debe escribir: el cerrojo no es reentrante."""
++    if tipo in EVENTOS_GOBERNADOS:
++        _negar_gobernado(tipo)
+     with lock_estado(directorio):
++        if not condicion():
++            return None
+         return _registrar_sin_lock(directorio, tipo, datos)
+ 
+ 
+--- a/entorno/control-plane/motor_autonomia.py
++++ b/entorno/control-plane/motor_autonomia.py
+@@ -96,7 +96,16 @@
+         if orq.parada_solicitada(directorio):
+             return _detener(directorio, informe, "kill switch activado", desde=arranque)
+ 
++        # **Recuperar ANTES de planificar** (DP-RECUPERACION-TRAS-CAIDAS §6). Una muerte entre promover y registrar
++        # deja el cambio en disco y el log sin `cambio_aplicado`; como el patron ya no existe, ninguna tarea volveria
++        # a llamar a `ejecutar()` —que es quien recuperaba— y el log mentiria para siempre. Si hay un diario ambiguo
++        # u otro proceso esta recuperando, no se planifica nada: dos recuperaciones a la vez no existen.
++        recuperacion = ac.recuperar(directorio)
++        if recuperacion["bloqueado"] or recuperacion["ocupado"]:
++            return _detener(directorio, informe, "recuperacion pendiente", desde=arranque)
++
+         oportunidades = des.descubrir(raiz, directorio)
++        _registrar_agotadas(directorio, oportunidades)
+         informe["vueltas"] += 1
+         resumen = plan.informe_de_cola(oportunidades)
+         informe["descubiertas"] = len(oportunidades)
+@@ -114,7 +123,12 @@
+             # diferencia entre «no hay nada que hacer» y «no puedo hacer nada».
+             return _detener(directorio, informe, "cola agotada", desde=arranque)
+ 
+-        plan.registrar_planificada(directorio, tarea)
++        try:
++            plan.registrar_planificada(directorio, tarea)
++        except plan.TareaNoElegible:
++            # Otro supervisor la tomo entre `siguiente()` y aqui; el cerrojo del log lo impidio. **No es un fallo**:
++            # es la garantia de no duplicar funcionando, y se dice por que se para en lugar de abortar.
++            return _detener(directorio, informe, "tarea tomada por otro supervisor", tarea["id"], desde=arranque)
+         try:
+             resultado = rv.ejecutar_bajo_review(
+                 directorio, tarea, propuesto_por="aura", autoridad="orquestador",
+@@ -149,6 +163,18 @@
+ EVENTO_PRESUPUESTO_AGOTADO = "presupuesto_de_tarea_agotado"
+ 
+ 
++def _registrar_agotadas(directorio, oportunidades) -> None:
++    """Una tarea agotada por **interrupciones** nunca llega a la rama `revertido`: sus intentos murieron antes y el
++    siguiente ya no es elegible. Sin esto se apagaria en silencio, que es exactamente lo que este evento existe
++    para impedir. Solo mira las oportunidades reales; el registro sigue siendo unico."""
++    for oportunidad in oportunidades:
++        if oportunidad.estado != des.OPORTUNIDAD_REAL:
++            continue
++        tarea = plan.a_tarea(oportunidad)
++        if tarea is not None and plan.estado_de(directorio, tarea["id"]) == "agotada":
++            _registrar_si_agoto_su_presupuesto(directorio, tarea)
++
++
+ def _registrar_si_agoto_su_presupuesto(directorio, tarea: dict) -> None:
+     """Deja constancia de que esta tarea ya no volvera a intentarse.
+ 
+--- /dev/null
++++ b/entorno/control-plane/test_red_reanudacion_tras_caida.py
+@@ -0,0 +1,473 @@
++"""Reanudacion tras caida (DP-RECUPERACION-TRAS-CAIDAS, 2026-10-26).
++
++Defecto medido `[EJEC]`: SIGKILL a mitad de la verificacion -> la tarea queda `tarea_planificada` sin `cambio_aplicado`
++y `elegible` la trata PARA SIEMPRE como «puede estar corriendo»: nunca se reintenta ni se informa, y la cola dice
++«agotada» con el trabajo sin hacer (declarado != real, INV-9). Contrato: la constancia de planificacion lleva la
++IDENTIDAD del ejecutor (pid + starttime + arranque); una tarea sin resultado cuyo ejecutor ya no existe esta
++INTERRUMPIDA, consume un intento y vuelve a ser elegible dentro del presupuesto; agotado, queda AGOTADA: observable
++por `estado_de`, pero TODAVIA SIN EVENTO (registrarlo exige `motor_autonomia`, protegido; DP §2 y §8).
++"""
++
++import os
++import pathlib
++import signal
++import subprocess
++import sys
++import textwrap
++
++import pytest
++
++import control_plane as cp
++import planificador as pl
++
++PLANO = pathlib.Path(__file__).resolve().parent
++
++
++def _tarea(id_tarea="TA-1"):
++    return {"id": id_tarea, "origen": "OP-x", "accion": "eliminar_codigo_muerto", "fichero": "m.py", "riesgo": "bajo"}
++
++
++def _planificada_por(d, ejecutor, id_tarea="TA-1"):
++    """Constancia como la dejaria OTRO proceso (o una version anterior, si `ejecutor` es None)."""
++    datos = {k: v for k, v in _tarea(id_tarea).items()}
++    if ejecutor is not None:
++        datos["ejecutor"] = ejecutor
++    cp.registrar_evento(d, "tarea_planificada", datos)
++
++
++def _resultado(d, *, revertido):
++    cp.registrar_evento(d, "cambio_aplicado", {"id": "P-1", "fichero": "m.py", "simbolo": "_x", "efecto_verificado": True,
++                                               "verificacion_sana": not revertido, "revertido": revertido,
++                                               "autoridad": "orquestador"})
++
++
++def _pid_muerto() -> int:
++    p = subprocess.Popen([sys.executable, "-c", "pass"])
++    p.wait()
++    return p.pid
++
++
++# ------------------------------------------------------------------------- el contrato --
++
++def test_la_constancia_de_planificacion_lleva_la_identidad_del_ejecutor(tmp_path):
++    pl.registrar_planificada(tmp_path, _tarea())
++    datos = [e for e in cp.leer_eventos(tmp_path) if e["tipo"] == "tarea_planificada"][-1]["datos"]
++    assert datos["ejecutor"]["pid"] == os.getpid()
++    assert datos["ejecutor"]["inicio"] and datos["ejecutor"]["arranque"]
++
++
++def test_terminacion_normal_completa_y_no_se_reintenta(tmp_path):
++    pl.registrar_planificada(tmp_path, _tarea())
++    _resultado(tmp_path, revertido=False)
++    assert (pl.estado_de(tmp_path, "TA-1"), pl.elegible(tmp_path, "TA-1")) == ("completada", False)
++
++
++def test_fallo_recuperable_es_reintentable_dentro_del_presupuesto(tmp_path):
++    pl.registrar_planificada(tmp_path, _tarea())
++    _resultado(tmp_path, revertido=True)
++    assert (pl.estado_de(tmp_path, "TA-1"), pl.elegible(tmp_path, "TA-1")) == ("revertida_reintentable", True)
++
++
++def test_con_el_ejecutor_VIVO_esta_en_curso_y_no_se_duplica(tmp_path):
++    pl.registrar_planificada(tmp_path, _tarea())  # este proceso, vivo
++    assert (pl.estado_de(tmp_path, "TA-1"), pl.elegible(tmp_path, "TA-1")) == ("en_curso", False)
++
++
++def test_con_el_ejecutor_MUERTO_esta_interrumpida_y_vuelve_a_ser_elegible(tmp_path):
++    _planificada_por(tmp_path, {"pid": _pid_muerto(), "inicio": "1", "arranque": pl._arranque()})
++    assert (pl.estado_de(tmp_path, "TA-1"), pl.elegible(tmp_path, "TA-1")) == ("interrumpida_reintentable", True)
++
++
++def test_un_PID_REUTILIZADO_no_pasa_por_el_ejecutor_original(tmp_path):
++    """Mismo pid que un proceso vivo (este), otro starttime: es otro proceso; el original murio."""
++    _planificada_por(tmp_path, {"pid": os.getpid(), "inicio": "0", "arranque": pl._arranque()})
++    assert pl.estado_de(tmp_path, "TA-1") == "interrumpida_reintentable"
++
++
++def test_tras_un_REINICIO_de_la_maquina_ningun_ejecutor_anterior_sigue_vivo(tmp_path):
++    yo = pl._identidad_del_ejecutor()
++    _planificada_por(tmp_path, {**yo, "arranque": "otro-arranque"})
++    assert pl.estado_de(tmp_path, "TA-1") == "interrumpida_reintentable"
++
++
++def test_un_evento_HISTORICO_sin_ejecutor_sigue_siendo_conservador(tmp_path):
++    """Compatibilidad: el log real anterior no tiene `ejecutor`. No se puede saber si murio: no se reofrece."""
++    _planificada_por(tmp_path, None)
++    assert (pl.estado_de(tmp_path, "TA-1"), pl.elegible(tmp_path, "TA-1")) == ("sin_resultado_historico", False)
++
++
++def test_dos_interrupciones_AGOTAN_y_queda_explicito(tmp_path):
++    for _ in range(pl.TOPE_DE_REINTENTOS):
++        _planificada_por(tmp_path, {"pid": _pid_muerto(), "inicio": "1", "arranque": pl._arranque()})
++    assert (pl.estado_de(tmp_path, "TA-1"), pl.elegible(tmp_path, "TA-1")) == ("agotada", False)
++
++
++def test_dos_supervisores_no_pueden_planificar_a_la_vez_la_misma_tarea(tmp_path):
++    """Comprobar-y-anadir bajo el cerrojo del log: la segunda constancia se rechaza si la primera sigue viva."""
++    pl.registrar_planificada(tmp_path, _tarea())
++    with pytest.raises(pl.TareaNoElegible):
++        pl.registrar_planificada(tmp_path, _tarea())
++    assert sum(1 for e in cp.leer_eventos(tmp_path) if e["tipo"] == "tarea_planificada") == 1
++
++
++def test_una_tarea_interrumpida_se_puede_volver_a_planificar_y_la_nueva_constancia_es_la_viva(tmp_path):
++    _planificada_por(tmp_path, {"pid": _pid_muerto(), "inicio": "1", "arranque": pl._arranque()})
++    pl.registrar_planificada(tmp_path, _tarea())
++    assert (pl.intentos_de(tmp_path, "TA-1"), pl.estado_de(tmp_path, "TA-1")) == (2, "en_curso")
++
++
++# -------------------------------------------------------- extremo a extremo con SIGKILL real --
++
++_GUION = textwrap.dedent('''
++    import os, pathlib, signal, sys
++    import aislamiento as ais, motor_autonomia as motor, orquestador, review, verificador as vf
++    # Mismo criterio que las 33 pruebas que ya lo hacen: el sandbox es tmp, no el arbol vivo. Sin esto, bajo el
++    # arnes de mutacion el verificador lanza `ArnesEnCurso` y la verificacion (y el SIGKILL) nunca ocurren.
++    orquestador.mutacion_en_curso = lambda: False
++    base, fase = pathlib.Path(sys.argv[1]), sys.argv[2]
++    zona = base / "entorno" / "control-plane"
++    def verificar(raiz):
++        if fase == "matar":
++            os.kill(os.getpid(), signal.SIGKILL)
++        prueba = pathlib.Path(raiz) / "entorno" / "control-plane" / "test_modulo_inocuo.py"
++        return vf.ejecutar_pruebas([str(prueba)], prueba.parent, confinar=ais.preparar_estricto(raiz)).sano
++    if fase == "matar":
++        zona.mkdir(parents=True)
++        (zona / "modulo_inocuo.py").write_text("def _muerta():\\n    return 1\\n\\n\\ndef viva():\\n    return 2\\n")
++        (zona / "test_modulo_inocuo.py").write_text("from modulo_inocuo import viva\\n\\n\\ndef test_viva():\\n    assert viva() == 2\\n")
++        review.habilitar(base, por="ceo", acta="SANDBOX de prueba", alcance=("eliminar_codigo_muerto",))
++    i = motor.trabajar(base, zona, verificacion=verificar, max_tareas=3)
++    print(i["ejecutadas"], i["motivo_de_parada"])
++''')
++
++
++@pytest.mark.skipif(not __import__("aislamiento").estricto_disponible(), reason="sin confinamiento estricto")
++def test_E2E_SIGKILL_en_la_verificacion_se_recupera_sin_duplicar_y_la_siguiente_no_repite(tmp_path):
++    guion = tmp_path / "guion.py"
++    guion.write_text(_GUION)
++    base = tmp_path / "sandbox"
++    (tmp_path / "tmp").mkdir()  # el SIGKILL impide a autoconstruccion borrar su copia: que no caiga en el /tmp real
++    entorno = {**os.environ, "PYTHONPATH": str(PLANO), "AURA_AUTOCONSTRUCCION_ESTADO": str(tmp_path / "estado"),
++               "TMPDIR": str(tmp_path / "tmp")}
++    matar = subprocess.run([sys.executable, str(guion), str(base), "matar"], env=entorno, capture_output=True, text=True,
++                           timeout=300)
++    assert matar.returncode == -signal.SIGKILL, matar.stderr  # control: interrupcion REAL durante la verificacion
++    # la copia que el SIGKILL deja sin borrar queda en el tmp de ESTA prueba, no en el /tmp del sistema
++    assert list((tmp_path / "tmp").glob("aura-candidato-*")), "el candidato huerfano debe quedar contenido"
++    zona = base / "entorno" / "control-plane"
++    assert "_muerta" in (zona / "modulo_inocuo.py").read_text(), "el proyecto no puede quedar a medias"
++    assert pl.estado_de(base, [e for e in cp.leer_eventos(base) if e["tipo"] == "tarea_planificada"][0]["datos"]["id"]) \
++        == "interrumpida_reintentable"
++
++    reanudar = subprocess.run([sys.executable, str(guion), str(base), "seguir"], env=entorno, capture_output=True,
++                              text=True, timeout=300)
++    assert reanudar.stdout.split()[:1] == ["1"], reanudar.stdout + reanudar.stderr  # la reanuda y la completa
++    assert "_muerta" not in (zona / "modulo_inocuo.py").read_text()
++
++    siguiente = subprocess.run([sys.executable, str(guion), str(base), "seguir"], env=entorno, capture_output=True,
++                               text=True, timeout=300)
++    assert siguiente.stdout.split()[:1] == ["0"], siguiente.stdout  # no repite lo completado
++    eventos = cp.leer_eventos(base)
++    promovidos = [e for e in eventos if e["tipo"] == "cambio_aplicado" and e["datos"].get("promovido")]
++    assert len(promovidos) == 1, "exactamente UNA promocion: sin duplicados"
++    assert cp.verificar_integridad_log(base)["integro"] is True
++
++
++# ------------------------------------------ revision independiente (code-reviewer, 2026-10-26) --
++
++@pytest.mark.parametrize("tipo,datos,estado", [
++    ("decision_requerida", {"origen": "OP-x", "motivo": "zona prohibida"}, "elevada"),
++    ("revision_sin_revisor_capaz", {"accion": "eliminar_codigo_muerto", "propuesto_por": "aura"}, "esperando_revisor"),
++    ("veredicto_emitido", {"revisor": "r", "propuesto_por": "aura", "objeciones": ["x"], "cumple": False}, "objetada"),
++])
++def test_M1_un_cierre_SIN_resultado_no_se_confunde_con_una_interrupcion(tmp_path, tipo, datos, estado):
++    """El motor eleva, espera revisor o recibe objeciones SIN escribir `cambio_aplicado`. Aunque su supervisor ya
++    no viva, eso no es una interrupcion: la tarea NO se reofrece (como antes del contrato)."""
++    _planificada_por(tmp_path, {"pid": _pid_muerto(), "inicio": "1", "arranque": pl._arranque()})
++    cp.registrar_evento(tmp_path, tipo, {"id": "TA-1", **datos})
++    assert (pl.estado_de(tmp_path, "TA-1"), pl.elegible(tmp_path, "TA-1")) == (estado, False)
++
++
++def test_M2_no_poder_LEER_proc_no_es_lo_mismo_que_un_proceso_muerto(tmp_path, monkeypatch):
++    """`hidepid` u otro espacio de nombres: PermissionError. Ante la duda, vivo: nunca se duplica."""
++    real = pathlib.Path.read_text
++
++    def sin_permiso(self, *a, **k):
++        if str(self).startswith("/proc/") and str(self).endswith("/stat") and str(self) != "/proc/self/stat":
++            raise PermissionError("hidepid")
++        return real(self, *a, **k)
++
++    _planificada_por(tmp_path, {"pid": 1, "inicio": "1", "arranque": pl._arranque()})
++    monkeypatch.setattr(pathlib.Path, "read_text", sin_permiso)
++    assert (pl.estado_de(tmp_path, "TA-1"), pl.elegible(tmp_path, "TA-1")) == ("en_curso", False)
++
++
++def _proc_stat_que(falla_con, tmp_path, monkeypatch):
++    real = pathlib.Path.read_text
++
++    def lector(self, *a, **k):
++        if str(self).startswith("/proc/") and str(self).endswith("/stat") and str(self) != "/proc/self/stat":
++            if isinstance(falla_con, str):
++                return falla_con
++            raise falla_con
++        return real(self, *a, **k)
++
++    monkeypatch.setattr(pathlib.Path, "read_text", lector)
++
++
++def test_M2_con_hidepid_2_un_ejecutor_VIVO_invisible_en_proc_no_se_da_por_muerto(tmp_path, monkeypatch):
++    """`hidepid=2`: el pid ajeno NO aparece en /proc (ENOENT) aunque viva. Se contrasta con `kill(pid, 0)`."""
++    _planificada_por(tmp_path, {"pid": os.getpid(), "inicio": pl._inicio_de(os.getpid()), "arranque": pl._arranque()})
++    _proc_stat_que(FileNotFoundError("hidepid=2"), tmp_path, monkeypatch)
++    assert (pl.estado_de(tmp_path, "TA-1"), pl.elegible(tmp_path, "TA-1")) == ("en_curso", False)
++
++
++def test_M2_control_con_ENOENT_un_ejecutor_que_de_verdad_murio_sigue_interrumpido(tmp_path, monkeypatch):
++    _planificada_por(tmp_path, {"pid": _pid_muerto(), "inicio": "1", "arranque": pl._arranque()})
++    _proc_stat_que(FileNotFoundError("no existe"), tmp_path, monkeypatch)
++    assert (pl.estado_de(tmp_path, "TA-1"), pl.elegible(tmp_path, "TA-1")) == ("interrumpida_reintentable", True)
++
++
++def test_B2_un_stat_MALFORMADO_es_duda_y_no_muerte(tmp_path, monkeypatch):
++    _planificada_por(tmp_path, {"pid": 1, "inicio": "1", "arranque": pl._arranque()})
++    _proc_stat_que("1 (x) R", tmp_path, monkeypatch)  # sin el campo 22: IndexError
++    assert (pl.estado_de(tmp_path, "TA-1"), pl.elegible(tmp_path, "TA-1")) == ("en_curso", False)
++
++
++def test_B1_con_el_inicio_PROPIO_ilegible_no_se_registra_un_ejecutor(tmp_path, monkeypatch):
++    monkeypatch.setattr(pl, "_inicio_de", lambda pid: pl._DESCONOCIDO)
++    pl.registrar_planificada(tmp_path, _tarea())
++    datos = [e for e in cp.leer_eventos(tmp_path) if e["tipo"] == "tarea_planificada"][-1]["datos"]
++    assert "ejecutor" not in datos and pl.estado_de(tmp_path, "TA-1") == "sin_resultado_historico"
++
++
++def test_M4_un_intento_vivo_tras_uno_revertido_esta_en_curso_aunque_el_tope_crezca(tmp_path, monkeypatch):
++    monkeypatch.setattr(pl, "TOPE_DE_REINTENTOS", 3)
++    pl.registrar_planificada(tmp_path, _tarea())
++    _resultado(tmp_path, revertido=True)
++    pl.registrar_planificada(tmp_path, _tarea())  # segundo intento, VIVO, sin resultado aun
++    assert (pl.estado_de(tmp_path, "TA-1"), pl.elegible(tmp_path, "TA-1")) == ("en_curso", False)
++
++
++def test_B1_sin_identidad_completa_no_se_registra_un_ejecutor_que_atascaria_la_tarea(tmp_path, monkeypatch):
++    monkeypatch.setattr(pl, "_arranque", lambda: "")
++    pl.registrar_planificada(tmp_path, _tarea())
++    datos = [e for e in cp.leer_eventos(tmp_path) if e["tipo"] == "tarea_planificada"][-1]["datos"]
++    assert "ejecutor" not in datos and pl.estado_de(tmp_path, "TA-1") == "sin_resultado_historico"
++
++
++def test_B3_el_inicio_es_el_STARTTIME_de_verdad(tmp_path):
++    """Contraste independiente: un proceso lanzado DESPUES tiene un starttime >= el nuestro, y el campo no es un
++    contador que coincida entre procesos (p. ej. `num_threads` = 1 en ambos)."""
++    hijo = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(5)"])
++    try:
++        nuestro, suyo = pl._inicio_de(os.getpid()), pl._inicio_de(hijo.pid)
++        crudo = pathlib.Path(f"/proc/{hijo.pid}/stat").read_text()
++        assert int(suyo) >= int(nuestro) and suyo == crudo[crudo.rindex(")") + 2:].split()[19]
++        assert int(suyo) > 100, "un starttime en ticks desde el arranque no es un contador pequeno"
++    finally:
++        hijo.kill()
++        hijo.wait()
++
++
++def test_B3_un_ejecutor_ZOMBI_cuenta_como_muerto(tmp_path):
++    import time
++    hijo = subprocess.Popen([sys.executable, "-c", "pass"])
++    for _ in range(100):
++        if pathlib.Path(f"/proc/{hijo.pid}/stat").read_text().rsplit(")", 1)[1].split()[0] == "Z":
++            break
++        time.sleep(0.02)
++    try:
++        assert pl._inicio_de(hijo.pid) is None
++    finally:
++        hijo.wait()
++
++
++def test_B3_registrar_planificada_ESPERA_al_cerrojo_del_log(tmp_path):
++    """Atomicidad: si otro proceso tiene el cerrojo del log, la constancia espera a que lo suelte."""
++    import time
++    guion = ("import sys, time, pathlib; sys.path.insert(0, %r); import control_plane as cp\n"
++             "with cp.lock_estado(pathlib.Path(%r)):\n    print('tomado', flush=True); time.sleep(1.5)\n") % (str(PLANO), str(tmp_path))
++    otro = subprocess.Popen([sys.executable, "-c", guion], stdout=subprocess.PIPE, text=True)
++    assert otro.stdout.readline().strip() == "tomado"
++    t0 = time.monotonic()
++    pl.registrar_planificada(tmp_path, _tarea())
++    esperado = time.monotonic() - t0
++    otro.wait()
++    assert esperado >= 1.0, f"la constancia no espero al cerrojo ({esperado:.2f}s)"
++
++
++# ------------------------------------- cierre de las condiciones del revisor (decision del CEO, 2026-10-26) --
++
++def _sandbox(tmp_path, monkeypatch):
++    """Sandbox con una oportunidad REAL (codigo muerto) y review habilitado SOLO en su log desechable."""
++    import orquestador
++    import review
++    monkeypatch.setattr(orquestador, "mutacion_en_curso", lambda: False)
++    monkeypatch.setenv("AURA_AUTOCONSTRUCCION_ESTADO", str(tmp_path / "estado-ac"))
++    base = tmp_path / "sb"
++    zona = base / "entorno" / "control-plane"
++    zona.mkdir(parents=True)
++    (zona / "modulo_inocuo.py").write_text("def _muerta():\n    return 1\n\n\ndef viva():\n    return 2\n")
++    (zona / "test_modulo_inocuo.py").write_text("from modulo_inocuo import viva\n\n\ndef test_viva():\n    assert viva() == 2\n")
++    review.habilitar(base, por="ceo", acta="SANDBOX de prueba", alcance=("eliminar_codigo_muerto",))
++    import descubrimiento as des
++    tarea = pl.siguiente(base, des.descubrir(zona, base))
++    assert tarea is not None, "control: el sandbox tiene que ofrecer trabajo real"
++    return base, zona, tarea
++
++
++def test_M3_dos_supervisores_el_que_llega_tarde_PARA_sin_excepcion_y_sin_duplicar(tmp_path, monkeypatch):
++    import motor_autonomia as motor
++    base, zona, tarea = _sandbox(tmp_path, monkeypatch)
++    pl.registrar_planificada(base, tarea)                      # el OTRO supervisor (vivo) se adelanto
++    monkeypatch.setattr(motor.plan, "siguiente", lambda d, o: dict(tarea))  # la ventana siguiente() -> registrar
++    informe = motor.trabajar(base, zona, verificacion=lambda r: True, max_tareas=3)
++    assert informe["motivo_de_parada"] == "tarea tomada por otro supervisor"
++    assert (informe["ejecutadas"], pl.intentos_de(base, tarea["id"])) == (0, 1), "ni ejecuta ni cuenta otro intento"
++
++
++def test_AGOTADA_por_interrupciones_deja_EVENTO_una_sola_vez(tmp_path, monkeypatch):
++    import motor_autonomia as motor
++    base, zona, tarea = _sandbox(tmp_path, monkeypatch)
++    for _ in range(pl.TOPE_DE_REINTENTOS):
++        _planificada_por(base, {"pid": _pid_muerto(), "inicio": "1", "arranque": pl._arranque()}, tarea["id"])
++    assert pl.estado_de(base, tarea["id"]) == "agotada"
++    for _ in range(2):                                          # volver a mirar no es volver a agotar
++        informe = motor.trabajar(base, zona, verificacion=lambda r: True, max_tareas=3)
++        assert (informe["ejecutadas"], informe["motivo_de_parada"]) == (0, "cola agotada")
++    agotados = [e for e in cp.leer_eventos(base)
++                if e["tipo"] == motor.EVENTO_PRESUPUESTO_AGOTADO and e["datos"]["id"] == tarea["id"]]
++    assert len(agotados) == 1, "agotada y OBSERVABLE en el log, sin repetirse"
++
++
++def test_COMPLETADA_es_monotona_aunque_un_log_HEREDADO_la_replanificase(tmp_path):
++    _planificada_por(tmp_path, None)
++    _resultado(tmp_path, revertido=False)
++    _planificada_por(tmp_path, None)                            # forma heredada: replanificada tras completarse
++    assert (pl.completada(tmp_path, "TA-1"), pl.estado_de(tmp_path, "TA-1"), pl.elegible(tmp_path, "TA-1")) \
++        == (True, "completada", False)
++
++
++def test_el_estado_sale_SOLO_del_log_una_proyeccion_desfasada_no_lo_cambia(tmp_path):
++    _planificada_por(tmp_path, {"pid": _pid_muerto(), "inicio": "1", "arranque": pl._arranque()})
++    antes = pl.estado_de(tmp_path, "TA-1")
++    (tmp_path / "estado.json").write_text("{ basura que no es la proyeccion")
++    assert pl.estado_de(tmp_path, "TA-1") == antes == "interrumpida_reintentable"
++
++
++def test_LIMITE_hidepid_2_con_PID_REUTILIZADO_es_conservador_espera_y_no_duplica(tmp_path, monkeypatch):
++    """Limite conocido y aceptado (DP §2): el pid existe (es otro proceso) pero /proc no deja verlo. Se espera."""
++    _planificada_por(tmp_path, {"pid": os.getpid(), "inicio": "inicio-de-OTRO-proceso", "arranque": pl._arranque()})
++    _proc_stat_que(FileNotFoundError("hidepid=2"), tmp_path, monkeypatch)
++    assert (pl.estado_de(tmp_path, "TA-1"), pl.elegible(tmp_path, "TA-1")) == ("en_curso", False)
++
++
++# --- la primitiva PUBLICA de «comprobar y anadir» (sustituye al uso de `cp._registrar_sin_lock`) ---
++
++def test_API_registrar_evento_si_anade_SOLO_si_la_condicion_se_cumple(tmp_path):
++    assert cp.registrar_evento_si(tmp_path, "nota", {"n": 1}, lambda: False) is None
++    assert cp.leer_eventos(tmp_path) == []
++    evento = cp.registrar_evento_si(tmp_path, "nota", {"n": 2}, lambda: True)
++    assert evento["tipo"] == "nota" and [e["datos"] for e in cp.leer_eventos(tmp_path)] == [{"n": 2}]
++    assert cp.verificar_integridad_log(tmp_path)["integro"] is True
++
++
++def test_API_registrar_evento_si_NIEGA_los_eventos_gobernados_como_registrar_evento(tmp_path):
++    gobernado = sorted(cp.EVENTOS_GOBERNADOS)[0]
++    with pytest.raises(cp.EventoNoGobernado):
++        cp.registrar_evento_si(tmp_path, gobernado, {}, lambda: True)
++    assert cp.leer_eventos(tmp_path) == []
++
++
++def test_API_registrar_evento_si_evalua_la_condicion_DENTRO_del_cerrojo(tmp_path, monkeypatch):
++    dentro = []
++    real = cp.lock_estado
++
++    @__import__("contextlib").contextmanager
++    def espia(d):
++        with real(d) as c:
++            dentro.append(True)
++            yield c
++            dentro.append(False)
++
++    monkeypatch.setattr(cp, "lock_estado", espia)
++    vista = []
++    cp.registrar_evento_si(tmp_path, "nota", {}, lambda: vista.append(list(dentro)) or True)
++    assert vista == [[True]], "la condicion se evalua con el cerrojo tomado"
++
++
++def test_el_planificador_ya_NO_usa_el_escritor_PRIVADO_del_log():
++    import ast
++    arbol = ast.parse((PLANO / "planificador.py").read_text(encoding="utf-8"))
++    assert "_registrar_sin_lock" not in {n.attr for n in ast.walk(arbol) if isinstance(n, ast.Attribute)}
++
++
++# --- §8: muerte ENTRE promover y registrar `cambio_aplicado` ---
++
++_GUION_REGISTRO = _GUION.replace(
++    "if fase == \"matar\":\n    zona.mkdir",
++    "if fase == \"matar_al_registrar\":\n"
++    "    import control_plane as cp\n"
++    "    _real = cp.registrar_evento\n"
++    "    def _registrar(d, tipo, datos=None):\n"
++    "        if tipo == \"cambio_aplicado\" and (datos or {}).get(\"promovido\"):\n"
++    "            os.kill(os.getpid(), signal.SIGKILL)  # promovido en disco, sin constancia en el log\n"
++    "        return _real(d, tipo, datos)\n"
++    "    cp.registrar_evento = _registrar\n"
++    "if fase in (\"matar\", \"matar_al_registrar\"):\n    zona.mkdir")
++
++
++@pytest.mark.skipif(not __import__("aislamiento").estricto_disponible(), reason="sin confinamiento estricto")
++def test_E2E_muerte_entre_PROMOVER_y_REGISTRAR_no_cuenta_otro_intento_ni_duplica(tmp_path):
++    assert _GUION_REGISTRO != _GUION, "control: la fase nueva tiene que haberse inyectado"
++    guion = tmp_path / "guion.py"
++    guion.write_text(_GUION_REGISTRO)
++    base = tmp_path / "sandbox"
++    (tmp_path / "tmp").mkdir()
++    entorno = {**os.environ, "PYTHONPATH": str(PLANO), "AURA_AUTOCONSTRUCCION_ESTADO": str(tmp_path / "estado"),
++               "TMPDIR": str(tmp_path / "tmp")}
++    matar = subprocess.run([sys.executable, str(guion), str(base), "matar_al_registrar"], env=entorno,
++                           capture_output=True, text=True, timeout=300)
++    assert matar.returncode == -signal.SIGKILL, matar.stderr
++    zona = base / "entorno" / "control-plane"
++    assert "_muerta" not in (zona / "modulo_inocuo.py").read_text(), "control: la promocion SI llego al disco"
++    id_tarea = [e for e in cp.leer_eventos(base) if e["tipo"] == "tarea_planificada"][0]["datos"]["id"]
++    assert not [e for e in cp.leer_eventos(base) if e["tipo"] == "cambio_aplicado"], "control: sin constancia"
++
++    seguir = subprocess.run([sys.executable, str(guion), str(base), "seguir"], env=entorno, capture_output=True,
++                            text=True, timeout=300)
++    assert seguir.stdout.split()[:1] == ["0"], seguir.stdout + seguir.stderr   # nada que volver a ejecutar
++    eventos = cp.leer_eventos(base)
++    assert pl.intentos_de(base, id_tarea) == 1, "la recuperacion no puede contar un intento de mas"
++    # `recuperar()` confirma la promocion pero su `cambio_aplicado` NO trae `efecto_verificado`/`verificacion_sana`
++    # (autoconstruccion.py:956). La duda nunca completa: queda AMBIGUA —no elegible, no se repite— y observable para
++    # revision. Que conste como completada exige cambiar `autoconstruccion` (DP §8, fuera del alcance autorizado).
++    assert (pl.estado_de(base, id_tarea), pl.elegible(base, id_tarea)) == ("resultado_ambiguo", False)
++    assert [e["datos"]["resultado"] for e in eventos if e["tipo"] == "recuperacion_al_arranque"] == \
++        ["promocion_confirmada"], "el log tiene que decir que se recupero, no callarlo"
++    assert len([e for e in eventos if e["tipo"] == "cambio_aplicado" and e["datos"].get("promovido")]) == 1
++    assert cp.verificar_integridad_log(base)["integro"] is True
++
++
++@pytest.mark.parametrize("pendiente", ["bloqueado", "ocupado"])
++def test_con_una_RECUPERACION_pendiente_el_motor_NO_planifica(tmp_path, monkeypatch, pendiente):
++    """Un diario ambiguo (bloqueado) u otro proceso recuperando (ocupado): no hay dos recuperaciones a la vez."""
++    import motor_autonomia as motor
++    base, zona, tarea = _sandbox(tmp_path, monkeypatch)
++    informe_rec = {"pendientes": 1, "resultados": [], "escribio": False, "bloqueado": False, "ocupado": False}
++    monkeypatch.setattr(motor.ac, "recuperar", lambda d: {**informe_rec, pendiente: True})
++    informe = motor.trabajar(base, zona, verificacion=lambda r: True, max_tareas=3)
++    assert informe["motivo_de_parada"] == "recuperacion pendiente"
++    assert pl.intentos_de(base, tarea["id"]) == 0, "nada se planifica mientras haya una recuperacion pendiente"
++
++
++def test_control_una_tarea_COMPLETADA_en_su_ultimo_intento_NO_se_anuncia_agotada(tmp_path, monkeypatch):
++    import motor_autonomia as motor
++    base, zona, tarea = _sandbox(tmp_path, monkeypatch)
++    _planificada_por(base, {"pid": _pid_muerto(), "inicio": "1", "arranque": pl._arranque()}, tarea["id"])
++    _planificada_por(base, {"pid": _pid_muerto(), "inicio": "1", "arranque": pl._arranque()}, tarea["id"])
++    _resultado(base, revertido=False)
++    assert pl.estado_de(base, tarea["id"]) == "completada"
++    motor.trabajar(base, zona, verificacion=lambda r: True, max_tareas=3)
++    assert not [e for e in cp.leer_eventos(base) if e["tipo"] == motor.EVENTO_PRESUPUESTO_AGOTADO]
+--- /dev/null
++++ b/entorno/control-plane/mutaciones/reanudacion-tras-caida.toml
+@@ -0,0 +1,198 @@
++incremento = "Reanudacion tras caida: identidad del ejecutor y estados observables (DP-RECUPERACION-TRAS-CAIDAS, 2026-10-26)"
++# Defecto: tras un SIGKILL la tarea quedaba «planificada sin resultado» para siempre (ni se reintentaba ni se informaba).
++# NADA en paralelo con este arnes (CLAUDE.md §2).
++pruebas = ["test_red_reanudacion_tras_caida.py", "test_red_reintento_gobernado.py"]
++timeout_s = 600
++
++[[mutante]]
++id = "RC1"
++garantia = "una ejecucion muerta se toma por viva: la tarea interrumpida vuelve a quedar atascada para siempre"
++fichero = "planificador.py"
++buscar = '''    return actual == inicio'''
++sustituir = '''    return True'''
++
++[[mutante]]
++id = "RC2"
++garantia = "tras un reinicio de la maquina un ejecutor anterior se da por vivo"
++fichero = "planificador.py"
++buscar = '''    if arranque != _arranque():
++        return False'''
++sustituir = '''    if False:
++        return False'''
++
++[[mutante]]
++id = "RC3"
++garantia = "un PID reutilizado por otro proceso hace pasar por vivo al ejecutor original"
++fichero = "planificador.py"
++buscar = '''    return actual == inicio'''
++sustituir = '''    return actual is not None'''
++
++[[mutante]]
++id = "RC4"
++garantia = "dos supervisores pueden planificar a la vez la misma tarea (ejecucion duplicada)"
++fichero = "planificador.py"
++buscar = '''                                    lambda: elegible(directorio, tarea["id"]))'''
++sustituir = '''                                    lambda: True)'''
++
++[[mutante]]
++id = "RC5"
++garantia = "las interrupciones no consumen presupuesto: una tarea que muere siempre se reintenta sin fin"
++fichero = "planificador.py"
++buscar = '''    return "interrumpida_reintentable" if intentos < TOPE_DE_REINTENTOS else "agotada"'''
++sustituir = '''    return "interrumpida_reintentable"'''
++
++[[mutante]]
++id = "RC6"
++garantia = "una constancia historica sin ejecutor se reofrece (podria duplicar una ejecucion antigua viva)"
++fichero = "planificador.py"
++buscar = '''    if ejecutor is None:
++        return "sin_resultado_historico"'''
++sustituir = '''    if ejecutor is None:
++        return "interrumpida_reintentable"'''
++
++[[mutante]]
++id = "RC7"
++garantia = "la constancia de planificacion deja de llevar la identidad del ejecutor"
++fichero = "planificador.py"
++buscar = '''        datos["ejecutor"] = ejecutor'''
++sustituir = '''        pass'''
++
++[[mutante]]
++id = "RC8"
++garantia = "una tarea ELEVADA / esperando revisor / objetada se reofrece como si se hubiera interrumpido (M1)"
++fichero = "planificador.py"
++buscar = '''    cierre = _cierre_sin_resultado(directorio, id_tarea)'''
++sustituir = '''    cierre = None'''
++
++[[mutante]]
++id = "RC9"
++garantia = "no poder leer /proc se toma como proceso muerto: ejecucion duplicada (M2)"
++fichero = "planificador.py"
++buscar = '''        return _DESCONOCIDO'''
++sustituir = '''        return None'''
++
++[[mutante]]
++id = "RC10"
++garantia = "el resultado de un intento anterior se atribuye al intento vivo (M4)"
++fichero = "planificador.py"
++buscar = '''            if mio:
++                resultado = None'''
++sustituir = '''            if False:
++                resultado = None'''
++
++[[mutante]]
++id = "RC11"
++garantia = "se registra una identidad incompleta que dejaria la tarea en curso para siempre (B1)"
++fichero = "planificador.py"
++buscar = '''        return None  # sin /proc fiable'''
++sustituir = '''        pass  # sin /proc fiable'''
++
++[[mutante]]
++id = "RC12"
++garantia = "se lee otro campo de /proc/<pid>/stat en lugar del starttime (B3)"
++fichero = "planificador.py"
++buscar = '''estado, inicio = campos[0], campos[19]'''
++sustituir = '''estado, inicio = campos[0], campos[17]'''
++
++[[mutante]]
++id = "RC13"
++garantia = "un ejecutor zombi se toma por vivo (B3)"
++fichero = "planificador.py"
++buscar = '''return None if estado == "Z" else inicio'''
++sustituir = '''return inicio'''
++
++[[mutante]]
++id = "RC14"
++garantia = "la constancia de planificacion deja de tomar el cerrojo del log (atomicidad, B3)"
++fichero = "control_plane.py"
++buscar = '''    with lock_estado(directorio):
++        if not condicion():
++            return None
++        return _registrar_sin_lock(directorio, tipo, datos)'''
++sustituir = '''    if True:
++        if not condicion():
++            return None
++        return _registrar_sin_lock(directorio, tipo, datos)'''
++
++[[mutante]]
++id = "RC15"
++garantia = "con hidepid=2 un ejecutor vivo (invisible en /proc) se da por muerto: ejecucion duplicada"
++fichero = "planificador.py"
++buscar = '''        return None if not _existe(pid) else _DESCONOCIDO'''
++sustituir = '''        return None'''
++
++[[mutante]]
++id = "RC16"
++garantia = "un /proc/<pid>/stat malformado rompe la decision en lugar de tratarse como duda"
++fichero = "planificador.py"
++buscar = '''    except (OSError, IndexError):'''
++sustituir = '''    except OSError:'''
++
++# --- cierre de condiciones (decision del CEO, 2026-10-26): motor, API publica, monotonia ---
++
++[[mutante]]
++id = "RC17"
++garantia = "el motor aborta con excepcion en la carrera de dos supervisores en lugar de parar observablemente (M3)"
++fichero = "motor_autonomia.py"
++buscar = '''        except plan.TareaNoElegible:'''
++sustituir = '''        except LookupError:'''
++
++[[mutante]]
++id = "RC18"
++garantia = "el motor planifica sin recuperar antes: un cambio promovido sin constancia queda fuera del log para siempre (§8)"
++fichero = "motor_autonomia.py"
++buscar = '''        recuperacion = ac.recuperar(directorio)'''
++sustituir = '''        recuperacion = {"bloqueado": False, "ocupado": False}'''
++
++[[mutante]]
++id = "RC19"
++garantia = "el motor planifica con una recuperacion pendiente (diario ambiguo u otro proceso recuperando)"
++fichero = "motor_autonomia.py"
++buscar = '''        if recuperacion["bloqueado"] or recuperacion["ocupado"]:'''
++sustituir = '''        if False:'''
++
++[[mutante]]
++id = "RC20"
++garantia = "una tarea agotada por interrupciones se apaga en silencio, sin evento"
++fichero = "motor_autonomia.py"
++buscar = '''        _registrar_agotadas(directorio, oportunidades)
++'''
++sustituir = '''        pass
++'''
++
++[[mutante]]
++id = "RC21"
++garantia = "se anuncia como agotada una tarea que en realidad se completo"
++fichero = "motor_autonomia.py"
++buscar = '''plan.estado_de(directorio, tarea["id"]) == "agotada"'''
++sustituir = '''plan.estado_de(directorio, tarea["id"]) in ("agotada", "completada")'''
++
++[[mutante]]
++id = "RC22"
++garantia = "la primitiva publica anade aunque la condicion falle (comprobar y anadir deja de serlo)"
++fichero = "control_plane.py"
++buscar = '''        if not condicion():
++            return None'''
++sustituir = '''        if False:
++            return None'''
++
++[[mutante]]
++id = "RC23"
++garantia = "la primitiva publica deja pasar eventos gobernados (bypass del gobierno de estado)"
++fichero = "control_plane.py"
++buscar = '''    if tipo in EVENTOS_GOBERNADOS:
++        _negar_gobernado(tipo)
++    with lock_estado(directorio):
++        if not condicion'''
++sustituir = '''    if False:
++        _negar_gobernado(tipo)
++    with lock_estado(directorio):
++        if not condicion'''
++
++[[mutante]]
++id = "RC24"
++garantia = "completada deja de ser monotona: un log heredado que replanifica la reabre"
++fichero = "planificador.py"
++buscar = '''    return any(_dejo_efecto(r) for r in _resultados_de(directorio, id_tarea))'''
++sustituir = '''    resultado = resultado_de(directorio, id_tarea)
++    return bool(resultado) and _dejo_efecto(resultado)'''

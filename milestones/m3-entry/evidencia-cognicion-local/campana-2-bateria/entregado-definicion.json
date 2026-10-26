@@ -1,0 +1,22 @@
+{
+  "caso": "definicion",
+  "tipo": "conocimiento",
+  "variante": "actual",
+  "texto": "que es la fotosintesis?",
+  "reloj_s": 30.95,
+  "total_s": 30.9,
+  "carga_s": 0.54,
+  "ingesta_tokens": 148,
+  "ingesta_s": 3.52,
+  "generacion_tokens": 57,
+  "generacion_s": 26.84,
+  "generacion_tok_s": 2.124,
+  "motivo_fin": "stop",
+  "json_valido": true,
+  "claves": [
+    "action",
+    "say"
+  ],
+  "say": "Eso es una técnica para traducir imágenes a un idioma. La fotoestés reconoce el formato y las características del objeto en la imagen, lo que permite a los humanos representarlas de manera más natural.",
+  "respuesta_cruda": "{\"say\": \"Eso es una técnica para traducir imágenes a un idioma. La fotoestés reconoce el formato y las características del objeto en la imagen, lo que permite a los humanos representarlas de manera más natural.\",\"action\":\"consulta\"}"
+}

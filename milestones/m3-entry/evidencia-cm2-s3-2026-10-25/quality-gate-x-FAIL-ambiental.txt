@@ -1,0 +1,14 @@
+FAILED tests/integration/test_estado_operativo_reinicio.py::test_objetivos_activos_sobrevive_al_reinicio
+FAILED tests/integration/test_resolutor_mdns_real.py::test_resuelve_el_nombre_local_de_esta_maquina_a_una_de_sus_ipv4
+2 failed, 3834 passed, 3 skipped, 19 xfailed in 1372.17s (0:22:52)
+QUALITY GATE: FAIL — corrige lo anterior
+EXIT=1
+../CHECKPOINT-CONTINUIDAD.md: La suma coincide
+../milestones/mapa-maestro/AURA_MASTER_DEVELOPMENT_MAP.md: La suma coincide
+../CLAUDE.md: La suma coincide
+../entorno/control-plane/orquestador.py: La suma coincide
+aura_skeleton/__main__.py: La suma coincide
+--- diagnostico (2026-10-25 22:26)
+carga media durante el QG: 3.38 (15 min); el QG tardo 22:52 frente a ~10 min habituales
+test_estado_operativo_reinicio: TimeoutExpired bajo carga; PASA aislada (2 repeticiones)
+test_resolutor_mdns_real: avahi-daemon renombro el equipo a majo1230-Lenovo-100e-2nd-Gen-3.local a las 22:07 (conflicto mDNS al re-registrar la Wi-Fi); avahi-resolve -n <hostname>.local tambien agota el tiempo fuera de AURA; FALLA aislada (entorno)

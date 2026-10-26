@@ -1,0 +1,23 @@
+{
+  "etiqueta": "DESPUES-cielo",
+  "modelo": "qwen2.5:0.5b",
+  "options": null,
+  "keep_alive": null,
+  "casos": [
+    {
+      "reloj_s": 207.2,
+      "total_s": 206.79,
+      "carga_modelo_s": 24.18,
+      "ingesta_tokens": 162,
+      "ingesta_s": 110.29,
+      "ingesta_tok_s": 1.47,
+      "generacion_tokens": 35,
+      "generacion_s": 72.26,
+      "generacion_tok_s": 0.48,
+      "pct_generacion": 34.9,
+      "respuesta": "{ \"say\": \"El cielo azul se debe a los rayos de sol que iluminan las nubes.\", \"action\": \"consulta\" }",
+      "motivo_fin": "stop",
+      "caso": "cielo"
+    }
+  ]
+}

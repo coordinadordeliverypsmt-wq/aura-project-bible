@@ -1,0 +1,89 @@
+{
+ "fecha": "2026-10-04T22:35:11",
+ "ram_disponible_mb_inicio": 2285,
+ "resultados": [
+  {
+   "modelo": "qwen2.5:0.5b",
+   "rss_runner_mb": 0,
+   "filas": [
+    {
+     "frase": "enciende la televisión",
+     "frio": true,
+     "total_s": 37.44,
+     "carga_s": 8.12,
+     "ingesta_tok": 74,
+     "ingesta_tok_s": 3.8,
+     "gen_tok": 28,
+     "gen_tok_s": 2.92,
+     "respuesta": "¡Por supuesto! Enciende la televisión y comienza a ver tu programa favorito o cualquier otro que desees."
+    },
+    {
+     "frase": "apaga la televisión",
+     "frio": false,
+     "total_s": 7.26,
+     "carga_s": 0.54,
+     "ingesta_tok": 74,
+     "ingesta_tok_s": 26.1,
+     "gen_tok": 12,
+     "gen_tok_s": 3.09,
+     "respuesta": "¡Por supuesto! Apaga la televisión."
+    },
+    {
+     "frase": "sí",
+     "frio": false,
+     "total_s": 6.13,
+     "carga_s": 0.54,
+     "ingesta_tok": 71,
+     "ingesta_tok_s": 36.1,
+     "gen_tok": 11,
+     "gen_tok_s": 3.04,
+     "respuesta": "¡Hola! ¿Cómo puedo ayudarte hoy?"
+    },
+    {
+     "frase": "no",
+     "frio": false,
+     "total_s": 7.11,
+     "carga_s": 0.52,
+     "ingesta_tok": 70,
+     "ingesta_tok_s": 40.3,
+     "gen_tok": 14,
+     "gen_tok_s": 2.88,
+     "respuesta": "Entendido. ¿Cómo puedo asistirte hoy?"
+    },
+    {
+     "frase": "¿qué hiciste?",
+     "frio": false,
+     "total_s": 11.6,
+     "carga_s": 0.52,
+     "ingesta_tok": 74,
+     "ingesta_tok_s": 25.4,
+     "gen_tok": 23,
+     "gen_tok_s": 2.82,
+     "respuesta": "Lo siento, pero no puedo proporcionar información sobre mi comportamiento personal o hacer actitudes en línea."
+    },
+    {
+     "frase": "enciende la televisión de la sala",
+     "frio": false,
+     "total_s": 13.49,
+     "carga_s": 0.53,
+     "ingesta_tok": 77,
+     "ingesta_tok_s": 20.6,
+     "gen_tok": 25,
+     "gen_tok_s": 2.71,
+     "respuesta": "¡Por supuesto! Enciende la televisión de la sala. ¿Cómo puedo asistirte hoy?"
+    },
+    {
+     "frase": "¿cuál es la capital de Francia y por qué es importante?",
+     "frio": false,
+     "total_s": 15.7,
+     "carga_s": 0.52,
+     "ingesta_tok": 84,
+     "ingesta_tok_s": 14.6,
+     "gen_tok": 26,
+     "gen_tok_s": 2.76,
+     "respuesta": "La capital de Francia es París. Es importante porque es el centro político, cultural y económico de la nación."
+    }
+   ]
+  }
+ ]
+}

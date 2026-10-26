@@ -1,0 +1,7 @@
+== ../entorno/control-plane (copia /tmp/aura-mutar-xvl_jeer/m3-entry/entorno/control-plane) rc=1
+FAILED test_red_capacidad_completada.py::test_el_descubrimiento_ya_NO_la_propone_como_trabajo
+FAILED test_red_capacidad_completada.py::test_la_capacidad_COMPLETADA_no_reaparece_en_el_siguiente_despertar
+2 failed, 1380 passed, 3 skipped in 164.06s (0:02:44)
+== . (copia /tmp/aura-mutar-op7nvgys/m3-entry/walking-skeleton) rc=0
+3836 passed, 3 skipped, 19 xfailed in 622.58s (0:10:22)
+exit=0

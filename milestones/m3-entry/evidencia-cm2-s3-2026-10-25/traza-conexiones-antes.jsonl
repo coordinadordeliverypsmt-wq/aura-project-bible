@@ -1,0 +1,4 @@
+{"prueba": "?", "pid": 64586, "destino": ["127.0.0.1", 11434]}
+{"prueba": "?", "pid": 64586, "destino": ["127.0.0.1", 4222]}
+{"prueba": "tests/integration/test_voz_degrada_con_honestidad.py::test_el_arranque_declara_que_NO_hay_voz_cuando_no_la_hay (call)", "pid": 64586, "destino": ["127.0.0.1", 11434]}
+{"prueba": "tests/integration/test_voz_degrada_con_honestidad.py::test_CONTROL_el_arranque_declara_la_voz_cuando_existe (call)", "pid": 64586, "destino": ["127.0.0.1", 11434]}

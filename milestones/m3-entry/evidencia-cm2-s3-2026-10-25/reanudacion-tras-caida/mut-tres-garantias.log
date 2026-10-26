@@ -1,0 +1,12 @@
+Arnés: muta una copia aislada (/tmp/aura-mutar-b2cv835s/m3-entry/entorno/control-plane); el árbol original solo se lee.
+Arnes de mutacion: /home/majo1230/.claude/jobs/d6cb894c/tmp/tres-garantias.toml
+Base en verde. Mutantes evaluados: 3
+  [OK] MOT-M16 (detectado): ROMPER LA CADENA: cada vuelta REDESCUBRE; el arbol cambia con cada tarea ejecutada
+        FAILED test_red_motor_autonomia.py::test_TRES_tareas_encadenadas_sin_UN_SOLO_acto_humano
+        FAILED test_red_motor_autonomia.py::test_la_segunda_vuelta_encuentra_la_cola_AGOTADA
+  [OK] MOT-M21 (detectado): COLA AGOTADA SALE 0: si saliera con error, quien lo automatice fabricaria trabajo para que pase
+        FAILED test_red_motor_autonomia.py::test_la_cola_agotada_SALE_CON_CERO - Asse...
+  [OK] F1-M23 (detectado): H4 · un evento `estado_de_tarea` crudo no fabrica estado: aceptarlo haria decorativo el gobierno de transicion(), porque bastaria rodearlo
+        FAILED test_red_f1_orquestador.py::test_auditoria_h4_un_evento_crudo_no_puede_fabricar_un_estado
+
+Total: 3 detectados, 0 sobreviven, 0 no aplicados, 0 ambiguos, 0 en timeout

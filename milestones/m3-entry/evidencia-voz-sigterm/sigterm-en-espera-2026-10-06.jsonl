@@ -1,0 +1,42 @@
+{"t": 1791309326.248, "tipo": "ganancia_micro", "dato": "Volume: front-left: 17694 /  27% / -34"}
+{"t": 1791309326.4, "tipo": "inicio", "dato": "entidad=media_player.tv_sala_fmilia_medina_un43ru7100fxza estado_inicial=on datos=/tmp/aura-e2e-voz-jfhawlzt"}
+{"t": 1791309326.404, "tipo": "ram_disponible_mb", "dato": "2132"}
+{"t": 1791309326.406, "tipo": "tv", "dato": "on"}
+{"t": 1791309326.723, "tipo": "aura", "dato": "  [BOOT ] composicion    trace=- hogar: REAL via Home Assistant http://127.0.0.1:8123 (API running.) audit=True"}
+{"t": 1791309326.73, "tipo": "aura", "dato": "  [BOOT ] composicion    trace=- voz: DISPONIBLE (/media/majo1230/AURORA_EXT/piper_voices/es_MX-ald-medium.onnx) audit=True"}
+{"t": 1791309326.732, "tipo": "aura", "dato": "  [BOOT ] composicion    trace=- proveedor LLM: stack=real modelo=qwen2.5:0.5b (instalado) timeout=900s (fuente: entorno:AURA_OLLAMA_TIMEOUT_S); circuito: enfriamiento=60.0s (fuente: defecto_del_codigo), politica CERRADO -> [fallo] -> ABIERTO -> [enfriamiento] -> SEMIABIERTO -> [UNA prueba] -> CERRADO o ABIERTO de nuevo audit=True"}
+{"t": 1791309326.736, "tipo": "aura", "dato": "  [BOOT ] composicion    trace=- perfil de hardware medido: audio_tarjetas=1, carga_1m=1.59766, cpu_64bit=1, disco_libre_mb=6966, gpu_render=1, isa_avx=0, isa_avx2=0, isa_avx512f=0, isa_fma=0, isa_sse4_2=1, isa_ssse3=1, nucleos=2, nucleos_fisicos=2, proceso_bits=64, ram_disponible_mb=2116, ram_mb=3719, red_interfaces=1, video_dispositivos=2 audit=True"}
+{"t": 1791309326.737, "tipo": "aura", "dato": "  [BOOT ] composicion    trace=- capacidades (estado EFECTIVO): activas=[] degradadas=['memoria'] latentes=[]; memoria -> N1 (almacen minimo) audit=True"}
+{"t": 1791309326.742, "tipo": "aura", "dato": "  [AUTO ] estado-autonomo trace=- ciclo autonomo legible"}
+{"t": 1791309326.743, "tipo": "aura", "dato": "  [BOOT ] composicion    trace=- AURA lista: 21 capacidades, 3 fuentes de contexto, stack=real audit=True"}
+{"t": 1791309326.804, "tipo": "aura", "dato": "AURA: microfono parecord + paplay, 5 s por turno"}
+{"t": 1791309326.806, "tipo": "aura", "dato": "AURA: palabra de activación «Aurora» (Vosk local, vosk-model-small-es-0.42)"}
+{"t": 1791309330.196, "tipo": "aura", "dato": "=============================================================="}
+{"t": 1791309330.196, "tipo": "aura", "dato": "AURA — arranque verificado"}
+{"t": 1791309330.197, "tipo": "aura", "dato": "=============================================================="}
+{"t": 1791309330.197, "tipo": "aura", "dato": "  operaciones disponibles (21): abrir_archivo, apagar_dispositivo, auditar_garantias, automatizacion, borrar_archivo, buscar_archivo, consultar_estado_sistema, copiar_archivo, diagnosticar_estado, ejecutar_pruebas, encender_dispositivo, escribir_archivo, leer_archivo, listar_directorio, mover_archivo, olvidar_informacion_usuario, proponer_cambio, refutar_informacion_usuario, registrar_informacion_usuario, renombrar_archivo, verificar_calidad"}
+{"t": 1791309330.197, "tipo": "aura", "dato": "  fuentes de contexto (3): computador, conversacion, home_assistant"}
+{"t": 1791309330.197, "tipo": "aura", "dato": "  memoria persistente : /tmp/aura-e2e-voz-jfhawlzt/memoria.json"}
+{"t": 1791309330.197, "tipo": "aura", "dato": "  registro forense    : /tmp/aura-e2e-voz-jfhawlzt/audit.jsonl"}
+{"t": 1791309330.197, "tipo": "aura", "dato": "  kill switch         : en reposo"}
+{"t": 1791309330.197, "tipo": "aura", "dato": "  capacidades activas : (ninguna)"}
+{"t": 1791309330.197, "tipo": "aura", "dato": "  perfil de hardware  : audio_tarjetas=1, carga_1m=1.59766, cpu_64bit=1, disco_libre_mb=6966, gpu_render=1, isa_avx=0, isa_avx2=0, isa_avx512f=0, isa_fma=0, isa_sse4_2=1, isa_ssse3=1, nucleos=2, nucleos_fisicos=2, proceso_bits=64, ram_disponible_mb=2116, ram_mb=3719, red_interfaces=1, video_dispositivos=2"}
+{"t": 1791309330.197, "tipo": "aura", "dato": "  (nota: capacidades activas = modelo de activacion por hardware, ADR-0021; no es el catalogo de operaciones ejecutables de arriba)"}
+{"t": 1791309330.197, "tipo": "aura", "dato": "  proveedor LLM       : ollama (stack=real)"}
+{"t": 1791309330.197, "tipo": "aura", "dato": "  modelo              : qwen2.5:0.5b"}
+{"t": 1791309330.197, "tipo": "aura", "dato": "  timeout proveedor   : 900s (fuente: entorno:AURA_OLLAMA_TIMEOUT_S)"}
+{"t": 1791309330.197, "tipo": "aura", "dato": "  enfriamiento circuito: 60.0s (fuente: defecto_del_codigo)"}
+{"t": 1791309330.197, "tipo": "aura", "dato": "  estado circuitos    : {'ollama': 'CERRADO'}"}
+{"t": 1791309330.198, "tipo": "aura", "dato": "  timeout conversacion (wait): 900s"}
+{"t": 1791309330.198, "tipo": "aura", "dato": "=============================================================="}
+{"t": 1791309331.405, "tipo": "ram_disponible_mb", "dato": "1836"}
+{"t": 1791309336.406, "tipo": "ram_disponible_mb", "dato": "1724"}
+{"t": 1791309341.407, "tipo": "ram_disponible_mb", "dato": "1597"}
+{"t": 1791309344.728, "tipo": "aura", "dato": "  [VOICE] piper-tts      trace=precarga audio generado: /tmp/aura/resp_precarga-acuse.wav"}
+{"t": 1791309344.728, "tipo": "aura", "dato": "AURA está atenta: di «Aurora» para hablarle. Ctrl-C para salir."}
+{"t": 1791309346.409, "tipo": "ram_disponible_mb", "dato": "1610"}
+{"t": 1791309351.41, "tipo": "ram_disponible_mb", "dato": "1633"}
+{"t": 1791309356.434, "tipo": "ram_disponible_mb", "dato": "1636"}
+{"t": 1791309361.458, "tipo": "ram_disponible_mb", "dato": "1625"}
+{"t": 1791309366.409, "tipo": "aura", "dato": "AURA: detenida (SIGTERM); el turno en curso se descartó."}
+{"t": 1791309366.876, "tipo": "fin", "dato": "estado_final=on"}

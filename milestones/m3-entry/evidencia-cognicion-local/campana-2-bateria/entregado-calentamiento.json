@@ -1,0 +1,22 @@
+{
+  "caso": "calentamiento",
+  "tipo": "calentamiento",
+  "variante": "actual",
+  "texto": "que es un volcan?",
+  "reloj_s": 51.51,
+  "total_s": 51.46,
+  "carga_s": 0.55,
+  "ingesta_tokens": 146,
+  "ingesta_s": 22.84,
+  "generacion_tokens": 71,
+  "generacion_s": 28.07,
+  "generacion_tok_s": 2.53,
+  "motivo_fin": "stop",
+  "json_valido": true,
+  "claves": [
+    "action",
+    "say"
+  ],
+  "say": "un volcán es una fuente de magma y hielo a través del cual se forma un vulcano. Un vulcanista ayuda a deshacer y reconstruir estos ecosistemas y sistemas naturales, especialmente en el este de Europa, Asia, y América del Sur.",
+  "respuesta_cruda": "{\"say\": \"un volcán es una fuente de magma y hielo a través del cual se forma un vulcano. Un vulcanista ayuda a deshacer y reconstruir estos ecosistemas y sistemas naturales, especialmente en el este de Europa, Asia, y América del Sur.\",\"action\":\"consulta\"}"
+}

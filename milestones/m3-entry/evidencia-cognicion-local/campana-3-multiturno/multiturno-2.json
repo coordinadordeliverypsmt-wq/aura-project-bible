@@ -1,0 +1,149 @@
+{
+  "datos": "/tmp/multiturno-ccbe0t1y",
+  "turnos": [
+    {
+      "turno": 1,
+      "pregunta": "que es la fotosintesis?",
+      "provider": "ollama",
+      "dominio": "llm",
+      "say": "Esto lo genera mi modelo local y no está verificado: La fotosintesis es un proceso de procesamiento de imágenes que permite extraer información y características del contenido digital. Este proceso se",
+      "medida": {
+        "modo": "cognitivo",
+        "reloj_s": 33.62,
+        "prompt_caracteres": 132,
+        "ingesta_tokens": 158,
+        "ingesta_s": 6.53,
+        "generacion_tokens": 75,
+        "generacion_s": 26.47,
+        "total_s": 33.57,
+        "carga_s": 0.56
+      }
+    },
+    {
+      "turno": 2,
+      "pregunta": "por que el cielo es azul?",
+      "provider": "ollama",
+      "dominio": "llm",
+      "say": "Esto lo genera mi modelo local y no está verificado: El cielo se ve azulado porque está cubierto por la atmósfera terrestre y los rayos solares dan un brillo azul bajo la luna.",
+      "medida": {
+        "modo": "cognitivo",
+        "reloj_s": 64.64,
+        "prompt_caracteres": 469,
+        "ingesta_tokens": 234,
+        "ingesta_s": 27.77,
+        "generacion_tokens": 58,
+        "generacion_s": 36.32,
+        "total_s": 64.63,
+        "carga_s": 0.54
+      }
+    },
+    {
+      "turno": 3,
+      "pregunta": "que es un agujero negro?",
+      "provider": "ollama",
+      "dominio": "llm",
+      "say": "Esto lo genera mi modelo local y no está verificado: un agujero negro es una figura gráfica que aparece en una imagen de forma de un espacio vacío o anidado en la superficie del mismo.",
+      "medida": {
+        "modo": "cognitivo",
+        "reloj_s": 64.93,
+        "prompt_caracteres": 665,
+        "ingesta_tokens": 297,
+        "ingesta_s": 38.67,
+        "generacion_tokens": 54,
+        "generacion_s": 25.4,
+        "total_s": 64.93,
+        "carga_s": 0.84
+      }
+    },
+    {
+      "turno": 4,
+      "pregunta": "que es un volcan?",
+      "provider": "ollama",
+      "dominio": "llm",
+      "say": "Esto lo genera mi modelo local y no está verificado: Un volcan es un ser magnético y espacial, particularmente en la región más alta de la Tierra, donde el gas hidratado se expulse en formaciones aére",
+      "medida": {
+        "modo": "cognitivo",
+        "reloj_s": 47.51,
+        "prompt_caracteres": 862,
+        "ingesta_tokens": 354,
+        "ingesta_s": 19.34,
+        "generacion_tokens": 61,
+        "generacion_s": 27.63,
+        "total_s": 47.5,
+        "carga_s": 0.52
+      }
+    },
+    {
+      "turno": 5,
+      "pregunta": "que significa la palabra resiliencia?",
+      "provider": "ollama",
+      "dominio": "llm",
+      "say": "Esto lo genera mi modelo local y no está verificado: La palabra 'resiliencia' implica una capacidad para adaptarse y sobrevivir en condiciones difíciles, resistiendo y evitando lo más inestable o peli",
+      "medida": {
+        "modo": "cognitivo",
+        "reloj_s": 82.54,
+        "prompt_caracteres": 1116,
+        "ingesta_tokens": 422,
+        "ingesta_s": 37.67,
+        "generacion_tokens": 63,
+        "generacion_s": 44.14,
+        "total_s": 82.53,
+        "carga_s": 0.71
+      }
+    },
+    {
+      "turno": 6,
+      "pregunta": "que es la materia oscura?",
+      "provider": "ollama",
+      "dominio": "llm",
+      "say": "Esto lo genera mi modelo local y no está verificado: La materia oscura es un término técnico que se refiere a los materiales con bajo albedrío y, por lo tanto, dejan que el rayo solar se vaya a través",
+      "medida": {
+        "modo": "cognitivo",
+        "reloj_s": 49.19,
+        "prompt_caracteres": 1343,
+        "ingesta_tokens": 487,
+        "ingesta_s": 24.2,
+        "generacion_tokens": 58,
+        "generacion_s": 24.19,
+        "total_s": 49.19,
+        "carga_s": 0.79
+      }
+    },
+    {
+      "turno": 7,
+      "pregunta": "por que llueve?",
+      "provider": "ollama",
+      "dominio": "llm",
+      "say": "Esto lo genera mi modelo local y no está verificado: La lluvia llena la atmósfera y la humedad esencial en el océano, lo que aumenta la absorción del calor y produce las condiciones típicas del cañón ",
+      "medida": {
+        "modo": "cognitivo",
+        "reloj_s": 76.2,
+        "prompt_caracteres": 1564,
+        "ingesta_tokens": 553,
+        "ingesta_s": 27.94,
+        "generacion_tokens": 63,
+        "generacion_s": 47.62,
+        "total_s": 76.2,
+        "carga_s": 0.62
+      }
+    },
+    {
+      "turno": 8,
+      "pregunta": "que es un numero primo?",
+      "provider": "ollama",
+      "dominio": "llm",
+      "say": "Esto lo genera mi modelo local y no está verificado: Un número primo es un número entero mayor que 1, divisible solo por sí mismo y con números primos de menor o igual a él.",
+      "medida": {
+        "modo": "cognitivo",
+        "reloj_s": 187.83,
+        "prompt_caracteres": 1429,
+        "ingesta_tokens": 541,
+        "ingesta_s": 144.84,
+        "generacion_tokens": 54,
+        "generacion_s": 42.13,
+        "total_s": 187.82,
+        "carga_s": 0.83
+      }
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+COPIA /tmp/aura-mutar-93mefmij/m3-entry/walking-skeleton
+$ patch -p1 -i PROPUESTA-ruta-red-v2.diff  (en /tmp/aura-mutar-93mefmij/m3-entry)  rc=0
+patching file walking-skeleton/aura_skeleton/__main__.py
+patching file walking-skeleton/tests/conftest.py
+patching file walking-skeleton/tests/unit/test_ruta_red.py
+patching file walking-skeleton/mutaciones/ruta-red.toml
+$ pytest -v tests/unit/test_ruta_red.py rc=0
+============================== 14 passed in 0.56s ==============================
+$ pytest (suite completa walking-skeleton) rc=1
+FAILED tests/integration/test_nodo_e2e_nats.py::test_ciclo_de_vida_del_nodo_online_offline_reinicio_y_reconexion
+FAILED tests/integration/test_nodo_e2e_nats.py::test_agente_sin_nats_server_escribe_estado_sale_limpio_con_sigterm_y_conecta_cuando_aparece
+2 failed, 3840 passed, 3 skipped, 17 xfailed in 1118.92s (0:18:38)
+$ ruff format --check rc=0: 303 files already formatted
+$ ruff check rc=0: All checks passed!
+$ herramientas.mutar mutaciones/ruta-red.toml rc=0: Total: 6 detectados, 0 sobreviven, 0 no aplicados, 0 ambiguos, 0 en timeout
+$ herramientas.mutar mutaciones/sin-dispositivos-reales.toml rc=0: Total: 9 detectados, 0 sobreviven, 0 no aplicados, 0 ambiguos, 0 en timeout
+exit=0
+arbol vivo sha (429 .py): IGUAL
+arbol vivo mtime: IGUAL
+copias residuales: 0

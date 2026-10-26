@@ -56,7 +56,7 @@ en rojo.
 |---|---|
 | Fase | **Construcción de producto.** La fase documental (Bible) está cerrada desde el 2026-07-18 |
 | Capacidades de producto cerradas | **4** — N2 Memoria Semántica · Centro de Notificaciones · Modelo de Usuario · Automatización definida por el usuario |
-| Quality Gate | PASS **472 passed / 3 skipped** |
+| Quality Gate | **FAIL** `[EJEC 2026-09-21]`. Dos causas, ambas preexistentes y acotadas: **(1)** 15 ficheros no pasan `ruff format` —los 27 restantes de los 42 originales ya se formatearon el 2026-09-21; los 15 que quedan tienen **anclas de mutación** y formatearlos las rompería (`orchestrator.py` solo concentra 170 mutantes en 31 catálogos)—; **(2)** una prueba roja: `test_garantias_vigentes` por los 5 mutantes de `validador.py`, fichero que **nunca existió en git**. Es la decisión abierta desde `D-A006` (2026-09-09). El control-plane, en cambio, está en **1100 passed** |
 | Benchmark permanente | `tests/datos/bateria_memoria.json` — 65 recuerdos, 77 consultas. Cualquier cambio del recuperador debe superarla. Decisión razonada en `milestones/m3-entry/DECISION-RECUPERADOR-N1.md` |
 | Alertas de arquitectura abiertas | **0.** `ALERTA-006` **resuelta técnicamente el 2026-09-09** (las cuatro rutas pasan por el Motor Único; `G-1` en `R-A 0`/`R-B 0`). Queda una **exposición residual distinta**, `memory.write` fuera del motor, gobernada por `ADR-0024` y abierta en `decisiones/2026-09-09-D-A006-decision-package.md`: **no hereda la prioridad de ALERTA-006** |
 | Trabajo en curso | **ninguno** |
@@ -97,6 +97,8 @@ construido?"* con la del **roadmap**. Ambas tablas están separadas en
 | **`CHANGELOG.md` e `INDICE.md` abandonados** | 2026-08-02 | Nada técnico, pero afirman ser registro del proyecto y llevan 12-15 días desfasados. Detectado durante el incremento de proceso; no se corrigió para no desviarlo |
 | **SIGKILL durante una mutación** deja el fichero mutado | 2026-08-02 | Nada: inevitable en Python (SIGKILL no es interceptable). Recuperación: `git checkout -- <fichero>`. SIGINT sí restaura correctamente |
 | **Verificador de consistencia** (propuesta NO autorizada) | 2026-08-02 | Nada. Registrada en `decisiones/pendientes-de-evaluacion/`; se reevalúa tras la revisión estratégica |
+| **Política del motor tras una verificación fallida** — ¿continuar con las tareas restantes o seguir deteniendo el ciclo completo? | 2026-09-21 | Bloquea cerrar el vacío de gobierno del motor autónomo: hoy la política vive en código y en una prueba, sin ADR, DP ni acta. **Ratificar lo vigente también exige acto formal.** Expediente: `milestones/m3-entry/DP-POLITICA-POST-ROLLBACK.md` (auditado, sin recomendación). Requiere además que el CEO **asigne identificador**: no hay familia de IDs para esta línea |
+| **Delegación a subagentes especializados** — ¿pertenece a la hoja de ruta, y bajo qué autoridad? | 2026-09-21 | Bloquea el salto de FASE 1 (el CTO crea los subagentes) a FASE 2 (AURA los solicita). **18 de 19 piezas ya existen**; lo que falta toca `crear_autoridad`, materia reservada a D22. Sin evidencia de uso real registrada. Expediente: `milestones/m3-entry/DP-DELEGACION-A-SUBAGENTES.md`. Depende además de `D-ORCH-1` (D24 e infraestructura de desarrollo), abierta desde el DP del Development Orchestrator |
 
 ---
 
@@ -127,7 +129,7 @@ Dos razones **independientes**, ninguna es un defecto de código:
 **Consecuencia:** el usuario de esta máquina usa N1 (léxico). Comprobado que la arquitectura sí funciona
 —`ram_mb=16000` → `SemanticMemory`— pero **no en este hardware**.
 
-### 4.3 · RIESGO ACTIVO — el modelo de N2 vive en un directorio temporal
+### 4.3 · ~~RIESGO ACTIVO~~ — **MITIGADO**: el modelo de N2 ya no vive en un directorio temporal
 
 ```
 ~/.aura/models/paraphrase-multilingual-MiniLM-L12-v2/
@@ -141,6 +143,13 @@ desaparecen, la composición captura la excepción y **degrada a N1 en silencio*
 Contradice el principio del CEO —*"la IA es una herramienta de construcción, no una fuente de verdad del
 proyecto"*— y la regla D31 —*"nunca se escriben modelos de IA en el disco interno"*, pues deberían vivir
 en `AURORA_EXT`.
+
+> **CERRADO — medido el 2026-09-21 `[EJEC]`.** Ya no son enlaces:
+> `~/.aura/models/paraphrase-multilingual-MiniLM-L12-v2/model.onnx` es un **fichero real de
+> 470 268 510 bytes**, no un symlink. La mitigación entró con el commit `3e716d4` del 2026-08-04, y
+> el `CHECKPOINT` la registra. **Este apartado llevaba siete semanas declarando ACTIVO un riesgo
+> cerrado** — que es el patrón «declarado ≠ real» aplicado al revés: alarma sobre algo ya resuelto.
+> Se conserva el texto original tachado arriba para que el rastro no se pierda.
 
 **Estado (CEO, 2026-08-02):** mover el artefacto **NO está aprobado**; se revisará cuando N2 pueda usarse
 realmente (hoy P1 la bloquea). Decision Package en el historial del proyecto. Lo que **sí** se corrigió es
@@ -211,6 +220,18 @@ turnos), pero **ningún componente las consume** y no hay materia prima acumulad
 
 Consecuencia: **ninguna decisión de producto puede apoyarse hoy en telemetría de uso real.**
 
+> **DESFASADO — re-medido el 2026-09-21 `[EJEC]`.** Hoy `~/.aura/audit.jsonl` tiene **497 entradas**
+> —no 8, y no solo de arranque— y `~/.aura/memoria.json` guarda **61 recuerdos reales: 52
+> episódicos y 9 semánticos**
+> (`"usuario dijo: hola"`, `"usuario dijo: Muéstrame el Centro de Gobierno"`…). Es decir: **AURA sí
+> se ha usado**, y sí hay memoria persistida.
+>
+> Lo que **no** cambia es la consecuencia, y conviene no exagerar la corrección: 497 entradas de
+> operación del propio CTO no son telemetría de uso real de un usuario. La afirmación fuerte
+> —*«nadie ha usado AURA»*— es falsa; la débil —*«no hay base para decidir producto por telemetría»*—
+> sigue en pie. Ver también `PLAN-DE-FORMACION-AURORA.md`, cuya regla de admisión exige justamente
+> evidencia de uso real.
+
 ### 4.8 · La equivalencia del índice de memoria estaba verificada solo a escala pequeña
 
 `[VERIF 2026-08-03]` `memory.py` afirmaba que el índice invertido daba un resultado **«idéntico»** al
@@ -263,6 +284,8 @@ trampas son de este checklist.**
 | `milestones/m3-entry/DEUDA-AUTOMATIZACION.md` | 8 partidas; reconocedor de un solo patrón, sin semántica transaccional |
 | `milestones/m3-entry/DEUDA-CAPTURA-DE-SENALES.md` | brecha histórica de instrumentación |
 | `milestones/m3-entry/DEUDA-ADAPTADORES-SIMULADOS.md` | `D-ADP-1`: un adaptador simulado responde `ok` igual que uno real |
+| `milestones/m3-entry/DEUDA-ADR0014-MEMORIA-VACIA.md` | **No estaba citada aquí hasta el 2026-09-21.** La garantía de no-fabricación de ADR-0014 se documenta como *«24/24 negativas atendidas por el núcleo, cero llamadas al LLM»* — cifra cierta **solo con la memoria vacía**, que es como corre la prueba oficial. Con el corpus de 65 recuerdos sembrado cae a **19/24**, con 5 fugas nombradas. Declarada fuera de alcance por el CEO |
+| `milestones/m3-entry/DEUDA-PANEL-BLOQUEO-SIN-MOTIVO.md` | **No estaba citada aquí hasta el 2026-09-21.** El panel del CEO lanza `ValueError` si una tarea bloqueada llega sin `bloqueos`: `Seccion.__post_init__` exige contenido y `_bloqueos()` devuelve cadena vacía. No alcanzable en producción hoy. Declarada fuera de alcance por el CEO |
 | `milestones/m3-entry/DEUDA-N1-RECUPERADOR.md` | 7 partidas. **`D-M-7` es CRÍTICA: ADR-0014 casi nunca se activa — 0 de 77 consultas de la batería reconocidas.** **`D-M-2` es CRÍTICA: el eco `usuario dijo:` del propio turno desactiva ADR-0014 al repetir una pregunta.** Además: recall a 0,000 con coletillas de cortesía, recuerdo largo como atractor de FP, refutados que siguen llegando al LLM, y `D-M-1` (régimen ubicuo) |
 | `milestones/m3-entry/ESPEC-G-1-RUTA-UNICA-DE-MUTACION.md` | Especificación **pendiente de aprobación** de la garantía G-1: contrato formal, verificador AST (3 reglas), 6 falsos positivos y 6 falsos negativos identificados, y migración por lista blanca que **solo puede encoger**. **Medido: renombrar las operaciones mutantes es condición de viabilidad** (resolución 40 % → 100 %) |
 | `milestones/m3-entry/DP-D-M-8-MOTOR-UNICO-DE-MUTACIONES.md` | Decision Package **pendiente de aprobación**. Define el contrato del Motor Único de Mutaciones, el flujo obligatorio, la integración con kill switch/permisos/HITL, reversibilidad, 7 garantías para el Quality Gate y plan de migración en 7 fases. **De él dependen las correcciones de ALERTA-006, D-M-7 y D-M-2** |

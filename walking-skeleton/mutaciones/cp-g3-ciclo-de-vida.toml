@@ -29,8 +29,15 @@ sustituir = '''        if False:
 id = "G3-M2"
 descripcion = "un mensaje procesado vuelve a entregarse: pendientes ignora los eventos"
 fichero = "communication_plane.py"
-buscar = '''                and m.get("id") not in procesados and m.get("id") not in retractados]'''
-sustituir = '''                ]'''
+# RE-ANCLADO 2026-09-14: `pendientes()` dejo de filtrar con una list-comprehension y paso a un bucle
+# `for` con `continue`, asi que el patron de filtro por comprehension ya no existe en el metodo. La
+# garantia es la MISMA (un mensaje procesado o retractado no vuelve a entregarse); el guardia que la
+# implementa ahora es este `if`. Unico en el fichero (grep -c = 1): el otro uso de
+# procesados/retractados vive en `handoff()` y filtra con `and`, no con `in ... or ... in`.
+buscar = '''            if ident in procesados or ident in retractados:
+                continue'''
+sustituir = '''            if False:
+                continue'''
 
 [[mutante]]
 id = "G3-M3"

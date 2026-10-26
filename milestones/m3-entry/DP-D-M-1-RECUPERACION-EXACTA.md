@@ -1,6 +1,16 @@
 # Decision Package — D-M-1: recuperación exacta de memoria
 
-**Estado: APROBADO COMO DOCUMENTO DE DECISIÓN** por el CEO (2026-08-03), con dos observaciones, ambas
+**EJECUTADO Y VERIFICADO (2026-10-12).** Construcción autorizada por el CEO (acta
+`decisiones/2026-10-12-D-M-1-aprobacion-construccion.md`); precondición D-M-2 resuelta (verificado). A′
+implementado en `aura_skeleton/modules/memory.py::PersistentMemory.recall`: Quality Gate PASS (3260
+pruebas), mutación 3/3 (`d-m-1-recuperacion-exacta.toml`) + 5/5 (`memoria-cobertura.toml`, M4 re-anclado),
+ECC sin CRÍTICO/ALTO, exacto contra fuerza bruta en todos los regímenes. Límite declarado: el defecto NO
+se ha observado en uso real (§2.4/§7.2) — corrección construida, observación pendiente de telemetría. Sin
+commit. (El texto de abajo conserva su historia de agosto y no se reescribe.)
+
+---
+
+**Estado original: APROBADO COMO DOCUMENTO DE DECISIÓN** por el CEO (2026-08-03), con dos observaciones, ambas
 ya incorporadas:
 
 1. La cota de A′ queda etiquetada como **elección de diseño «suficiente y conservadora»**, no como la

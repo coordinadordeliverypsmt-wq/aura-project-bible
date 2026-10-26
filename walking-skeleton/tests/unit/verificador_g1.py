@@ -200,8 +200,9 @@ def _mapa_de_receptores(arbol: ast.AST, clases: set[str]) -> tuple[set[str], set
     # Capa 3 — `self.x = <parametro anotado como almacen>`, resuelto dentro de `__init__`.
     for nodo in ast.walk(arbol):
         if isinstance(nodo, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            anotados = {a.arg for a in nodo.args.args
-                        if isinstance(a.annotation, ast.Name) and a.annotation.id in clases}
+            anotados = {
+                a.arg for a in nodo.args.args if isinstance(a.annotation, ast.Name) and a.annotation.id in clases
+            }
             for hijo in ast.walk(nodo):
                 if isinstance(hijo, ast.Assign) and isinstance(hijo.value, ast.Name):
                     if hijo.value.id in anotados:
@@ -251,8 +252,8 @@ def _clases_del_paquete() -> dict[str, tuple[str, frozenset[str]]]:
             for nodo in ast.walk(ast.parse(fichero.read_text(encoding="utf-8"))):
                 if isinstance(nodo, ast.ClassDef):
                     metodos = frozenset(
-                        h.name for h in nodo.body
-                        if isinstance(h, (ast.FunctionDef, ast.AsyncFunctionDef)))
+                        h.name for h in nodo.body if isinstance(h, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    )
                     mapa[nodo.name] = (_rel(fichero), metodos)
         _CACHE_CLASES = mapa
     return _CACHE_CLASES
@@ -273,8 +274,7 @@ def _parametro_que_alimenta(init: ast.FunctionDef, atributo: str) -> tuple[str, 
     for nodo in ast.walk(init):
         if isinstance(nodo, ast.Assign) and isinstance(nodo.value, ast.Name):
             for destino in nodo.targets:
-                if isinstance(destino, ast.Attribute) and _es_self(destino.value) \
-                        and destino.attr == atributo:
+                if isinstance(destino, ast.Attribute) and _es_self(destino.value) and destino.attr == atributo:
                     nombres = [a.arg for a in init.args.args[1:]]
                     if nodo.value.id in nombres:
                         return nodo.value.id, nombres.index(nodo.value.id)
@@ -288,8 +288,7 @@ def _returns_en_indice(nombre_funcion: str, indice: int) -> set[str] | None:
     visto = False
     for fichero in ambito():
         for nodo in ast.walk(ast.parse(fichero.read_text(encoding="utf-8"))):
-            if not isinstance(nodo, (ast.FunctionDef, ast.AsyncFunctionDef)) \
-                    or nodo.name != nombre_funcion:
+            if not isinstance(nodo, (ast.FunctionDef, ast.AsyncFunctionDef)) or nodo.name != nombre_funcion:
                 continue
             visto = True
             for hijo in ast.walk(nodo):
@@ -302,8 +301,7 @@ def _returns_en_indice(nombre_funcion: str, indice: int) -> set[str] | None:
                     valor = valor.elts[indice]
                 elif indice != 0:
                     return None
-                if isinstance(valor, ast.Call) and isinstance(valor.func, ast.Name) \
-                        and valor.func.id in clases:
+                if isinstance(valor, ast.Call) and isinstance(valor.func, ast.Name) and valor.func.id in clases:
                     tipos.add(valor.func.id)
                 else:
                     return None  # un retorno no demostrable envenena el conjunto entero
@@ -322,21 +320,30 @@ def _resolver_expresion(expr: ast.AST, arbol: ast.AST) -> tuple[set[str] | None,
             # `n = X(...)`
             for destino in nodo.targets:
                 if isinstance(destino, ast.Name) and destino.id == expr.id:
-                    if isinstance(nodo.value, ast.Call) and isinstance(nodo.value.func, ast.Name) \
-                            and nodo.value.func.id in clases:
-                        return ({nodo.value.func.id},
-                                [f"asignado desde {nodo.value.func.id}(...) en linea {nodo.lineno}"])
+                    if (
+                        isinstance(nodo.value, ast.Call)
+                        and isinstance(nodo.value.func, ast.Name)
+                        and nodo.value.func.id in clases
+                    ):
+                        return (
+                            {nodo.value.func.id},
+                            [f"asignado desde {nodo.value.func.id}(...) en linea {nodo.lineno}"],
+                        )
                 # `a, b, c = f(...)`
                 if isinstance(destino, ast.Tuple):
                     for i, elt in enumerate(destino.elts):
-                        if isinstance(elt, ast.Name) and elt.id == expr.id \
-                                and isinstance(nodo.value, ast.Call) \
-                                and isinstance(nodo.value.func, ast.Name):
+                        if (
+                            isinstance(elt, ast.Name)
+                            and elt.id == expr.id
+                            and isinstance(nodo.value, ast.Call)
+                            and isinstance(nodo.value.func, ast.Name)
+                        ):
                             tipos = _returns_en_indice(nodo.value.func.id, i)
                             if tipos:
                                 return tipos, [
                                     f"desempaquetado de {nodo.value.func.id}(...) en linea "
-                                    f"{nodo.lineno}, posicion {i}; retornos: {sorted(tipos)}"]
+                                    f"{nodo.lineno}, posicion {i}; retornos: {sorted(tipos)}"
+                                ]
                             return None, ["retorno no demostrable: se calla (capa 4)"]
     return None, ["expresion no resoluble: se calla (capa 4)"]
 
@@ -358,8 +365,7 @@ def tipos_posibles(clase: str, atributo: str) -> tuple[set[str] | None, list[str
     for fichero in ambito():
         arbol = ast.parse(fichero.read_text(encoding="utf-8"))
         for nodo in ast.walk(arbol):
-            if not isinstance(nodo, ast.Call) or not isinstance(nodo.func, ast.Name) \
-                    or nodo.func.id != clase:
+            if not isinstance(nodo, ast.Call) or not isinstance(nodo.func, ast.Name) or nodo.func.id != clase:
                 continue
             arg = None
             for kw in nodo.keywords:
@@ -405,8 +411,7 @@ def _atributos_por_capa5(arbol: ast.AST, almacenes: set[str]) -> set[str]:
             if not (isinstance(h, ast.FunctionDef) and h.name == "__init__"):
                 continue
             for asignacion in ast.walk(h):
-                if not (isinstance(asignacion, ast.Assign)
-                        and isinstance(asignacion.value, ast.Name)):
+                if not (isinstance(asignacion, ast.Assign) and isinstance(asignacion.value, ast.Name)):
                     continue
                 for destino in asignacion.targets:
                     if not (isinstance(destino, ast.Attribute) and _es_self(destino.value)):
@@ -499,9 +504,15 @@ def analizar_fichero(ruta: Path, autorizado_para: frozenset[str]) -> list[Hallaz
             if operaciones_que_alcanzan_el_motor().get(fn.attr):
                 continue
             if _receptor(nodo, nombres, atributos) == "almacen":
-                hallazgos.append(Hallazgo(
-                    regla="R-A", fichero=_rel(Path(ruta)), linea=nodo.lineno, operacion=fn.attr,
-                    detalle="llamada a una operación mutante de almacén desde un módulo no autorizado"))
+                hallazgos.append(
+                    Hallazgo(
+                        regla="R-A",
+                        fichero=_rel(Path(ruta)),
+                        linea=nodo.lineno,
+                        operacion=fn.attr,
+                        detalle="llamada a una operación mutante de almacén desde un módulo no autorizado",
+                    )
+                )
 
         # --- R-B: escritura directa a disco fuera de los módulos de persistencia.
         if autorizado_disco:
@@ -509,15 +520,27 @@ def analizar_fichero(ruta: Path, autorizado_para: frozenset[str]) -> list[Hallaz
         if isinstance(fn, ast.Name) and fn.id == "open" and _abre_para_escribir(nodo):
             if "open" in ops_exentas:
                 continue
-            hallazgos.append(Hallazgo(
-                regla="R-B", fichero=_rel(Path(ruta)), linea=nodo.lineno, operacion="open",
-                detalle="apertura de fichero en modo de escritura"))
+            hallazgos.append(
+                Hallazgo(
+                    regla="R-B",
+                    fichero=_rel(Path(ruta)),
+                    linea=nodo.lineno,
+                    operacion="open",
+                    detalle="apertura de fichero en modo de escritura",
+                )
+            )
         elif isinstance(fn, ast.Attribute) and _es_escritura_de_disco(fn):
             if fn.attr in ops_exentas:
                 continue
-            hallazgos.append(Hallazgo(
-                regla="R-B", fichero=_rel(Path(ruta)), linea=nodo.lineno, operacion=fn.attr,
-                detalle="escritura o borrado directo en disco"))
+            hallazgos.append(
+                Hallazgo(
+                    regla="R-B",
+                    fichero=_rel(Path(ruta)),
+                    linea=nodo.lineno,
+                    operacion=fn.attr,
+                    detalle="escritura o borrado directo en disco",
+                )
+            )
     return hallazgos
 
 
@@ -550,18 +573,23 @@ def no_resueltos(ruta: Path) -> int:
     atributos |= _atributos_por_capa5(arbol, clases)  # capa 5 (D-G1-4)
     perseguidas = operaciones_de_ra()
     return sum(
-        1 for nodo in ast.walk(arbol)
-        if isinstance(nodo, ast.Call) and isinstance(nodo.func, ast.Attribute)
+        1
+        for nodo in ast.walk(arbol)
+        if isinstance(nodo, ast.Call)
+        and isinstance(nodo.func, ast.Attribute)
         and nodo.func.attr in perseguidas
-        and _receptor(nodo, nombres, atributos) == "no_resoluble")
+        and _receptor(nodo, nombres, atributos) == "no_resoluble"
+    )
 
 
 def publicos_sin_clasificar(ruta: Path, mutantes: frozenset[str], neutros: frozenset[str]) -> set[str]:
     """R-C · todo `def` público de un almacén debe estar clasificado. Los privados no entran."""
     arbol = ast.parse(Path(ruta).read_text(encoding="utf-8"))
     publicos = {
-        nodo.name for nodo in ast.walk(arbol)
-        if isinstance(nodo, (ast.FunctionDef, ast.AsyncFunctionDef)) and not nodo.name.startswith("_")}
+        nodo.name
+        for nodo in ast.walk(arbol)
+        if isinstance(nodo, (ast.FunctionDef, ast.AsyncFunctionDef)) and not nodo.name.startswith("_")
+    }
     return publicos - set(mutantes) - set(neutros)
 
 
@@ -596,11 +624,18 @@ def violaciones_rc() -> list[Hallazgo]:
     for almacen in _mutaciones().get("almacen", []):
         ruta = RAIZ / almacen["modulo"]
         sin_clasificar = publicos_sin_clasificar(
-            ruta, frozenset(almacen.get("mutantes", [])), frozenset(almacen.get("neutros", [])))
+            ruta, frozenset(almacen.get("mutantes", [])), frozenset(almacen.get("neutros", []))
+        )
         hallazgos += [
-            Hallazgo(regla="R-C", fichero=almacen["modulo"], linea=0, operacion=nombre,
-                     detalle="método público de un almacén sin clasificar como mutante o neutro")
-            for nombre in sorted(sin_clasificar)]
+            Hallazgo(
+                regla="R-C",
+                fichero=almacen["modulo"],
+                linea=0,
+                operacion=nombre,
+                detalle="método público de un almacén sin clasificar como mutante o neutro",
+            )
+            for nombre in sorted(sin_clasificar)
+        ]
     return hallazgos
 
 
@@ -611,6 +646,8 @@ def explicar(hallazgos: list[Hallazgo]) -> str:
     lineas = [f"G-1: {len(hallazgos)} violación(es) de la Ruta Única de Mutación:"]
     for h in hallazgos:
         lineas.append(f"  [{h.regla}] {h.fichero}:{h.linea} · {h.operacion} — {h.detalle}")
-    lineas.append("  Qué hacer: enrutar la mutación por el Motor Único, o solicitar autorización "
-                  "explícita en architecture_manifest.toml con motivo y fecha.")
+    lineas.append(
+        "  Qué hacer: enrutar la mutación por el Motor Único, o solicitar autorización "
+        "explícita en architecture_manifest.toml con motivo y fecha."
+    )
     return "\n".join(lineas)

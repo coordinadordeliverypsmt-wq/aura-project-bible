@@ -1,0 +1,243 @@
+incremento = "Reloj de CM2 - mecanismo (resolucion S3 §2.1, CEO 2026-10-06)"
+# Muta la logica pura (calendario, clasificacion, tasa, informe), el cableado (marcador de inicio,
+# confirmacion) y el ejecutor (hecho_id, eventos). Se usan los DOS ficheros de prueba completos: la
+# garantia esta repartida entre ambos y elegir mal produciria supervivientes falsos.
+# NADA en paralelo con este arnes: muta los ficheros en el sitio (CLAUDE.md §2).
+pruebas = ["tests/unit/test_reloj_cm2.py", "tests/integration/test_reloj_cm2_integracion.py"]
+timeout_s = 700  # base de las dos pruebas medida 2026-10-07: ~218-233 s (maquina cargada); 3x = ~660 s
+
+[[mutante]]
+id = "M1"
+garantia = "umbral de 28 dias del calendario deja de ser 28 (la ultima sonda se desplaza)"
+fichero = "aura_skeleton/core/reloj_cm2.py"
+buscar = '''DIAS_SONDA = (7, 14, 28)'''
+sustituir = '''DIAS_SONDA = (7, 14, 29)'''
+
+[[mutante]]
+id = "M2"
+garantia = "el dia que alimenta la tasa deja de ser el 28"
+fichero = "aura_skeleton/core/reloj_cm2.py"
+buscar = '''DIA_TASA = 28'''
+sustituir = '''DIA_TASA = 27'''
+
+[[mutante]]
+id = "M3"
+garantia = "la sonda vence un instante tarde: la frontera exacta de 7/14/28 dias falla"
+fichero = "aura_skeleton/core/reloj_cm2.py"
+buscar = '''if ahora - hecho.origen >= dia * SEGUNDOS_POR_DIA'''
+sustituir = '''if ahora - hecho.origen > dia * SEGUNDOS_POR_DIA'''
+
+[[mutante]]
+id = "M4"
+garantia = "comparacion de la tasa: el minimo exacto ya no basta para publicar"
+fichero = "aura_skeleton/core/reloj_cm2.py"
+buscar = '''len(contadas) >= minimo'''
+sustituir = '''len(contadas) > minimo'''
+
+[[mutante]]
+id = "M5"
+garantia = "filtro de vigencia: una version superseded cuenta como vigente en la clasificacion"
+fichero = "aura_skeleton/core/reloj_cm2.py"
+buscar = '''vigentes = [e for e in propias if not e.get("refutada") and e.get("valid_until") is None]'''
+sustituir = '''vigentes = [e for e in propias if not e.get("refutada")]'''
+
+[[mutante]]
+id = "M6"
+garantia = "el estado de retirada anula el resultado vigente (un olvido viejo taparia un hecho recuperado)"
+fichero = "aura_skeleton/core/reloj_cm2.py"
+buscar = '''if respuesta is not None and any(respuesta == esperada(e) for e in vigentes):'''
+sustituir = '''if respuesta is not None and not causa_retirada and any(respuesta == esperada(e) for e in vigentes):'''
+
+[[mutante]]
+id = "M7"
+garantia = "el estado de retirada anula valor_retirado (taparia la fabricacion del DP §5.2)"
+fichero = "aura_skeleton/core/reloj_cm2.py"
+buscar = '''elif respuesta is not None and any(respuesta == esperada(e) for e in retirados):'''
+sustituir = '''elif respuesta is not None and not causa_retirada and any(respuesta == esperada(e) for e in retirados):'''
+
+[[mutante]]
+id = "M8"
+garantia = "idempotencia: una sonda ya hecha se repite"
+fichero = "aura_skeleton/core/reloj_cm2.py"
+buscar = '''and (hecho.hecho_id, dia) not in hechas'''
+sustituir = '''and True'''
+
+[[mutante]]
+id = "M9"
+garantia = "una redeclaracion reinicia la fecha de origen"
+fichero = "aura_skeleton/core/reloj_cm2.py"
+buscar = '''origen=max(float(primera["valid_from"]), suelo),'''
+sustituir = '''origen=max(float(ultima["valid_from"]), suelo),'''
+
+[[mutante]]
+id = "M10"
+garantia = "la retirada anterior a la ultima declaracion sigue contando como retirada"
+fichero = "aura_skeleton/core/reloj_cm2.py"
+buscar = '''retirada["seq"] > ultimo_seq'''
+sustituir = '''retirada["seq"] > 0'''
+
+[[mutante]]
+id = "M11"
+garantia = "la politica por defecto excluye TODO (tambien la perdida no pedida)"
+fichero = "aura_skeleton/core/reloj_cm2.py"
+buscar = '''s.get("estado_retirada") in CAUSAS_USUARIO'''
+sustituir = '''s.get("estado_retirada") is not None'''
+
+[[mutante]]
+id = "M12"
+garantia = "el informe afirma cero fabricacion en vez de «no evidenciada»"
+fichero = "aura_skeleton/core/reloj_cm2.py"
+buscar = '''fabricacion: no evidenciada (sin revision'''
+sustituir = '''fabricacion: cero fabricacion (sin revision'''
+
+[[mutante]]
+id = "M13"
+garantia = "el evento de inicio se ignora: --medir-cm2 sondea sin que nadie haya iniciado el reloj"
+fichero = "aura_skeleton/core/reloj_cm2.py"
+buscar = '''    if not _iniciado(eventos):
+        return (
+            "reloj de CM2: NO iniciado'''
+sustituir = '''    if False:
+        return (
+            "reloj de CM2: NO iniciado'''
+[[mutante]]
+id = "M14"
+garantia = "--iniciar-cm2 emite cm2.inicio sin confirmacion"
+fichero = "aura_skeleton/core/reloj_cm2.py"
+buscar = '''    if not confirmo:'''
+sustituir = '''    if False:'''
+[[mutante]]
+id = "M15"
+garantia = "el cableado de --iniciar-cm2 confirma por su cuenta"
+fichero = "aura_skeleton/__main__.py"
+buscar = '''confirmo=args.confirmo_inicio'''
+sustituir = '''confirmo=True'''
+[[mutante]]
+id = "M16"
+garantia = "hecho_id derivado del contenido (no opaco, igual entre usuarios)"
+fichero = "aura_skeleton/core/ejecutor_modelo_usuario.py"
+buscar = '''return con_id[0]["provenance"]["hecho_id"] if con_id else uuid.uuid4().hex'''
+sustituir = '''return con_id[0]["provenance"]["hecho_id"] if con_id else __import__("hashlib").sha1(contenido.encode()).hexdigest()[:32]'''
+
+[[mutante]]
+id = "M17"
+garantia = "hecho_id no heredado: cada version nace con un id nuevo"
+fichero = "aura_skeleton/core/ejecutor_modelo_usuario.py"
+buscar = '''return con_id[0]["provenance"]["hecho_id"] if con_id else uuid.uuid4().hex'''
+sustituir = '''return uuid.uuid4().hex'''
+
+[[mutante]]
+id = "M18"
+garantia = "el evento de registro lleva el texto del usuario"
+fichero = "aura_skeleton/core/ejecutor_modelo_usuario.py"
+buscar = '''version=procedencia.get("version"),'''
+sustituir = '''version=procedencia.get("version"),
+                    texto=contenido,'''
+
+[[mutante]]
+id = "M19"
+garantia = "el evento de registro deja de emitirse con su nombre"
+fichero = "aura_skeleton/core/ejecutor_modelo_usuario.py"
+buscar = '''evento="cm2.hecho_registrado",'''
+sustituir = '''evento="cm2.otro",'''
+
+[[mutante]]
+id = "M20"
+garantia = "el olvido no emite hecho_retirado"
+fichero = "aura_skeleton/core/ejecutor_modelo_usuario.py"
+buscar = '''self._auditar_retirada(entradas, "olvido", trace_id)'''
+sustituir = '''pass'''
+
+[[mutante]]
+id = "M21"
+garantia = "la refutacion no emite hecho_retirado"
+fichero = "aura_skeleton/core/ejecutor_modelo_usuario.py"
+buscar = '''self._auditar_retirada(entradas, "refutacion", trace_id)'''
+sustituir = '''pass'''
+
+[[mutante]]
+id = "M22"
+garantia = "un segundo --iniciar-cm2 vuelve a emitir cm2.inicio (el inicio deja de ser idempotente)"
+fichero = "aura_skeleton/core/reloj_cm2.py"
+buscar = '''    if _iniciado(_eventos_cm2(datos)):
+        return "reloj de CM2: ya iniciado'''
+sustituir = '''    if False:
+        return "reloj de CM2: ya iniciado'''
+
+[[mutante]]
+id = "M23"
+garantia = "la lectura solo-lectura no aplica la proyeccion (lapidas): un hecho olvidado parece presente"
+fichero = "aura_skeleton/core/reloj_cm2.py"
+buscar = '''self._items = _proyectar([json.loads(linea) for linea in contenido.splitlines() if linea.strip()])'''
+sustituir = '''self._items = [json.loads(linea) for linea in contenido.splitlines() if linea.strip()]'''
+
+[[mutante]]
+id = "M24"
+garantia = "la tolerancia de sondas tardias desaparece: una sonda a los 200 dias cuenta como retencion a 28"
+fichero = "aura_skeleton/core/reloj_cm2.py"
+buscar = '''DIA_TASA <= s["edad_dias"] <= DIA_TASA + TOLERANCIA_SONDA_DIAS'''
+sustituir = '''DIA_TASA <= s["edad_dias"]'''
+
+[[mutante]]
+id = "M25"
+garantia = "version_edad_dias se ignora: un valor cambiado el dia 27 cuenta como retencion a 28 dias"
+fichero = "aura_skeleton/core/reloj_cm2.py"
+buscar = '''sondas = [s for s in en_ventana if _numero(s.get("version_edad_dias")) and s["version_edad_dias"] >= DIA_TASA]'''
+sustituir = '''sondas = list(en_ventana)'''
+
+[[mutante]]
+id = "M26"
+garantia = "el dedupe vuelve a ser por seq: una colision entre procesos pierde un evento distinto"
+fichero = "aura_skeleton/core/reloj_cm2.py"
+buscar = '''clave = _identidad(e)'''
+sustituir = '''clave = str(e["seq"])'''
+
+[[mutante]]
+id = "M27"
+garantia = "iniciar no valida AURA_DATOS: un directorio inexistente o vacio arranca el reloj"
+fichero = "aura_skeleton/core/reloj_cm2.py"
+buscar = '''    if confirmo and not (
+        os.path.isdir(datos)'''
+sustituir = '''    if False and not (
+        os.path.isdir(datos)'''
+
+[[mutante]]
+id = "M28"
+garantia = "el origen efectivo ignora el inicio: cuenta la edad desde valid_from y un hecho previo se sondea «a 28 dias» el primer dia"
+fichero = "aura_skeleton/core/reloj_cm2.py"
+buscar = '''origen=max(float(primera["valid_from"]), suelo),'''
+sustituir = '''origen=float(primera["valid_from"]),'''
+
+[[mutante]]
+id = "M29"
+garantia = "version_edad_dias cuenta tiempo anterior al inicio"
+fichero = "aura_skeleton/core/reloj_cm2.py"
+buscar = '''valid_from_actual=max(float(ultima["valid_from"]), suelo),'''
+sustituir = '''valid_from_actual=float(ultima["valid_from"]),'''
+
+[[mutante]]
+id = "M30"
+garantia = "sin evento de inicio hay calendario"
+fichero = "aura_skeleton/core/reloj_cm2.py"
+buscar = '''    if inicio_del_reloj(eventos) is None:
+        return []'''
+sustituir = '''    if False:
+        return []'''
+
+[[mutante]]
+id = "M-INICIO-ULTIMO"
+garantia = "el inicio del reloj es el PRIMER cm2.inicio por seq, no el ultimo (un reinicio posterior movería el calendario)"
+fichero = "aura_skeleton/core/reloj_cm2.py"
+buscar = '''    return next((e for e in _ordenados(eventos, (EV_INICIO,)) if _numero(e.get("ts"))), None)'''
+sustituir = '''    return next((e for e in reversed(_ordenados(eventos, (EV_INICIO,))) if _numero(e.get("ts"))), None)'''
+
+[[mutante]]
+id = "M-SUELO-MIN"
+garantia = "el tiempo anterior al inicio se recorta con max(.., suelo); con min el suelo no recorta nada"
+fichero = "aura_skeleton/core/reloj_cm2.py"
+buscar = '''            origen=max(float(primera["valid_from"]), suelo),
+            version=ultima["version"],
+            valid_from_actual=max(float(ultima["valid_from"]), suelo),'''
+sustituir = '''            origen=min(float(primera["valid_from"]), suelo),
+            version=ultima["version"],
+            valid_from_actual=min(float(ultima["valid_from"]), suelo),'''

@@ -1,0 +1,91 @@
+incremento = "Puente conversación -> ventana de trabajo: recuperar una ejecución anterior (M8, CEO 2026-09-22)"
+# Las formas de romper este puente sin que nadie se entere son cinco, y cada una tiene su mutante:
+# que la superficie deje de disparar, que se quede una frase que no es suya, que recupere lo que dijo
+# el MODELO como si fuera un hecho del Core, que aplane los desenlaces, y que la ausencia precisa
+# vuelva a colapsar en la frase de la pared —que era el defecto de fondo—.
+pruebas = ["tests/unit/test_recuperacion_de_resultados.py",
+           "tests/integration/test_recuperacion_en_conversacion.py",
+           "tests/unit/test_conversacion_natural_local.py"]
+timeout_s = 900
+
+# ------------------------------------------------------------- el reconocedor --
+
+[[mutante]]
+id = "RC-M1"
+garantia = "la superficie deja de reconocer: vuelve el defecto entero y la pared contesta otra vez"
+fichero = "aura_skeleton/core/recuperacion.py"
+buscar = '''    if limpio in _FORMAS_RESULTADO or limpio in _FORMAS_RESULTADO_TV:
+        return PREGUNTA_POR_EL_RESULTADO'''
+sustituir = '''    if False:
+        return PREGUNTA_POR_EL_RESULTADO'''
+
+[[mutante]]
+id = "RC-M2"
+garantia = "el reconocedor pasa a coincidir por SUBCADENA: se queda frases que no son suyas"
+fichero = "aura_skeleton/core/recuperacion.py"
+buscar = '''    limpio = _limpiar(texto)
+    if limpio in _FORMAS_RESULTADO or limpio in _FORMAS_RESULTADO_TV:'''
+sustituir = '''    limpio = _limpiar(texto)
+    if any(f in limpio for f in _FORMAS_RESULTADO) or limpio in _FORMAS_RESULTADO_TV:'''
+
+[[mutante]]
+id = "RC-M3"
+garantia = "una pregunta de JUICIO se contesta como si fuera un hecho: AURA jerarquiza por su cuenta"
+fichero = "aura_skeleton/core/recuperacion.py"
+buscar = '''    if clase == PREGUNTA_POR_UN_JUICIO:'''
+sustituir = '''    if False:'''
+
+# --------------------------------------------- de donde se recupera, y de donde NO --
+
+[[mutante]]
+id = "RC-M4"
+garantia = "se recupera CUALQUIER turno: una propuesta del modelo sale convertida en hecho del Core"
+fichero = "aura_skeleton/core/recuperacion.py"
+buscar = '''        if isinstance(turno, Turno) and turno.dominio == DOMINIO_EJECUCION:'''
+sustituir = '''        if isinstance(turno, Turno):'''
+
+[[mutante]]
+id = "RC-M5"
+garantia = "se recupera la ejecucion mas ANTIGUA en vez de la ultima"
+fichero = "aura_skeleton/core/recuperacion.py"
+buscar = '''    for turno in reversed(list(ventana)):'''
+sustituir = '''    for turno in list(ventana):'''
+
+[[mutante]]
+id = "RC-M6"
+garantia = "la ausencia precisa vuelve a colapsar en la frase de la pared: el defecto de fondo"
+fichero = "aura_skeleton/core/recuperacion.py"
+buscar = '''        return _SIN_EJECUCION, Estatus.AUSENCIA'''
+sustituir = '''        return "No tengo ningun recuerdo registrado sobre eso.", Estatus.AUSENCIA'''
+
+[[mutante]]
+id = "RC-M7"
+garantia = "AURA deja de avisar de que no ha vuelto a ejecutar: el usuario cree que el dato es fresco"
+fichero = "aura_skeleton/core/recuperacion.py"
+buscar = '''_PROCEDENCIA = "Lo recupero de esta misma conversación; no lo he vuelto a ejecutar:"'''
+sustituir = '''_PROCEDENCIA = "Esto es lo que hay:"'''
+
+# ------------------------------------------------------- el cableado en la cascada --
+
+[[mutante]]
+id = "RC-M8"
+garantia = "la superficie se desconecta de la cascada: existe, esta probada, y no la usa nadie"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        clase_de_recuperacion = recuperacion.reconocer(text)
+        if clase_de_recuperacion is not None:'''
+sustituir = '''        clase_de_recuperacion = recuperacion.reconocer(text)
+        if False:'''
+
+[[mutante]]
+id = "RC-M9"
+garantia = "la ventana deja de guardar de que superficie salio el turno: no hay como hallar la ejecucion"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            buffer.append(recuperacion.Turno(text, say, e, dominio))'''
+sustituir = '''            buffer.append(recuperacion.Turno(text, say, e, ""))'''
+
+[[mutante]]
+id = "RC-M10"
+garantia = "la superficie se evalua contra el usuario equivocado: recupera la conversacion de otro"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        turno_previo = recuperacion.ultima_ejecucion(self._dialogue.get(uid, []))'''
+sustituir = '''        turno_previo = recuperacion.ultima_ejecucion([])'''

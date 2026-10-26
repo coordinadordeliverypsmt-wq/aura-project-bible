@@ -1,0 +1,62 @@
+incremento = '''SIGTERM en la escucha continua (2026-10-06): AURA se detiene sin dejar audio del usuario en disco'''
+pruebas = ["tests/unit/test_voz_sigterm.py"]
+timeout_s = 300
+
+[[mutante]]
+id = "VS-M1"
+garantia = '''SIGTERM vuelve a matar el proceso sin ejecutar los finally: la grabación queda en /tmp/aura'''
+fichero = "aura_skeleton/__main__.py"
+buscar = '''    asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, _parar)
+    try:
+        return await tarea'''
+sustituir = '''    try:
+        return await tarea'''
+
+[[mutante]]
+id = "VS-M2"
+garantia = '''la parada no libera el hilo de Vosk y el proceso queda colgado al cerrar'''
+fichero = "aura_skeleton/__main__.py"
+buscar = '''        if al_detener is not None:
+            al_detener()'''
+sustituir = '''        if al_detener is not None:
+            pass'''
+
+[[mutante]]
+id = "VS-M3"
+garantia = '''detener() no cierra el flujo activo: la espera de la palabra de activación sigue bloqueada'''
+fichero = "aura_skeleton/adapters/escucha.py"
+buscar = '''        flujo = self._flujo_activo
+        cerrar = getattr(flujo, "close", None)'''
+sustituir = '''        flujo = None
+        cerrar = getattr(flujo, "close", None)'''
+
+[[mutante]]
+id = "VS-M4"
+garantia = '''esperar_llamada no registra su flujo: detener() no tiene nada que cerrar'''
+fichero = "aura_skeleton/adapters/escucha.py"
+buscar = '''        self._flujo_activo = flujo
+        try:'''
+sustituir = '''        try:'''
+
+[[mutante]]
+id = "VS-M5"
+garantia = '''la escucha continua deja de envolverse con la detención por SIGTERM'''
+fichero = "aura_skeleton/__main__.py"
+buscar = '''    return asyncio.run(_hasta_sigterm(corrutina, al_detener=getattr(oido, "detener", None)))'''
+sustituir = '''    return asyncio.run(corrutina)'''
+
+[[mutante]]
+id = "VS-M6"
+garantia = '''main vuelve a arrancar la escucha continua sin la ruta que se detiene limpia'''
+fichero = "aura_skeleton/__main__.py"
+buscar = '''            return _ejecutar_escucha_continua(sistema, microfono, oido, telemetria=args.telemetria)'''
+sustituir = '''            return asyncio.run(_escuchar_continuo(sistema, microfono, oido, telemetria=args.telemetria))'''
+
+[[mutante]]
+id = "VS-M7"
+garantia = '''una parada ordenada se reporta como fallo (código distinto de 0)'''
+fichero = "aura_skeleton/__main__.py"
+buscar = '''        print("AURA: detenida (SIGTERM); el turno en curso se descartó.", flush=True)
+        return 0'''
+sustituir = '''        print("AURA: detenida (SIGTERM); el turno en curso se descartó.", flush=True)
+        return 1'''

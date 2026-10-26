@@ -32,7 +32,10 @@ async def test_verde_ejecuta():
     orch = _mk(yes)
     await orch.handle_utterance("u", "Enciende la luz de la sala", "T1")
     res = await orch.wait("T1")
-    assert "ejecutada" in res["say"]
+    # Semana 2 (2026-09-27): con el DOBLE del hogar AURA ya no dice «ejecutada» (deuda D-ADP-1: el doble
+    # no toca nada). La garantía —la lista verde se ejecuta SIN preguntar— se comprueba con «Envié la
+    # orden», que el Core solo dice cuando el Motor Único devolvió estado «ejecutada».
+    assert "Envié la orden de encender" in res["say"], res["say"]
 
 
 @pytest.mark.asyncio

@@ -50,7 +50,8 @@ def test_f3_la_operacion_esta_catalogada(operacion):
 @pytest.mark.parametrize("operacion", OPERACIONES)
 def test_f3_declara_su_sujeto(operacion):
     assert CATALOGO[operacion].get("sujeto") == "usuario", (
-        f"'{operacion}' recae sobre una persona y debe declararlo (§4.2)")
+        f"'{operacion}' recae sobre una persona y debe declararlo (§4.2)"
+    )
 
 
 @pytest.mark.parametrize("operacion", OPERACIONES)

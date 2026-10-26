@@ -1,0 +1,166 @@
+incremento = "MISION VOZ (CEO, 2026-09-15): la voz es periferica. Si el sintetizador o el transcriptor fallan, el turno sobrevive, la respuesta se conserva, el fallo se dice y nada se descarga de internet"
+pruebas = ["tests/integration/test_voz_degrada_con_honestidad.py", "tests/unit/test_voz_real_sin_red_ni_cuelgue.py"]
+timeout_s = 600
+
+[[mutante]]
+id = "VZ-M1"
+garantia = "un fallo del sintetizador vuelve a tumbar el turno entero: la respuesta ya pagada se pierde y el turno queda sin resultado"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_voz_degrada_con_honestidad.py::test_un_fallo_de_TTS_conserva_la_respuesta_textual",
+           "tests/integration/test_voz_degrada_con_honestidad.py::test_un_fallo_de_TTS_en_la_ruta_del_modelo_tampoco_pierde_la_respuesta"]
+buscar = '''        voz = "ok"
+        try:
+            audio = await self.voice.tts(visible, tid)
+        except Exception as ex:
+            voz = "no_disponible"
+            obs.log("WARN", "voice", f"sintesis no emitida; la respuesta se entrega en texto: {ex}", tid, audit=True)
+'''
+sustituir = '''        voz = "ok"
+        await self.voice.tts(visible, tid)
+'''
+
+[[mutante]]
+id = "VZ-M2"
+garantia = "el turno MIENTE sobre la voz: declara que sono aunque la sintesis fallara"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_voz_degrada_con_honestidad.py::test_un_fallo_de_TTS_deja_el_fallo_observable"]
+buscar = '''            voz = "no_disponible"'''
+sustituir = '''            voz = "ok"'''
+
+[[mutante]]
+id = "VZ-M3"
+garantia = "el resultado del turno deja de declarar si hubo voz: la degradacion vuelve a ser silenciosa (INV-9)"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_voz_degrada_con_honestidad.py::test_CONTROL_con_voz_sana_el_turno_declara_voz_emitida",
+           "tests/integration/test_voz_degrada_con_honestidad.py::test_un_fallo_de_TTS_deja_el_fallo_observable"]
+buscar = '''            "voz": voz,
+'''
+sustituir = ''
+
+[[mutante]]
+id = "VZ-M4"
+garantia = "un fallo de transcripcion vuelve a salir por `handle_utterance`: el turno se queda sin `_done` y la superficie espera una respuesta que no llegara"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_voz_degrada_con_honestidad.py::test_un_fallo_de_STT_no_destruye_el_turno_y_lo_dice",
+           "tests/integration/test_voz_degrada_con_honestidad.py::test_tras_un_fallo_de_STT_el_siguiente_turno_funciona"]
+buscar = '''        try:
+            text = await self.voice.stt(audio_text, trace_id)
+        except Exception as e:
+            obs.log("WARN", "voice", f"transcripcion fallida; el Core cierra el turno: {e}", trace_id, audit=True)'''
+sustituir = '''        if True:
+            text = await self.voice.stt(audio_text, trace_id)
+        elif False:
+            obs.log("WARN", "voice", "", trace_id, audit=True)'''
+
+[[mutante]]
+id = "VZ-M5"
+garantia = "ante un fallo de transcripcion AURA FABRICA el texto del usuario: el audio sin transcribir entra al Core como si fuera lo que se dijo"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_voz_degrada_con_honestidad.py::test_un_fallo_de_STT_no_fabrica_texto_ni_consulta_al_modelo",
+           "tests/integration/test_voz_degrada_con_honestidad.py::test_un_fallo_de_STT_no_destruye_el_turno_y_lo_dice"]
+buscar = '''            await self._finalizar_turno(
+                user_id, trace_id, "", _STT_NO_DISPONIBLE, "core", t, dominio="voz", estatus=Estatus.ABSTENCION
+            )
+            return'''
+sustituir = '''            await self.bus.publish(Event("perception.turn_end", trace_id, user_id, {"text": audio_text}))
+            return'''
+
+[[mutante]]
+id = "VZ-M6"
+garantia = "el transcriptor vuelve a poder DESCARGAR el modelo de internet: se rompe local-first (D24 / ADR-0001) sin que nadie lo decida"
+fichero = "aura_skeleton/adapters/voice_real.py"
+pruebas = ["tests/unit/test_voz_real_sin_red_ni_cuelgue.py::test_el_transcriptor_nunca_sale_a_internet"]
+buscar = '''                    self._wm_name, device="auto", compute_type="int8", local_files_only=True'''
+sustituir = '''                    self._wm_name, device="auto", compute_type="int8", local_files_only=False'''
+
+[[mutante]]
+id = "VZ-M7"
+garantia = "la llamada al sintetizador pierde su tope de espera: un Piper colgado cuelga el turno para siempre"
+fichero = "aura_skeleton/adapters/voice_real.py"
+pruebas = ["tests/unit/test_voz_real_sin_red_ni_cuelgue.py::test_un_sintetizador_colgado_no_espera_para_siempre",
+           "tests/unit/test_voz_real_sin_red_ni_cuelgue.py::test_CONTROL_con_una_voz_valida_se_invoca_al_sintetizador_con_su_ruta"]
+buscar = '''                timeout=self._limite_sintesis_s,
+'''
+sustituir = ''
+
+[[mutante]]
+id = "VZ-M8"
+garantia = "el adaptador deja de comprobar que la voz existe: vuelve el `FileNotFoundError: '..json'` de Piper en vez de un fallo que AURA sepa explicar"
+fichero = "aura_skeleton/adapters/voice_real.py"
+# Solo la prueba que de verdad protege ESTA linea: `test_una_voz_sin_declarar...` ejercita la rama de
+# `piper_voice` vacia, que este mutante no toca (VZ-M8 sobrevivio por declararla, 2026-09-15).
+pruebas = ["tests/unit/test_voz_real_sin_red_ni_cuelgue.py::test_una_ruta_de_voz_inexistente_nombra_la_ruta"]
+buscar = '''        if not os.path.isfile(self._voice):
+            raise VozNoDisponible(f"la voz declarada no existe: {self._voice}")'''
+sustituir = '''        if False:
+            raise VozNoDisponible("")'''
+
+[[mutante]]
+id = "VZ-M9"
+garantia = "falta el `.onnx.json` y no se detecta: Piper aborta con un error ilegible a mitad del turno"
+fichero = "aura_skeleton/adapters/voice_real.py"
+pruebas = ["tests/unit/test_voz_real_sin_red_ni_cuelgue.py::test_una_voz_sin_su_json_se_detecta_antes_de_invocar_a_piper"]
+buscar = '''        if not os.path.isfile(config):
+            raise VozNoDisponible(f"falta el fichero de configuracion de la voz: {config}")'''
+sustituir = '''        if False:
+            raise VozNoDisponible("")'''
+
+[[mutante]]
+id = "VZ-M10"
+garantia = "la transcripcion vuelve a DETECTAR el idioma en cada turno en vez de declararlo: medido, 58,0 s frente a 25,6 s"
+fichero = "aura_skeleton/adapters/voice_real.py"
+pruebas = ["tests/unit/test_voz_real_sin_red_ni_cuelgue.py::test_la_transcripcion_declara_el_idioma_en_vez_de_detectarlo"]
+buscar = '''                audio, language=self._idioma, initial_prompt=_VOCABULARIO'''
+sustituir = '''                audio, initial_prompt=_VOCABULARIO'''
+
+[[mutante]]
+id = "VZ-M11"
+garantia = "el arranque deja de comprobar la voz: AURA vuelve a anunciar «stack=real, 21 capacidades» sin saber si puede hablar (INV-9, «declarado != real»)"
+fichero = "aura_skeleton/composicion.py"
+pruebas = ["tests/integration/test_voz_degrada_con_honestidad.py::test_el_arranque_declara_que_NO_hay_voz_cuando_no_la_hay",
+           "tests/integration/test_voz_degrada_con_honestidad.py::test_CONTROL_el_arranque_declara_la_voz_cuando_existe"]
+buscar = '''        try:
+            obs.log("BOOT", "composicion", f"voz: DISPONIBLE ({voz_real.comprobar()})", "-", audit=True)
+        except VozNoDisponible as e:'''
+sustituir = '''        try:
+            pass
+        except VozNoDisponible as e:'''
+
+[[mutante]]
+id = "VZ-M12"
+garantia = "un fallo de la sintesis se disfraza de fallo del MODELO: el usuario cree que AURA no puede pensar cuando solo no puede hablar"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_voz_degrada_con_honestidad.py::test_un_fallo_de_TTS_no_se_disfraza_de_modelo_no_disponible"]
+buscar = '''        voz = "ok"
+        try:
+            audio = await self.voice.tts(visible, tid)
+        except Exception as ex:
+            voz = "no_disponible"'''
+sustituir = '''        voz = "ok"
+        try:
+            audio = await self.voice.tts(visible, tid)
+        except Exception as ex:
+            visible = _ABSTENCION_SIN_PROVEEDOR
+            voz = "no_disponible"'''
+
+[[mutante]]
+id = "VZ-M13"
+garantia = "la transcripcion pierde su tope: una USB que deja de responder a mitad de `transcribe()` cuelga el turno para siempre (hallazgo de la auditoria, 2026-09-15: la constante existia y nadie la usaba)"
+fichero = "aura_skeleton/adapters/voice_real.py"
+pruebas = ["tests/unit/test_voz_real_sin_red_ni_cuelgue.py::test_una_transcripcion_colgada_no_espera_para_siempre",
+           "tests/unit/test_voz_real_sin_red_ni_cuelgue.py::test_CONTROL_una_transcripcion_normal_no_la_corta_el_tope"]
+buscar = '''                text = await asyncio.wait_for(
+                    loop.run_in_executor(None, self._stt_sync, audio_ref), self._limite_transcripcion_s
+                )'''
+sustituir = '''                text = await loop.run_in_executor(None, self._stt_sync, audio_ref)'''
+
+[[mutante]]
+id = "VZ-M14"
+garantia = "un turno sin transcripcion vuelve a entrar en el buffer de dialogo: el contexto que reentra al modelo se ensucia con un «Usuario:» vacio"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_voz_degrada_con_honestidad.py::test_un_turno_sin_transcripcion_no_ensucia_el_contexto",
+           "tests/integration/test_voz_degrada_con_honestidad.py::test_CONTROL_un_turno_con_texto_si_entra_en_el_contexto"]
+buscar = '''        if text:
+            buffer.append(recuperacion.Turno(text, say, e, dominio))'''
+sustituir = '''        if True:
+            buffer.append(recuperacion.Turno(text, say, e, dominio))'''  # ancla actualizada en M8: la ventana pasó a ser `recuperacion.Turno`; la garantía no cambia.

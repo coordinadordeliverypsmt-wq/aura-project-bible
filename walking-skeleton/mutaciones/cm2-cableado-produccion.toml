@@ -1,0 +1,34 @@
+incremento = "CM2 · cableado de produccion hasta la sonda de dia 28 (preparacion del gate S3, 2026-10-25)"
+# Linea base medida 2026-10-25 SIN las pruebas «produccion_*» de test_reloj_cm2_integracion.py: C1 SOBREVIVIA (la composicion podia auditar en
+# otro fichero y el reloj quedaba ciego con todas las pruebas en verde). C2-C4 ya morian.
+# NADA en paralelo con este arnes: muta los ficheros en el sitio (CLAUDE.md §2).
+pruebas = ["tests/unit/test_reloj_cm2.py", "tests/integration/test_reloj_cm2_integracion.py", "tests/integration/test_declaracion_sin_llm.py"]
+timeout_s = 900
+
+[[mutante]]
+id = "C1"
+garantia = "la composicion de produccion audita en otro fichero: --medir-cm2 no ve ningun hecho real"
+fichero = "aura_skeleton/composicion.py"
+buscar = '''ruta_audit = os.path.join(config.datos, "audit.jsonl")'''
+sustituir = '''ruta_audit = os.path.join(config.datos, "audit-otro.jsonl")'''
+
+[[mutante]]
+id = "C2"
+garantia = "la composicion no inscribe el ejecutor del modelo de usuario: ningun hecho se registra"
+fichero = "aura_skeleton/composicion.py"
+buscar = '''registro_adaptadores.registrar(EjecutorModeloUsuario(memoria))'''
+sustituir = '''registro_adaptadores.registrar(EjecutorModeloUsuario(memoria)) if False else None'''
+
+[[mutante]]
+id = "C3"
+garantia = "el reloj lee otro audit distinto del de la composicion"
+fichero = "aura_skeleton/core/reloj_cm2.py"
+buscar = '''obs.leer_audit_desde(os.path.join(datos, "audit.jsonl"), -1)'''
+sustituir = '''obs.leer_audit_desde(os.path.join(datos, "audit-otro.jsonl"), -1)'''
+
+[[mutante]]
+id = "C4"
+garantia = "el ejecutor emite el registro del hecho con otro nombre de evento"
+fichero = "aura_skeleton/core/ejecutor_modelo_usuario.py"
+buscar = '''evento="cm2.hecho_registrado",'''
+sustituir = '''evento="cm2.hecho_registrad0",'''

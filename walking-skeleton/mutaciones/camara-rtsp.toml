@@ -1,0 +1,47 @@
+incremento = "Cámara de red/DVR por RTSP (misión CEO 2026-09-27): frame por vía legítima con credencial del propietario, secreto nunca filtrado, sin almacenar"
+pruebas = ["tests/unit/test_camara_rtsp.py"]
+timeout_s = 300
+
+[[mutante]]
+id = "RTSP-M1"
+garantia = "un stream que no abre (credencial ausente/incorrecta) se declara con frame igualmente"
+fichero = "aura_skeleton/adapters/camara_rtsp.py"
+pruebas = ["tests/unit/test_camara_rtsp.py::test_si_el_stream_no_abre_por_credencial_no_hay_frame"]
+buscar = '''            if not self._cap.isOpened():
+                return None'''
+sustituir = '''            if not self._cap.isOpened() and False:
+                return None'''
+
+[[mutante]]
+id = "RTSP-M2"
+garantia = "la cámara RTSP deja de liberarse: la conexión al DVR/cámara queda abierta entre capturas"
+fichero = "aura_skeleton/adapters/camara_rtsp.py"
+pruebas = ["tests/unit/test_camara_rtsp.py::test_la_camara_se_libera_siempre"]
+buscar = '''        finally:
+            self.liberar()  # RTSP: no se mantiene la conexión abierta entre capturas'''
+sustituir = '''        finally:
+            pass  # RTSP: no se mantiene la conexión abierta entre capturas'''
+
+[[mutante]]
+id = "RTSP-M3"
+garantia = "un error de apertura filtra la URL con la contraseña de la cámara al propagarse"
+fichero = "aura_skeleton/adapters/camara_rtsp.py"
+pruebas = ["tests/unit/test_camara_rtsp.py::test_un_fallo_de_apertura_no_filtra_la_URL_con_la_contrasena"]
+buscar = '''            raise OSError(f"no se pudo abrir el stream de «{self.nombre}»: {_sanear(e, self.__url)}") from None'''
+sustituir = '''            raise OSError(f"no se pudo abrir el stream de «{self.nombre}»: {e}") from None'''
+
+[[mutante]]
+id = "RTSP-M4"
+garantia = "el saneador deja de elidir rtsp://user:pass@: la contraseña vuelve a poder filtrarse"
+fichero = "aura_skeleton/adapters/camara_rtsp.py"
+pruebas = ["tests/unit/test_camara_rtsp.py::test_el_saneador_elide_una_URL_RTSP_aunque_no_sea_identica_a_la_configurada"]
+buscar = '''    return re.sub(r"rtsp://[^\s]*@", "rtsp://«oculto»@", texto)'''
+sustituir = '''    return texto'''
+
+[[mutante]]
+id = "RTSP-M5"
+garantia = "el repr/str vuelve a exponer la URL con la contraseña"
+fichero = "aura_skeleton/adapters/camara_rtsp.py"
+pruebas = ["tests/unit/test_camara_rtsp.py::test_la_contrasena_NUNCA_aparece_en_str_ni_repr"]
+buscar = '''        return f"CamaraRTSP(nombre={self.nombre!r}, canal={self.canal!r})"'''
+sustituir = '''        return f"CamaraRTSP(nombre={self.nombre!r}, canal={self.canal!r}, url={self.__url!r})"'''

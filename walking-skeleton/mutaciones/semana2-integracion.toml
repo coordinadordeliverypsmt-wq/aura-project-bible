@@ -1,0 +1,576 @@
+incremento = "Semana 2 (CEO, 2026-09-27): umbral de integracion del ser + conocimiento del entorno fisico"
+# Cada mutante deshace una garantia de la semana. Los de hogar protegen que el Core —no el modelo— decida
+# que se ejecuta, que nada se ejecute sin «si», y que no se diga «hecho» sin efecto verificado. Los del
+# entorno protegen los cuatro niveles (descubrir != identificar != integrar != controlar) y el SSRF.
+pruebas = ["tests/unit/test_ordenes_de_hogar.py", "tests/unit/test_home_assistant_real.py",
+           "tests/unit/test_entorno.py", "tests/unit/test_red_local.py",
+           "tests/integration/test_hogar_en_conversacion.py"]
+timeout_s = 1200
+
+[[mutante]]
+id = "S2-M1"
+garantia = "una orden negada o compuesta se reconoce: «apaga la tele y borra el informe» propone una accion"
+fichero = "aura_skeleton/core/hogar.py"
+buscar = '''    if not dispositivo or _NO_ES_UNA_SOLA.search(f" {dispositivo} "):
+        return None'''
+sustituir = '''    if not dispositivo:
+        return None'''
+
+[[mutante]]
+id = "S2-M2"
+garantia = "cualquier respuesta cuenta como «si»: la accion se ejecuta sin confirmacion real"
+fichero = "aura_skeleton/core/hogar.py"
+buscar = '''    if limpio in _SI:
+        return True'''
+sustituir = '''    if limpio:
+        return True'''
+
+[[mutante]]
+id = "S2-M3"
+garantia = "la orden de hogar se ejecuta al PROPONERLA, sin esperar el «si»"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            self._propuestas_de_hogar[uid] = (capacidad, {"device": entidad, "nombre": nombre})'''
+sustituir = '''            await self._despachar_orden(uid, capacidad, {"device": entidad}, tid)
+            self._propuestas_de_hogar[uid] = (capacidad, {"device": entidad, "nombre": nombre})'''
+
+[[mutante]]
+id = "S2-M4"
+garantia = "la propuesta no caduca: un «si» dos turnos despues ejecuta algo que ya nadie tiene delante"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        propuesta = self._propuestas_de_hogar.pop(uid, None)'''
+sustituir = '''        propuesta = self._propuestas_de_hogar.get(uid)'''
+
+[[mutante]]
+id = "S2-M5"
+garantia = "un «no» se ignora y la propuesta sigue su camino"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            if decision is False:'''
+sustituir = '''            if False:'''
+
+[[mutante]]
+id = "S2-M6"
+garantia = "AURA dice «hecho» sin que el adaptador haya verificado el efecto"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''    if detalle.get("verificado") is True and detalle.get("evidencia") != "estado_asumido_por_ha":
+        # Nivel de evidencia'''
+sustituir = '''    if detalle.get("status") in ("ok", "sin_efecto"):
+        # Nivel de evidencia'''
+
+[[mutante]]
+id = "S2-M7"
+garantia = "con varios televisores, «la tele» elige uno adivinando"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''            if len(candidatas) == 1:'''
+sustituir = '''            if len(candidatas) >= 1:'''
+
+[[mutante]]
+id = "S2-M8"
+garantia = "el descubrimiento sigue una descripcion SSDP que apunta a OTRA maquina (SSRF)"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''    if urlparse(ubicacion).hostname != ip or urlparse(ubicacion).scheme != "http":'''
+sustituir = '''    if urlparse(ubicacion).scheme != "http":'''
+
+[[mutante]]
+id = "S2-M9"
+garantia = "un dispositivo con entidad en HA fuera de la lista verde se presenta como CONTROLABLE"
+fichero = "aura_skeleton/core/entorno.py"
+buscar = '''            if entidad.split(".", 1)[0] not in self._dominios:
+                return INTEGRADO'''
+sustituir = '''            if False:
+                return INTEGRADO'''
+
+[[mutante]]
+id = "S2-M10"
+garantia = "algo que no anuncia que es se da por identificado"
+fichero = "aura_skeleton/core/entorno.py"
+buscar = '''        if tipo == "desconocido":
+            return DESCUBIERTO'''
+sustituir = '''        if False:
+            return DESCUBIERTO'''
+
+[[mutante]]
+id = "S2-M11"
+garantia = "un dispositivo ausente se olvida en vez de marcarse ausente"
+fichero = "aura_skeleton/core/entorno.py"
+buscar = '''                d.presente = False
+                transiciones.append(Transicion(ip, d.tipo, "ausente"))'''
+sustituir = '''                pass'''
+
+[[mutante]]
+id = "S2-M12"
+garantia = "un telefono en la red se describe sin advertir que no se sabe de quien es"
+fichero = "aura_skeleton/core/entorno.py"
+buscar = '''            detalle += "; es presencia técnica: no sé de quién es"'''
+sustituir = '''            detalle += ""'''
+
+[[mutante]]
+id = "S2-M13"
+garantia = "una fuente de descubrimiento caida revienta su hilo y vuelca una traza en la conversacion"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''        except Exception:  # noqa: BLE001 — una fuente que falla, falle como falle, no se lleva a las demás
+            return'''
+sustituir = '''        except ZeroDivisionError:
+            return'''
+
+[[mutante]]
+id = "S2-M14"
+garantia = "mDNS vuelve a perder todo lo oido cuando avahi agota su tope"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''        lambda: leer_mdns(
+            ejecutar(["timeout", "6", "avahi-browse", "-atrp"], capture_output=True, text=True, timeout=10).stdout
+        ),'''
+sustituir = '''        lambda: leer_mdns(ejecutar(["avahi-browse", "-atrp"], capture_output=True, text=True, timeout=10).stdout),'''
+
+[[mutante]]
+id = "S2-M15"
+garantia = "la orden de hogar vuelve a interpretarla el MODELO: la superficie del Core se desconecta"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        orden_de_hogar = hogar.reconocer(text) if self.motor is not None else None'''
+sustituir = '''        orden_de_hogar = None'''
+
+# ------------------------------------ frontera voz -> accion, camino del modelo y auditoria de seguridad --
+
+[[mutante]]
+id = "S2-M16"
+garantia = "una orden HABLADA confirmada actua aunque su entidad no este en voz_actua_en: la llave por entidad desaparece"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''                if args.get("device") not in self.voz_actua_en:'''
+sustituir = '''                if False:'''
+
+[[mutante]]
+id = "S2-M17"
+garantia = "la llave de voz viene ABIERTA de fabrica en el orquestador: cualquier entidad actua por voz sin decision"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        self.voz_actua_en: frozenset[str] = frozenset()'''
+sustituir = '''        self.voz_actua_en: frozenset[str] = frozenset({"*"})'''
+
+[[mutante]]
+id = "S2-M18"
+garantia = "un turno hablado se toma por escrito: la orden de voz se ejecuta sin proponer ni confirmar"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''                {"text": text, "voz": text != audio_text, "activado": activado},'''
+sustituir = '''                {"text": text, "voz": False, "activado": activado},'''
+
+[[mutante]]
+id = "S2-M19"
+garantia = "el MODELO vuelve a elegir sobre que dispositivo actua aunque la persona no lo nombrara"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        if action in hogar.CAPACIDADES and not hogar.dispositivo_nombrado(args.get("device", ""), text):'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "S2-M20"
+garantia = "el lector de descripciones vuelve a seguir redirecciones hacia otra maquina (SSRF)"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''    def redirect_request(self, *args, **kwargs):
+        return None'''
+sustituir = '''    def redirect_request(self, *args, **kwargs):
+        return super().redirect_request(*args, **kwargs)'''
+
+[[mutante]]
+id = "S2-M21"
+garantia = "un XML con entidades se expande al parsear (billion laughs)"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''        if "<!DOCTYPE" in cuerpo.upper() or "<!ENTITY" in cuerpo.upper():
+            return base'''
+sustituir = '''        if False:
+            return base'''
+
+[[mutante]]
+id = "S2-M22"
+garantia = "el nombre que pone quien se anuncia llega sin tope ni limpieza a la pantalla y a la voz"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''    return limpio[:60].strip() or None'''
+sustituir = '''    return texto'''
+
+[[mutante]]
+id = "S2-M23"
+garantia = "por TEXTO la orden deja de ejecutarse y se queda en propuesta: se rompe la regla aprobada de M1"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            if not por_voz:
+                # POR TEXTO rige la regla aprobada de M1'''
+sustituir = '''            if False:
+                # POR TEXTO rige la regla aprobada de M1'''
+
+[[mutante]]
+id = "S2-M24"
+garantia = "tras actuar sobre la TV real, «¿qué hiciste?» vuelve a contestarlo el historial del ciclo autónomo («mi última tarea es P-018») en vez de la acción recién hecha (encontrado [EJEC] en el cierre de la semana 2)"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_hogar_en_conversacion.py::test_tras_una_accion_que_hiciste_recupera_ESA_accion_y_no_el_historial_del_ciclo",
+           "tests/integration/test_hogar_en_conversacion.py::test_con_una_pregunta_en_medio_que_hiciste_sigue_siendo_la_accion_de_esta_conversacion"]
+buscar = '''        if clase_en_conversacion is not None and recuperacion.hubo_ejecucion(self._dialogue.get(uid, [])):'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "S2-M25"
+garantia = "la precedencia deja de estar acotada: sin ninguna acción en la conversación, «¿qué hiciste?» deja de ir al historial del ciclo autónomo"
+fichero = "aura_skeleton/core/recuperacion.py"
+pruebas = ["tests/integration/test_hogar_en_conversacion.py::test_CONTROL_sin_accion_previa_que_hiciste_sigue_yendo_al_historial"]
+buscar = '''    return ultima_ejecucion(ventana) is not None'''
+sustituir = '''    return True'''
+
+[[mutante]]
+id = "S2-M26"
+garantia = "el inventario vuelve a exigir el nombre IDÉNTICO: la TV ya controlable (HA la titula «nombre (MODELO)») aparece como «falta integrarla» ([EJEC] cierre semana 2)"
+fichero = "aura_skeleton/core/entorno.py"
+pruebas = ["tests/unit/test_entorno.py::test_HA_nombra_la_TV_con_su_MODELO_entre_parentesis_y_sigue_siendo_la_misma"]
+buscar = '''        casan = [entidad for entidad, amigable in entidades_ha if _norm(amigable) in (nombre, con_modelo)]'''
+sustituir = '''        casan = [entidad for entidad, amigable in entidades_ha if _norm(amigable) == nombre]'''
+
+[[mutante]]
+id = "S2-M27"
+garantia = "el casamiento con HA se vuelve «por parecido»: cualquier paréntesis vale como modelo"
+fichero = "aura_skeleton/core/entorno.py"
+pruebas = ["tests/unit/test_entorno.py::test_CONTROL_un_parentesis_que_NO_es_su_modelo_no_casa"]
+buscar = '''        casan = [entidad for entidad, amigable in entidades_ha if _norm(amigable) in (nombre, con_modelo)]'''
+sustituir = '''        casan = [entidad for entidad, amigable in entidades_ha if _norm(amigable).split(" (")[0] == nombre]'''
+
+[[mutante]]
+id = "S2-M28"
+garantia = "la TV apagada (solo ARP) se degrada a «desconocido — descubierto» aunque en esta sesión ya se supiera que es la TV controlable"
+fichero = "aura_skeleton/core/entorno.py"
+pruebas = ["tests/unit/test_entorno.py::test_la_TV_apagada_deja_de_anunciarse_pero_sigue_siendo_la_TV_que_ya_conoce"]
+buscar = '''            if previo is not None and tipo == "desconocido":'''
+sustituir = '''            if False:'''
+
+[[mutante]]
+id = "S2-M29"
+garantia = "con `remote.X` y `media_player.X` del mismo nombre, el inventario vuelve a coger la no controlable y niega que la TV lo sea"
+fichero = "aura_skeleton/core/entorno.py"
+pruebas = ["tests/unit/test_entorno.py::test_con_una_entidad_remote_y_otra_media_player_del_mismo_nombre_gana_la_controlable"]
+buscar = '''        return next((e for e in casan if e.split(".", 1)[0] in self._dominios), casan[0] if casan else None)'''
+sustituir = '''        return casan[0] if casan else None'''
+
+[[mutante]]
+id = "S2-M30"
+garantia = "un HA que agota el tiempo en el servicio vuelve a subir como OSError: «fallo del sistema de archivos» sobre una TV"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+pruebas = ["tests/unit/test_home_assistant_real.py::test_si_el_servicio_agota_el_tiempo_se_relee_y_se_informa_lo_que_se_ve"]
+buscar = '''        except TimeoutError:
+            self._enviados.add(event_id)
+            # La orden SALIÓ'''
+sustituir = '''        except ZeroDivisionError:
+            self._enviados.add(event_id)
+            # La orden SALIÓ'''
+
+[[mutante]]
+id = "S2-M31"
+garantia = "si HA enmudece al releer, el Motor vuelve a llamarlo «fallo del sistema de archivos» y no dice que no sabe si surtió efecto"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+pruebas = ["tests/unit/test_home_assistant_real.py::test_si_HA_deja_de_responder_el_motor_lo_dice_y_NO_habla_del_sistema_de_archivos"]
+buscar = '''        except OSError as e:
+            raise HogarSinRespuesta(_no_comprobado('''
+sustituir = '''        except ZeroDivisionError as e:
+            raise HogarSinRespuesta(_no_comprobado('''
+
+[[mutante]]
+id = "S2-M32"
+garantia = "la espera de confirmación vuelve a 5 s: una TV despertada por red se da por «no cambió» mientras arranca"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+pruebas = ["tests/unit/test_home_assistant_real.py::test_la_espera_de_confirmacion_cubre_el_arranque_de_una_TV_despertada_por_red"]
+buscar = '''    def __init__(self, url: str, token: str, http: Callable = _http, espera_s: float = ESPERA_CONFIRMACION_S) -> None:'''
+sustituir = '''    def __init__(self, url: str, token: str, http: Callable = _http, espera_s: float = 5.0) -> None:'''
+
+[[mutante]]
+id = "S2-M33"
+garantia = "la precedencia vuelve a exigir que la acción sea el turno INMEDIATAMENTE anterior: una pregunta en medio devuelve «¿qué hiciste?» al historial del ciclo ([EJEC] con la TV real)"
+fichero = "aura_skeleton/core/recuperacion.py"
+pruebas = ["tests/integration/test_hogar_en_conversacion.py::test_con_una_pregunta_en_medio_que_hiciste_sigue_siendo_la_accion_de_esta_conversacion"]
+buscar = '''    return ultima_ejecucion(ventana) is not None'''
+sustituir = '''    turnos = list(ventana)
+    return bool(turnos) and isinstance(turnos[-1], Turno) and turnos[-1].dominio == DOMINIO_EJECUCION'''
+
+[[mutante]]
+id = "S2-M34"
+garantia = "la transcripción vuelve a entregar el eco del vocabulario («¿Qué hay conectado? ¿Qué hay conectado?») y la pregunta cae en la pared de memoria ([EJEC] por el aire)"
+fichero = "aura_skeleton/adapters/voice_real.py"
+pruebas = ["tests/unit/test_voz_real_sin_red_ni_cuelgue.py::test_la_transcripcion_real_pasa_por_el_filtro_de_eco"]
+buscar = '''            return sin_eco(" ".join(s.text for s in segmentos).strip())'''
+sustituir = '''            return " ".join(s.text for s in segmentos).strip()'''
+
+[[mutante]]
+id = "S2-M35"
+garantia = "el filtro de eco colapsa frases DISTINTAS: se pierde lo que la persona dijo de verdad"
+fichero = "aura_skeleton/adapters/voice_real.py"
+pruebas = ["tests/unit/test_voz_real_sin_red_ni_cuelgue.py::test_CONTROL_frases_distintas_o_repeticion_dentro_de_una_frase_no_se_tocan"]
+buscar = '''        if not limpias or frase.casefold() != limpias[-1].casefold():'''
+sustituir = '''        if not limpias:'''
+
+[[mutante]]
+id = "S2-M36"
+garantia = "una conexión rechazada al enviar la orden vuelve a llegar al Motor como «fallo del sistema de archivos» (hallazgo MEDIO de la auditoría independiente, cierre S2)"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+pruebas = ["tests/unit/test_home_assistant_real.py::test_si_la_conexion_del_servicio_falla_el_motor_dice_que_HA_no_respondio"]
+buscar = '''            # «No la doy por ejecutada», no «no la ejecuté»: un corte a mitad de envío no dice si llegó.
+            raise HogarSinRespuesta('''
+sustituir = '''            # «No la doy por ejecutada», no «no la ejecuté»: un corte a mitad de envío no dice si llegó.
+            raise e from None
+            raise HogarSinRespuesta('''
+
+[[mutante]]
+id = "S2-M37"
+garantia = "el vocabulario de Whisper vuelve a contener órdenes y confirmaciones: un audio confuso puede fabricar «Apaga la tele» o un «sí» que apruebe una propuesta"
+fichero = "aura_skeleton/adapters/voice_real.py"
+pruebas = ["tests/unit/test_voz_real_sin_red_ni_cuelgue.py::test_ninguna_frase_del_vocabulario_es_por_si_sola_una_orden_o_una_confirmacion"]
+buscar = '''    "Mi nombre es. ¿Qué hay conectado? ¿Qué hiciste? ¿Qué te dije antes?"'''
+sustituir = '''    "Mi nombre es. Apaga la tele. Sí. ¿Qué hay conectado? ¿Qué hiciste? ¿Qué te dije antes?"'''
+
+[[mutante]]
+id = "S2-M38"
+garantia = "un token rechazado por Home Assistant vuelve a contarse como «no respondió» o «sistema de archivos»"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+pruebas = ["tests/unit/test_home_assistant_real.py::test_un_token_rechazado_al_buscar_el_dispositivo_se_dice_y_no_se_envia_nada",
+           "tests/unit/test_home_assistant_real.py::test_un_token_rechazado_al_enviar_la_orden_no_se_disfraza_de_HA_caido",
+           "tests/unit/test_home_assistant_real.py::test_el_arranque_con_token_invalido_dice_que_el_hogar_no_esta_disponible_y_por_que"]
+buscar = '''            if e.code in (401, 403):'''
+sustituir = '''            if False:'''
+
+[[mutante]]
+id = "S2-M39"
+garantia = "HA caído al BUSCAR el dispositivo vuelve a llegar al Motor como «fallo del sistema de archivos»"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+pruebas = ["tests/unit/test_home_assistant_real.py::test_HA_caido_al_buscar_el_dispositivo_no_habla_del_sistema_de_archivos"]
+buscar = '''            if isinstance(e, OSError) and not isinstance(e, (HogarCredencialRechazada, urllib.error.HTTPError)):'''
+sustituir = '''            if False:'''
+
+[[mutante]]
+id = "S2-M40"
+garantia = "una credencial rechazada al ENVIAR la orden se reetiqueta como «HA no respondió»"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+pruebas = ["tests/unit/test_home_assistant_real.py::test_un_token_rechazado_al_enviar_la_orden_no_se_disfraza_de_HA_caido"]
+buscar = '''        except HogarCredencialRechazada:
+            raise
+        except urllib.error.HTTPError as e:'''
+sustituir = '''        except urllib.error.HTTPError as e:'''
+
+[[mutante]]
+id = "S2-M41"
+garantia = "Spotify Connect vuelve a convertir cualquier equipo en «altavoz» (era la PS5, [EJEC])"
+fichero = "aura_skeleton/core/entorno.py"
+pruebas = ["tests/unit/test_mapa_vivo.py::test_spotify_connect_NO_es_un_altavoz"]
+buscar = '''    (("_sonos",), "altavoz"),'''
+sustituir = '''    (("_sonos", "_spotify-connect"), "altavoz"),'''
+
+[[mutante]]
+id = "S2-M42"
+garantia = "el protocolo propio del equipo deja de mandar: la PS5 vuelve a presentarse por su anuncio de Spotify"
+fichero = "aura_skeleton/core/entorno.py"
+pruebas = ["tests/unit/test_mapa_vivo.py::test_la_PS5_se_identifica_por_su_propio_protocolo_y_gana_al_anuncio_de_spotify"]
+buscar = '''    if o.tipo_declarado:
+        return o.tipo_declarado'''
+sustituir = '''    if False:
+        return o.tipo_declarado'''
+
+[[mutante]]
+id = "S2-M43"
+garantia = "un equipo que cambia de IP por DHCP se duplica en el inventario en vez de moverse"
+fichero = "aura_skeleton/core/entorno.py"
+pruebas = ["tests/unit/test_mapa_vivo.py::test_un_equipo_que_cambia_de_IP_por_DHCP_sigue_siendo_EL_MISMO"]
+buscar = '''            if previo is None and o.identidad:'''
+sustituir = '''            if False:'''
+
+[[mutante]]
+id = "S2-M44"
+garantia = "sin identidad declarada, la MAC compartida del repetidor vuelve a fundir equipos distintos"
+fichero = "aura_skeleton/core/entorno.py"
+pruebas = ["tests/unit/test_mapa_vivo.py::test_una_identidad_NUEVA_no_se_apropia_de_otro_equipo_por_compartir_la_MAC_del_repetidor"]
+buscar = '''            if d.identidad == o.identidad and ip_vieja not in vistas:'''
+sustituir = '''            if (d.identidad == o.identidad or d.mac == o.mac) and ip_vieja not in vistas:'''
+
+[[mutante]]
+id = "S2-M45"
+garantia = "se afirma CARACTERIZADO sin saber qué ofrece el equipo"
+fichero = "aura_skeleton/core/entorno.py"
+pruebas = ["tests/unit/test_mapa_vivo.py::test_identificado_sin_capacidades_conocidas_no_se_da_por_caracterizado"]
+buscar = '''        return CARACTERIZADO if capacidades else IDENTIFICADO'''
+sustituir = '''        return CARACTERIZADO'''
+
+[[mutante]]
+id = "S2-M46"
+garantia = "una cámara AJENA aparece como superficie donde AURA ya puede estar (ver sin autorización)"
+fichero = "aura_skeleton/core/entorno.py"
+pruebas = ["tests/unit/test_mapa_vivo.py::test_ningun_equipo_AJENO_aparece_como_superficie_disponible_hoy"]
+buscar = '''    locales = [d for d in dispositivos if _es_local(d) and d.presente and _verbos(d.capacidades, True)]'''
+sustituir = '''    locales = [d for d in dispositivos if d.presente and _verbos(d.capacidades, True)]'''
+
+[[mutante]]
+id = "S2-M47"
+garantia = "sin superficie local verificada, AURA afirma igualmente que está en algún sitio"
+fichero = "aura_skeleton/core/entorno.py"
+pruebas = ["tests/unit/test_mapa_vivo.py::test_sin_superficie_local_no_se_afirma_que_AURA_este_en_ningun_sitio"]
+buscar = '''        or "ninguna superficie verificada en esta exploración"'''
+sustituir = '''        or "en este equipo"'''
+
+[[mutante]]
+id = "S2-M48"
+garantia = "la descripción deja de decir cómo mira y lo que no puede ver (la ausencia vuelve a leerse como inexistencia)"
+fichero = "aura_skeleton/core/entorno.py"
+pruebas = ["tests/unit/test_mapa_vivo.py::test_la_descripcion_declara_como_miro_y_lo_que_no_puedo_ver"]
+buscar = '''        + "\n"
+        + _COMO_MIRO'''
+sustituir = ''''''
+
+[[mutante]]
+id = "S2-M49"
+garantia = "el «.monitor» de una salida de audio se toma por micrófono: AURA afirmaría que puede escuchar donde no puede"
+fichero = "aura_skeleton/adapters/red_local.py"
+pruebas = ["tests/unit/test_red_local.py::test_CONTROL_un_monitor_de_salida_NO_es_un_microfono"]
+buscar = '''    if any(
+        linea.split("\t")[1:2] and not linea.split("\t")[1].endswith(".monitor")
+        for linea in _salida(["pactl", "list", "short", "sources"]).splitlines()
+    ):'''
+sustituir = '''    if any(linea.split("\t")[1:2] for linea in _salida(["pactl", "list", "short", "sources"]).splitlines()):'''
+
+[[mutante]]
+id = "S2-M50"
+garantia = "el propio equipo deja de declarar su cámara: el mapa de presencia omite hardware que existe"
+fichero = "aura_skeleton/adapters/red_local.py"
+pruebas = ["tests/unit/test_red_local.py::test_el_equipo_local_declara_lo_que_su_hardware_tiene_de_verdad"]
+buscar = '''    if camaras():
+        caps.add("video_entrada")'''
+sustituir = '''    if False:
+        caps.add("video_entrada")'''
+
+[[mutante]]
+id = "S2-M51"
+garantia = "el propio equipo vuelve a describirse como «falta integrarlo y autorizarlo» mientras AURA dice estar en él"
+fichero = "aura_skeleton/core/entorno.py"
+pruebas = ["tests/unit/test_mapa_vivo.py::test_el_equipo_local_no_se_describe_a_la_vez_como_presente_y_pendiente_de_autorizar"]
+buscar = '''        if _es_local(d):
+            detalle = "es donde corro: aquí escucho y hablo"'''
+sustituir = '''        if False:
+            detalle = "es donde corro: aquí escucho y hablo"'''
+
+[[mutante]]
+id = "S2-M52"
+garantia = "un efecto real verificado deja de subir al equipo a EFECTO_VERIFICADO: el conocimiento no aprende de lo que AURA comprobó"
+fichero = "aura_skeleton/core/entorno.py"
+pruebas = ["tests/unit/test_conocimiento_entorno.py::test_un_efecto_real_verificado_sube_al_dispositivo_a_EFECTO_VERIFICADO"]
+buscar = '''            if d.entidad_ha == entidad_ha:
+                d.efecto_verificado = True
+                d.nivel = EFECTO_VERIFICADO'''
+sustituir = '''            if d.entidad_ha == entidad_ha:
+                d.efecto_verificado = True'''
+
+[[mutante]]
+id = "S2-M53"
+garantia = "un intento SIN efecto se cuenta como EFECTO_VERIFICADO: se afirma un control no comprobado"
+fichero = "aura_skeleton/core/entorno.py"
+pruebas = ["tests/unit/test_conocimiento_entorno.py::test_un_intento_SIN_efecto_no_sube_a_EFECTO_VERIFICADO"]
+buscar = '''        if not verificado:
+            return'''
+sustituir = '''        if not verificado:
+            pass'''
+
+[[mutante]]
+id = "S2-M54"
+garantia = "el efecto verificado se pierde al apagarse el equipo en la siguiente ronda (deja de ser histórico)"
+fichero = "aura_skeleton/core/entorno.py"
+pruebas = ["tests/unit/test_conocimiento_entorno.py::test_el_efecto_verificado_no_se_pierde_porque_la_TV_se_apague_en_la_siguiente_ronda"]
+buscar = '''            previo.nivel = self._nivel(tipo, entidad, caps | previo.capacidades, previo.efecto_verificado)'''
+sustituir = '''            previo.nivel = self._nivel(tipo, entidad, caps | previo.capacidades, False)'''
+
+[[mutante]]
+id = "S2-M55"
+garantia = "dos fuentes con TIPOS contradictorios dejan de marcar conflicto: AURA vuelve a adivinar"
+fichero = "aura_skeleton/core/entorno.py"
+pruebas = ["tests/unit/test_conocimiento_entorno.py::test_dos_fuentes_que_dan_TIPOS_distintos_para_la_misma_IP_marcan_conflicto"]
+buscar = '''    if o.tipo_declarado and previo.tipo_declarado and o.tipo_declarado != previo.tipo_declarado:'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "S2-M56"
+garantia = "un conflicto de tipo PISA lo anterior en vez de conservarlo marcado"
+fichero = "aura_skeleton/core/entorno.py"
+pruebas = ["tests/unit/test_conocimiento_entorno.py::test_dos_fuentes_que_dan_TIPOS_distintos_para_la_misma_IP_marcan_conflicto"]
+buscar = '''            previo.tipo = previo.tipo if (conflicto and o.tipo_declarado) else tipo'''
+sustituir = '''            previo.tipo = tipo'''
+
+[[mutante]]
+id = "S2-M57"
+garantia = "las fuentes bloqueadas dejan de declararse: la ausencia de un equipo vuelve a leerse como que no existe"
+fichero = "aura_skeleton/core/entorno.py"
+pruebas = ["tests/unit/test_conocimiento_entorno.py::test_la_descripcion_declara_las_fuentes_bloqueadas_sin_fingir_que_no_existen"]
+buscar = '''    faltan = [f for f in fuentes if f.estado != "activa"]'''
+sustituir = '''    faltan = []'''
+
+[[mutante]]
+id = "S2-M58"
+garantia = "el efecto real deja de realimentar el conocimiento del entorno desde el orquestador"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_hogar_en_conversacion.py::test_tras_apagar_la_TV_el_conocimiento_del_entorno_la_marca_EFECTO_VERIFICADO"]
+buscar = '''            entorno_vivo.registrar_efecto(detalle["device"], bool(detalle.get("verificado")))'''
+sustituir = '''            entorno_vivo.registrar_efecto(detalle["device"], False)'''
+
+[[mutante]]
+id = "S2-M59"
+garantia = "el router se declara autorizado por defecto: AURA intentaría entrar sin permiso"
+fichero = "aura_skeleton/adapters/red_local.py"
+pruebas = ["tests/unit/test_red_local.py::test_el_router_es_una_fuente_preparada_pero_NO_autorizada_por_defecto"]
+buscar = '''    fuentes.append(Fuente("router", "no_autorizada", "daría los clientes DHCP si tú inicias sesión"))'''
+sustituir = '''    fuentes.append(Fuente("router", "activa", "daría los clientes DHCP si tú inicias sesión"))'''
+
+[[mutante]]
+id = "S2-M60"
+garantia = "el Bluetooth bloqueado por software se declara disponible: AURA fingiría poder ver wearables"
+fichero = "aura_skeleton/adapters/red_local.py"
+pruebas = ["tests/unit/test_red_local.py::test_bluetooth_bloqueado_por_software_se_declara_bloqueado_sin_fingir_que_no_hay_wearables"]
+buscar = '''    if "soft blocked: yes" in salida.lower():'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "S2-M61"
+garantia = "un equipo YA integrado vuelve a aparecer con «vía pendiente»: se propondría reconectar lo que ya se controla"
+fichero = "aura_skeleton/core/entorno.py"
+pruebas = ["tests/unit/test_conocimiento_entorno.py::test_un_equipo_YA_integrado_no_tiene_via_pendiente"]
+buscar = '''    if d.entidad_ha is not None:
+        return None'''
+sustituir = '''    if d.entidad_ha is not None:
+        pass'''
+
+[[mutante]]
+id = "S2-M62"
+garantia = "la cámara/DVR deja de recordar la credencial y la decisión de visión: se propondría verla sin autorización"
+fichero = "aura_skeleton/core/entorno.py"
+pruebas = ["tests/unit/test_conocimiento_entorno.py::test_una_camara_propone_ONVIF_RTSP_y_recuerda_la_decision_de_vision"]
+buscar = '''        return (
+            "integración de cámara/DVR en Home Assistant por ONVIF/RTSP",
+            "la credencial del dispositivo y la decisión de gobierno sobre la visión (percepción visual)",
+        )'''
+sustituir = '''        return ("integración de cámara/DVR en Home Assistant por ONVIF/RTSP", "nada")'''
+
+[[mutante]]
+id = "S2-M63"
+garantia = "una TV no integrada deja de pedir la confirmación física «Permitir»: se fingiría una vía sin acción humana"
+fichero = "aura_skeleton/core/entorno.py"
+pruebas = ["tests/unit/test_conocimiento_entorno.py::test_una_TV_no_integrada_propone_el_emparejamiento_con_confirmacion_fisica"]
+buscar = '''    if d.tipo == "televisor":'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "S2-M64"
+garantia = "«Cómo conectar» lista también lo YA controlable: prometería reconectar lo que funciona"
+fichero = "aura_skeleton/core/entorno.py"
+pruebas = ["tests/unit/test_conocimiento_entorno.py::test_CONTROL_lo_ya_controlable_no_aparece_en_como_conectar",
+           "tests/unit/test_conocimiento_entorno.py::test_la_descripcion_dice_como_conectar_lo_que_aun_no_controla_sin_prometer_control"]
+buscar = '''    vias = [(d, v) for d, v in vias if v is not None]'''
+sustituir = '''    vias = [(d, v) for d, v in vias]'''
+
+[[mutante]]
+id = "S2-M65"
+garantia = "un equipo que solo responde a ARP deja de declarar «método desconocido»: se fingiría una vía que no hay"
+fichero = "aura_skeleton/core/entorno.py"
+pruebas = ["tests/unit/test_conocimiento_entorno.py::test_lo_que_solo_responde_a_ARP_declara_metodo_de_conexion_DESCONOCIDO"]
+buscar = '''    return (
+        "método de conexión desconocido: solo responde a ARP",
+        "que el equipo anuncie algún servicio, u otra fuente que lo identifique",
+    )'''
+sustituir = '''    return ("integración directa", "que el equipo anuncie algún servicio, u otra fuente que lo identifique")'''
+
+[[mutante]]
+id = "S2-M66"
+garantia = "el equipo local vuelve a ofrecerse como «cámara/DVR a integrar por Home Assistant» por tener webcam ([EJEC] demo)"
+fichero = "aura_skeleton/core/entorno.py"
+pruebas = ["tests/unit/test_conocimiento_entorno.py::test_el_equipo_LOCAL_no_se_propone_como_camara_DVR_a_integrar_por_home_assistant"]
+buscar = '''    pendientes = [d for d in dispositivos if d.presente and not _es_local(d)]'''
+sustituir = '''    pendientes = [d for d in dispositivos if d.presente]'''

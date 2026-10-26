@@ -1,0 +1,131 @@
+incremento = "Estado operativo de la PS5 por DDP: lectura con hora, nunca apagada, conflicto no adopta, antiguo se dice antiguo"
+pruebas = [
+    "tests/unit/test_red_local.py",
+    "tests/unit/test_entorno.py",
+    "tests/unit/test_conocimiento_entorno.py",
+    "tests/unit/test_mapa_vivo.py",
+]
+
+[[mutante]]
+id = "E1"
+garantia = "una respuesta DDP 200 se lee como en reposo"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''    "HTTP/1.1 200 Ok": ESTADO_DESPIERTA,'''
+sustituir = '''    "HTTP/1.1 200 Ok": ESTADO_EN_REPOSO,'''
+
+[[mutante]]
+id = "E2"
+garantia = "una respuesta DDP 620 se lee como despierta"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''    "HTTP/1.1 620 Server Standby": ESTADO_EN_REPOSO,'''
+sustituir = '''    "HTTP/1.1 620 Server Standby": ESTADO_DESPIERTA,'''
+
+[[mutante]]
+id = "E3"
+garantia = "un codigo DDP desconocido se acepta como en reposo"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''_ESTADO_POR_PRIMERA_LINEA.get(lineas[0].strip()) if lineas else None'''
+sustituir = '''_ESTADO_POR_PRIMERA_LINEA.get(lineas[0].strip(), ESTADO_EN_REPOSO) if lineas else None'''
+
+[[mutante]]
+id = "E4"
+garantia = "una ronda sin lectura de estado borra el estado previo"
+fichero = "aura_skeleton/core/entorno.py"
+buscar = '''                if o.estado_operativo:
+                    # Sin lectura nueva'''
+sustituir = '''                if True:
+                    # Sin lectura nueva'''
+
+[[mutante]]
+id = "E5"
+garantia = "una ronda sin lectura convierte el estado en reposo"
+fichero = "aura_skeleton/core/entorno.py"
+buscar = '''                if o.estado_operativo:
+                    # Sin lectura nueva (timeout, solo ARP) se CONSERVA el anterior con su hora: no se borra ni se
+                    # convierte en reposo. Con conflicto no se adopta (misma razón que el resto de la fuente).
+                    previo.estado_operativo, previo.estado_visto = o.estado_operativo, ahora'''
+sustituir = '''                if True:
+                    previo.estado_operativo, previo.estado_visto = o.estado_operativo or ESTADO_EN_REPOSO, ahora'''
+
+[[mutante]]
+id = "E6"
+garantia = "un dispositivo nuevo sin lectura nace en reposo"
+fichero = "aura_skeleton/core/entorno.py"
+buscar = '''                    estado_operativo=o.estado_operativo,
+                    estado_visto=ahora if o.estado_operativo else None,'''
+sustituir = '''                    estado_operativo=o.estado_operativo or ESTADO_EN_REPOSO,
+                    estado_visto=ahora,'''
+
+[[mutante]]
+id = "E7"
+garantia = "un estado nuevo conserva la hora de la lectura vieja"
+fichero = "aura_skeleton/core/entorno.py"
+buscar = '''previo.estado_operativo, previo.estado_visto = o.estado_operativo, ahora'''
+sustituir = '''previo.estado_operativo, previo.estado_visto = o.estado_operativo, previo.estado_visto or ahora'''
+
+[[mutante]]
+id = "E8"
+garantia = "con conflicto de evidencia se adopta el estado de la fuente contradictoria"
+fichero = "aura_skeleton/core/entorno.py"
+buscar = '''            previo.nombre = o.nombre if o.tipo_declarado and o.nombre and not conflicto'''
+sustituir = '''            if conflicto and o.estado_operativo:
+                previo.estado_operativo, previo.estado_visto = o.estado_operativo, ahora
+            previo.nombre = o.nombre if o.tipo_declarado and o.nombre and not conflicto'''
+
+[[mutante]]
+id = "E9"
+garantia = "estados distintos en la misma ronda: gana el ultimo en vez de ninguno"
+fichero = "aura_skeleton/core/entorno.py"
+buscar = '''next(iter(estados)) if len(estados) == 1 else None'''
+sustituir = '''[o.estado_operativo for o in usadas if o.estado_operativo][-1] if estados else None'''
+
+[[mutante]]
+id = "E10"
+garantia = "en conflicto el estado sale de las declaraciones en conflicto, no del resto"
+fichero = "aura_skeleton/core/entorno.py"
+buscar = '''        usadas = resto if ip in conflictos else lista'''
+sustituir = '''        usadas = lista'''
+
+[[mutante]]
+id = "E11"
+garantia = "una lectura de mas de 15 min nunca se presenta como antigua"
+fichero = "aura_skeleton/core/entorno.py"
+buscar = '''    if not d.presente or edad > ESTADO_VIGENCIA_S:'''
+sustituir = '''    if not d.presente:'''
+
+[[mutante]]
+id = "E12"
+garantia = "una lectura de un dispositivo ausente no se presenta como antigua"
+fichero = "aura_skeleton/core/entorno.py"
+buscar = '''    if not d.presente or edad > ESTADO_VIGENCIA_S:'''
+sustituir = '''    if edad > ESTADO_VIGENCIA_S:'''
+
+[[mutante]]
+id = "E13"
+garantia = "una consola sin lectura no dice «estado desconocido»"
+fichero = "aura_skeleton/core/entorno.py"
+buscar = '''        return "estado desconocido" if "consola" in (d.tipo_declarado or "") else ""'''
+sustituir = '''        return ""'''
+
+[[mutante]]
+id = "E14"
+garantia = "la lectura reciente deja de decir «lectura, no verificación física»"
+fichero = "aura_skeleton/core/entorno.py"
+buscar = '''estaba {estado} {cuando} (lectura, no verificación física)"'''
+sustituir = '''estaba {estado} {cuando}"'''
+
+[[mutante]]
+id = "E15"
+garantia = "la lectura antigua deja de decir «lectura, no verificación física»"
+fichero = "aura_skeleton/core/entorno.py"
+buscar = '''{estado} {cuando} (lectura, no verificación física)"
+    return f"según'''
+sustituir = '''{estado} {cuando}"
+    return f"según'''
+
+[[mutante]]
+id = "E16"
+garantia = "la sonda DDP deja de ser SRCH (las consolas no responden)"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''    sonda = b"SRCH * HTTP/1.1\ndevice-discovery-protocol-version:00030010\n"'''
+sustituir = '''    sonda = b"WAKEUP * HTTP/1.1\ndevice-discovery-protocol-version:00030010\n"'''

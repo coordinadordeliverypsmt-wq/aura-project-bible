@@ -43,31 +43,62 @@ async def _di(orq, texto, uid="mauricio"):
 #: que la batería no dependa del ciclo autónomo del equipo que la ejecuta.
 INSTANTANEA = {
     "estado": "DECISION_REQUIRED",
-    "ultimo_ciclo": 101, "hora_ultimo_ciclo": "2026-09-01T22:00:01",
+    "ultimo_ciclo": 101,
+    "hora_ultimo_ciclo": "2026-09-01T22:00:01",
     "cola": {"OPORTUNIDAD_REAL": 0, "BLOQUEADA": 6, "DECISION_REQUIRED": 2, "FALSO_HUECO": 0},
-    "trabajo_bloqueado": 6, "trabajo_elevado": 2, "proximo_despertar": "2026-09-01T23:00:00",
+    "trabajo_bloqueado": 6,
+    "trabajo_elevado": 2,
+    "proximo_despertar": "2026-09-01T23:00:00",
     "decisiones_pendientes": [
-        {"id": "D-ORCH-6", "titulo": "WAITING_FOR_HUMAN es inalcanzable",
-         "por_que_no_la_resuelvo": "modificar la tabla de estados es decidir sobre el gobierno",
-         "opciones": ["(a) anadirlo como destino de WORKING", "(b) retirarlo del vocabulario"],
-         "impacto_hoy": "NINGUNO"},
+        {
+            "id": "D-ORCH-6",
+            "titulo": "WAITING_FOR_HUMAN es inalcanzable",
+            "por_que_no_la_resuelvo": "modificar la tabla de estados es decidir sobre el gobierno",
+            "opciones": ["(a) anadirlo como destino de WORKING", "(b) retirarlo del vocabulario"],
+            "impacto_hoy": "NINGUNO",
+        },
         {"id": "D-INT-1", "titulo": "Integrar la rama arrastra 17 commits ajenos", "opciones": ["(a) integrar"]},
     ],
     "oportunidades_bloqueadas": [
-        {"id": "OB-1", "que": "F5 · RevisorExterno", "por_que": "el §20 del DP la marca Bloqueada",
-         "quien_desbloquea": "CEO", "ejecutable_hoy": False},
-        {"id": "OB-2", "que": "defecto del auditor de garantias", "por_que": "vive fuera del perimetro",
-         "quien_desbloquea": "CEO", "ejecutable_hoy": False},
+        {
+            "id": "OB-1",
+            "que": "F5 · RevisorExterno",
+            "por_que": "el §20 del DP la marca Bloqueada",
+            "quien_desbloquea": "CEO",
+            "ejecutable_hoy": False,
+        },
+        {
+            "id": "OB-2",
+            "que": "defecto del auditor de garantias",
+            "por_que": "vive fuera del perimetro",
+            "quien_desbloquea": "CEO",
+            "ejecutable_hoy": False,
+        },
     ],
     "trabajos_recientes": [
-        {"id": "P-015", "simbolo": "_privadas_sin_uso", "fichero": "/x/descubrimiento.py",
-         "resultado": "efecto verificado", "momento": "2026-08-31T21:38:40"},
-        {"id": "P-016", "simbolo": "_quitar_funcion", "fichero": "/x/autoconstruccion.py",
-         "resultado": "efecto verificado", "momento": "2026-08-31T21:44:43"},
+        {
+            "id": "P-015",
+            "simbolo": "_privadas_sin_uso",
+            "fichero": "/x/descubrimiento.py",
+            "resultado": "efecto verificado",
+            "momento": "2026-08-31T21:38:40",
+        },
+        {
+            "id": "P-016",
+            "simbolo": "_quitar_funcion",
+            "fichero": "/x/autoconstruccion.py",
+            "resultado": "efecto verificado",
+            "momento": "2026-08-31T21:44:43",
+        },
     ],
-    "ultima_tarea": {"id": "P-016", "simbolo": "_quitar_funcion", "fichero": "/x/autoconstruccion.py",
-                     "resultado": "efecto verificado", "autorizada_por": "REVIEW:auditor",
-                     "momento": "2026-08-31T21:44:43"},
+    "ultima_tarea": {
+        "id": "P-016",
+        "simbolo": "_quitar_funcion",
+        "fichero": "/x/autoconstruccion.py",
+        "resultado": "efecto verificado",
+        "autorizada_por": "REVIEW:auditor",
+        "momento": "2026-08-31T21:44:43",
+    },
     "sospecha": "",
 }
 
@@ -141,8 +172,10 @@ async def test_NINGUNA_de_esas_preguntas_cae_en_MEMORIA(sistema, entrada):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("entrada", ["¿qué es D-ORCH-6?", "¿qué oportunidades están bloqueadas?",
-                                     "¿qué hiciste hoy?", "¿en qué estás trabajando?"])
+@pytest.mark.parametrize(
+    "entrada",
+    ["¿qué es D-ORCH-6?", "¿qué oportunidades están bloqueadas?", "¿qué hiciste hoy?", "¿en qué estás trabajando?"],
+)
 async def test_esas_respuestas_LEEN_la_fuente_real(sistema, entrada):
     """No basta con no caer en memoria: hay que haber leído el estado autónomo. Una respuesta que
     acertara sin consultarlo sería el mismo defecto con mejor suerte."""
@@ -152,6 +185,7 @@ async def test_esas_respuestas_LEEN_la_fuente_real(sistema, entrada):
 
 
 # ============================================================ EL CONTENIDO ES REAL --
+
 
 @pytest.mark.asyncio
 async def test_una_DECISION_se_describe_con_sus_opciones_reales(sistema):
@@ -191,9 +225,11 @@ async def test_la_EVOLUCION_sale_del_historial_y_no_de_la_conversacion(sistema):
 async def test_sin_datos_NINGUNA_superficie_fabrica_nada(sistema):
     """Con una instantánea vacía, las tres declaran la ausencia. Ninguna rellena el hueco."""
     sistema.orquestador.estado_autonomo = FuenteFalsa({"estado": "NO DISPONIBLE"})
-    for entrada, marca in [("¿qué decisiones necesitan de mí?", "no me consta"),
-                           ("¿qué hiciste hoy?", "no me consta"),
-                           ("¿qué oportunidades están bloqueadas?", "no me consta")]:
+    for entrada, marca in [
+        ("¿qué decisiones necesitan de mí?", "no me consta"),
+        ("¿qué hiciste hoy?", "no me consta"),
+        ("¿qué oportunidades están bloqueadas?", "no me consta"),
+    ]:
         r = await _di(sistema.orquestador, entrada)
         assert marca in r["say"].lower(), f"{entrada!r} -> {r['say']!r}"
 
@@ -207,13 +243,17 @@ async def test_el_tablero_del_producto_NO_se_mezcla_con_el_motor(sistema):
 
 # ============================================================ AUTORIZACIÓN: SIGUE SIENDO ESTRICTA --
 
+
 @pytest.mark.asyncio
-@pytest.mark.parametrize(("entrada", "dominio"), [
-    ("Autorizo D-ORCH-6", "autorizacion"),          # inequívoca -> su dominio
-    ("¿Puedes ejecutar D-ORCH-6?", "decisiones"),   # una pregunta NO autoriza: es una consulta
-    ("Autorizo D-ORCH-6 si te parece bien", "decisiones"),   # condicionada: no autoriza
-    ("Haz D-ORCH-6", "decisiones"),                 # una orden no es un permiso
-])
+@pytest.mark.parametrize(
+    ("entrada", "dominio"),
+    [
+        ("Autorizo D-ORCH-6", "autorizacion"),  # inequívoca -> su dominio
+        ("¿Puedes ejecutar D-ORCH-6?", "decisiones"),  # una pregunta NO autoriza: es una consulta
+        ("Autorizo D-ORCH-6 si te parece bien", "decisiones"),  # condicionada: no autoriza
+        ("Haz D-ORCH-6", "decisiones"),  # una orden no es un permiso
+    ],
+)
 async def test_solo_la_autorizacion_INEQUIVOCA_autoriza(sistema, entrada, dominio):
     """Y las demás, en vez de caer en memoria como antes, aterrizan en el dominio de decisiones —
     que es donde de verdad pertenecen."""
@@ -222,6 +262,7 @@ async def test_solo_la_autorizacion_INEQUIVOCA_autoriza(sistema, entrada, domini
 
 
 # ============================================================ CONOCIMIENTO GENERAL Y FALLBACK --
+
 
 @pytest.mark.asyncio
 async def test_el_conocimiento_general_y_la_puerta_de_ADR_0014(sistema):
@@ -257,7 +298,8 @@ async def test_el_conocimiento_general_y_la_puerta_de_ADR_0014(sistema):
 
     sin_recall = await _di(sistema.orquestador, "¿de qué color es el cielo?")
     assert sin_recall["dominio"] == "memoria", (
-        "comportamiento MEDIDO hoy, no deseado: sin recall la puerta de ADR-0014 la intercepta")
+        "comportamiento MEDIDO hoy, no deseado: sin recall la puerta de ADR-0014 la intercepta"
+    )
     assert "no tengo ningun recuerdo" in sin_recall["say"].lower()
 
 
@@ -272,6 +314,7 @@ def test_un_say_VACIO_del_proveedor_no_se_convierte_en_una_confirmacion():
 
 
 # ============================================================ REGRESIÓN --
+
 
 @pytest.mark.asyncio
 async def test_regresion_la_MEMORIA_sigue_siendo_de_la_memoria(sistema):

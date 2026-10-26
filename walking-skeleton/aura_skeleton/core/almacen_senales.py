@@ -57,7 +57,9 @@ class AlmacenSenales:
                         "ts": s.ts,
                     },
                 },
-                s.trace_id or "-", f"senal-{s.clase.value}", origen="captura-de-senales",
+                s.trace_id or "-",
+                f"senal-{s.clase.value}",
+                origen="captura-de-senales",
             )
             if r.get("estado") == "ejecutada":
                 guardadas += 1

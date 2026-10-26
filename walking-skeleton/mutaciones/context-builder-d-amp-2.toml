@@ -1,0 +1,50 @@
+incremento = "Memory Context Builder (D-AMP-2): el eco de un tercero no llega al prompt del modelo (aprobación CEO 2026-10-11)"
+pruebas = ["tests/integration/test_contexto_de_memoria_vigente.py",
+           "tests/integration/test_hechos_declarados.py",
+           "tests/unit/test_hechos_posesivos_generales.py"]
+timeout_s = 600
+
+# La garantia de D-AMP-2: un hecho sobre un TERCERO no se captura como hecho, y su eco episodico
+# tampoco se ENSENA al modelo. La regla lexica de sujeto es UNA sola (core/sujeto.py) y protege los dos
+# lados; el Builder (core/contexto_memoria.py) la aplica en la salida; el orquestador lo cablea. Cada
+# mutante degrada una pieza y debe morir.
+
+# --------- 1 · EL BUILDER FILTRA TERCEROS ---------
+
+[[mutante]]
+id = "CB-M1"
+garantia = "el Builder deja de excluir los ecos de terceros: «usuario dijo: mi abuela es enfermera» volveria al [contexto memoria]"
+fichero = "aura_skeleton/core/contexto_memoria.py"
+pruebas = ["tests/integration/test_contexto_de_memoria_vigente.py::test_el_eco_episodico_de_un_tercero_NO_llega_al_contexto_del_modelo"]
+buscar = '''    mostrables = [m for m in (_texto(h) for h in vigentes) if not habla_de_tercero(normalizar(m))]'''
+sustituir = '''    mostrables = [m for m in (_texto(h) for h in vigentes) if True]'''
+
+[[mutante]]
+id = "CB-M2"
+garantia = "el filtro se invierte (sin `not`): se mostrarian SOLO los terceros y desapareceria la memoria del propio usuario"
+fichero = "aura_skeleton/core/contexto_memoria.py"
+pruebas = ["tests/integration/test_contexto_de_memoria_vigente.py::test_CONTROL_el_eco_llega_al_contexto_cuando_el_recall_lo_pesca",
+           "tests/integration/test_contexto_de_memoria_vigente.py::test_CONTROL_sin_refutar_el_hecho_SI_llega_al_contexto"]
+buscar = '''    mostrables = [m for m in (_texto(h) for h in vigentes) if not habla_de_tercero(normalizar(m))]'''
+sustituir = '''    mostrables = [m for m in (_texto(h) for h in vigentes) if habla_de_tercero(normalizar(m))]'''
+
+# --------- 2 · LA REGLA DE SUJETO ES UNA SOLA Y PROTEGE CAPTURA Y SALIDA ---------
+
+[[mutante]]
+id = "CB-M3"
+garantia = "habla_de_tercero deja de detectar terceros: ni la captura veta el hecho ni el Builder filtra el eco — la misma regla, los dos lados"
+fichero = "aura_skeleton/core/sujeto.py"
+pruebas = ["tests/integration/test_contexto_de_memoria_vigente.py::test_el_eco_episodico_de_un_tercero_NO_llega_al_contexto_del_modelo",
+           "tests/integration/test_hechos_declarados.py::test_P12_no_se_capturan_hechos_de_terceros"]
+buscar = '''    return any(re.search(p, texto_norm) for p in TERCERO)'''
+sustituir = '''    return False'''
+
+# --------- 3 · EL CABLEADO EN EL ORQUESTADOR (ALERTA-005: mutar la composicion, no solo la logica) ---------
+
+[[mutante]]
+id = "CB-M4"
+garantia = "el orquestador deja de usar el Builder y vuelve al join crudo: la frontera existe pero NO esta cableada — el eco de tercero reentra"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_contexto_de_memoria_vigente.py::test_el_eco_episodico_de_un_tercero_NO_llega_al_contexto_del_modelo"]
+buscar = '''        ctx = contexto_memoria.construir_contexto(vigentes)'''
+sustituir = '''        ctx = " | ".join(h["content"] for h in vigentes) if vigentes else "(sin recuerdos relevantes)"'''

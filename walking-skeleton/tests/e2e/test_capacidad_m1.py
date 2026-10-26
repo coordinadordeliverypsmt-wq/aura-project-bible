@@ -35,7 +35,10 @@ async def test_capacidad_conversacional_completa(tmp_path):
 
     # accion segura
     r = await _run(orch, "Enciende la luz de la sala en modo tenue")
-    assert "ejecutada" in r["say"]
+    # Semana 2 (2026-09-27): con el DOBLE del hogar AURA ya no dice «ejecutada» (deuda D-ADP-1: el doble
+    # no toca nada). La garantía —la lista verde se ejecuta SIN preguntar— se comprueba con «Envié la
+    # orden», que el Core solo dice cuando el Motor Único devolvió estado «ejecutada».
+    assert "Envié la orden de encender" in r["say"], r["say"]
     # accion peligrosa rechazada (HITL)
     r = await _run(orch, "Elimina el archivo de impuestos")
     assert "No ejecute" in r["say"]

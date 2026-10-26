@@ -29,13 +29,13 @@ def _mu(mem, kill=None):
     fixture que construya `ModeloUsuario(mem)` a secas haria pasar la prueba en vacio. El veredicto
     que cada prueba mide no cambia: se completa el cableado que la migracion hizo obligatorio.
     """
-    return ModeloUsuario(mem, motor=MotorAutomatizacion(
-        EjecutorModeloUsuario(mem), PermissionManager(_confirmar_mu, kill_switch=kill)))
+    return ModeloUsuario(
+        mem, motor=MotorAutomatizacion(EjecutorModeloUsuario(mem), PermissionManager(_confirmar_mu, kill_switch=kill))
+    )
 
 
 async def _confirmar_mu(accion, args, trace_id):
     return True
-
 
 
 async def _si(a, args, tid):

@@ -47,6 +47,16 @@ async def _confirma(a, args, t):
     return True
 
 
+_HOGAR = {
+    "encender_dispositivo",
+    "apagar_dispositivo",
+    "subir_volumen",
+    "bajar_volumen",
+    "silenciar",
+    "quitar_silencio",
+}
+
+
 def _args_para(accion, raiz):
     """Argumentos validos por capacidad. Un KeyError aqui = capacidad nueva sin cobertura."""
     d = raiz / "sub"
@@ -64,6 +74,11 @@ def _args_para(accion, raiz):
         "renombrar_archivo": {"origen": str(raiz / "viejo.txt"), "destino": str(raiz / "nuevo2.txt")},
         "encender_dispositivo": {"device": "lampara"},
         "apagar_dispositivo": {"device": "lampara"},
+        # Volumen y silencio (acta 2026-10-22 §4): la frase nombra la TV, como exige la guarda del dispositivo nombrado.
+        "subir_volumen": {"device": "tele"},
+        "bajar_volumen": {"device": "tele"},
+        "silenciar": {"device": "tele"},
+        "quitar_silencio": {"device": "tele"},
     }[accion]
 
 
@@ -112,14 +127,19 @@ async def test_toda_capacidad_es_alcanzable_desde_la_conversacion(accion, tmp_pa
     # frase tiene que PEDIR una accion (`_pide_accion`). «haz algo» no nombra ningun verbo de accion: iba
     # por modo cognitivo y solo alcanzaba el adaptador porque el Core no descartaba la accion del modelo.
     # La garantia no cambia -toda capacidad declarada se alcanza HABLANDO con AURA-; cambia la frase.
-    await orch.handle_utterance("u", "ejecuta lo que te pido", tid)
+    # Semana 2: el modelo ya no puede actuar sobre un dispositivo que la persona no nombró (ADR-0014 §4),
+    # así que para las capacidades de hogar la frase nombra el dispositivo. La garantía no cambia.
+    frase = "ejecuta lo que te pido" + (f" con la {args['device']}" if accion in _HOGAR else "")
+    await orch.handle_utterance("u", frase, tid)
     res = await orch.wait(tid)
 
     assert accion in llamadas, (
         f"la capacidad '{accion}' esta declarada pero NO es alcanzable desde la conversacion "
         f"(el adaptador nunca fue invocado). Respuesta: {res['say']!r}"
     )
-    assert "ejecutada" in res["say"], f"se ejecuto pero no se informo como ejecutada: {res['say']!r}"
+    # Hogar: sin efecto VERIFICADO no se dice «ejecutada» (D-ADP-1); se dice «Envié la orden».
+    informe = "Envié la orden" if accion in _HOGAR else "ejecutada"
+    assert informe in res["say"], f"se ejecuto pero no se informo como tal: {res['say']!r}"
 
 
 @pytest.mark.asyncio

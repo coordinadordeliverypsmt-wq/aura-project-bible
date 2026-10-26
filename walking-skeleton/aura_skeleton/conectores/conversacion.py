@@ -15,9 +15,16 @@ falsa se queda.
 from __future__ import annotations
 
 import re
-import unicodedata
 
 from ..core.senales import ClaseSenal, Senal, SenalDeTercero
+
+# La regla léxica de sujeto (tercero vs. usuario) vive ahora en `core/sujeto.py`: una sola definición,
+# compartida con el Memory Context Builder (D-AMP-2), que la aplica en la SALIDA hacia el modelo. Aquí
+# gobierna la CAPTURA. Se reimporta con los nombres privados de siempre para no tocar el resto del
+# módulo ni las pruebas que ya dependen de `conversacion._normalizar` / `conversacion._habla_de_tercero`.
+from ..core.sujeto import TERCERO as _TERCERO  # noqa: F401  (reexportado: pruebas y legibilidad)
+from ..core.sujeto import habla_de_tercero as _habla_de_tercero
+from ..core.sujeto import normalizar as _normalizar
 
 _FUENTE = "conversacion"
 
@@ -35,34 +42,6 @@ _PREFERENCIA = (
 )
 _CORRECCION = ("no, ", "asi no", "te equivocas", "esta mal", "no es eso", "corrige")
 _FEEDBACK = ("no me gusta que", "deja de", "no vuelvas a", "me molesta")
-
-# Indicios de que la frase versa sobre otra persona. Se comprueba ANTES que las preferencias:
-# "a Ana le gusta el cafe" contiene "me gusta"... no, contiene "le gusta"; pero "a mi hermana y a mi
-# nos gusta" mezcla sujetos. Ante la mezcla, no se captura.
-_TERCERO = (
-    r"\ba (?!mi\b)\w+ le (gusta|encanta|molesta)",
-    r"\b(el|ella|ellos|ellas) (prefiere|prefieren|suele|suelen)\b",
-    # RELACIONES AMPLIADAS (CEO, 2026-09-10), condicion de la apertura posesiva de `_HECHO`. Medido
-    # antes de ampliarla: «mi abuela es enfermera», «mi primo es piloto» y «mi tio es abogado» daban
-    # `tercero=False`; hasta ahora no se guardaban solo porque `_HECHO` era una lista cerrada que no
-    # los nombraba. Al abrir la construccion posesiva, esa proteccion accidental desaparece y habria
-    # convertido a AURA en un registro sobre la familia del usuario (restriccion 3 / ALERTA-002).
-    #
-    # `prim[oa]s?\b` y `ti[oa]s?\b` llevan borde a proposito: `prim\w*` casaria «mi primera vez» y
-    # `ti[oa]\w*` casaria «mi tiovivo», y cada falso positivo aqui es un hecho del usuario que se
-    # pierde. La lista se amplia con lo que el comportamiento demostro necesario, nada mas.
-    r"\bmi (abuel\w*|prim[oa]s?|ti[oa]s?|amig\w*|herman\w*|jef\w*|vecin\w*|madre|padre|hij\w*|espos\w*|pareja)\b",
-    r"\ba \w+ le\b",
-)
-
-
-def _normalizar(texto: str) -> str:
-    t = unicodedata.normalize("NFD", texto.lower())
-    return "".join(c for c in t if unicodedata.category(c) != "Mn")
-
-
-def _habla_de_tercero(texto_norm: str) -> bool:
-    return any(re.search(p, texto_norm) for p in _TERCERO)
 
 
 # HECHOS DECLARADOS SOBRE UNO MISMO (Bible 4.4 §1, acta del CEO 2026-08-09). Alcance cerrado por el
@@ -179,6 +158,30 @@ def _es_hecho_declarado(texto_norm: str) -> bool:
     return any(re.search(p, texto_norm) for p in _HECHO)
 
 
+#: Frontera entre dos declaraciones en una misma frase hablada: «me llamo X y me gusta Y».
+_ENTRE_CLAUSULAS = re.compile(r"\s+y\s+|\s*[,;]\s*|\.\s+")
+
+
+def _unidades(texto: str) -> list[tuple[str, ClaseSenal | None]]:
+    """Las declaraciones que contiene una frase, cada una con su clase.
+
+    **Encontrado en la prueba física de voz `[EJEC]` (2026-09-27).** «Me llamo Mauricio y me gusta el
+    color verde» llegaba exacto de Whisper y AURA perdía el nombre: el conector daba UNA clase por
+    enunciado y la preferencia ganaba. El habla natural encadena datos así.
+
+    Se parte **solo si TODAS las partes declaran algo**. Es conservador a propósito: «trabajo de
+    logística y transporte» tiene una parte («transporte») que no declara nada, así que se trata
+    entera y el hecho no se trunca. Y si ninguna división es válida, el resultado es exactamente el
+    de antes de este cambio.
+    """
+    partes = [p.strip(" .") for p in _ENTRE_CLAUSULAS.split(texto) if p.strip(" .")]
+    if len(partes) > 1:
+        clases = [_clasificar(_normalizar(p)) for p in partes]
+        if all(c is not None for c in clases):
+            return list(zip(partes, clases, strict=True))
+    return [(texto, _clasificar(_normalizar(texto)))]
+
+
 def _clasificar(texto_norm: str) -> ClaseSenal | None:
     """Una sola clase por enunciado, de la mas especifica a la mas general.
 
@@ -218,9 +221,10 @@ class ConectorConversacion:
     async def recoger(self, trace_id: str) -> list[Senal]:
         pendientes, self._pendientes = self._pendientes, []
         senales: list[Senal] = []
-        for texto in pendientes:
+        # Cada enunciado puede contener varias declaraciones (`_unidades`): se registra cada una.
+        unidades = [u for enunciado in pendientes for u in _unidades(enunciado)]
+        for texto, clase in unidades:
             norm = _normalizar(texto)
-            clase = _clasificar(norm)
             if clase is None:
                 continue
             try:
@@ -243,4 +247,13 @@ def es_declaracion_de_hecho_propio(texto: str) -> bool:
     siendo asunto exclusivo de `ConectorConversacion.recoger`; quien consulta esta funcion solo sabe
     QUE CLASE de enunciado es, nunca si la captura llego a guardarlo.
     """
+    unidades = _unidades(texto)
+    if len(unidades) > 1:
+        # Una frase con varias declaraciones es una declaracion si al menos una es un hecho propio
+        # y ninguna es otra cosa que un hecho o un gusto: «me llamo Mauricio y me gusta el verde».
+        clases = {clase for _t, clase in unidades}
+        return ClaseSenal.HECHO_DECLARADO in clases and clases <= {
+            ClaseSenal.HECHO_DECLARADO,
+            ClaseSenal.PREFERENCIA_DECLARADA,
+        }
     return _clasificar(_normalizar(texto)) is ClaseSenal.HECHO_DECLARADO

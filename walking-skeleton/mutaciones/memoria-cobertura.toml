@@ -37,12 +37,15 @@ sustituir = '''        for termino in set(item["content"].lower().split()):'''
 
 [[mutante]]
 id = "M4"
-garantia = "se pierde el salto de terminos ubicuos: el recall vuelve a coste lineal (rompe MA.2a)"
+garantia = "el prefijo deja de tomar las listas de posteo MAS CORTAS: recall examina el termino ubicuo y vuelve a coste lineal (rompe MA.2a)"
 fichero = "aura_skeleton/modules/memory.py"
-buscar = '''            if candidatos and len(posteo) > self._UMBRAL_UBICUO:
-                continue'''
-sustituir = '''            if False:
-                continue'''
+# RE-ANCLADO 2026-10-12 (D-M-1 A′): el salto heuristico de ubicuos (`continue`) se sustituyo por el filtro
+# de prefijo. La MISMA garantia de MA.2a —no examinar la lista ubicua en el caso normal— la sostiene ahora
+# ordenar por longitud ascendente y tomar solo las n-m+1 mas cortas. Mutar el orden a descendente hace que
+# el prefijo tome la lista ubicua; la EXACTITUD no cambia (palomar), pero se viola MA.2a. Misma prueba.
+pruebas = ["tests/performance/test_escalabilidad_memoria.py::test_el_recall_no_recorre_el_corpus_ni_examina_terminos_ubicuos"]
+buscar = '''        listas = sorted((self._indice.get((user_id, t), ()) for t in consulta), key=len)'''
+sustituir = '''        listas = sorted((self._indice.get((user_id, t), ()) for t in consulta), key=lambda x: -len(x))'''
 
 [[mutante]]
 id = "M5"

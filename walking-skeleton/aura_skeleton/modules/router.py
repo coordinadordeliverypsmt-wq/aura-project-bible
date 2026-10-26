@@ -59,6 +59,22 @@ class ProveedoresNoDisponibles(RuntimeError):
     ya capturaba `RuntimeError` generico (p.ej. `__main__._conversar`) sigue funcionando sin cambios."""
 
 
+class LimiteDelProveedor(RuntimeError):
+    """El proveedor ESTABA disponible, pero el turno alcanzo un limite: `tiempo` (el timeout del cliente)
+    o `longitud` (el tope de generacion, con la respuesta cortada). DR-3 (CEO, 2026-09-15).
+
+    No es un fallo del proveedor, y por eso el router la trata distinto: **no abre el circuito** —abrirlo
+    haria que el turno siguiente respondiera «no disponible» sin llamar siquiera, que es falso— y **no
+    prueba otro proveedor** —repetir una inferencia que ya agoto el tiempo doblaria la espera del peor
+    caso—. Subclase de `RuntimeError` por compatibilidad, como `ProveedoresNoDisponibles`: el nucleo la
+    reconoce por el atributo `limite`, sin importar este modulo.
+    """
+
+    def __init__(self, limite: str, detalle: str = "") -> None:
+        super().__init__(f"limite '{limite}' alcanzado{': ' + detalle if detalle else ''}")
+        self.limite = limite
+
+
 class _EstadoCircuito:
     """Los tres estados del circuit breaker de UN proveedor (D-FC-7). Constantes, no un enum: el
     resto del modulo solo las compara por igualdad y un enum no aporta nada aqui."""
@@ -134,6 +150,12 @@ class ModelRouter:
                     out = await prov.infer(prompt, modo)
                 except TypeError:
                     out = await prov.infer(prompt)
+            except LimiteDelProveedor as e:
+                # Ni circuito ni fallback: ver la docstring de `LimiteDelProveedor`. Se audita igual.
+                obs.log(
+                    "WARN", "router", f"{prov.name}: {e}; circuito sin cambios, sin reintento", trace_id, audit=True
+                )
+                raise
             except Exception as e:
                 circuito.abrir(ahora)
                 origen = "prueba SEMIABIERTA" if estado == _EstadoCircuito.SEMIABIERTO else "fallback"

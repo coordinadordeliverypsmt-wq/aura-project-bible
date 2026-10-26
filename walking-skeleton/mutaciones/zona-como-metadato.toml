@@ -1,0 +1,119 @@
+incremento = "Zona como metadato: nombre/zona saneados, superficie solo con URL, audio/evento sin nombre preguntan sin capturar"
+pruebas = [
+    "tests/unit/test_zona_como_metadato.py",
+    "tests/unit/test_politica_superficie.py",
+    "tests/integration/test_camaras_sin_nombre_audio_y_movimiento.py",
+    "tests/integration/test_pregunta_por_camara_sin_nombre.py",
+    "tests/unit/test_deteccion_movimiento.py",
+    "tests/unit/test_percepcion_auditiva.py",
+    "tests/integration/test_observacion_en_conversacion.py",
+]
+
+[[mutante]]
+id = "Z1"
+garantia = "la zona dormitorio/privada/habitacion vuelve a denegar el acceso"
+fichero = "aura_skeleton/core/politica_superficie.py"
+buscar = '''        if s is None or not s.autorizado:
+            return False
+'''
+sustituir = '''        if s is None or not s.autorizado:
+            return False
+        if s.zona in ("dormitorio", "privada", "habitacion"):
+            return False
+'''
+
+[[mutante]]
+id = "Z2"
+garantia = "sin zona declarada el codigo se inventa «interior»"
+fichero = "aura_skeleton/composicion.py"
+buscar = '''if re.fullmatch(r"[a-z0-9 _-]{1,32}", zona) else "desconocida"'''
+sustituir = '''if re.fullmatch(r"[a-z0-9 _-]{1,32}", zona) else "interior"'''
+
+[[mutante]]
+id = "Z3"
+garantia = "el nombre de la camara no se sanea"
+fichero = "aura_skeleton/composicion.py"
+buscar = '''    return nombre if _NOMBRE_DE_SUPERFICIE.fullmatch(nombre) and nombre != "local" else "camara"'''
+sustituir = '''    return nombre or "camara"'''
+
+[[mutante]]
+id = "Z4"
+garantia = "el nombre «local» suplanta a la camara local"
+fichero = "aura_skeleton/composicion.py"
+buscar = '''fullmatch(nombre) and nombre != "local" else "camara"'''
+sustituir = '''fullmatch(nombre) else "camara"'''
+
+[[mutante]]
+id = "Z5"
+garantia = "se registra una superficie de red sin AURA_CAMARA_RTSP ni AUDIO_RTSP"
+fichero = "aura_skeleton/composicion.py"
+buscar = '''    if _cam_url or _aud_url:
+        _superficies.append('''
+sustituir = '''    if True:
+        _superficies.append('''
+
+[[mutante]]
+id = "Z6"
+garantia = "las camaras autorizadas para AUDIO se filtran por permiso de video"
+fichero = "aura_skeleton/core/percepcion.py"
+buscar = '''if self._politica.puede_procesar_audio(s)]'''
+sustituir = '''if self._politica.puede_procesar_visual(s)]'''
+
+[[mutante]]
+id = "Z7"
+garantia = "las camaras autorizadas para EVENTO dejan de filtrarse por politica"
+fichero = "aura_skeleton/core/percepcion.py"
+buscar = '''no procesa ningún fotograma."""
+        if self._politica is None:
+            return sorted(self._fuentes)
+        return [s for s in sorted(self._fuentes) if self._politica.puede_procesar_visual(s)]'''
+sustituir = '''no procesa ningún fotograma."""
+        return sorted(self._fuentes)'''
+
+[[mutante]]
+id = "Z8"
+garantia = "preguntar por audio sin nombre escucha las camaras en vez de preguntar"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            resp = percepcion.pedir_camara(pa.superficies_autorizadas(), "escuchar", "qué oyes")'''
+sustituir = '''            _ = [pa.observar_audio(s, tid) for s in pa.superficies_autorizadas()]
+            resp = percepcion.pedir_camara(pa.superficies_autorizadas(), "escuchar", "qué oyes")'''
+
+[[mutante]]
+id = "Z9"
+garantia = "preguntar por movimiento sin nombre procesa las camaras en vez de preguntar"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            resp = percepcion.pedir_camara(pe.superficies_autorizadas(), "vigilar", "hay movimiento")'''
+sustituir = '''            _ = [pe.observar_evento(s, tid) for s in pe.superficies_autorizadas()]
+            resp = percepcion.pedir_camara(pe.superficies_autorizadas(), "vigilar", "hay movimiento")'''
+
+[[mutante]]
+id = "Z10"
+garantia = "pedir_camara vuelve a afirmar «Puedo mirar» (promete acceso no comprobado)"
+fichero = "aura_skeleton/core/percepcion.py"
+buscar = '''f"¿Qué cámara? Cámaras que puedo intentar {verbo}: {lista}. "'''
+sustituir = '''f"¿Qué cámara? Puedo {verbo}: {lista}. "'''
+
+[[mutante]]
+id = "Z11"
+garantia = "sin imagen se dice «No detecté movimiento» (hubo_frame ignorado)"
+fichero = "aura_skeleton/core/percepcion.py"
+buscar = '''    if not ev.detectado and not ev.hubo_frame:'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "Z12"
+garantia = "el reconocedor auditivo sin camara deja de ser frase cerrada (search)"
+fichero = "aura_skeleton/core/percepcion.py"
+buscar = '''que escuchas|que se escucha) en la camara"
+    return re.fullmatch(patron, _normalizar(texto)) is not None'''
+sustituir = '''que escuchas|que se escucha) en la camara"
+    return re.search(patron, _normalizar(texto)) is not None'''
+
+[[mutante]]
+id = "Z13"
+garantia = "el reconocedor de evento sin camara deja de ser frase cerrada (search)"
+fichero = "aura_skeleton/core/percepcion.py"
+buscar = '''detectas movimiento) en la camara"
+    return re.fullmatch(patron, _normalizar(texto)) is not None'''
+sustituir = '''detectas movimiento) en la camara"
+    return re.search(patron, _normalizar(texto)) is not None'''

@@ -4,6 +4,7 @@ En produccion: Qdrant (ADR-0007). Aqui: store simple con procedencia y no-fabric
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import unicodedata
@@ -147,6 +148,9 @@ class PersistentMemory:
         self._items: list[dict] = []
         self._indice: dict[tuple[str, str], list[int]] = {}
         self._cache_terminos: dict[int, set[str]] = {}  # termino -> posiciones (MA.2a)
+        # D-M-1 A′: recuerdos por usuario, para la cota de seguridad del recall (α·N). O(1) en write;
+        # se recomputa al reconstruir el indice. No se persiste: es estado derivado de `_items`.
+        self._conteo_usuario: dict[str, int] = {}
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         os.makedirs(self._bdir, exist_ok=True)
         self._load()
@@ -158,6 +162,7 @@ class PersistentMemory:
         item = {"user_id": user_id, "kind": kind, "content": content, "provenance": provenance}
         self._items.append(item)
         self._indexar(len(self._items) - 1, item)
+        self._conteo_usuario[user_id] = self._conteo_usuario.get(user_id, 0) + 1
         self._anexar(item)  # MA.2a: append O(1), no reescritura del historial completo
         obs.log("MEM", "memory", f"write [{kind}] '{content[:40]}'", provenance.get("trace_id", "-"))
 
@@ -167,11 +172,11 @@ class PersistentMemory:
         Antes recorria TODOS los items en cada turno (R-1): 0,55 ms con 300 recuerdos, 9,22 ms con
         3.000.
 
-        ALCANCE VERIFICADO DE LA EQUIVALENCIA. El resultado coincide con el del barrido completo
-        MIENTRAS ningun termino de la consulta supere `_UMBRAL_UBICUO` posteos, que es el unico
-        regimen que la bateria oficial puede ejercitar (65 recuerdos < 256). Por encima de ese
-        umbral la equivalencia NO se sostiene: ver D-M-1 en DEUDA-N1-RECUPERADOR.md, con el
-        contraejemplo reproducible. Es un limite heredado de MA.2a, no de la cobertura.
+        EQUIVALENCIA EXACTA CON EL BARRIDO COMPLETO (D-M-1 A′, CEO 2026-10-12). La generacion de
+        candidatos usa filtro de prefijo con cota de seguridad: el resultado coincide con la fuerza
+        bruta en TODOS los regimenes, incluido el ubicuo (>`_UMBRAL_UBICUO`) que antes producia falsos
+        negativos (D-M-1). Antes se saltaban los terminos ubicuos y un recuerdo cuyo unico solape con la
+        consulta fueran esos terminos nunca entraba en candidatos; ya no.
         """
         consulta = _terminos(query)
         if not consulta:
@@ -180,20 +185,28 @@ class PersistentMemory:
             obs.log("MEM", "memory", f"recall '{query[:30]}' -> 0 hit(s)", "-")
             return []
 
-        # CANDIDATOS solo desde los terminos SELECTIVOS: se conserva intacto el salto de terminos
-        # ubicuos de MA.2a. Es posible porque la cobertura necesita la RESPUESTA a "¿contiene R el
-        # termino T?", no el METODO: en vez de recorrer la lista larga de T (coste lineal en el
-        # corpus), se mira el conjunto de terminos del propio candidato (coste constante). Verificado:
-        # resultados identicos en las 77 consultas de la bateria visitando un 35% menos de posteos.
-        # OJO: esa verificacion vive por debajo de `_UMBRAL_UBICUO` (ver docstring y D-M-1). El
-        # `continue` de abajo puede dejar fuera un recuerdo con cobertura suficiente si su unico
-        # solape con la consulta son terminos ubicuos.
-        candidatos: set[int] = set()
-        for termino in sorted(consulta, key=lambda t: len(self._indice.get((user_id, t), ()))):
-            posteo = self._indice.get((user_id, termino), ())
-            if candidatos and len(posteo) > self._UMBRAL_UBICUO:
-                continue  # los selectivos ya aportaron candidatos; este solo anadiria coste
-            candidatos |= set(posteo)
+        # D-M-1 A′ (DP-D-M-1-RECUPERACION-EXACTA.md; aprobacion CEO 2026-10-12): generacion de candidatos
+        # EXACTA por filtro de PREFIJO con cota de seguridad. Sustituye al salto heuristico de terminos
+        # ubicuos, que dejaba fuera un recuerdo cuyo unico solape con la consulta eran terminos ubicuos
+        # (falso negativo: ADR-0014 hacia que AURA negara un recuerdo que si tenia). NO cambia el criterio
+        # de cobertura (`minimo` abajo), solo QUE recuerdos se examinan.
+        n = len(consulta)
+        m = math.ceil(_COBERTURA_MINIMA * n)  # terminos minimos para alcanzar la cobertura
+        # Palomar: un recuerdo con >= m de los n terminos aparece forzosamente en alguna de las (n-m+1)
+        # listas de posteo mas cortas. Unir SOLO esas es poda exacta (no depende de cuales sean).
+        listas = sorted((self._indice.get((user_id, t), ()) for t in consulta), key=len)
+        prefijo = listas[: n - m + 1]
+        # Cota α=1: si el prefijo visitaria mas posteos que recuerdos tiene el usuario (peor caso: todos
+        # los terminos ubicuos), barrido completo de los N recuerdos del usuario. Ambas ramas son EXACTAS
+        # —por el palomar y por definicion—; la cota solo acota el coste del peor caso (MA.2a: nunca
+        # visita mas que la fuerza bruta). α=1 es la eleccion conservadora del rango util [1,2] (ver DP §4).
+        if sum(len(p) for p in prefijo) > self._conteo_usuario.get(user_id, 0):
+            candidatos: list[int] = [idx for idx, it in enumerate(self._items) if it["user_id"] == user_id]
+        else:
+            cand: set[int] = set()
+            for p in prefijo:
+                cand |= set(p)
+            candidatos = sorted(cand)
 
         minimo = _COBERTURA_MINIMA * len(consulta)
         # Desempate por posicion en el almacen: dos recuerdos con la misma cobertura salen SIEMPRE en
@@ -201,8 +214,11 @@ class PersistentMemory:
         # proceso: la misma consulta podia devolver recuerdos distintos en dos arranques (comprobado).
         # El historico no recuperable se descarta ANTES de puntuar: no compite, no desplaza a un
         # recuerdo real por el hueco `k`, y no puede colarse por un empate.
-        puntuados = [(idx, len(consulta & self._terminos_item(idx)))
-                     for idx in sorted(candidatos) if es_recuperable(self._items[idx])]
+        puntuados = [
+            (idx, len(consulta & self._terminos_item(idx)))
+            for idx in sorted(candidatos)
+            if es_recuperable(self._items[idx])
+        ]
         mejores = sorted(
             ((idx, n) for idx, n in puntuados if n >= minimo),
             key=lambda par: (-par[1], par[0]),
@@ -212,10 +228,12 @@ class PersistentMemory:
         return hits
 
     def olvidar(self, predicado) -> int:
-        """Elimina las entradas que cumplen `predicado`, reconstruye el indice y PERSISTE el borrado.
+        """Retira de la proyeccion las entradas que cumplen `predicado`, reconstruye el indice y PERSISTE la baja.
 
-        Soberania del usuario (ADR-0017): un "olvida esto" debe sobrevivir al reinicio. Antes, borrar solo
-        mutaba la lista en memoria y el dato reaparecia al releer el JSONL; aqui se reescribe el fichero.
+        Soberania del usuario (ADR-0017): un "olvida esto" debe sobrevivir al reinicio. Desde G-7 la baja se
+        persiste ANEXANDO una lapida (copia de la entrada con `_LAPIDA`), no reescribiendo el fichero: el
+        historial fisico conserva la linea original y la lapida, y el contenido sigue en disco. La purga fisica
+        no esta implementada (ver el comentario de abajo y DP-S3-RELOJ-CM2 §4.1).
         """
         bajas = [i for i in self._items if predicado(i)]
         self._items = [i for i in self._items if not predicado(i)]
@@ -272,8 +290,10 @@ class PersistentMemory:
     def _reconstruir_indice(self) -> None:
         self._indice = {}
         self._cache_terminos = {}
+        self._conteo_usuario = {}
         for idx, item in enumerate(self._items):
             self._indexar(idx, item)
+            self._conteo_usuario[item["user_id"]] = self._conteo_usuario.get(item["user_id"], 0) + 1
 
     def _anexar(self, item: dict) -> None:
         """Escritura incremental en JSONL. Un corte solo puede danar la ultima linea."""

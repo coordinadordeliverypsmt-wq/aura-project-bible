@@ -1,0 +1,40 @@
+incremento = "La consulta de automatizaciones deja de quedarse con declaraciones (2026-09-15): «mis reglas de casa son otras» ya no responde «No tienes ninguna automatizacion activa»"
+pruebas = ["tests/unit/test_consulta_de_reglas.py"]
+timeout_s = 180
+
+# Defecto §4.6 del CHECKLIST, abierto desde 2026-08-02 y vuelto a medir el 2026-09-15 ejecutando AURA.
+# Los dos mutantes atacan los DOS lados del arreglo, que es lo que lo hace un arreglo y no un apagon:
+# quitar la guarda devuelve el falso positivo; ensancharla mata la superficie entera. Una prueba que
+# solo cubriera uno de los dos lados dejaria pasar el otro.
+
+[[mutante]]
+id = "CR-M1"
+garantia = "vuelve el falso positivo: una declaracion sobre las propias reglas se responde como si fuera una consulta de automatizaciones"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/unit/test_consulta_de_reglas.py::test_la_declaracion_ya_no_recibe_la_respuesta_de_automatizaciones",
+           "tests/unit/test_consulta_de_reglas.py::test_una_declaracion_sobre_las_propias_reglas_no_es_una_consulta"]
+buscar = '''    if _DECLARA_SOBRE_SUS_REGLAS.search(t):
+        return False'''
+sustituir = '''    if False:
+        return False'''
+
+[[mutante]]
+id = "CR-M2"
+garantia = "la guarda se ensancha hasta tragarselo todo: las consultas de verdad dejan de reconocerse y la superficie muere entera"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/unit/test_consulta_de_reglas.py::test_CONTROL_la_consulta_real_si_recibe_la_respuesta_de_automatizaciones",
+           "tests/unit/test_consulta_de_reglas.py::test_las_consultas_de_verdad_siguen_activando_la_superficie"]
+buscar = '''    if _DECLARA_SOBRE_SUS_REGLAS.search(t):
+        return False
+    return any(p in t for p in _PAT_REGLAS_VER)'''
+sustituir = '''    if True:
+        return False
+    return any(p in t for p in _PAT_REGLAS_VER)'''
+
+[[mutante]]
+id = "CR-M3"
+garantia = "se pierde la asimetria del ORDEN: el verbo deja de tener que ir DETRAS de «mis reglas», y «¿cuales son mis reglas?» -que es una pregunta legitima- pasa a leerse como declaracion"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/unit/test_consulta_de_reglas.py::test_las_consultas_de_verdad_siguen_activando_la_superficie"]
+buscar = '''_DECLARA_SOBRE_SUS_REGLAS = re.compile(r"\bmis? reglas\b[^.?!¿]*\b(?:son|es|eran|fueron)\b")'''
+sustituir = '''_DECLARA_SOBRE_SUS_REGLAS = re.compile(r"\b(?:son|es|eran|fueron)\b|\bmis? reglas\b")'''

@@ -59,8 +59,14 @@ sustituir = '''        if False:
 id = "BLQ-M7"
 descripcion = "el audit deja de decir QUE se borro: solo cuenta (G-6 degradada)"
 fichero = "aura_skeleton/core/ejecutor_modelo_usuario.py"
-buscar = '''                    f"olvidadas {n} entrada(s) sobre '{user_id}': {afectadas!r}", trace_id, audit=True)'''
-sustituir = '''                    f"olvidadas {n} entrada(s)", trace_id, audit=True)'''
+buscar = '''            obs.log(
+                "MODELO",
+                "ejecutor-modelo",
+                f"olvidadas {n} entrada(s) sobre '{user_id}': {afectadas!r}",
+                trace_id,
+                audit=True,
+            )'''
+sustituir = '''            obs.log("MODELO", "ejecutor-modelo", f"olvidadas {n} entrada(s)", trace_id, audit=True)'''
 
 [[mutante]]
 id = "BLQ-M8"
@@ -85,7 +91,5 @@ sustituir = '''        return self'''
 id = "BLQ-M11"
 descripcion = "corregir registra la version nueva pero NO marca la anterior como refutada"
 fichero = "aura_skeleton/core/modelo_usuario.py"
-buscar = '''        await self._por_el_motor(
-            "refutar_informacion_usuario", {"user_id": user_id, "contiene": anterior}
-        )'''
+buscar = '''        await self._por_el_motor("refutar_informacion_usuario", {"user_id": user_id, "contiene": anterior})'''
 sustituir = '''        pass'''

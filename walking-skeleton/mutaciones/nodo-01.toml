@@ -1,0 +1,590 @@
+incremento = '''NODO-01: latidos de nodos, receptor, identidad, agente y cableado (DP-NODO-01)'''
+pruebas = ["tests/unit/test_nodos.py", "tests/unit/test_receptor_nodos.py", "tests/unit/test_informe_nodos.py", "tests/unit/test_identidad_nodo.py", "tests/unit/test_nodo_agente.py", "tests/integration/test_cli_nodos.py"]
+timeout_s = 300
+
+[[mutante]]
+id = "N1"
+garantia = '''OFFLINE salta en la frontera exacta de 3 x intervalo (> pasa a >=)'''
+fichero = "aura_skeleton/core/nodos.py"
+buscar = '''if edad > limite:'''
+sustituir = '''if edad >= limite:'''
+
+[[mutante]]
+id = "N2"
+garantia = '''un receptor muerto ya no da UNKNOWN'''
+fichero = "aura_skeleton/core/nodos.py"
+buscar = '''    if not receptor_vivo:
+        return UNKNOWN, "HC-1 no está escuchando"
+'''
+sustituir = '''    if False:
+        return UNKNOWN, "HC-1 no está escuchando"
+'''
+
+[[mutante]]
+id = "N3"
+garantia = '''las metricas omitidas ya no degradan el nodo'''
+fichero = "aura_skeleton/core/nodos.py"
+buscar = '''if registro.latido.omitidas or faltan:'''
+sustituir = '''if faltan:'''
+
+[[mutante]]
+id = "N4"
+garantia = '''una metrica minima ausente se ignora (no degrada)'''
+fichero = "aura_skeleton/core/nodos.py"
+buscar = '''if registro.latido.omitidas or faltan:'''
+sustituir = '''if registro.latido.omitidas:'''
+
+[[mutante]]
+id = "N5"
+garantia = '''un latido viejo o repetido refresca recibido_en (fabrica un ONLINE falso)'''
+fichero = "aura_skeleton/core/nodos.py"
+buscar = '''            return "descartado"
+'''
+sustituir = '''            self._por_id[latido.nodo_id] = RegistroNodo(latido, ahora, previo.primer_contacto, previo.reinicios)
+            return "descartado"
+'''
+
+[[mutante]]
+id = "N6"
+garantia = '''un latido con la misma secuencia ya no se descarta (<= pasa a <)'''
+fichero = "aura_skeleton/core/nodos.py"
+buscar = '''if latido.secuencia <= previo.latido.secuencia:'''
+sustituir = '''if latido.secuencia < previo.latido.secuencia:'''
+
+[[mutante]]
+id = "N7"
+garantia = '''validar_latido acepta campos extra (esquema ya no es cerrado)'''
+fichero = "aura_skeleton/core/nodos.py"
+buscar = '''if set(datos) != set(_CAMPOS):'''
+sustituir = '''if not set(_CAMPOS) <= set(datos):'''
+
+[[mutante]]
+id = "N8"
+garantia = '''un booleano se acepta como numero (recursos/intervalo)'''
+fichero = "aura_skeleton/core/nodos.py"
+buscar = '''isinstance(valor, (int, float)) and not isinstance(valor, bool) and math.isfinite(valor)'''
+sustituir = '''isinstance(valor, (int, float)) and math.isfinite(valor)'''
+
+[[mutante]]
+id = "N9"
+garantia = '''un booleano se acepta como secuencia'''
+fichero = "aura_skeleton/core/nodos.py"
+buscar = '''if not isinstance(valor, int) or isinstance(valor, bool) or valor < 0:'''
+sustituir = '''if not isinstance(valor, int) or valor < 0:'''
+
+[[mutante]]
+id = "N10"
+garantia = '''valores no finitos (inf/nan) aceptados como numero'''
+fichero = "aura_skeleton/core/nodos.py"
+buscar = '''isinstance(valor, (int, float)) and not isinstance(valor, bool) and math.isfinite(valor)'''
+sustituir = '''isinstance(valor, (int, float)) and not isinstance(valor, bool)'''
+
+[[mutante]]
+id = "N11"
+garantia = '''el mensaje de error de nombre incluye el valor recibido'''
+fichero = "aura_skeleton/core/nodos.py"
+buscar = '''caracteres")
+    return valor
+
+
+def _agente'''
+sustituir = '''caracteres: {valor!r}")
+    return valor
+
+
+def _agente'''
+
+[[mutante]]
+id = "N12"
+garantia = '''el mensaje de error de clave incluye el valor recibido'''
+fichero = "aura_skeleton/core/nodos.py"
+buscar = '''"las claves deben cumplir [a-z0-9_]{1,40}"'''
+sustituir = '''f"las claves deben cumplir [a-z0-9_]{{1,40}}: {valor!r}"'''
+
+[[mutante]]
+id = "N13"
+garantia = '''una edad negativa (reloj retrocede) pasa a OFFLINE'''
+fichero = "aura_skeleton/core/nodos.py"
+buscar = '''edad = max(0.0, ahora - registro.recibido_en)'''
+sustituir = '''edad = abs(ahora - registro.recibido_en)'''
+
+[[mutante]]
+id = "N14"
+garantia = '''capacidades_de no usa el catalogo real (registro vacio)'''
+fichero = "aura_skeleton/core/nodos.py"
+buscar = '''CapabilityRegistry(catalogo())'''
+sustituir = '''CapabilityRegistry([])'''
+
+[[mutante]]
+id = "N15"
+garantia = '''la tolerancia de 3 intervalos pasa a 4'''
+fichero = "aura_skeleton/core/nodos.py"
+buscar = '''TOLERANCIA_INTERVALOS = 3
+'''
+sustituir = '''TOLERANCIA_INTERVALOS = 4
+'''
+
+[[mutante]]
+id = "N16"
+garantia = '''un reinicio de arranque no cuenta como reinicio'''
+fichero = "aura_skeleton/core/nodos.py"
+buscar = '''previo.primer_contacto, previo.reinicios + 1)'''
+sustituir = '''previo.primer_contacto, previo.reinicios)'''
+
+[[mutante]]
+id = "N17"
+garantia = '''el subject de latido acepta ids que no son 32 hex'''
+fichero = "aura_skeleton/core/nodos.py"
+buscar = '''return candidato if _RE_ID.fullmatch(candidato) is not None else None'''
+sustituir = '''return candidato'''
+
+[[mutante]]
+id = "N18"
+garantia = '''al releer el registro la clave deja de comprobarse contra el nodo_id del latido'''
+fichero = "aura_skeleton/core/nodos.py"
+buscar = '''            if latido.nodo_id != nodo_id:
+                raise _fallo("nodos", "la clave debe coincidir con el nodo_id del latido")
+'''
+sustituir = ''''''
+
+[[mutante]]
+id = "R1"
+garantia = '''la suplantacion (id del subject distinto del id del payload) ya no se rechaza'''
+fichero = "aura_skeleton/adapters/receptor_nodos.py"
+buscar = '''if id_subject is None or id_subject != payload.get("nodo_id"):'''
+sustituir = '''if id_subject is None:'''
+
+[[mutante]]
+id = "R2"
+garantia = '''un latido invalido se registra igual (se salta la validacion)'''
+fichero = "aura_skeleton/adapters/receptor_nodos.py"
+buscar = '''            latido = validar_latido(payload)
+'''
+sustituir = '''            latido = __import__("aura_skeleton.core.nodos", fromlist=["Latido"]).Latido(**{k: payload.get(k) for k in ("esquema", "nodo_id", "nombre", "secuencia", "arranque", "intervalo_s", "recursos", "omitidas", "agente")})
+            validar_latido(payload) if False else None
+'''
+
+[[mutante]]
+id = "R3"
+garantia = '''el registro se escribe con permisos 0644 en vez de 0600'''
+fichero = "aura_skeleton/adapters/receptor_nodos.py"
+buscar = '''os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(contenido'''
+sustituir = '''os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(contenido'''
+
+[[mutante]]
+id = "R4"
+garantia = '''el directorio de registro queda con 0755 en vez de 0700'''
+fichero = "aura_skeleton/adapters/receptor_nodos.py"
+buscar = '''os.chmod(carpeta, 0o700)'''
+sustituir = '''os.chmod(carpeta, 0o755)'''
+
+[[mutante]]
+id = "R5"
+garantia = '''un registro corrupto se BORRA en vez de apartarse (se pierde la evidencia)'''
+fichero = "aura_skeleton/adapters/receptor_nodos.py"
+buscar = '''os.replace(destino, apartado)'''
+sustituir = '''os.remove(destino)'''
+
+[[mutante]]
+id = "R6"
+garantia = '''un registro corrupto no se aparta ni se borra (se sobrescribe despues)'''
+fichero = "aura_skeleton/adapters/receptor_nodos.py"
+buscar = '''os.replace(destino, apartado)'''
+sustituir = '''pass'''
+
+[[mutante]]
+id = "R7"
+garantia = '''--nodos considera siempre vivo al receptor'''
+fichero = "aura_skeleton/adapters/receptor_nodos.py"
+buscar = '''receptor_vivo, texto_receptor = _estado_receptor(registro_dict.get("receptor"), ahora)
+'''
+sustituir = '''receptor_vivo, texto_receptor = _estado_receptor(registro_dict.get("receptor"), ahora)
+    receptor_vivo = True
+'''
+
+[[mutante]]
+id = "R8"
+garantia = '''el receptor se considera vivo exactamente en la frontera de 30 s (<= pasa a <)'''
+fichero = "aura_skeleton/adapters/receptor_nodos.py"
+buscar = '''if edad <= TOLERANCIA_RECEPTOR_S:'''
+sustituir = '''if edad < TOLERANCIA_RECEPTOR_S:'''
+
+[[mutante]]
+id = "R9"
+garantia = '''manejar no persiste el registro tras aceptar un latido'''
+fichero = "aura_skeleton/adapters/receptor_nodos.py"
+buscar = '''        self._persistir()
+        return transicion'''
+sustituir = '''        return transicion'''
+
+[[mutante]]
+id = "R10"
+garantia = '''latir no persiste la senal de que el receptor vive'''
+fichero = "aura_skeleton/adapters/receptor_nodos.py"
+buscar = '''        self._receptor = {"latido": self._reloj(), "pid": os.getpid()}
+        self._persistir()
+'''
+sustituir = '''        self._receptor = {"latido": self._reloj(), "pid": os.getpid()}
+'''
+
+[[mutante]]
+id = "R11"
+garantia = '''el receptor deja de verificar el certificado TLS'''
+fichero = "aura_skeleton/adapters/receptor_nodos.py"
+buscar = '''ssl.create_default_context(cafile=ca)'''
+sustituir = '''ssl._create_unverified_context()'''
+pruebas = ["tests/integration/test_nodo_e2e_nats.py", "tests/unit/test_nodos.py", "tests/unit/test_receptor_nodos.py", "tests/unit/test_informe_nodos.py", "tests/unit/test_identidad_nodo.py", "tests/unit/test_nodo_agente.py", "tests/integration/test_cli_nodos.py"]
+
+[[mutante]]
+id = "R12"
+garantia = '''el receptor se suscribe a un subject que no es nodo.latido.*'''
+fichero = "aura_skeleton/adapters/receptor_nodos.py"
+buscar = '''f"{PREFIJO_SUBJECT}.*"'''
+sustituir = '''f"{PREFIJO_SUBJECT}.x"'''
+pruebas = ["tests/integration/test_nodo_e2e_nats.py", "tests/unit/test_nodos.py", "tests/unit/test_receptor_nodos.py", "tests/unit/test_informe_nodos.py", "tests/unit/test_identidad_nodo.py", "tests/unit/test_nodo_agente.py", "tests/integration/test_cli_nodos.py"]
+
+[[mutante]]
+id = "R13"
+garantia = '''el receptor no emite su propio latido de vida (siempre UNKNOWN)'''
+fichero = "aura_skeleton/adapters/receptor_nodos.py"
+buscar = '''                self._paso_de_vida(bus)
+                await asyncio.sleep(intervalo_vida)'''
+sustituir = '''                await asyncio.sleep(intervalo_vida)'''
+pruebas = ["tests/integration/test_nodo_e2e_nats.py", "tests/unit/test_nodos.py", "tests/unit/test_receptor_nodos.py", "tests/unit/test_informe_nodos.py", "tests/unit/test_identidad_nodo.py", "tests/unit/test_nodo_agente.py", "tests/integration/test_cli_nodos.py"]
+
+[[mutante]]
+id = "R14"
+garantia = '''el receptor no pasa tls a la conexion NATS'''
+fichero = "aura_skeleton/adapters/receptor_nodos.py"
+buscar = '''            tls=ctx,
+            allow_reconnect=True,
+            max_reconnect_attempts=-1,
+            reconnect_time_wait=2,
+        )
+        try:
+            bus.subscribe'''
+sustituir = '''            allow_reconnect=True,
+            max_reconnect_attempts=-1,
+            reconnect_time_wait=2,
+        )
+        try:
+            bus.subscribe'''
+pruebas = ["tests/integration/test_nodo_e2e_nats.py", "tests/unit/test_nodos.py", "tests/unit/test_receptor_nodos.py", "tests/unit/test_informe_nodos.py", "tests/unit/test_identidad_nodo.py", "tests/unit/test_nodo_agente.py", "tests/integration/test_cli_nodos.py"]
+
+[[mutante]]
+id = "I1"
+garantia = '''una identidad con nodo_id invalido se regenera en silencio'''
+fichero = "aura_skeleton/adapters/identidad_nodo.py"
+buscar = '''raise IdentidadCorrupta("nodo_id ausente o con formato inválido")'''
+sustituir = '''return uuid.uuid4().hex'''
+
+[[mutante]]
+id = "I2"
+garantia = '''una identidad ilegible/corrupta se regenera en silencio'''
+fichero = "aura_skeleton/adapters/identidad_nodo.py"
+buscar = '''raise IdentidadCorrupta(f"identidad ilegible: {type(e).__name__}") from e'''
+sustituir = '''return uuid.uuid4().hex'''
+
+[[mutante]]
+id = "I3"
+garantia = '''un fichero de identidad enlace simbolico se acepta (sin is_symlink ni O_NOFOLLOW)'''
+fichero = "aura_skeleton/adapters/identidad_nodo.py"
+buscar = '''    if fichero.is_symlink():
+        raise IdentidadCorrupta("el fichero de identidad es un enlace simbólico")
+    try:
+        # O_NOFOLLOW cierra la carrera entre la comprobación anterior y la apertura.
+        fd = os.open(fichero, os.O_RDONLY | os.O_NOFOLLOW)'''
+sustituir = '''    try:
+        fd = os.open(fichero, os.O_RDONLY)'''
+
+[[mutante]]
+id = "I4"
+garantia = '''un directorio nodo que es enlace simbolico se acepta'''
+fichero = "aura_skeleton/adapters/identidad_nodo.py"
+buscar = '''    if directorio.is_symlink():
+        raise IdentidadCorrupta("el directorio del nodo es un enlace simbólico")
+'''
+sustituir = ''''''
+
+[[mutante]]
+id = "I5"
+garantia = '''un fichero de identidad con permisos abiertos no se corrige a 0600'''
+fichero = "aura_skeleton/adapters/identidad_nodo.py"
+buscar = '''os.chmod(fichero, _MODO_FICHERO)
+    return nodo_id'''
+sustituir = '''pass
+    return nodo_id'''
+
+[[mutante]]
+id = "I6"
+garantia = '''un directorio nodo con permisos abiertos no se corrige a 0700'''
+fichero = "aura_skeleton/adapters/identidad_nodo.py"
+buscar = '''        os.chmod(directorio, _MODO_DIR)
+'''
+sustituir = '''        pass
+'''
+
+[[mutante]]
+id = "I7"
+garantia = '''el nodo_id se deriva del hostname en vez de ser aleatorio'''
+fichero = "aura_skeleton/adapters/identidad_nodo.py"
+buscar = '''nodo_id = generar().hex'''
+sustituir = '''nodo_id = __import__("hashlib").md5(__import__("socket").gethostname().encode()).hexdigest()'''
+
+[[mutante]]
+id = "I8"
+garantia = '''la identidad no persiste: se regenera en cada arranque'''
+fichero = "aura_skeleton/adapters/identidad_nodo.py"
+buscar = '''if os.path.lexists(fichero):'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "A1"
+garantia = '''una credencial con permisos abiertos se acepta'''
+fichero = "aura_skeleton/nodo_agente.py"
+buscar = '''if os.stat(ruta).st_mode & 0o077:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "A2"
+garantia = '''el agente NATS no exige certificado (verify_mode CERT_NONE)'''
+fichero = "aura_skeleton/nodo_agente.py"
+buscar = '''ctx.verify_mode = ssl.CERT_REQUIRED'''
+sustituir = '''ctx.verify_mode = ssl.CERT_NONE'''
+pruebas = ["tests/integration/test_nodo_e2e_nats.py", "tests/unit/test_nodos.py", "tests/unit/test_receptor_nodos.py", "tests/unit/test_informe_nodos.py", "tests/unit/test_identidad_nodo.py", "tests/unit/test_nodo_agente.py", "tests/integration/test_cli_nodos.py"]
+
+[[mutante]]
+id = "A3"
+garantia = '''el agente confia en las CA del sistema en vez de la CA privada (sin cafile)'''
+fichero = "aura_skeleton/nodo_agente.py"
+buscar = '''ssl.create_default_context(cafile=os.path.join(config.datos, "ca.crt"))'''
+sustituir = '''ssl.create_default_context()'''
+pruebas = ["tests/integration/test_nodo_e2e_nats.py", "tests/unit/test_nodos.py", "tests/unit/test_receptor_nodos.py", "tests/unit/test_informe_nodos.py", "tests/unit/test_identidad_nodo.py", "tests/unit/test_nodo_agente.py", "tests/integration/test_cli_nodos.py"]
+
+[[mutante]]
+id = "A4"
+garantia = '''el agente publica estando desconectado'''
+fichero = "aura_skeleton/nodo_agente.py"
+buscar = '''if not publicador.conectado:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "A5"
+garantia = '''la secuencia del agente se reinicia a 0 en cada latido (no monotona)'''
+fichero = "aura_skeleton/nodo_agente.py"
+buscar = '''self._secuencia = 0 if self._secuencia is None else self._secuencia + 1'''
+sustituir = '''self._secuencia = 0'''
+
+[[mutante]]
+id = "A6"
+garantia = '''la contrasena puede acabar en ultimo_error (mensaje de la excepcion)'''
+fichero = "aura_skeleton/nodo_agente.py"
+buscar = '''else type(error).__name__'''
+sustituir = '''else str(error)'''
+
+[[mutante]]
+id = "A7"
+garantia = '''la conexion inicial fallida mata al agente en vez de reintentar'''
+fichero = "aura_skeleton/nodo_agente.py"
+buscar = '''            return None
+        self._espera_reconexion = ESPERA_MIN_S'''
+sustituir = '''            raise
+        self._espera_reconexion = ESPERA_MIN_S'''
+
+[[mutante]]
+id = "A8"
+garantia = '''el backoff de reconexion crece sin tope'''
+fichero = "aura_skeleton/nodo_agente.py"
+buscar = '''min(self._espera_reconexion * 2, ESPERA_MAX_S)'''
+sustituir = '''self._espera_reconexion * 2'''
+
+[[mutante]]
+id = "A9"
+garantia = '''un publish fallido mata al agente'''
+fichero = "aura_skeleton/nodo_agente.py"
+buscar = '''except Exception as e:  # noqa: BLE001 - un publish fallido'''
+sustituir = '''except ZeroDivisionError as e:  # noqa: BLE001 - un publish fallido'''
+
+[[mutante]]
+id = "A10"
+garantia = '''falta ca.crt ya no es error de configuracion'''
+fichero = "aura_skeleton/nodo_agente.py"
+buscar = '''if not os.path.isfile(os.path.join(datos, "ca.crt")):'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "A11"
+garantia = '''observability._records crece sin tope en el agente'''
+fichero = "aura_skeleton/nodo_agente.py"
+buscar = '''del obs._records[:-_REGISTROS_TRAS_RECORTE]'''
+sustituir = '''pass'''
+
+[[mutante]]
+id = "A12"
+garantia = '''la contrasena no se pasa a NatsEventBus.connect desde el agente'''
+fichero = "aura_skeleton/nodo_agente.py"
+buscar = '''            password=password,
+            tls=ctx,
+            allow_reconnect=True,
+            max_reconnect_attempts=-1,
+            reconnect_time_wait=2,
+            connect_timeout=5,'''
+sustituir = '''            tls=ctx,
+            allow_reconnect=True,
+            max_reconnect_attempts=-1,
+            reconnect_time_wait=2,
+            connect_timeout=5,'''
+pruebas = ["tests/integration/test_nodo_e2e_nats.py", "tests/unit/test_nodos.py", "tests/unit/test_receptor_nodos.py", "tests/unit/test_informe_nodos.py", "tests/unit/test_identidad_nodo.py", "tests/unit/test_nodo_agente.py", "tests/integration/test_cli_nodos.py"]
+
+[[mutante]]
+id = "C1"
+garantia = '''--nodos deja de estar cableado en main()'''
+fichero = "aura_skeleton/__main__.py"
+buscar = '''    if args.nodos:
+        return _nodos()'''
+sustituir = '''    if False:
+        return _nodos()'''
+
+[[mutante]]
+id = "C2"
+garantia = '''--receptor-nodos deja de estar cableado en main()'''
+fichero = "aura_skeleton/__main__.py"
+buscar = '''    if args.receptor_nodos:
+        return _receptor_nodos()'''
+sustituir = '''    if False:
+        return _receptor_nodos()'''
+pruebas = ["tests/integration/test_nodo_e2e_nats.py", "tests/unit/test_nodos.py", "tests/unit/test_receptor_nodos.py", "tests/unit/test_informe_nodos.py", "tests/unit/test_identidad_nodo.py", "tests/unit/test_nodo_agente.py", "tests/integration/test_cli_nodos.py"]
+
+[[mutante]]
+id = "C3"
+garantia = '''el receptor arranca sin la contrasena leida de la credencial'''
+fichero = "aura_skeleton/__main__.py"
+buscar = '''ejecutar(servidores, _USUARIO_RECEPTOR, password, ca)'''
+sustituir = '''ejecutar(servidores, _USUARIO_RECEPTOR, "", ca)'''
+pruebas = ["tests/integration/test_nodo_e2e_nats.py", "tests/unit/test_nodos.py", "tests/unit/test_receptor_nodos.py", "tests/unit/test_informe_nodos.py", "tests/unit/test_identidad_nodo.py", "tests/unit/test_nodo_agente.py", "tests/integration/test_cli_nodos.py"]
+
+[[mutante]]
+id = "C4"
+garantia = '''la credencial del receptor con permisos abiertos se acepta'''
+fichero = "aura_skeleton/__main__.py"
+buscar = '''if os.stat(ruta).st_mode & (stat.S_IRWXG | stat.S_IRWXO):'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "C5"
+garantia = '''--receptor-nodos ignora AURA_RED_URL'''
+fichero = "aura_skeleton/__main__.py"
+buscar = '''os.environ.get("AURA_RED_URL", _URL_RED_POR_DEFECTO)'''
+sustituir = '''_URL_RED_POR_DEFECTO'''
+pruebas = ["tests/integration/test_nodo_e2e_nats.py", "tests/unit/test_nodos.py", "tests/unit/test_receptor_nodos.py", "tests/unit/test_informe_nodos.py", "tests/unit/test_identidad_nodo.py", "tests/unit/test_nodo_agente.py", "tests/integration/test_cli_nodos.py"]
+
+[[mutante]]
+id = "C6"
+garantia = '''--nodos usa un registro ilegible como si estuviera vacio (sin error)'''
+fichero = "aura_skeleton/__main__.py"
+buscar = '''    except (ValueError, LatidoInvalido) as e:
+        print(f"AURA: no puedo leer el registro de nodos'''
+sustituir = '''    except ZeroDivisionError as e:
+        print(f"AURA: no puedo leer el registro de nodos'''
+
+[[mutante]]
+id = "B1"
+garantia = '''NatsEventBus.connect (lista) deja de pasar credenciales/TLS a nats.connect'''
+fichero = "aura_skeleton/bus_nats.py"
+buscar = '''nats.connect(servers=list(url), **opciones)'''
+sustituir = '''nats.connect(servers=list(url))'''
+pruebas = ["tests/integration/test_bus_nats_real.py", "tests/integration/test_nodo_e2e_nats.py"]
+
+[[mutante]]
+id = "B2"
+garantia = '''NatsEventBus.connect (url) deja de pasar credenciales/TLS a nats.connect'''
+fichero = "aura_skeleton/bus_nats.py"
+buscar = '''nats.connect(url, **opciones)'''
+sustituir = '''nats.connect(url)'''
+pruebas = ["tests/integration/test_bus_nats_real.py::test_autenticacion_correcta_conecta"]
+
+[[mutante]]
+id = "H1"
+garantia = '''el type del Event recibido sale del cuerpo JSON (suplantable) en vez del subject'''
+fichero = "aura_skeleton/bus_nats.py"
+buscar = '''type=msg.subject,'''
+sustituir = '''type=d["type"],'''
+pruebas = ["tests/integration/test_bus_nats_real.py"]
+
+[[mutante]]
+id = "M1"
+garantia = '''un nodo puede alargar su plazo de OFFLINE declarando un intervalo enorme'''
+fichero = "aura_skeleton/core/nodos.py"
+buscar = '''min(registro.latido.intervalo_s, INTERVALO_MAX_EVALUACION_S)'''
+sustituir = '''registro.latido.intervalo_s'''
+pruebas = ["tests/unit/test_nodos.py"]
+
+[[mutante]]
+id = "M2"
+garantia = '''el receptor late aunque el bus este desconectado de nats-server'''
+fichero = "aura_skeleton/adapters/receptor_nodos.py"
+buscar = '''        if bus.conectado:
+            self.latir()'''
+sustituir = '''        if True:
+            self.latir()'''
+pruebas = ["tests/unit/test_receptor_nodos.py"]
+
+[[mutante]]
+id = "D1"
+garantia = '''la conexion inicial del agente no tiene tope: nats-py con reconexion infinita nunca devuelve'''
+fichero = "aura_skeleton/nodo_agente.py"
+buscar = '''            publicador = await self._conectar_acotado()'''
+sustituir = '''            publicador = await self._fabrica()'''
+pruebas = ["tests/unit/test_nodo_agente.py"]
+
+[[mutante]]
+id = "D2"
+garantia = '''la parada (SIGTERM) ya no interrumpe una conexion inicial pendiente'''
+fichero = "aura_skeleton/nodo_agente.py"
+buscar = '''                {conexion, parada}, timeout='''
+sustituir = '''                {conexion}, timeout='''
+pruebas = ["tests/unit/test_nodo_agente.py"]
+
+[[mutante]]
+id = "D3"
+garantia = '''el contexto TLS del agente no exige VERIFY_X509_STRICT: HC-1 (3.12) y el nodo (3.13) verificarian distinto'''
+fichero = "aura_skeleton/nodo_agente.py"
+buscar = '''        ctx.verify_flags |= ssl.VERIFY_X509_STRICT'''
+sustituir = '''        pass'''
+pruebas = ["tests/unit/test_nodo_agente.py::test_la_fabrica_nats_exige_certificado_contra_la_ca_privada_y_pasa_credenciales"]
+
+[[mutante]]
+id = "MD1"
+garantia = '''el parser mDNS acepta un registro A de un nombre distinto (resolveria a la IP de otro equipo)'''
+fichero = "aura_skeleton/adapters/resolutor_mdns.py"
+buscar = '''and _normalizar(propietario) == objetivo:'''
+sustituir = '''and propietario != "":'''
+pruebas = ["tests/unit/test_resolutor_mdns.py"]
+
+[[mutante]]
+id = "MD2"
+garantia = '''el agente deja de traducir los servidores .local a IP (el nodo no reencuentra a HC-1 tras un cambio de DHCP)'''
+fichero = "aura_skeleton/nodo_agente.py"
+buscar = '''return [_traducir_servidor(s, resolutor) for s in servidores]'''
+sustituir = '''return list(servidores)'''
+pruebas = ["tests/unit/test_nodo_agente.py"]
+
+[[mutante]]
+id = "MD3"
+garantia = '''la consulta mDNS pierde el bit QU (unicast-response): la respuesta no llega a un puerto efimero'''
+fichero = "aura_skeleton/adapters/resolutor_mdns.py"
+buscar = '''_CLASE_IN_QU = 0x8001'''
+sustituir = '''_CLASE_IN_QU = 0x0001'''
+pruebas = ["tests/unit/test_resolutor_mdns.py"]
+
+[[mutante]]
+id = "MD4"
+garantia = '''la consulta mDNS pregunta un tipo distinto de A (AAAA): nunca llega una IPv4'''
+fichero = "aura_skeleton/adapters/resolutor_mdns.py"
+buscar = '''struct.pack(">HH", _TIPO_A, _CLASE_IN_QU)'''
+sustituir = '''struct.pack(">HH", 28, _CLASE_IN_QU)'''
+pruebas = ["tests/unit/test_resolutor_mdns.py"]

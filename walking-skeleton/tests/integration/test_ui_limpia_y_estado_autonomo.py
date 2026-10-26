@@ -77,8 +77,11 @@ COLA_AGOTADA = {
     "decisiones_pendientes": [{"id": "D-ORCH-6", "titulo": "..."}, {"id": "D-INT-1", "titulo": "..."}],
     "proximo_despertar": "2026-09-01T08:00:00",
     "ultima_tarea": {
-        "id": "P-016", "simbolo": "_quitar_funcion", "fichero": "/x/autoconstruccion.py",
-        "resultado": "efecto verificado", "autorizada_por": "REVIEW:auditor-consistencia",
+        "id": "P-016",
+        "simbolo": "_quitar_funcion",
+        "fichero": "/x/autoconstruccion.py",
+        "resultado": "efecto verificado",
+        "autorizada_por": "REVIEW:auditor-consistencia",
         "momento": "2026-08-31T21:44:43",
     },
     "sospecha": "",
@@ -89,8 +92,12 @@ EJECUTANDO = {
     "ultimo_ciclo": 74,
     "hora_ultimo_ciclo": "2026-09-01T08:00:02",
     "cola": {"OPORTUNIDAD_REAL": 1, "BLOQUEADA": 6, "DECISION_REQUIRED": 0, "FALSO_HUECO": 0},
-    "trabajo_bloqueado": 6, "trabajo_elevado": 0, "decisiones_pendientes": [],
-    "proximo_despertar": "2026-09-01T08:30:00", "ultima_tarea": ND, "sospecha": "",
+    "trabajo_bloqueado": 6,
+    "trabajo_elevado": 0,
+    "decisiones_pendientes": [],
+    "proximo_despertar": "2026-09-01T08:30:00",
+    "ultima_tarea": ND,
+    "sospecha": "",
 }
 
 
@@ -117,7 +124,7 @@ async def test_hola_produce_UNICAMENTE_la_respuesta_conversacional_visible(siste
     try:
         capsys.readouterr()
         r = await _di(sistema.orquestador, "hola")
-        print(f"AURA> {r['say']}")          # lo que hace `__main__._conversar`
+        print(f"AURA> {r['say']}")  # lo que hace `__main__._conversar`
         salida = capsys.readouterr()
     finally:
         obs.configurar_salida(anterior)
@@ -147,8 +154,7 @@ async def test_los_eventos_internos_SIGUEN_existiendo_aunque_no_se_vean(sistema)
         obs.configurar_salida(anterior)
 
     assert apagada, "un turno tiene que dejar telemetría"
-    assert apagada == encendida, (
-        f"apagar la pantalla cambió lo que se registra: {apagada} != {encendida}")
+    assert apagada == encendida, f"apagar la pantalla cambió lo que se registra: {apagada} != {encendida}"
     assert r["say"].strip()
 
 
@@ -173,8 +179,7 @@ async def test_la_separacion_NO_rompe_la_AUDITORIA(sistema, tmp_path):
         obs._audit = anterior_audit
     assert len(obs.audit_records()) > antes, "la auditoría en memoria dejó de registrar"
     persistido = pathlib.Path(ruta).read_text(encoding="utf-8")
-    assert "accion con efecto" in persistido, (
-        "con la pantalla apagada el registro forense dejó de llegar al DISCO")
+    assert "accion con efecto" in persistido, "con la pantalla apagada el registro forense dejó de llegar al DISCO"
 
 
 def test_la_pantalla_apagada_es_un_SUMIDERO_y_no_un_filtro(capsys):
@@ -221,7 +226,7 @@ async def test_la_CONVERSACION_INTERACTIVA_apaga_la_pantalla_ella_sola(sistema, 
     "frase",
     [
         "¿en qué estás trabajando ahora?",
-        "¿en qué estás trabajado ahora?",     # el typo LITERAL del CEO, que fue el defecto
+        "¿en qué estás trabajado ahora?",  # el typo LITERAL del CEO, que fue el defecto
         "¿qué estás haciendo?",
         "¿en qué andas?",
         "¿cuál es tu estado?",
@@ -238,6 +243,10 @@ async def test_preguntar_por_su_ACTIVIDAD_consulta_el_ciclo_y_NO_la_memoria(sist
     assert not _ausencia(r), f"{frase!r} volvió a contestarse desde la memoria: {r['say']!r}"
     assert r["provider"] == "core", f"{frase!r} no debe ir al LLM: fue a {r['provider']!r}"
     assert fuente.lecturas >= 1, f"{frase!r} respondió SIN consultar el estado autónomo"
+    # La responde SU superficie, no otra por casualidad. Encontrado por GR-M1/GR-M2, que sobrevivían
+    # (2026-09-27): al quitar una variante, la frase caía en «AURA sobre sí misma» (D-FC-3), que
+    # también lee el estado, y la prueba seguía verde con la tabla de variantes rota.
+    assert r["dominio"] == "estado_autonomo", f"{frase!r} la respondió otra superficie: {r['dominio']!r}"
 
 
 @pytest.mark.asyncio
@@ -260,7 +269,8 @@ async def test_con_DECISIONES_PENDIENTES_dice_que_requieren_a_un_humano(sistema)
     assert "D-ORCH-6" in r["say"] and "D-INT-1" in r["say"]
     assert "necesitan una decisión tuya" in r["say"], (
         "«aprobación» era impreciso: estas decisiones tienen opciones y no se resuelven con un "
-        "permiso — la otra superficie lo dice, y las dos tienen que decir lo mismo")
+        "permiso — la otra superficie lo dice, y las dos tienen que decir lo mismo"
+    )
 
 
 @pytest.mark.asyncio
@@ -309,8 +319,15 @@ async def test_la_ULTIMA_TAREA_sale_del_historial_y_no_de_la_conversacion(sistem
 async def test_sin_datos_NO_se_fabrica_ninguna_tarea_ni_progreso(sistema):
     """Una instantánea con todo en `NO DISPONIBLE` no puede producir un informe optimista. Es el
     control que impide que el redactor rellene huecos con ceros «razonables»."""
-    vacia = {"estado": ND, "cola": ND, "trabajo_bloqueado": ND, "trabajo_elevado": ND,
-             "decisiones_pendientes": ND, "proximo_despertar": ND, "ultima_tarea": ND}
+    vacia = {
+        "estado": ND,
+        "cola": ND,
+        "trabajo_bloqueado": ND,
+        "trabajo_elevado": ND,
+        "decisiones_pendientes": ND,
+        "proximo_despertar": ND,
+        "ultima_tarea": ND,
+    }
     _con_fuente(sistema, vacia)
     r = await _di(sistema.orquestador, "¿en qué estás trabajando?")
     dicho = r["say"].lower()

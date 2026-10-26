@@ -1,0 +1,141 @@
+incremento = "Descubrimiento ONVIF/DDP y redaccion de errores de hogar"
+pruebas = [
+    "tests/unit/test_conocimiento_entorno.py",
+    "tests/unit/test_red_local.py",
+    "tests/integration/test_volumen_tv.py",
+]
+
+[[mutante]]
+id = "D1"
+garantia = "un XML con DOCTYPE/ENTITY se parsea"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''no se autentica. None si no es un ProbeMatch reconocible."""
+    if len(xml) > _TOPE_CUERPO or "<!DOCTYPE" in xml.upper() or "<!ENTITY" in xml.upper():'''
+sustituir = '''no se autentica. None si no es un ProbeMatch reconocible."""
+    if len(xml) > _TOPE_CUERPO:'''
+
+[[mutante]]
+id = "D2"
+garantia = "desaparece el tope de 64 KB del cuerpo WSD"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''no se autentica. None si no es un ProbeMatch reconocible."""
+    if len(xml) > _TOPE_CUERPO or "<!DOCTYPE" in xml.upper() or "<!ENTITY" in xml.upper():'''
+sustituir = '''no se autentica. None si no es un ProbeMatch reconocible."""
+    if "<!DOCTYPE" in xml.upper() or "<!ENTITY" in xml.upper():'''
+
+[[mutante]]
+id = "D3"
+garantia = "NetworkVideoTransmitter deja de exigirse para camara"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''    es_camara = any(t.rsplit(":", 1)[-1] == "NetworkVideoTransmitter" for t in texto("Types").split())'''
+sustituir = '''    es_camara = True'''
+
+[[mutante]]
+id = "D4"
+garantia = "la identidad WSD deja de ser la Address del EndpointReference"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''        identidad=_acotar_nombre(texto("Address")),'''
+sustituir = '''        identidad=None,'''
+
+[[mutante]]
+id = "D5"
+garantia = "el nombre del scope WSD no se acota"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''            nombre = _acotar_nombre(unquote(scope.rsplit("/", 1)[-1]))'''
+sustituir = '''            nombre = unquote(scope.rsplit("/", 1)[-1])'''
+
+[[mutante]]
+id = "D6"
+garantia = "desaparece el tope de 2 respuestas por IP"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''        if not _es_privada(ip) or por_ip.get(ip, 0) >= _TOPE_POR_IP:'''
+sustituir = '''        if not _es_privada(ip):'''
+
+[[mutante]]
+id = "D7"
+garantia = "se acepta un host-type que no es PS"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''    if campos.get("host-type") not in _CONSOLAS:
+        return None'''
+sustituir = '''    if "host-type" not in campos:
+        return None'''
+
+[[mutante]]
+id = "D8"
+garantia = "running-app-name (lo que juega la familia) se copia en el nombre"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''("host-type", "host-name", "host-id"):
+            campos[clave.strip()] = valor.strip()'''
+sustituir = '''("host-type", "host-name", "host-id", "running-app-name"):
+            campos[clave.strip()] = valor.strip()
+    if campos.get("running-app-name"):
+        campos["host-name"] = campos["running-app-name"]'''
+
+[[mutante]]
+id = "D9"
+garantia = "una fuente nueva (WSD) que lanza excepcion tumba descubrir"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''        except Exception:  # noqa: BLE001 — una fuente que falla, falle como falle, no se lleva a las demás
+            return
+        with cerrojo:'''
+sustituir = '''        except (subprocess.SubprocessError, ValueError):
+            return
+        with cerrojo:'''
+
+[[mutante]]
+id = "D10"
+garantia = "el redactor de hogar pierde el motivo"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        return f"No he podido {_ACCION_DE_HOGAR[capacidad]}: {_con_nombres_humanos(motivo, nombres)}."'''
+sustituir = '''        return f"No he podido {_ACCION_DE_HOGAR[capacidad]}."'''
+
+[[mutante]]
+id = "D11"
+garantia = "el redactor de hogar deja de quitar el prefijo tecnico"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''.removeprefix("el adaptador rechazo la operacion: ")'''
+sustituir = ''''''
+
+[[mutante]]
+id = "D12"
+garantia = "el redactor de hogar deja de aplicarse a detenida"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''capacidad in _ACCION_DE_HOGAR and estado in ("detenida", "error"):'''
+sustituir = '''capacidad in _ACCION_DE_HOGAR and estado in ("error",):'''
+
+[[mutante]]
+id = "D13"
+garantia = "una declaracion UDP que contradice el tipo ya deducido por otra fuente deja de ser conflicto (envenenamiento)"
+fichero = "aura_skeleton/core/entorno.py"
+buscar = '''    if o.tipo_declarado and not previo.tipo_declarado and previo.tipo not in ("desconocido", o.tipo_declarado):'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "D14"
+garantia = "con conflicto se adopta igualmente lo declarado por la fuente contradictoria y el impostor gana a la ronda siguiente"
+fichero = "aura_skeleton/core/entorno.py"
+buscar = '''            if not conflicto:
+                # Con conflicto, lo que dice la fuente contradictoria NO se adopta'''
+sustituir = '''            if True:
+                # Con conflicto, lo que dice la fuente contradictoria NO se adopta'''
+
+[[mutante]]
+id = "D15"
+garantia = "sin tope GLOBAL de respuestas: una inundacion con IP de origen falsa crece sin limite"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''    while time.time() < fin and len(vistos) < _TOPE_RESPUESTAS:'''
+sustituir = '''    while time.time() < fin:'''
+
+[[mutante]]
+id = "D16"
+garantia = "se aceptan respuestas desde IP publicas (fuera de la LAN)"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''        if not _es_privada(ip) or por_ip.get(ip, 0) >= _TOPE_POR_IP:'''
+sustituir = '''        if por_ip.get(ip, 0) >= _TOPE_POR_IP:'''
+
+[[mutante]]
+id = "D17"
+garantia = "una fuente que lanza una excepcion no prevista mata su hilo y se pierde (o tumba descubrir)"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''        except Exception:  # noqa: BLE001 — una fuente que falla'''
+sustituir = '''        except (OSError, ValueError):  # noqa: BLE001 — una fuente que falla'''

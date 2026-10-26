@@ -37,21 +37,24 @@ def test_el_contrato_declara_el_nivel_y_su_regla():
 # --------------------------------------------------- M-1 DECIDE EL DESTINO (eje 1 x eje 2) --
 
 
-@pytest.mark.parametrize("texto,destino", [
-    # ORDEN pura -> histórico. Es el caso que dejaba rojo el e2e.
-    (ORDEN_DEL_E2E, I.HISTORICO_NO_RECUPERABLE),
-    ("Apaga la luz del salón", I.HISTORICO_NO_RECUPERABLE),
-    ("No borres nada", I.HISTORICO_NO_RECUPERABLE),
-    # HECHO_USUARIO -> memoria recuperable
-    ("Trabajo en logística", I.RECUPERABLE),
-    ("Mi cumpleaños es el 14 de marzo", I.RECUPERABLE),
-    ("No soy alérgico a los frutos secos", I.RECUPERABLE),
-    # Nada de esto se almacena en ningún sitio
-    ("¿Cómo me llamo?", None),
-    ("¿Cuál es el nombre de mi abuela?", None),
-    ("gracias", None),
-    ("¿Quién escribió el Quijote?", None),
-])
+@pytest.mark.parametrize(
+    "texto,destino",
+    [
+        # ORDEN pura -> histórico. Es el caso que dejaba rojo el e2e.
+        (ORDEN_DEL_E2E, I.HISTORICO_NO_RECUPERABLE),
+        ("Apaga la luz del salón", I.HISTORICO_NO_RECUPERABLE),
+        ("No borres nada", I.HISTORICO_NO_RECUPERABLE),
+        # HECHO_USUARIO -> memoria recuperable
+        ("Trabajo en logística", I.RECUPERABLE),
+        ("Mi cumpleaños es el 14 de marzo", I.RECUPERABLE),
+        ("No soy alérgico a los frutos secos", I.RECUPERABLE),
+        # Nada de esto se almacena en ningún sitio
+        ("¿Cómo me llamo?", None),
+        ("¿Cuál es el nombre de mi abuela?", None),
+        ("gracias", None),
+        ("¿Quién escribió el Quijote?", None),
+    ],
+)
 def test_M1_decide_el_destino(texto, destino):
     assert I.destino_de_memoria(texto) == destino, f"{texto!r}"
 
@@ -138,6 +141,7 @@ def test_el_historico_no_concede_autoridad_de_ejecucion():
     """
     import ast
     import pathlib
+
     arbol = ast.parse(pathlib.Path(I.__file__).read_text(encoding="utf-8"))
     modulos = set()
     for nodo in ast.walk(arbol):
@@ -158,6 +162,7 @@ def test_no_existe_una_puerta_trasera_que_devuelva_el_historico():
     import pathlib
 
     from aura_skeleton.modules import memory, memory_semantic
+
     for mod in (memory, memory_semantic):
         fuente = pathlib.Path(mod.__file__).read_text(encoding="utf-8")
         for bloque in fuente.split("async def recall")[1:]:
@@ -175,6 +180,7 @@ def test_no_existe_una_puerta_trasera_que_devuelva_el_historico():
 
 async def _turno(orq, texto):
     import uuid
+
     tid = uuid.uuid4().hex[:12]
     await orq.handle_utterance("mauricio", texto, tid)
     return await orq.wait(tid)
@@ -193,10 +199,12 @@ def _orquestador(mem):
         return True
 
     return Orchestrator(
-        InProcessEventBus(), mem,
+        InProcessEventBus(),
+        mem,
         ModelRouter([MockProvider("m", 3, healthy=True)], 1200),
         PermissionManager(_permite, kill_switch=KillSwitch("/tmp/aura-test-kill-inexistente")),
-        VoiceAdapterMock(), HomeAssistantMock(),
+        VoiceAdapterMock(),
+        HomeAssistantMock(),
     )
 
 
@@ -209,7 +217,8 @@ async def test_el_orquestador_escribe_la_orden_CON_EL_KIND_DEL_HISTORICO(tmp_pat
     escritos = [i for i in mem._items if "tenue" in i["content"]]
     assert escritos, "la orden tiene que dejar traza: 'no recuperable' no es 'borrado'"
     assert all(i["kind"] == HISTORICO for i in escritos), (
-        f"la orden se escribió como memoria recuperable: {[i['kind'] for i in escritos]}")
+        f"la orden se escribió como memoria recuperable: {[i['kind'] for i in escritos]}"
+    )
 
 
 @pytest.mark.asyncio

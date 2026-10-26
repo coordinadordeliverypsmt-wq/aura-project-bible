@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import time
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
 
@@ -126,7 +126,14 @@ class Adapter(Protocol):
     """
 
     name: str
-    capabilities: list[str]
+
+    # `Sequence`, no `list`: los ejecutores declaran sus capacidades como TUPLA a proposito -son
+    # inmutables, y asi nadie puede ampliarlas en caliente-. El contrato pedia `list[str]`, de modo
+    # que mypy rechazaba a `EjecutorModeloUsuario` y `EjecutorReglas` pese a cumplir el contrato en
+    # ejecucion. Se amplia el tipo declarado a lo que el contrato siempre quiso decir: una secuencia
+    # de nombres que se lee, no que se muta. Cambio de TIPADO: no altera el comportamiento.
+    @property
+    def capabilities(self) -> Sequence[str]: ...
 
     async def execute(self, command: str, args: dict, trace_id: str, event_id: str) -> dict: ...
 

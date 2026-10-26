@@ -54,8 +54,9 @@ def _almacen_reglas(ruta, kill=None):
     from aura_skeleton.core.registro import RegistroAdaptadores
 
     registro = RegistroAdaptadores()
-    almacen = AlmacenReglas(str(ruta), motor=MotorAutomatizacion(
-        registro, PermissionManager(_confirmar, kill_switch=kill)))
+    almacen = AlmacenReglas(
+        str(ruta), motor=MotorAutomatizacion(registro, PermissionManager(_confirmar, kill_switch=kill))
+    )
     registro.registrar(EjecutorReglas(almacen))
     return almacen
 
@@ -68,8 +69,9 @@ def _modelo(mem, kill=None):
     no muta**: dejar el fixture como estaba habria hecho que estas pruebas pasaran EN VACIO — verdes
     porque nada ocurre, que es el falso PASS que este proyecto ya ha pagado varias veces.
     """
-    return ModeloUsuario(mem, motor=MotorAutomatizacion(
-        EjecutorModeloUsuario(mem), PermissionManager(_confirmar, kill_switch=kill)))
+    return ModeloUsuario(
+        mem, motor=MotorAutomatizacion(EjecutorModeloUsuario(mem), PermissionManager(_confirmar, kill_switch=kill))
+    )
 
 
 def _memoria_con_dos_hechos(tmp_path) -> tuple[PersistentMemory, pathlib.Path]:
@@ -79,10 +81,13 @@ def _memoria_con_dos_hechos(tmp_path) -> tuple[PersistentMemory, pathlib.Path]:
     # cualquier otro valor el predicado de `borrar` no casa con nada, el borrado no ocurre y los
     # rojos de este fichero pasarian EN VACIO. Ocurrio al escribirlo y por eso queda anotado.
     mem._items = [
-        {"user_id": "mauricio", "kind": "semantica",
-         "content": "tiene alergia a la penicilina", "provenance": {}},
-        {"user_id": "mauricio", "kind": "semantica",
-         "content": "suele pagar las facturas por la app", "provenance": {}},
+        {"user_id": "mauricio", "kind": "semantica", "content": "tiene alergia a la penicilina", "provenance": {}},
+        {
+            "user_id": "mauricio",
+            "kind": "semantica",
+            "content": "suele pagar las facturas por la app",
+            "provenance": {},
+        },
     ]
     mem._persist()
     return mem, ruta
@@ -131,7 +136,8 @@ async def test_g2_el_kill_switch_armado_no_detiene_el_olvido_del_modelo(tmp_path
 
     contenidos = [i["content"] for i in mem._items]
     assert "tiene alergia a la penicilina" in contenidos, (
-        "G-2: el kill switch armado NO detuvo el borrado del modelo del usuario")
+        "G-2: el kill switch armado NO detuvo el borrado del modelo del usuario"
+    )
 
 
 async def test_g2_el_kill_switch_armado_no_detiene_la_refutacion(tmp_path):
@@ -151,11 +157,13 @@ async def test_g2_el_kill_switch_armado_no_detiene_la_creacion_de_reglas(tmp_pat
     kill.engage("prueba G-2")
     almacen = _almacen_reglas(tmp_path / "reglas.jsonl", kill)
 
-    await almacen.crear(ReglaUsuario(rule_id="r1", user_id="mauricio", evento="archivo_creado",
-                               condicion={}, accion="copiar_archivo", args={}))
+    await almacen.crear(
+        ReglaUsuario(
+            rule_id="r1", user_id="mauricio", evento="archivo_creado", condicion={}, accion="copiar_archivo", args={}
+        )
+    )
 
-    assert almacen.listar("mauricio") == [], (
-        "G-2: el kill switch armado NO impidió crear una regla persistente")
+    assert almacen.listar("mauricio") == [], "G-2: el kill switch armado NO impidió crear una regla persistente"
 
 
 # ======================================================================== G-3 --
@@ -174,8 +182,7 @@ def test_g3_las_mutaciones_del_estado_propio_no_estan_catalogadas(operacion):
     """RED · `DP-D-M-8 §4.2`: el catálogo clasifica por verbo y **no existe entrada para crear
     información sobre la persona**, ni se distingue el sujeto. Estas tres son el mínimo que el DP
     declara necesario; no se añaden otras."""
-    assert operacion in CATALOGO, (
-        f"G-3: '{operacion}' muta estado persistente del usuario y no está en el catálogo")
+    assert operacion in CATALOGO, f"G-3: '{operacion}' muta estado persistente del usuario y no está en el catálogo"
 
 
 async def test_g3_el_olvido_SOLO_se_ejecuta_estando_catalogado(tmp_path):
@@ -251,15 +258,15 @@ async def test_g6_el_borrado_no_deja_rastro_reconstruible(tmp_path, monkeypatch)
     from aura_skeleton import observability as obs
 
     registros: list[dict] = []
-    monkeypatch.setattr(obs, "log",
-                        lambda *a, **k: registros.append({"args": a, "kv": k}))
+    monkeypatch.setattr(obs, "log", lambda *a, **k: registros.append({"args": a, "kv": k}))
 
     mem, _ = _memoria_con_dos_hechos(tmp_path)
     await _modelo(mem, locals().get("kill")).borrar("mauricio", "penicilina")
 
     texto = json.dumps(registros, ensure_ascii=False)
     assert "tiene alergia a la penicilina" in texto, (
-        "G-6: el audit no registra QUÉ se borró; lo perdido no es reconstruible")
+        "G-6: el audit no registra QUÉ se borró; lo perdido no es reconstruible"
+    )
     assert "mauricio" in texto, "G-6: el audit no registra SOBRE QUIÉN recayó la mutación"
 
 
@@ -272,8 +279,11 @@ async def test_g7_control_desactivar_una_regla_anexa_en_vez_de_reescribir(tmp_pa
     anexa una línea `inactiva` en vez de reescribir el fichero."""
     ruta = tmp_path / "reglas.jsonl"
     almacen = _almacen_reglas(ruta)
-    await almacen.crear(ReglaUsuario(rule_id="r1", user_id="mauricio", evento="archivo_creado",
-                               condicion={}, accion="copiar_archivo", args={}))
+    await almacen.crear(
+        ReglaUsuario(
+            rule_id="r1", user_id="mauricio", evento="archivo_creado", condicion={}, accion="copiar_archivo", args={}
+        )
+    )
     lineas_antes = len(ruta.read_text(encoding="utf-8").splitlines())
 
     await almacen.desactivar("mauricio", "r1")
@@ -293,7 +303,8 @@ async def test_g7_el_olvido_destruye_lineas_del_almacen(tmp_path):
 
     lineas_despues = len(ruta.read_text(encoding="utf-8").splitlines())
     assert lineas_despues >= lineas_antes, (
-        f"G-7: el almacén perdió líneas ({lineas_antes} -> {lineas_despues}): no es append-only")
+        f"G-7: el almacén perdió líneas ({lineas_antes} -> {lineas_despues}): no es append-only"
+    )
 
 
 # ============================================== INDEPENDENCIA RESPECTO DE G-1 --
@@ -316,10 +327,15 @@ def test_este_fichero_no_depende_del_mecanismo_de_G_1():
     son **de comportamiento** —ejecutan una mutación y observan su efecto—, y ninguna necesita saber
     *quién* llama a *quién*."""
     fuente = _fuente_sin_las_lineas_declarativas()
-    for prohibido in ("import " + "ast", "architecture_" + "manifest",
-                      "test_manifiesto_" + "arquitectura", "lista_" + "blanca"):
+    for prohibido in (
+        "import " + "ast",
+        "architecture_" + "manifest",
+        "test_manifiesto_" + "arquitectura",
+        "lista_" + "blanca",
+    ):
         assert prohibido not in fuente, (
-            f"esta prueba usa {prohibido!r}: sería el mecanismo de G-1, que NO está autorizado")
+            f"esta prueba usa {prohibido!r}: sería el mecanismo de G-1, que NO está autorizado"
+        )
 
 
 def test_las_garantias_escritas_son_exactamente_las_autorizadas():
@@ -327,5 +343,4 @@ def test_las_garantias_escritas_son_exactamente_las_autorizadas():
     fuente = _fuente_sin_las_lineas_declarativas()
     for g in ("G-2", "G-3", "G-4", "G-5", "G-6", "G-7"):
         assert f"test_{g.lower().replace('-', '')}_" in fuente, f"falta el RED de {g}"
-    assert "def test_g" + "1_" not in fuente, (
-        "G-1 NO está autorizada: D-G1-1 sigue DECISION_REQUIRED")
+    assert "def test_g" + "1_" not in fuente, "G-1 NO está autorizada: D-G1-1 sigue DECISION_REQUIRED"

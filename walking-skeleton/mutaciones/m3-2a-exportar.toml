@@ -1,0 +1,65 @@
+incremento = "M3.2a · Exportar el modelo del usuario — opción A: CONFIRMACIÓN explícita (aprobación CEO 2026-10-11)"
+pruebas = ["tests/e2e/test_modelo_usuario_flujo.py"]
+timeout_s = 600
+
+# La garantía de privacidad es la CONFIRMACIÓN, no la detección de texto (CLAUDE.md §C: tres bypass
+# léxicos demostrados). Una solicitud candidata pregunta; solo una confirmación inequívoca del mismo
+# usuario, sobre un pendiente que vive un turno, ejecuta el export. Cada mutante degrada una pieza de
+# ese consentimiento y debe morir.
+
+[[mutante]]
+id = "CF-M1"
+garantia = "la solicitud vuelca el modelo DIRECTO (sin preguntar): reintroduce la fuga de PII que el 3er bypass demostró"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/e2e/test_modelo_usuario_flujo.py::test_M3_2a_solicitud_pregunta_y_solo_la_confirmacion_exporta",
+           "tests/e2e/test_modelo_usuario_flujo.py::test_mundanas_y_bypasses_NUNCA_vuelcan_el_modelo_directo"]
+buscar = '''            self._export_pendiente.add(uid)'''
+sustituir = '''            return await self.modelo_usuario.exportar(uid)'''
+
+[[mutante]]
+id = "CF-M2"
+garantia = "la confirmacion acepta CUALQUIER turno: un cambio de tema o un «no» dispararian el export pendiente"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/e2e/test_modelo_usuario_flujo.py::test_cambio_de_tema_descarta_el_pendiente",
+           "tests/e2e/test_modelo_usuario_flujo.py::test_un_bypass_sin_confirmar_nunca_vuelca"]
+buscar = '''    return limpio in _CONFIRMA_EXPORT_EXACTO'''
+sustituir = '''    return True'''
+
+[[mutante]]
+id = "CF-M6"
+garantia = "la confirmacion vuelve a reconocerse por SUBCADENA (no igualdad): «exportalo a otro formato de video» confirmaria y volcaria el modelo (ECC CRÍTICO 2026-10-11)"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/e2e/test_modelo_usuario_flujo.py::test_confirmacion_mundana_tras_un_bypass_NO_vuelca"]
+buscar = '''    return limpio in _CONFIRMA_EXPORT_EXACTO'''
+sustituir = '''    return any(p in limpio for p in _CONFIRMA_EXPORT_EXACTO)'''
+
+[[mutante]]
+id = "CF-M3"
+garantia = "el pendiente NO se descarta (vive para siempre): una confirmacion tardia, tras un «no» o un cambio de tema, aun volcaria"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/e2e/test_modelo_usuario_flujo.py::test_negativa_descarta_el_pendiente"]
+buscar = '''        if uid in self._export_pendiente:
+            self._export_pendiente.discard(uid)'''
+sustituir = '''        if uid in self._export_pendiente:
+            pass'''
+
+[[mutante]]
+id = "CF-M4"
+garantia = "la confirmacion exporta un user_id FIJO en vez del que confirma: fuga del modelo de otro usuario (aislamiento, Bible 4.1 §6)"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/e2e/test_modelo_usuario_flujo.py::test_exportar_aislado_por_usuario",
+           "tests/e2e/test_modelo_usuario_flujo.py::test_M3_2a_solicitud_pregunta_y_solo_la_confirmacion_exporta"]
+buscar = '''                return await self.modelo_usuario.exportar(uid)'''
+sustituir = '''                return await self.modelo_usuario.exportar("otra")'''
+
+[[mutante]]
+id = "CF-M5"
+garantia = "la confirmacion deja de exigir un pendiente: un «si, exporta» suelto (afirmacion ajena) volcaria el modelo sin que nadie lo pidiera"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/e2e/test_modelo_usuario_flujo.py::test_confirmacion_sin_solicitud_no_exporta"]
+buscar = '''        if uid in self._export_pendiente:
+            self._export_pendiente.discard(uid)
+            if _confirma_export(t):'''
+sustituir = '''        if True:
+            self._export_pendiente.discard(uid)
+            if _confirma_export(t):'''

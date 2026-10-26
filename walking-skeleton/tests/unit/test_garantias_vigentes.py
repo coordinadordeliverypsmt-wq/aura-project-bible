@@ -70,7 +70,8 @@ def test_el_auditor_resuelve_cada_catalogo_contra_SU_raiz(tmp_path):
     sin = auditar_garantias(str(raiz))
     assert not sin["ok"] and sin["rotas"][0]["problema"] == "AUSENTE", (
         "sin `raiz`, el catálogo debe resolverse contra el producto y dar AUSENTE: "
-        "si no, la raíz no se está usando y la prueba de arriba pasaría por casualidad")
+        "si no, la raíz no se está usando y la prueba de arriba pasaría por casualidad"
+    )
 
     # Y el tercer caso, que el arnés exigió: sin `raiz`, el plano por defecto es EL DEL PRODUCTO.
     # Sin esto, invertir el defecto —hacer que la raíz por defecto fuera otra— sobrevivía: las dos
@@ -79,7 +80,8 @@ def test_el_auditor_resuelve_cada_catalogo_contra_SU_raiz(tmp_path):
     (raiz / "modulo.py").write_text("def f():\n    return 'patron vigente'\n", encoding="utf-8")
     por_defecto = auditar_garantias(str(raiz))
     assert por_defecto["ok"], (
-        f"sin `raiz`, el fichero del propio plano del producto tiene que encontrarse: {por_defecto['rotas']}")
+        f"sin `raiz`, el fichero del propio plano del producto tiene que encontrarse: {por_defecto['rotas']}"
+    )
 
 
 def test_todo_catalogo_de_otro_plano_DECLARA_su_raiz():
@@ -102,4 +104,5 @@ def test_todo_catalogo_de_otro_plano_DECLARA_su_raiz():
     # Los 5 de `validador.py` son deuda preexistente: el fichero no existe en NINGÚN plano, así que
     # no es un problema de raíz. Se nombran para que este límite sea explícito y no un silencio.
     assert all("validador.py" in x for x in sin_raiz), (
-        f"hay catálogos que no declaran su raíz: {[x for x in sin_raiz if 'validador' not in x]}")
+        f"hay catálogos que no declaran su raíz: {[x for x in sin_raiz if 'validador' not in x]}"
+    )

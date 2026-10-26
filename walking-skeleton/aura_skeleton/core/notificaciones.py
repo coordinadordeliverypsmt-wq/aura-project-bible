@@ -153,6 +153,10 @@ _VERBOS: dict[str, tuple[str, str]] = {
     "buscar_archivo": ("Busqué", "buscar"),
     "encender_dispositivo": ("Encendí", "encender"),
     "apagar_dispositivo": ("Apagué", "apagar"),
+    "subir_volumen": ("Subí el volumen de", "subir el volumen de"),
+    "bajar_volumen": ("Bajé el volumen de", "bajar el volumen de"),
+    "silenciar": ("Silencié", "silenciar"),
+    "quitar_silencio": ("Quité el silencio de", "quitar el silencio de"),
 }
 
 

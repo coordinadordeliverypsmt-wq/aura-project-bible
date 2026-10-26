@@ -62,8 +62,13 @@ def _sistema(mem: SimpleMemory):
     espia = _ProveedorProhibido()
     motor = MotorAutomatizacion(EjecutorModeloUsuario(mem), PermissionManager(_si))
     orq = Orchestrator(
-        InProcessEventBus(), mem, ModelRouter([espia], 1200), PermissionManager(_si),
-        VoiceAdapterMock(), HomeAssistantMock(), modelo_usuario=ModeloUsuario(mem, motor=motor),
+        InProcessEventBus(),
+        mem,
+        ModelRouter([espia], 1200),
+        PermissionManager(_si),
+        VoiceAdapterMock(),
+        HomeAssistantMock(),
+        modelo_usuario=ModeloUsuario(mem, motor=motor),
     )
     return orq, espia
 
@@ -85,19 +90,25 @@ async def _turno(orq, texto: str, uid: str = "mauricio") -> dict:
 # ------------------------------------------------- 1 · LA DECLARACIÓN SE RECONOCE COMO HECHO --
 
 
-@pytest.mark.parametrize("frase", [
-    "Mi color favorito es el azul",
-    "Mi color preferido es el verde",
-])
+@pytest.mark.parametrize(
+    "frase",
+    [
+        "Mi color favorito es el azul",
+        "Mi color preferido es el verde",
+    ],
+)
 def test_declarar_un_color_es_un_hecho_declarado(frase):
     """Sin esto, la declaración se guarda sin clase y la ruta del Core no puede leerla."""
     assert _clasificar(_normalizar(frase)) == ClaseSenal.HECHO_DECLARADO
 
 
-@pytest.mark.parametrize("frase", [
-    "Me gusta el azul",
-    "Prefiero el azul",
-])
+@pytest.mark.parametrize(
+    "frase",
+    [
+        "Me gusta el azul",
+        "Prefiero el azul",
+    ],
+)
 def test_un_gusto_suelto_sigue_siendo_preferencia(frase):
     """Caso de control del acta del CEO (2026-08-09): la preferencia gana con marcador suelto."""
     assert _clasificar(_normalizar(frase)) == ClaseSenal.PREFERENCIA_DECLARADA
@@ -174,8 +185,9 @@ async def test_una_entrada_refutada_no_alimenta_la_ruta():
     mem = SimpleMemory()
     orq, espia = _sistema(mem)
     await _declarar(mem, "Mi color favorito es el azul")
-    await ModeloUsuario(mem, motor=MotorAutomatizacion(
-        EjecutorModeloUsuario(mem), PermissionManager(_si))).refutar("mauricio", "azul")
+    await ModeloUsuario(mem, motor=MotorAutomatizacion(EjecutorModeloUsuario(mem), PermissionManager(_si))).refutar(
+        "mauricio", "azul"
+    )
 
     res = await _turno(orq, "¿Cuál es mi color favorito?")
 
@@ -188,11 +200,14 @@ async def test_una_entrada_refutada_no_alimenta_la_ruta():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("pregunta", [
-    "¿Cuál es la capital de Francia?",
-    "¿Qué me recomiendas para concentrarme mejor?",
-    "¿Por qué crees que dormir poco afecta al ánimo?",
-])
+@pytest.mark.parametrize(
+    "pregunta",
+    [
+        "¿Cuál es la capital de Francia?",
+        "¿Qué me recomiendas para concentrarme mejor?",
+        "¿Por qué crees que dormir poco afecta al ánimo?",
+    ],
+)
 async def test_una_pregunta_que_no_es_el_atributo_no_la_roba_esta_ruta(pregunta):
     """La tabla es cerrada: lo que no nombra, no lo desvía. Estas van al modelo, como deben."""
     mem = SimpleMemory()
@@ -236,9 +251,12 @@ async def test_una_senal_OBSERVADA_no_se_presenta_como_hecho_del_usuario():
     mem = SimpleMemory()
     orq, espia = _sistema(mem)
     motor = MotorAutomatizacion(EjecutorModeloUsuario(mem), PermissionManager(_si))
-    await AlmacenSenales(mem, motor=motor).guardar("mauricio", [
-        Senal(ClaseSenal.PATRON_DE_USO, "mi color favorito es el rojo", "computador", "t9"),
-    ])
+    await AlmacenSenales(mem, motor=motor).guardar(
+        "mauricio",
+        [
+            Senal(ClaseSenal.PATRON_DE_USO, "mi color favorito es el rojo", "computador", "t9"),
+        ],
+    )
 
     # Caso de control: la entrada EXISTE y está viva. Sin esto la prueba sería decorativa.
     entradas = await ModeloUsuario(mem, motor=motor).ver("mauricio")

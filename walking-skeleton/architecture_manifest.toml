@@ -135,3 +135,32 @@ modulo = "aura_skeleton/core/decisiones.py"
 opera  = ["open", "replace"]
 motivo = "Buzon de aprobacion DIFERIDA de lista roja (acta del CEO 2026-08-10). Escritura atomica via temporal + `os.replace` porque el CEO puede estar leyendolo mientras AURORA anexa. Es el mecanismo POR EL QUE se pide autorizacion humana, no una via para saltarsela: someterlo al Motor seria circular, como el kill switch."
 desde  = "2026-09-09"
+
+# --- Campaña de presencia (mandato del CEO, 2026-09-26) · exclusión POR OPERACIÓN, mismo criterio
+# que D-A006-4: exime SOLO `remove` en este módulo; cualquier otra escritura se sigue acusando.
+[[mutaciones.excluido]]
+modulo = "aura_skeleton/adapters/microfono.py"
+opera  = ["remove"]
+motivo = "Borra audio EFIMERO del usuario: su grabacion del microfono tras transcribirla y el WAV de la respuesta tras reproducirlo. No es persistencia cuya destruccion deba gobernar G-1: es justo lo contrario, la proteccion de privacidad (Bible 5.5, lo oido no se archiva). Someter el borrado al Motor Unico no protegeria ningun dato y retrasaria la eliminacion de la voz."
+desde  = "2026-09-27"
+
+# --- NODO-01 (mision del CEO 2026-09-30, DP-NODO-01; declaraciones G-1 R-B APROBADAS por el CEO el
+# 2026-10-04) · exclusiones POR OPERACION, mismo criterio que D-A006-4: cada una exime solo las
+# operaciones listadas en su modulo; cualquier otra escritura se sigue acusando.
+[[mutaciones.excluido]]
+modulo = "aura_skeleton/adapters/identidad_nodo.py"
+opera  = ["replace", "unlink"]
+motivo = "Escribe la IDENTIDAD propia del nodo (un uuid), no un dato del usuario. tmp + `os.replace` es la escritura atomica que exige DP-NODO-01 §4.1 (nunca una identidad a medio escribir); `unlink` solo limpia el temporal si la escritura falla. Pasarla por el Motor Unico seria circular: el nodo necesita su identidad para existir antes de cualquier accion."
+desde  = "2026-10-04"
+
+[[mutaciones.excluido]]
+modulo = "aura_skeleton/adapters/receptor_nodos.py"
+opera  = ["replace"]
+motivo = "Proyeccion regenerable del estado de la red en HC-1 (ultimo latido de cada nodo y vida del receptor): no es dato del usuario y los nodos vuelven a latir cada pocos segundos. `os.replace` hace atomica la escritura y aparta -sin borrar- un registro corrupto como `.corrupto-<ts>`."
+desde  = "2026-10-04"
+
+[[mutaciones.excluido]]
+modulo = "aura_skeleton/nodo_agente.py"
+opera  = ["replace"]
+motivo = "Estado LOCAL del agente en el propio nodo (conectado, ultimo envio, ultimo error): diagnostico regenerable, no dato del usuario. Escritura atomica tmp + `os.replace` para que `--estado` nunca lea un JSON a medio escribir."
+desde  = "2026-10-04"

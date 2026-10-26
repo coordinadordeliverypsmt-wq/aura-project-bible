@@ -40,7 +40,7 @@ def _ruta_por_defecto() -> str:
 
     Se deriva en vez de configurarse para que no haya un segundo sitio donde declarar donde vive el
     plano; `AURA_CONTROL_PLANE` existe para el caso en que alguien lo mueva."""
-    aqui = os.path.dirname(os.path.abspath(__file__))          # .../walking-skeleton/aura_skeleton/adapters
+    aqui = os.path.dirname(os.path.abspath(__file__))  # .../walking-skeleton/aura_skeleton/adapters
     repo = os.path.dirname(os.path.dirname(os.path.dirname(aqui)))
     return os.path.join(repo, "entorno", "control-plane")
 
@@ -55,7 +55,7 @@ class EstadoAutonomoDelControlPlane:
     def instantanea(self) -> dict:
         try:
             return self._obs.estado(self._directorio)
-        except Exception as e:                                 # pragma: no cover - defensivo
+        except Exception as e:  # pragma: no cover - defensivo
             # Un plano ilegible NO puede tumbar una conversacion. Se declara la ausencia —que el
             # redactor traduce en «no me consta»— y se deja constancia en la telemetria: callarlo
             # haria indistinguible «no hay fuente» de «la fuente esta rota».

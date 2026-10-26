@@ -55,8 +55,14 @@ REGLA_CONDICIONAL = "REGLA_CONDICIONAL"
 NADA_PROPOSICIONAL = "NADA_PROPOSICIONAL"
 INCIERTO = "INCIERTO"
 
-CONTENIDOS = (HECHO_USUARIO, CONOCIMIENTO_PROCEDURAL, COMPROMISO_FUTURO,
-              REGLA_CONDICIONAL, NADA_PROPOSICIONAL, INCIERTO)
+CONTENIDOS = (
+    HECHO_USUARIO,
+    CONOCIMIENTO_PROCEDURAL,
+    COMPROMISO_FUTURO,
+    REGLA_CONDICIONAL,
+    NADA_PROPOSICIONAL,
+    INCIERTO,
+)
 
 #: **Whitelist, no blacklist.** Solo estos tres se convierten en memoria recuperable. `INCIERTO` y
 #: `NADA_PROPOSICIONAL` quedan fuera por la regla de seguridad; `REGLA_CONDICIONAL` tambien, pero por
@@ -97,6 +103,7 @@ MARCADORES_DE_EVOCACION = (
 
 # ------------------------------------------------------------------------ NORMALIZACION --
 
+
 def normalizar(texto: str) -> str:
     """El **unico** normalizador de la superficie de intencion.
 
@@ -131,16 +138,47 @@ def _nombra(texto_bordes: str, palabras) -> bool:
 #: Interrogativos en posicion inicial. Copiados del detector vigente del orquestador **sin cambiar
 #: uno solo**: esta lista sostiene hoy la garantia de 24/24 y este modulo no la mueve.
 _INTERROGATIVOS = (
-    "que", "cual", "cuales", "cuando", "donde", "como", "cuanto", "cuanta", "cuantos", "cuantas",
-    "quien", "quienes", "recuerdas", "sabes", "sabias", "dime", "cuentame", "conoces",
+    "que",
+    "cual",
+    "cuales",
+    "cuando",
+    "donde",
+    "como",
+    "cuanto",
+    "cuanta",
+    "cuantos",
+    "cuantas",
+    "quien",
+    "quienes",
+    "recuerdas",
+    "sabes",
+    "sabias",
+    "dime",
+    "cuentame",
+    "conoces",
 )
 
 #: Marcadores de correccion: el usuario enmienda algo que AURA ya cree saber.
 #: **`no es` NO esta aqui**: medido, arrastraba «No es mi cumpleanos», que es una afirmacion sobre el
 #: usuario, no una enmienda de lo que AURA sabe. La correccion exige una marca de enmienda explicita.
-_CORRECCION = ("ya no", "en realidad", "me equivoque", "esta mal", "corrige", "rectifico",
-               "te equivocas", "no era", "eso es falso", "actualiza mi", "no es cierto",
-               "olvida lo que", "olvida que", "en verdad", "cambie de opinion", ", es ")
+_CORRECCION = (
+    "ya no",
+    "en realidad",
+    "me equivoque",
+    "esta mal",
+    "corrige",
+    "rectifico",
+    "te equivocas",
+    "no era",
+    "eso es falso",
+    "actualiza mi",
+    "no es cierto",
+    "olvida lo que",
+    "olvida que",
+    "en verdad",
+    "cambie de opinion",
+    ", es ",
+)
 
 #: Imperativos de peticion — 2.ª persona, formas afirmativa Y de subjuntivo negado.
 #:
@@ -149,57 +187,212 @@ _CORRECCION = ("ya no", "en realidad", "me equivoque", "esta mal", "corrige", "r
 #: «no trabajo los viernes» a `ORDEN`, hundiendo la dimension `negacion` al 56,2 %. La solucion no es
 #: mirar el `no`: es que la tabla contenga **solo formas que un hablante no puede usar sobre si
 #: mismo**. `borres` es siempre una orden; `trabajo` nunca lo es. Asi la negacion se resuelve sola.
-_ORDEN = ("abre", "abras", "enciende", "enciendas", "apaga", "apagar",
-          "apagues", "busca", "busques", "lee", "leas",
-          "mueve", "muevas", "renombra", "renombrar",
-          "borra", "borres", "elimina", "elimines", "ejecuta", "ejecutar",
-          "ejecutes", "verifica", "audita", "diagnostica", "diagnosticar",
-          # `crees` SALIO de esta lista (2026-09-09). Es subjuntivo de *crear* y, a la vez, presente
-          # de *creer*: con el dentro, «¿Por que crees que dormir poco afecta al animo?» se
-          # clasificaba ORDEN y la conversacion moria en la guarda de memoria vacia. Es la misma
-          # colision que ya costo `baja`, `marca` y `lista` en D-M-2, y se paga igual: la forma que
-          # colisiona sale, el imperativo real (`crea`) se queda.
-          "crea", "organiza", "guarda", "guardes",
-          "pon", "ponme", "pongas", "quita", "quites", "manda", "envia",
-          "cierra", "cierres", "reproduce", "sube", "subas", "silencia",
-          "anota", "apunta", "apuntate", "registra",
-          "recuerdame", "recuerdamelo", "acuerdate", "avisame", "avisa", "olvides", "olvida",
-          "dejes", "interrumpas", "hazme", "haz", "dame", "ponle", "activa", "desactiva",
-          "cancela", "detente", "para ya", "ten en cuenta", "no olvides", "no me dejes")
+_ORDEN = (
+    "abre",
+    "abras",
+    "enciende",
+    "enciendas",
+    "apaga",
+    "apagar",
+    "apagues",
+    "busca",
+    "busques",
+    "lee",
+    "leas",
+    "mueve",
+    "muevas",
+    "renombra",
+    "renombrar",
+    "borra",
+    "borres",
+    "elimina",
+    "elimines",
+    "ejecuta",
+    "ejecutar",
+    "ejecutes",
+    "verifica",
+    "audita",
+    "diagnostica",
+    "diagnosticar",
+    # `crees` SALIO de esta lista (2026-09-09). Es subjuntivo de *crear* y, a la vez, presente
+    # de *creer*: con el dentro, «¿Por que crees que dormir poco afecta al animo?» se
+    # clasificaba ORDEN y la conversacion moria en la guarda de memoria vacia. Es la misma
+    # colision que ya costo `baja`, `marca` y `lista` en D-M-2, y se paga igual: la forma que
+    # colisiona sale, el imperativo real (`crea`) se queda.
+    "crea",
+    "organiza",
+    "guarda",
+    "guardes",
+    "pon",
+    "ponme",
+    "pongas",
+    "quita",
+    "quites",
+    "manda",
+    "envia",
+    "cierra",
+    "cierres",
+    "reproduce",
+    "sube",
+    "subas",
+    "silencia",
+    "anota",
+    "apunta",
+    "apuntate",
+    "registra",
+    "recuerdame",
+    "recuerdamelo",
+    "acuerdate",
+    "avisame",
+    "avisa",
+    "olvides",
+    "olvida",
+    "dejes",
+    "interrumpas",
+    "hazme",
+    "haz",
+    "dame",
+    "ponle",
+    "activa",
+    "desactiva",
+    "cancela",
+    "detente",
+    "para ya",
+    "ten en cuenta",
+    "no olvides",
+    "no me dejes",
+)
 
-_SOCIAL = ("hola", "hey", "buenas", "adios", "gracias", "chao", "chau",
-           "buenos dias", "buenas tardes", "buenas noches", "hasta luego", "nos vemos",
-           "muchas gracias", "mil gracias", "de nada", "por favor",
-           "vale", "perfecto", "de acuerdo", "ok", "okey", "genial", "estupendo", "no",
-           "claro", "vaya", "menuda", "que bien", "como quieras", "cuando quieras", "nada")
+_SOCIAL = (
+    "hola",
+    "hey",
+    "buenas",
+    "adios",
+    "gracias",
+    "chao",
+    "chau",
+    "buenos dias",
+    "buenas tardes",
+    "buenas noches",
+    "hasta luego",
+    "nos vemos",
+    "muchas gracias",
+    "mil gracias",
+    "de nada",
+    "por favor",
+    "vale",
+    "perfecto",
+    "de acuerdo",
+    "ok",
+    "okey",
+    "genial",
+    "estupendo",
+    "no",
+    "claro",
+    "vaya",
+    "menuda",
+    "que bien",
+    "como quieras",
+    "cuando quieras",
+    "nada",
+)
 
 #: Compromiso futuro: algo que debe recordarse *para despues*.
-_COMPROMISO = ("recuerdame", "avisame", "manana", "el lunes", "el martes", "el miercoles",
-               "el jueves", "el viernes", "el sabado", "el domingo", "la semana que viene",
-               "el proximo", "la proxima", "tengo cita", "tengo que", "a las")
+_COMPROMISO = (
+    "recuerdame",
+    "avisame",
+    "manana",
+    "el lunes",
+    "el martes",
+    "el miercoles",
+    "el jueves",
+    "el viernes",
+    "el sabado",
+    "el domingo",
+    "la semana que viene",
+    "el proximo",
+    "la proxima",
+    "tengo cita",
+    "tengo que",
+    "a las",
+)
 
 #: Conocimiento procedural: como hace el usuario las cosas.
-_PROCEDURAL = ("para el", "para la", "para hacer", "suelo", "normalmente", "siempre que",
-               "cada vez que", "uso la", "uso el", "lo hago", "acostumbro")
+_PROCEDURAL = (
+    "para el",
+    "para la",
+    "para hacer",
+    "suelo",
+    "normalmente",
+    "siempre que",
+    "cada vez que",
+    "uso la",
+    "uso el",
+    "lo hago",
+    "acostumbro",
+)
 
 #: Regla condicional: forma de automatizacion. Su destino es el almacen de reglas, no la memoria.
 _CONDICIONAL_INICIO = ("cuando", "si", "siempre que", "cada vez que", "en cuanto")
 
 #: Marcas de que el turno habla del **mundo del usuario**. Es la senal del eje 2, no del eje 1.
-_PRIMERA_PERSONA = ("mi", "mis", "me", "yo", "conmigo", "mio", "mia", "mios", "mias",
-                    "nuestro", "nuestra", "nos")
+_PRIMERA_PERSONA = ("mi", "mis", "me", "yo", "conmigo", "mio", "mia", "mios", "mias", "nuestro", "nuestra", "nos")
 
 #: Verbos en primera persona que expresan un hecho del usuario. Lista **cerrada y declarada**: la
 #: alternativa —«cualquier palabra terminada en -o»— se midio y bloqueaba 16 de 20 consultas de
 #: conocimiento general. El techo es finito y se declara.
-_VERBOS_YO = ("ceno", "como", "desayuno", "almuerzo", "hablo", "preparo", "tengo", "hago",
-              "uso", "vivo", "trabajo", "duermo", "medito", "estudio", "estudie", "compre",
-              "vendi", "elegi", "decidi", "naci", "toco", "gano", "prefiero", "llevo",
-              "entro", "salgo", "inverti", "rechace", "adquiri", "laboro", "descanso",
-              "mido", "peso", "conduzco", "practico", "juego", "leo", "escribo", "cocino",
-              "corro", "entreno", "viajo", "visito", "soy", "estoy", "quiero", "necesito")
+_VERBOS_YO = (
+    "ceno",
+    "como",
+    "desayuno",
+    "almuerzo",
+    "hablo",
+    "preparo",
+    "tengo",
+    "hago",
+    "uso",
+    "vivo",
+    "trabajo",
+    "duermo",
+    "medito",
+    "estudio",
+    "estudie",
+    "compre",
+    "vendi",
+    "elegi",
+    "decidi",
+    "naci",
+    "toco",
+    "gano",
+    "prefiero",
+    "llevo",
+    "entro",
+    "salgo",
+    "inverti",
+    "rechace",
+    "adquiri",
+    "laboro",
+    "descanso",
+    "mido",
+    "peso",
+    "conduzco",
+    "practico",
+    "juego",
+    "leo",
+    "escribo",
+    "cocino",
+    "corro",
+    "entreno",
+    "viajo",
+    "visito",
+    "soy",
+    "estoy",
+    "quiero",
+    "necesito",
+)
 
 # ------------------------------------------------------------------------ EJE 1 · ACTO --
+
 
 def es_interrogativa(texto: str) -> bool:
     """Senal **sintactica**: signo de interrogacion, o interrogativo en posicion inicial.
@@ -252,8 +445,7 @@ def acto_de_habla(texto: str) -> str:
     if any(p in n for p in _CORRECCION) and "?" not in texto and "¿" not in texto:
         return CORRECCION
 
-    if _nombra(bordes, _ORDEN) or any(p in n for p in ("para ya", "ten en cuenta", "no olvides",
-                                                       "no me dejes")):
+    if _nombra(bordes, _ORDEN) or any(p in n for p in ("para ya", "ten en cuenta", "no olvides", "no me dejes")):
         return ORDEN
 
     if es_interrogativa(texto) and not _interrogativa_solo_en_apariencia(texto, bordes):
@@ -270,6 +462,7 @@ def acto_de_habla(texto: str) -> str:
 
 
 # ------------------------------------------------------------------- EJE 2 · CONTENIDO --
+
 
 def _habla_del_usuario(bordes: str) -> bool:
     """El turno aporta algo sobre el mundo del usuario: posesivo, pronombre o verbo en 1.ª persona."""
@@ -313,6 +506,7 @@ def contenido_proposicional(texto: str) -> str:
 
 
 # ------------------------------------------------------------------------ CLASIFICACION --
+
 
 @dataclass(frozen=True)
 class Intencion:
@@ -415,12 +609,38 @@ def destino_de_memoria(texto: str, clasificacion: Intencion | None = None) -> st
 #: Marcos de cognicion general. **Cerrados.** Cada entrada es un compromiso, no una heuristica: se
 #: amplian de una en una, midiendo la disyuncion con la bateria antes de anadir.
 _MARCOS_COGNITIVOS = (
-    "que es ", "que son ", "que significa", "que quiere decir", "como funciona", "como funcionan",
-    "por que ", "de que esta hecho", "para que sirve", "quien es ", "quien fue ", "quien era ",
-    "quien invento", "quien escribio", "quien descubrio", "cual es la capital", "cuantos planetas",
-    "que distancia hay", "cuando termino", "cuando empezo", "en que ano", "cual es el rio",
-    "que podemos concluir", "que se puede concluir", "que pasaria si", "que crees que pasaria",
-    "que consecuencias", "que opinas", "que te parece", "cuentame", "explicame", "que diferencia hay",
+    "que es ",
+    "que son ",
+    "que significa",
+    "que quiere decir",
+    "como funciona",
+    "como funcionan",
+    "por que ",
+    "de que esta hecho",
+    "para que sirve",
+    "quien es ",
+    "quien fue ",
+    "quien era ",
+    "quien invento",
+    "quien escribio",
+    "quien descubrio",
+    "cual es la capital",
+    "cuantos planetas",
+    "que distancia hay",
+    "cuando termino",
+    "cuando empezo",
+    "en que ano",
+    "cual es el rio",
+    "que podemos concluir",
+    "que se puede concluir",
+    "que pasaria si",
+    "que crees que pasaria",
+    "que consecuencias",
+    "que opinas",
+    "que te parece",
+    "cuentame",
+    "explicame",
+    "que diferencia hay",
 )
 
 #: Peticiones de CONSEJO u OPINION. Lista **positiva y cerrada**, como `_MARCOS_COGNITIVOS`: solo
@@ -430,9 +650,20 @@ _MARCOS_COGNITIVOS = (
 #: **Por que es seguro ensancharla.** Las 24 consultas protegidas piden todas un DATO: un nombre, una
 #: hora, una combinacion, una fecha, un numero, un color, una marca. Ninguna pide consejo. La asimetria
 #: es la tesis: un error aqui deja sin contestar un consejo; no expone un hecho personal.
-_PIDE_CONSEJO = ("que me recomiendas", "me recomiendas", "que me aconsejas", "me aconsejas",
-                 "que me sugieres", "me sugieres", "como puedo", "que puedo hacer",
-                 "crees que", "que harias", "que hago si", "ayudame a pensar")
+_PIDE_CONSEJO = (
+    "que me recomiendas",
+    "me recomiendas",
+    "que me aconsejas",
+    "me aconsejas",
+    "que me sugieres",
+    "me sugieres",
+    "como puedo",
+    "que puedo hacer",
+    "crees que",
+    "que harias",
+    "que hago si",
+    "ayudame a pensar",
+)
 
 #: Posesivos de primera persona. **El freno de la rama de consejo.** «¿Crees que es buena idea...?» es
 #: conversacion; «¿Crees que mi hermana vive en Madrid?» interroga un hecho del usuario con forma de
@@ -441,8 +672,7 @@ _PIDE_CONSEJO = ("que me recomiendas", "me recomiendas", "que me aconsejas", "me
 _POSESIVO_PROPIO = ("mi", "mis", "mio", "mios", "mia", "mias")
 
 #: Operadores de suposicion. Introducen sus propias premisas en el turno.
-_SUPOSICION_COGNITIVA = ("si ", "supongamos que", "supon que", "imagina que", "si fuera",
-                         "si todos", "si cada")
+_SUPOSICION_COGNITIVA = ("si ", "supongamos que", "supon que", "imagina que", "si fuera", "si todos", "si cada")
 
 #: Interrogativos de CANTIDAD. Es lo unico que una premisa numerica puede responder.
 _PIDE_CANTIDAD = ("cuanto", "cuantos", "cuantas", "cuanta")
@@ -483,8 +713,11 @@ def es_cognicion_general(texto: str) -> bool:
     if any(p in n for p in _PIDE_CONSEJO) and not _nombra(_con_bordes(n), _POSESIVO_PROPIO):
         return True
 
-    if any(p in n for p in _SUPOSICION_COGNITIVA) and any(ch.isdigit() for ch in texto) \
-            and any(q in n for q in _PIDE_CANTIDAD):
+    if (
+        any(p in n for p in _SUPOSICION_COGNITIVA)
+        and any(ch.isdigit() for ch in texto)
+        and any(q in n for q in _PIDE_CANTIDAD)
+    ):
         return True
 
     # Hipotesis FISICA de consecuencia sin cifra (D-FC-5 = A, T5). Medido antes de activarla: 0 de
@@ -521,9 +754,20 @@ def es_cognicion_general(texto: str) -> bool:
 #: Interrogativos de consecuencia. Cerrados. Ordenados por longitud al usarse, para que «que me
 #: pasaria» no se lea como «que pasa» seguido de basura.
 _CONSECUENCIA = (
-    "que me pasa", "que me pasaria", "que me puede pasar", "que me podria pasar",
-    "que te pasa", "que te pasaria", "que le pasa", "que le pasaria",
-    "que pasa", "que pasaria", "que ocurre", "que ocurriria", "que sucede", "que sucederia",
+    "que me pasa",
+    "que me pasaria",
+    "que me puede pasar",
+    "que me podria pasar",
+    "que te pasa",
+    "que te pasaria",
+    "que le pasa",
+    "que le pasaria",
+    "que pasa",
+    "que pasaria",
+    "que ocurre",
+    "que ocurriria",
+    "que sucede",
+    "que sucederia",
 )
 
 #: Operadores de suposicion admitidos en posicion INICIAL para esta rama.
@@ -534,32 +778,118 @@ _OPERADOR_HIPOTESIS = ("si", "supongamos que", "supon que", "imagina que")
 #: y los de ingesta (`bebo`, `tomo`, `trago`): una pregunta de ingesta es salud, y su politica es de
 #: `dominio_sensible`, no de esta superficie. `acerca` falta porque es tambien «acerca de».
 _PREMISA_FISICA = (
-    "meto", "metes", "mete", "metemos", "meten", "metiera", "metieras",
-    "pongo", "pones", "pone", "ponemos", "ponen", "pusiera", "pusieras",
-    "caigo", "caes", "cae", "caemos", "caen", "cayera", "cayeras",
-    "mezclo", "mezclas", "mezcla", "mezclamos", "mezclan", "mezclara",
-    "caliento", "calientas", "calienta", "calientan", "calentara",
-    "congelo", "congelas", "congela", "congelan", "congelara",
-    "respiro", "respiras", "respira", "respirara",
-    "miro", "miras", "mira", "mirara",
-    "salto", "saltas", "salta", "saltara",
-    "sumerjo", "sumerges", "sumerge",
-    "expongo", "expones", "expone", "expusiera",
-    "lanzo", "lanzas", "lanza", "lanzara",
-    "suelto", "sueltas", "suelta", "soltara",
-    "tocas", "toca", "tocara",
-    "choca", "chocan", "chocara", "chocaran",
-    "explota", "explotan", "explotara",
-    "desaparece", "desaparecen", "desapareciera", "desaparecieran",
-    "derrite", "derriten", "derritiera", "funde", "funden", "evapora", "hierve", "hirviera",
+    "meto",
+    "metes",
+    "mete",
+    "metemos",
+    "meten",
+    "metiera",
+    "metieras",
+    "pongo",
+    "pones",
+    "pone",
+    "ponemos",
+    "ponen",
+    "pusiera",
+    "pusieras",
+    "caigo",
+    "caes",
+    "cae",
+    "caemos",
+    "caen",
+    "cayera",
+    "cayeras",
+    "mezclo",
+    "mezclas",
+    "mezcla",
+    "mezclamos",
+    "mezclan",
+    "mezclara",
+    "caliento",
+    "calientas",
+    "calienta",
+    "calientan",
+    "calentara",
+    "congelo",
+    "congelas",
+    "congela",
+    "congelan",
+    "congelara",
+    "respiro",
+    "respiras",
+    "respira",
+    "respirara",
+    "miro",
+    "miras",
+    "mira",
+    "mirara",
+    "salto",
+    "saltas",
+    "salta",
+    "saltara",
+    "sumerjo",
+    "sumerges",
+    "sumerge",
+    "expongo",
+    "expones",
+    "expone",
+    "expusiera",
+    "lanzo",
+    "lanzas",
+    "lanza",
+    "lanzara",
+    "suelto",
+    "sueltas",
+    "suelta",
+    "soltara",
+    "tocas",
+    "toca",
+    "tocara",
+    "choca",
+    "chocan",
+    "chocara",
+    "chocaran",
+    "explota",
+    "explotan",
+    "explotara",
+    "desaparece",
+    "desaparecen",
+    "desapareciera",
+    "desaparecieran",
+    "derrite",
+    "derriten",
+    "derritiera",
+    "funde",
+    "funden",
+    "evapora",
+    "hierve",
+    "hirviera",
 )
 
 #: Deixis que ancla la premisa en la VIDA del usuario o en lo que ya se le dio a AURA. Freno cerrado.
 _DEIXIS_PERSONAL = (
-    "hoy", "manana", "ayer", "anoche", "anteayer",
-    "lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo",
-    "cumpleanos", "aniversario",
-    "te di", "te dije", "te deje", "te pase", "te pedi", "te mande", "te ensene", "te envie",
+    "hoy",
+    "manana",
+    "ayer",
+    "anoche",
+    "anteayer",
+    "lunes",
+    "martes",
+    "miercoles",
+    "jueves",
+    "viernes",
+    "sabado",
+    "domingo",
+    "cumpleanos",
+    "aniversario",
+    "te di",
+    "te dije",
+    "te deje",
+    "te pase",
+    "te pedi",
+    "te mande",
+    "te ensene",
+    "te envie",
 )
 
 #: Posesivos propios del freno de esta rama: `_POSESIVO_PROPIO` mas la primera persona del plural.
@@ -572,14 +902,14 @@ def _premisa_de_consecuencia(bordes: str) -> str | None:
     consecuencias = sorted(_CONSECUENCIA, key=len, reverse=True)
     for op in _OPERADOR_HIPOTESIS:
         if t.startswith(op + " "):
-            resto = t[len(op) + 1:]
+            resto = t[len(op) + 1 :]
             for c in consecuencias:
                 if resto.endswith(" " + c):
                     return resto[: -len(c) - 1].strip() or None
             return None
     for c in consecuencias:
         if t.startswith(c + " si "):
-            return t[len(c) + 4:].strip() or None
+            return t[len(c) + 4 :].strip() or None
     return None
 
 
@@ -621,14 +951,34 @@ REFERENTE_INCIERTO = "incierto"
 #: Ninguno lleva un verbo en primera persona: «a que me dedico?» o «que hago si...?» son del usuario y
 #: no pueden casar aqui. `que sabes de mi` tampoco: es soberania del modelo de usuario y va antes.
 _MARCOS_SOBRE_AURA = (
-    "que desarrollas", "que estas desarrollando", "en que estas desarrollando",
-    "que estas haciendo", "que haces ahora", "que haces en este momento", "que haces ahorita",
-    "en que trabajas", "en que andas", "a que te dedicas",
-    "por que estas detenida", "por que estas detenido", "por que estas parada", "por que estas parado",
-    "por que estas bloqueada", "por que estas bloqueado", "por que te detuviste", "por que te paraste",
-    "por que te has detenido", "por que te has parado",
-    "que capacidades tienes", "cuales son tus capacidades", "que puedes hacer", "que sabes hacer",
-    "que tareas tienes", "cuales son tus tareas", "cual es tu estado", "que estas ejecutando",
+    "que desarrollas",
+    "que estas desarrollando",
+    "en que estas desarrollando",
+    "que estas haciendo",
+    "que haces ahora",
+    "que haces en este momento",
+    "que haces ahorita",
+    "en que trabajas",
+    "en que andas",
+    "a que te dedicas",
+    "por que estas detenida",
+    "por que estas detenido",
+    "por que estas parada",
+    "por que estas parado",
+    "por que estas bloqueada",
+    "por que estas bloqueado",
+    "por que te detuviste",
+    "por que te paraste",
+    "por que te has detenido",
+    "por que te has parado",
+    "que capacidades tienes",
+    "cuales son tus capacidades",
+    "que puedes hacer",
+    "que sabes hacer",
+    "que tareas tienes",
+    "cuales son tus tareas",
+    "cual es tu estado",
+    "que estas ejecutando",
 )
 
 #: Raices para inflexiones del mismo marco («en que estas trabajando/trabajado»). Se exige el borde
@@ -662,36 +1012,127 @@ def es_consulta_sobre_aura(texto: str) -> bool:
 
 #: Marcos que piden afirmaciones sobre una persona. Se casan sobre el texto normalizado, sin depender
 #: de mayusculas: «quien es jesus cristo» y «Quién es Jesús Cristo» son el mismo turno.
-_MARCOS_PERSONA = ("quien es ", "quien fue ", "quien era ", "quien invento", "quien escribio",
-                   "quien descubrio")
+_MARCOS_PERSONA = ("quien es ", "quien fue ", "quien era ", "quien invento", "quien escribio", "quien descubrio")
 
 #: Lexico cerrado por dominio. Coincidencia por PALABRA COMPLETA. Se evitan a proposito los ambiguos
 #: con uso cotidiano frecuente: «papa» (tuberculo/padre), «receta» (cocina), «acciones» (actos),
 #: «ala», «hacienda» (finca), «bolsa» suelta.
 _DOMINIOS_SENSIBLES = (
-    ("salud", (
-        "medicamento", "medicamentos", "medicina", "medicinas", "dosis", "sobredosis",
-        "enfermedad", "enfermedades", "sintoma", "sintomas", "diagnostico", "diagnosticos",
-        "tratamiento", "tratamientos", "pastilla", "pastillas", "cancer", "tumor", "embarazo",
-        "embarazada", "paracetamol", "ibuprofeno", "aspirina", "antibiotico", "antibioticos",
-        "vacuna", "vacunas", "infeccion", "fiebre", "alergia", "diabetes", "depresion", "suicidio",
-        "intoxicacion", "veneno",
-    )),
-    ("derecho", (
-        "ley", "leyes", "demanda", "demandar", "abogado", "abogada", "juicio", "juez", "tribunal",
-        "denuncia", "denunciar", "delito", "delitos", "herencia", "testamento", "divorcio", "multa",
-        "ilegal", "legal", "carcel", "despido",
-    )),
-    ("finanzas", (
-        "invertir", "inversion", "inversiones", "hipoteca", "prestamo", "prestamos", "credito",
-        "criptomoneda", "criptomonedas", "bitcoin", "impuesto", "impuestos", "deuda", "deudas",
-        "bolsa de valores", "declaracion de la renta",
-    )),
-    ("religion", (
-        "jesus", "cristo", "jesucristo", "dios", "dioses", "biblia", "coran", "islam", "mahoma",
-        "buda", "budismo", "iglesia", "religion", "religiones", "religioso", "religiosa",
-        "cristianismo", "judaismo", "catolico", "catolica", "vaticano", "profeta", "virgen maria",
-    )),
+    (
+        "salud",
+        (
+            "medicamento",
+            "medicamentos",
+            "medicina",
+            "medicinas",
+            "dosis",
+            "sobredosis",
+            "enfermedad",
+            "enfermedades",
+            "sintoma",
+            "sintomas",
+            "diagnostico",
+            "diagnosticos",
+            "tratamiento",
+            "tratamientos",
+            "pastilla",
+            "pastillas",
+            "cancer",
+            "tumor",
+            "embarazo",
+            "embarazada",
+            "paracetamol",
+            "ibuprofeno",
+            "aspirina",
+            "antibiotico",
+            "antibioticos",
+            "vacuna",
+            "vacunas",
+            "infeccion",
+            "fiebre",
+            "alergia",
+            "diabetes",
+            "depresion",
+            "suicidio",
+            "intoxicacion",
+            "veneno",
+        ),
+    ),
+    (
+        "derecho",
+        (
+            "ley",
+            "leyes",
+            "demanda",
+            "demandar",
+            "abogado",
+            "abogada",
+            "juicio",
+            "juez",
+            "tribunal",
+            "denuncia",
+            "denunciar",
+            "delito",
+            "delitos",
+            "herencia",
+            "testamento",
+            "divorcio",
+            "multa",
+            "ilegal",
+            "legal",
+            "carcel",
+            "despido",
+        ),
+    ),
+    (
+        "finanzas",
+        (
+            "invertir",
+            "inversion",
+            "inversiones",
+            "hipoteca",
+            "prestamo",
+            "prestamos",
+            "credito",
+            "criptomoneda",
+            "criptomonedas",
+            "bitcoin",
+            "impuesto",
+            "impuestos",
+            "deuda",
+            "deudas",
+            "bolsa de valores",
+            "declaracion de la renta",
+        ),
+    ),
+    (
+        "religion",
+        (
+            "jesus",
+            "cristo",
+            "jesucristo",
+            "dios",
+            "dioses",
+            "biblia",
+            "coran",
+            "islam",
+            "mahoma",
+            "buda",
+            "budismo",
+            "iglesia",
+            "religion",
+            "religiones",
+            "religioso",
+            "religiosa",
+            "cristianismo",
+            "judaismo",
+            "catolico",
+            "catolica",
+            "vaticano",
+            "profeta",
+            "virgen maria",
+        ),
+    ),
 )
 
 
@@ -722,6 +1163,7 @@ def dominio_sensible(texto: str) -> str | None:
 
 
 # ---------------------------------------------------------------------------------- REFERENTE --
+
 
 def referente(texto: str) -> str:
     """De quien habla el turno. **Funcion pura que solo COMPONE predicados existentes.**

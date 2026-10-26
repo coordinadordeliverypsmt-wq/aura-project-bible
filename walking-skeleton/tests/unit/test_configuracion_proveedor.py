@@ -19,6 +19,7 @@ import inspect
 import pytest
 
 from aura_skeleton.composicion import Configuracion, componer
+from aura_skeleton.core.capacidades import PerfilHardware
 from aura_skeleton.modules.providers_real import OllamaProvider
 
 # --------------------------------------------------------------- fuente: entorno vs defecto --
@@ -147,7 +148,7 @@ class _OrquestadorLento:
         self._llamadas_wait = []
         self._en_modelo = en_modelo
 
-    async def handle_utterance(self, user_id, texto, trace_id):
+    async def handle_utterance(self, user_id, texto, trace_id, activado=False):
         return None
 
     async def wait(self, trace_id, timeout):
@@ -237,6 +238,7 @@ async def test_la_cli_conversar_muestra_el_acuse_de_espera(tmp_path, monkeypatch
         kill_switch=types.SimpleNamespace(is_engaged=lambda: False),
         capacidades_activas_efectivas=(),
         materializaciones=(),
+        perfil_hardware=PerfilHardware(),
         config=config,
         orquestador=orquestador,
     )

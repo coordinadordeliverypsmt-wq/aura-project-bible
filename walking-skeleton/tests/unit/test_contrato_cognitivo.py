@@ -53,8 +53,9 @@ def _espia(monkeypatch, *, fallar_con_esquema: bool = False) -> list[dict]:
         vistos.append(cuerpo)
         if fallar_con_esquema and cuerpo.get("format") != "json":
             raise urllib.error.HTTPError(req.full_url, 400, "Bad Request", {}, None)
-        return _Respuesta({"response": json.dumps(
-            {"say": "respuesta", "intent": "consulta", "action": "consulta", "args": {}})})
+        return _Respuesta(
+            {"response": json.dumps({"say": "respuesta", "intent": "consulta", "action": "consulta", "args": {}})}
+        )
 
     monkeypatch.setattr(urllib.request, "urlopen", _falso_urlopen)
     return vistos
@@ -165,4 +166,5 @@ def test_el_esquema_no_concede_autoridad_de_ejecucion():
     import inspect
 
     from aura_skeleton.core.orchestrator import Orchestrator
+
     assert 'if action != "consulta":' in inspect.getsource(Orchestrator.on_turn)

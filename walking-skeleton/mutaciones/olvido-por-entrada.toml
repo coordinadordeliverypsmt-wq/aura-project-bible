@@ -1,0 +1,76 @@
+incremento = "DR-2 = A (CEO, 2026-09-15): FORGET opera sobre la entrada concreta (contenido + ts), retira de la recuperacion los ecos del mismo turno y conserva el historial"
+pruebas = ["tests/integration/test_olvido_por_entrada.py"]
+timeout_s = 240
+
+# Cada mutante devuelve UNA pieza al comportamiento anterior o la degrada por el lado contrario: la
+# localizacion por entrada, el sello que la hace unica, la retirada de ecos al olvidar y al refutar, el
+# enlace de los ecos por turno, el filtro que los saca del contexto y la honestidad del dry-run.
+
+[[mutante]]
+id = "OE-M1"
+garantia = "la operacion vuelve a localizar por TEXTO aunque se nombre una entrada: con dos versiones identicas se borra tambien la historica"
+fichero = "aura_skeleton/core/ejecutor_modelo_usuario.py"
+pruebas = ["tests/integration/test_olvido_por_entrada.py::test_con_texto_identico_olvida_eso_retira_solo_la_version_señalada"]
+buscar = '''        if args.get("entrada"):
+            return _predicado_entrada(user_id, args["entrada"], solo_vivas)'''
+sustituir = '''        if False:
+            return _predicado_entrada(user_id, args["entrada"], solo_vivas)'''
+
+[[mutante]]
+id = "OE-M2"
+garantia = "se ignora el sello `ts`: la entrada deja de ser unica y dos versiones de texto identico caen juntas"
+fichero = "aura_skeleton/core/ejecutor_modelo_usuario.py"
+pruebas = ["tests/integration/test_olvido_por_entrada.py::test_con_texto_identico_olvida_eso_retira_solo_la_version_señalada"]
+buscar = '''            and prov.get("ts") == ts'''
+sustituir = '''            and True'''
+
+[[mutante]]
+id = "OE-M3"
+garantia = "olvidar deja de retirar los ecos: el dato olvidado vuelve a llegar al contexto del modelo"
+fichero = "aura_skeleton/core/ejecutor_modelo_usuario.py"
+pruebas = ["tests/integration/test_olvido_por_entrada.py::test_tras_olvidar_el_eco_no_vuelve_a_contaminar_el_contexto_del_modelo",
+           "tests/integration/test_olvido_por_entrada.py::test_el_eco_retirado_se_conserva_para_auditoria_con_su_motivo"]
+buscar = '''            self._retirar_ecos(args, entradas, "olvido", trace_id)'''
+sustituir = '''            pass'''
+
+[[mutante]]
+id = "OE-M4"
+garantia = "refutar deja de retirar los ecos: lo que el usuario desmintio vuelve a llegar al contexto del modelo"
+fichero = "aura_skeleton/core/ejecutor_modelo_usuario.py"
+pruebas = ["tests/integration/test_olvido_por_entrada.py::test_tras_refutar_el_eco_tampoco_llega_al_contexto_del_modelo"]
+buscar = '''            self._retirar_ecos(args, entradas, "refutacion", trace_id)'''
+sustituir = '''            pass'''
+
+[[mutante]]
+id = "OE-M5"
+garantia = "los ecos dejan de enlazarse por su turno: retirar uno arrastra los de otros turnos, aunque sean el registro de otra declaracion"
+fichero = "aura_skeleton/core/ejecutor_modelo_usuario.py"
+pruebas = ["tests/integration/test_olvido_por_entrada.py::test_con_texto_identico_el_eco_del_OTRO_turno_no_se_retira"]
+buscar = '''            and prov.get("trace_id") in trace_ids'''
+sustituir = '''            and True'''
+
+[[mutante]]
+id = "OE-M6"
+garantia = "el contexto del modelo deja de respetar la retirada: el eco marcado sigue entrando como memoria vigente"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_olvido_por_entrada.py::test_tras_olvidar_el_eco_no_vuelve_a_contaminar_el_contexto_del_modelo"]
+buscar = '''    return not prov.get("refutada") and prov.get("valid_until") is None and not prov.get("retirada")'''
+sustituir = '''    return not prov.get("refutada") and prov.get("valid_until") is None'''
+
+[[mutante]]
+id = "OE-M7"
+garantia = "el orquestador vuelve a olvidar por texto en vez de nombrar la entrada señalada"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_olvido_por_entrada.py::test_con_texto_identico_olvida_eso_retira_solo_la_version_señalada"]
+buscar = '''            n = await self.modelo_usuario.olvidar_entrada(uid, foco)'''
+sustituir = '''            n = await self.modelo_usuario.borrar(uid, foco["contenido"])'''
+
+[[mutante]]
+id = "OE-M8"
+garantia = "el dry-run calla la retirada de ecos: quien aprueba el plan no ve todo su efecto"
+fichero = "aura_skeleton/core/ejecutor_modelo_usuario.py"
+pruebas = ["tests/integration/test_olvido_por_entrada.py::test_el_dry_run_nombra_tambien_los_ecos_que_retirara"]
+buscar = '''        if ecos:
+            efecto += f" y retiraria {len(ecos)} eco(s) de la recuperacion"'''
+sustituir = '''        if False:
+            efecto += f" y retiraria {len(ecos)} eco(s) de la recuperacion"'''

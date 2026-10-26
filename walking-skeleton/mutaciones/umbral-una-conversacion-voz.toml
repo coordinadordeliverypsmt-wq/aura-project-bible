@@ -1,0 +1,48 @@
+incremento = "Umbral de integracion en una conversacion hablada - preguntar por el resultado de la accion sobre la TV"
+pruebas = [
+    "tests/integration/test_umbral_una_conversacion_voz.py",
+    "tests/integration/test_voz_accion_opcion_c.py",
+    "tests/unit/test_recuperacion_de_resultados.py",
+    # UV-M5: sin acción previa, «¿qué hiciste?» debe seguir yendo al historial del ciclo autónomo.
+    "tests/integration/test_hogar_en_conversacion.py",
+    "tests/integration/test_routing_dominios.py",
+    "tests/integration/test_ui_limpia_y_estado_autonomo.py",
+]
+
+[[mutante]]
+id = "UV-M1"
+garantia = "por voz, la superficie de orden no entendida vuelve a tragarse la pregunta por el resultado"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            and hogar.menciona_tv_sin_orden(text)
+            and recuperacion.reconocer(text) is None
+        ):'''
+sustituir = '''            and hogar.menciona_tv_sin_orden(text)
+        ):'''
+
+[[mutante]]
+id = "UV-M2"
+garantia = "las preguntas por la TV no se reconocen como pregunta por el resultado"
+fichero = "aura_skeleton/core/recuperacion.py"
+buscar = '''    if limpio in _FORMAS_RESULTADO or limpio in _FORMAS_RESULTADO_TV:'''
+sustituir = '''    if limpio in _FORMAS_RESULTADO:'''
+
+[[mutante]]
+id = "UV-M3"
+garantia = "la superficie se abre a cualquier frase con la TV (deja de ser cerrada) y una orden mal oida se responde como recuperacion"
+fichero = "aura_skeleton/core/recuperacion.py"
+buscar = '''    if limpio in _FORMAS_RESULTADO or limpio in _FORMAS_RESULTADO_TV:'''
+sustituir = '''    if limpio in _FORMAS_RESULTADO or limpio in _FORMAS_RESULTADO_TV or "tele" in limpio.split():'''
+
+[[mutante]]
+id = "UV-M4"
+garantia = "sin el adverbio «ya», la variante hablada «ya apagaste la television» deja de reconocerse"
+fichero = "aura_skeleton/core/recuperacion.py"
+buscar = '''    for ya in ("", "ya ")'''
+sustituir = '''    for ya in ("",)'''
+
+[[mutante]]
+id = "UV-M5"
+garantia = "la pregunta por el resultado se responde con lo ultimo que dijo AURA aunque no hubiera ejecucion"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        if clase_en_conversacion is not None and recuperacion.hubo_ejecucion(self._dialogue.get(uid, [])):'''
+sustituir = '''        if clase_en_conversacion is not None:'''

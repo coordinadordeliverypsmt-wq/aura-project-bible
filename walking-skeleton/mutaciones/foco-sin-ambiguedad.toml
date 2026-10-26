@@ -1,0 +1,44 @@
+incremento = "Nombrar algo para olvidarlo o refutarlo nunca actua sobre la entrada equivocada (2026-09-15): palabra completa, gana la que mas coincide, un empate se pregunta"
+pruebas = ["tests/integration/test_foco_sin_ambiguedad.py",
+           "tests/unit/test_contencion_alerta006.py"]
+timeout_s = 240
+
+# Defectos PREEXISTENTES en 6dad6af, de la clase de ALERTA-006, hallados por la auditoria independiente:
+# «olvida lo de valenciana» borraba «mi ciudad favorita es Valencia» (subcadena) y «olvida lo de
+# cartagena» borraba una de dos entradas igual de validas (primera coincidencia). Las dos respondian
+# «Hecho». Cada mutante devuelve UNA pieza de la regla al estado anterior.
+
+[[mutante]]
+id = "FA-M1"
+garantia = "vuelve la coincidencia por SUBCADENA: una palabra corta de una entrada selecciona otra entrada distinta que el usuario nombro por una palabra que la contiene"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_foco_sin_ambiguedad.py::test_una_palabra_que_solo_CONTIENE_otra_no_selecciona_esa_otra_entrada"]
+buscar = '''                coincidencias = len(palabras & palabras_texto)'''
+sustituir = '''                coincidencias = sum(1 for w in palabras if w in t)'''
+
+[[mutante]]
+id = "FA-M2"
+garantia = "un empate deja de preguntarse: ante dos entradas igual de validas se actua sobre una cualquiera y se confirma «Hecho»"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_foco_sin_ambiguedad.py::test_dos_entradas_igual_de_validas_para_lo_nombrado_se_pregunta_y_no_se_borra_nada",
+           "tests/integration/test_foco_sin_ambiguedad.py::test_refutar_con_el_mismo_empate_tambien_pregunta"]
+buscar = '''            if len(ganadoras) > 1:
+                return None'''
+sustituir = '''            if False:
+                return None'''
+
+[[mutante]]
+id = "FA-M3"
+garantia = "se ignora cuantas palabras coinciden: gana la primera entrada en orden, aunque otra señale lo nombrado con mas precision"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_foco_sin_ambiguedad.py::test_CONTROL_si_una_entrada_coincide_en_MAS_palabras_esa_gana_sin_preguntar"]
+buscar = '''            ganadoras = [e for p, e in puntuadas if p == mejor]'''
+sustituir = '''            ganadoras = [puntuadas[0][1]]'''
+
+[[mutante]]
+id = "FA-M4"
+garantia = "la tokenizacion vuelve a partir por espacios: la puntuacion pegada («facturas.») impide reconocer lo nombrado y el olvido identificado deja de funcionar"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/unit/test_contencion_alerta006.py::test_control_el_olvido_identificado_sigue_funcionando"]
+buscar = '''        palabras_texto = set(re.findall(r"\w+", t))'''
+sustituir = '''        palabras_texto = set(t.split())'''

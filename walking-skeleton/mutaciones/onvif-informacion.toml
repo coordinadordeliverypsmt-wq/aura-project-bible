@@ -1,0 +1,201 @@
+incremento = "Informacion ONVIF (GetDeviceInformation) sin credenciales"
+pruebas = [
+    "tests/unit/test_red_local.py",
+]
+
+[[mutante]]
+id = "O1"
+garantia = "un XAddr hacia otra IP se acepta"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''u.hostname != ip or u.scheme'''
+sustituir = '''u.scheme'''
+
+[[mutante]]
+id = "O2"
+garantia = "se acepta https"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''u.scheme != "http"'''
+sustituir = '''u.scheme not in ("http", "https")'''
+
+[[mutante]]
+id = "O3"
+garantia = "se acepta el puerto 22 (sin minimo)"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''or puerto not in _PUERTOS_ONVIF:'''
+sustituir = '''or False:'''
+
+[[mutante]]
+id = "O4"
+garantia = "se siguen redirecciones"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''    with _OPENER.open(peticion, timeout=2) as r:  # sin redirecciones'''
+sustituir = '''    with urllib.request.urlopen(peticion, timeout=2) as r:  # sin redirecciones'''
+
+[[mutante]]
+id = "O5"
+garantia = "se lee sin tope de 64 KB"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''_leer_acotado(r, _TOPE_CUERPO + 1, _PLAZO_LECTURA_S)'''
+sustituir = '''r.read()'''
+
+[[mutante]]
+id = "O6"
+garantia = "parsear_informacion_onvif acepta DOCTYPE/ENTITY"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''def parsear_informacion_onvif(xml: str) -> dict | None:
+    """Fabricante, modelo y firmware de una respuesta `GetDeviceInformation`. Función pura. IGNORA
+    `SerialNumber` y `HardwareId`: identifican el aparato y no hacen falta. None si no hay nada utilizable."""
+    if len(xml) > _TOPE_CUERPO or "<!DOCTYPE" in xml.upper() or "<!ENTITY" in xml.upper():
+        return None
+'''
+sustituir = '''def parsear_informacion_onvif(xml: str) -> dict | None:
+    """x"""
+    if len(xml) > _TOPE_CUERPO:
+        return None
+'''
+
+[[mutante]]
+id = "O7"
+garantia = "parsear_informacion_onvif sin tope de longitud"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''def parsear_informacion_onvif(xml: str) -> dict | None:
+    """Fabricante, modelo y firmware de una respuesta `GetDeviceInformation`. Función pura. IGNORA
+    `SerialNumber` y `HardwareId`: identifican el aparato y no hacen falta. None si no hay nada utilizable."""
+    if len(xml) > _TOPE_CUERPO or'''
+sustituir = '''def parsear_informacion_onvif(xml: str) -> dict | None:
+    """x"""
+    if'''
+
+[[mutante]]
+id = "O8"
+garantia = "el SerialNumber aparece en la salida"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''"firmware": texto("FirmwareVersion")}'''
+sustituir = '''"firmware": texto("FirmwareVersion"), "serie": texto("SerialNumber")}'''
+
+[[mutante]]
+id = "O9"
+garantia = "se reintenta con credenciales tras un fallo"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''        return parsear_informacion_onvif(enviar(xaddr, _SOAP_INFORMACION))
+    except (OSError, ValueError):  # HTTPError (401 incluido) es OSError
+        return None'''
+sustituir = '''        try:
+            return parsear_informacion_onvif(enviar(xaddr, _SOAP_INFORMACION))
+        except OSError:
+            return parsear_informacion_onvif(enviar(xaddr, _SOAP_INFORMACION))
+    except (OSError, ValueError):
+        return None'''
+
+[[mutante]]
+id = "O11"
+garantia = "un fallo de informacion tumba la Observacion"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''            except Exception:  # noqa: BLE001 — el enriquecimiento es opcional
+                consultas[ip] = None'''
+sustituir = '''            except ZeroDivisionError:
+                consultas[ip] = None'''
+
+[[mutante]]
+id = "O12"
+garantia = "se envia cabecera de credenciales"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''        headers={
+            "Content-Type"'''
+sustituir = '''        headers={
+            "Authorization": "Basic YWRtaW46YWRtaW4=",
+            "Content-Type"'''
+
+[[mutante]]
+id = "O13"
+garantia = "el XAddr no validado se consulta (sin _xaddr_valido en enriquecer)"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''(x for x in xaddrs_wsd(xml) if _xaddr_valido(ip, x))'''
+sustituir = '''(x for x in xaddrs_wsd(xml))'''
+
+[[mutante]]
+id = "N1"
+garantia = "el DVR de _no_tocar se acepta"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''return ip not in _no_tocar() and ip not in (_ips_propias()'''
+sustituir = '''return ip not in (_ips_propias()'''
+
+[[mutante]]
+id = "N2"
+garantia = "se acepta loopback"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''or direccion.is_loopback or direccion.is_link_local'''
+sustituir = '''or direccion.is_link_local'''
+
+[[mutante]]
+id = "N3"
+garantia = "se acepta link-local"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''or direccion.is_loopback or direccion.is_link_local'''
+sustituir = '''or direccion.is_loopback'''
+
+[[mutante]]
+id = "N4"
+garantia = "se acepta una IP no privada"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''if not direccion.is_private or'''
+sustituir = '''if'''
+
+[[mutante]]
+id = "N5"
+garantia = "se acepta la IP propia"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = ''' and ip not in (_ips_propias() if propias is None else propias)'''
+sustituir = ''''''
+
+[[mutante]]
+id = "N6"
+garantia = "se acepta un puerto fuera de la lista (22, 9000)"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''frozenset({None, 80, 8000, 8080, 8899})'''
+sustituir = '''frozenset({None, 80, 8000, 8080, 8899, 22, 9000})'''
+
+[[mutante]]
+id = "N7"
+garantia = "_OPENER vuelve a usar el proxy del entorno"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''build_opener(urllib.request.ProxyHandler({}), _SinRedirecciones)'''
+sustituir = '''build_opener(_SinRedirecciones)'''
+
+[[mutante]]
+id = "N8"
+garantia = "sin plazo de lectura total"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''while leido < tope and _reloj() < fin:'''
+sustituir = '''while leido < tope:'''
+
+[[mutante]]
+id = "N9"
+garantia = "el enriquecimiento es en serie"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''max_workers=_MAX_TRABAJADORES_ENRIQUECER)'''
+sustituir = '''max_workers=1)'''
+
+[[mutante]]
+id = "N10"
+garantia = "el enriquecimiento no tiene plazo total"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''concurrent.futures.wait(futuros.values(), timeout=_PLAZO_ENRIQUECER_S)'''
+sustituir = '''concurrent.futures.wait(futuros.values())'''
+
+[[mutante]]
+id = "N11"
+garantia = "el pool espera a los lentos al cerrar"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''pool.shutdown(wait=False, cancel_futures=True)'''
+sustituir = '''pool.shutdown(wait=True)'''
+
+[[mutante]]
+id = "N12"
+garantia = "los hilos de descubrir no son daemon"
+fichero = "aura_skeleton/adapters/red_local.py"
+buscar = '''args=(f,), daemon=True)'''
+sustituir = '''args=(f,), daemon=False)'''
+
+# O10 RETIRADO (2026-10-22): con `xaddrs` como dict por IP, «una consulta por IP» lo garantiza la ESTRUCTURA; el mutante
+# solo cambiaba QUÉ XAddr válido de una misma IP se consulta (equivalente respecto a la garantía). Lo analizó verificador-mutacion.

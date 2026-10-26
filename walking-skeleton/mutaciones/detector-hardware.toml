@@ -1,0 +1,257 @@
+incremento = '''DetectorHardware real: medicion del equipo, cableado de producto, informe y BOOT honesto'''
+pruebas = ["tests/unit/test_detector_hardware.py", "tests/integration/test_composicion_detecta_hardware.py", "tests/unit/test_informe_perfil_hardware.py", "tests/unit/test_configuracion_proveedor.py"]
+timeout_s = 300
+
+[[mutante]]
+id = "DH-M1"
+garantia = '''desde_entorno() no cablea el detector real'''
+fichero = "aura_skeleton/composicion.py"
+buscar = '''        config.detector = DetectorHardwareLocal(config.datos)
+'''
+sustituir = '''        config.detector = None
+'''
+
+[[mutante]]
+id = "DH-M2"
+garantia = '''componer() ignora config.detector'''
+fichero = "aura_skeleton/composicion.py"
+buscar = '''config.detector or _PerfilInyectado(config.perfil)'''
+sustituir = '''_PerfilInyectado(config.perfil)'''
+
+[[mutante]]
+id = "DH-M3"
+garantia = '''ISA por subcadena'''
+fichero = "aura_skeleton/adapters/detector_hardware.py"
+buscar = '''1.0 if flag in comunes else 0.0'''
+sustituir = '''1.0 if any(flag in f for f in comunes) else 0.0'''
+
+[[mutante]]
+id = "DH-M4"
+garantia = '''1000 kB por MB'''
+fichero = "aura_skeleton/adapters/detector_hardware.py"
+buscar = '''_KB_POR_MB = 1024
+'''
+sustituir = '''_KB_POR_MB = 1000
+'''
+
+[[mutante]]
+id = "DH-M5"
+garantia = '''sin dividir kB a MB'''
+fichero = "aura_skeleton/adapters/detector_hardware.py"
+buscar = '''int(linea.split()[1]) // _KB_POR_MB'''
+sustituir = '''int(linea.split()[1])'''
+
+[[mutante]]
+id = "DH-M6"
+garantia = '''sin meminfo inventa 0.0'''
+fichero = "aura_skeleton/adapters/detector_hardware.py"
+buscar = '''        raise ValueError(f"campo {clave} ausente")
+'''
+sustituir = '''        return {metrica: 0.0}
+'''
+
+[[mutante]]
+id = "DH-M7"
+garantia = '''linea ilegible de meminfo inventa 0.0'''
+fichero = "aura_skeleton/adapters/detector_hardware.py"
+buscar = '''float(int(linea.split()[1]) // _KB_POR_MB)'''
+sustituir = '''float(int(linea.split()[1]) // _KB_POR_MB) if linea.split()[1:] and linea.split()[1].isdigit() else 0.0'''
+
+[[mutante]]
+id = "DH-M8"
+garantia = '''sin cpuinfo inventa ISA a 0'''
+fichero = "aura_skeleton/adapters/detector_hardware.py"
+buscar = '''            raise ValueError("cpuinfo sin linea flags")
+'''
+sustituir = '''            return {m: 0.0 for m in _ISA}
+'''
+
+[[mutante]]
+id = "DH-M9"
+garantia = '''gpu_render cuenta cualquier entrada'''
+fichero = "aura_skeleton/adapters/detector_hardware.py"
+buscar = '''e.name.startswith("renderD")'''
+sustituir = '''True'''
+
+[[mutante]]
+id = "DH-M10"
+garantia = '''fuente rota devuelve perfil vacio'''
+fichero = "aura_skeleton/adapters/detector_hardware.py"
+buscar = '''                obs.log("WARN", "detector-hardware", f"no se pudo medir {nombre}: {type(e).__name__}", "-")
+'''
+sustituir = '''                return PerfilHardware()
+'''
+
+[[mutante]]
+id = "DH-M11"
+garantia = '''ruta_datos inexistente no sube al padre'''
+fichero = "aura_skeleton/adapters/detector_hardware.py"
+buscar = '''while not ruta.exists() and ruta != ruta.parent:'''
+sustituir = '''while False:'''
+
+[[mutante]]
+id = "DH-M12"
+garantia = '''BOOT de metricas sin audit'''
+fichero = "aura_skeleton/composicion.py"
+buscar = '''        "-",
+        audit=True,
+    )
+    plan = CapabilityManager'''
+sustituir = '''        "-",
+        audit=False,
+    )
+    plan = CapabilityManager'''
+
+[[mutante]]
+id = "DH-M13"
+garantia = '''Sistema recibe PerfilHardware vacio'''
+fichero = "aura_skeleton/composicion.py"
+buscar = '''        perfil_hardware=perfil_hardware,
+'''
+sustituir = '''        perfil_hardware=PerfilHardware(),
+'''
+
+[[mutante]]
+id = "DH-M14"
+garantia = '''_informe sin linea perfil de hardware'''
+fichero = "aura_skeleton/__main__.py"
+buscar = '''    lineas.append(f"  perfil de hardware  : {medido if medido else '(sin métricas)'}")
+'''
+sustituir = '''    pass
+'''
+
+[[mutante]]
+id = "DH-M15"
+garantia = '''sin WARN por fuente omitida'''
+fichero = "aura_skeleton/adapters/detector_hardware.py"
+buscar = '''                obs.log("WARN", "detector-hardware", f"no se pudo medir {nombre}: {type(e).__name__}", "-")
+'''
+sustituir = '''                pass
+'''
+
+[[mutante]]
+id = "DH-M16"
+garantia = '''ISA de la primera linea flags'''
+fichero = "aura_skeleton/adapters/detector_hardware.py"
+buscar = '''set.intersection(*conjuntos)'''
+sustituir = '''conjuntos[0]'''
+
+[[mutante]]
+id = "DH-M17"
+garantia = '''BOOT dice inyectado vacio aun con detector'''
+fichero = "aura_skeleton/composicion.py"
+buscar = '''    if detector is None:
+'''
+sustituir = '''    if True:
+'''
+
+[[mutante]]
+id = "DH-M18"
+garantia = '''cpu_64bit por subcadena (`lahf_lm` casa con lm)'''
+fichero = "aura_skeleton/adapters/detector_hardware.py"
+buscar = '''"lm" in self._flags_comunes()'''
+sustituir = '''any("lm" in f for f in self._flags_comunes())'''
+
+[[mutante]]
+id = "DH-M19"
+garantia = '''cpu_64bit siempre 1.0'''
+fichero = "aura_skeleton/adapters/detector_hardware.py"
+buscar = '''1.0 if "lm" in self._flags_comunes() else 0.0'''
+sustituir = '''1.0'''
+
+[[mutante]]
+id = "DH-M20"
+garantia = '''isa_ssse3 mira el flag sse3'''
+fichero = "aura_skeleton/adapters/detector_hardware.py"
+buscar = '''"isa_ssse3": "ssse3",'''
+sustituir = '''"isa_ssse3": "sse3",'''
+
+[[mutante]]
+id = "DH-M21"
+garantia = '''proceso_bits hardcodeado'''
+fichero = "aura_skeleton/adapters/detector_hardware.py"
+buscar = '''float(self._bits_proceso())'''
+sustituir = '''64.0'''
+
+[[mutante]]
+id = "DH-M22"
+garantia = '''nucleos_fisicos cuenta solo core id (ignora physical id)'''
+fichero = "aura_skeleton/adapters/detector_hardware.py"
+buscar = '''pares.add((campos["physical id"], campos["core id"]))'''
+sustituir = '''pares.add((campos["core id"],))'''
+
+[[mutante]]
+id = "DH-M23"
+garantia = '''nucleos_fisicos inventa 1 sin physical/core id'''
+fichero = "aura_skeleton/adapters/detector_hardware.py"
+buscar = '''        raise ValueError("cpuinfo sin physical id/core id")
+'''
+sustituir = '''        return {"nucleos_fisicos": 1.0}
+'''
+
+[[mutante]]
+id = "DH-M24"
+garantia = '''video_dispositivos cuenta todo /dev'''
+fichero = "aura_skeleton/adapters/detector_hardware.py"
+buscar = '''e.name.startswith("video")'''
+sustituir = '''bool(e.name)'''
+
+[[mutante]]
+id = "DH-M25"
+garantia = '''audio_tarjetas cuenta todas las lineas'''
+fichero = "aura_skeleton/adapters/detector_hardware.py"
+buscar = '''if _TARJETA_ALSA.match(linea)'''
+sustituir = '''if linea'''
+
+[[mutante]]
+id = "DH-M26"
+garantia = '''audio_tarjetas ausente inventa 0'''
+fichero = "aura_skeleton/adapters/detector_hardware.py"
+buscar = '''lineas = (self._proc / "asound" / "cards").read_text().splitlines()'''
+sustituir = '''lineas = (self._proc / "asound" / "cards").read_text().splitlines() if (self._proc / "asound" / "cards").exists() else []'''
+
+[[mutante]]
+id = "DH-M27"
+garantia = '''red_interfaces cuenta lo'''
+fichero = "aura_skeleton/adapters/detector_hardware.py"
+buscar = '''if e.name != "lo"'''
+sustituir = '''if e.name'''
+
+[[mutante]]
+id = "DH-M28"
+garantia = '''red_interfaces ausente inventa 0'''
+fichero = "aura_skeleton/adapters/detector_hardware.py"
+buscar = '''self._sys_net.iterdir()'''
+sustituir = '''(self._sys_net.iterdir() if self._sys_net.is_dir() else [])'''
+
+[[mutante]]
+id = "DH-M29"
+garantia = '''detectar_con_omisiones no devuelve las omitidas'''
+fichero = "aura_skeleton/adapters/detector_hardware.py"
+buscar = '''return PerfilHardware(recursos=recursos), tuple(omitidas)'''
+sustituir = '''return PerfilHardware(recursos=recursos), ()'''
+
+[[mutante]]
+id = "DH-M30"
+garantia = '''las fuentes fallidas no se registran como omitidas'''
+fichero = "aura_skeleton/adapters/detector_hardware.py"
+buscar = '''                omitidas.append(nombre)
+'''
+sustituir = '''                pass
+'''
+
+[[mutante]]
+id = "DH-M31"
+garantia = '''la fuente nucleos_fisicos no se consulta'''
+fichero = "aura_skeleton/adapters/detector_hardware.py"
+buscar = '''            ("nucleos_fisicos", self._nucleos_fisicos),
+'''
+sustituir = ''''''
+
+[[mutante]]
+id = "DH-M32"
+garantia = '''la fuente red_interfaces no se consulta'''
+fichero = "aura_skeleton/adapters/detector_hardware.py"
+buscar = '''            ("red_interfaces", self._red),
+'''
+sustituir = ''''''

@@ -51,20 +51,16 @@ id = "FC-M4"
 garantia = "el buffer de dialogo guarda el say YA MARCADO: la marca del Core se duplicaria al reentrar en el prompt"
 fichero = "aura_skeleton/core/orchestrator.py"
 pruebas = ["tests/unit/test_contaminacion_propuesta.py::test_una_propuesta_falsa_no_contamina_memoria_senales_ni_contexto"]
-buscar = '''        buffer.append((text, say, e))'''
-sustituir = '''        buffer.append((text, visible, e))'''
+buscar = '''            buffer.append(recuperacion.Turno(text, say, e, dominio))'''
+sustituir = '''            buffer.append(recuperacion.Turno(text, visible, e, dominio))'''  # ancla actualizada en M8: la ventana pasó a ser `recuperacion.Turno`; la garantía no cambia.
 
 [[mutante]]
 id = "FC-M5"
 garantia = "la memoria persiste el SAY del modelo en vez del texto del usuario: una propuesta contaminaria la memoria del usuario"
 fichero = "aura_skeleton/core/orchestrator.py"
 pruebas = ["tests/unit/test_contaminacion_propuesta.py::test_una_propuesta_falsa_no_contamina_memoria_senales_ni_contexto"]
-buscar = '''                await self.memory.write(
-                    uid, kind, f"usuario dijo: {text}", {"trace_id": tid, "fuente": "conversacion"}
-                )'''
-sustituir = '''                await self.memory.write(
-                    uid, kind, f"usuario dijo: {say}", {"trace_id": tid, "fuente": "conversacion"}
-                )'''
+buscar = '''                await self.memory.write(uid, kind, f"usuario dijo: {text}", {"trace_id": tid, "fuente": "conversacion"})'''
+sustituir = '''                await self.memory.write(uid, kind, f"usuario dijo: {say}", {"trace_id": tid, "fuente": "conversacion"})'''
 
 # --------- 2 · EL MODELO NUNCA EJECUTA NI SE ABSTIENE POR SU CUENTA ---------
 
@@ -94,8 +90,7 @@ garantia = "dominio_sensible pierde el marco de 'personas_reales': preguntar qui
 fichero = "aura_skeleton/core/intencion.py"
 pruebas = ["tests/unit/test_frontera_referente.py::test_dominio_sensible_por_dominio",
            "tests/unit/test_frontera_referente.py::test_T7_quien_es_Jesus_Cristo_es_sensible"]
-buscar = '''_MARCOS_PERSONA = ("quien es ", "quien fue ", "quien era ", "quien invento", "quien escribio",
-                   "quien descubrio")'''
+buscar = '''_MARCOS_PERSONA = ("quien es ", "quien fue ", "quien era ", "quien invento", "quien escribio", "quien descubrio")'''
 sustituir = '''_MARCOS_PERSONA = ()'''
 
 # --------- 3 · AURA SOBRE SI MISMA ---------
@@ -106,8 +101,9 @@ garantia = "la ruta 'AURA sobre si misma' desaparece: 'que desarrollas ahora?' v
 fichero = "aura_skeleton/core/orchestrator.py"
 pruebas = ["tests/integration/test_frontera_cognitiva_vertical.py::test_T8_sin_objetivos_es_AUSENCIA_del_core_sin_modelo",
            "tests/integration/test_frontera_cognitiva_vertical.py::test_T8_con_estado_real_es_HECHO_con_el_dato"]
-buscar = '''        if (self.estado_operativo is not None or self.estado_autonomo is not None) \
-                and intencion.es_consulta_sobre_aura(text):'''
+buscar = '''        if (self.estado_operativo is not None or self.estado_autonomo is not None) and intencion.es_consulta_sobre_aura(
+            text
+        ):'''
 sustituir = '''        if False:'''
 
 [[mutante]]
@@ -246,10 +242,12 @@ garantia = "la captura del RuntimeError del router desaparece: sin proveedor dis
 fichero = "aura_skeleton/core/orchestrator.py"
 pruebas = ["tests/unit/test_estatus_epistemico.py::test_sin_proveedor_el_turno_TERMINA_en_ABSTENCION",
            "tests/unit/test_estatus_epistemico.py::test_router_sin_ningun_proveedor_tambien_termina"]
+# RE-ANCLADO 2026-09-15 (DR-3): entre el `except` y ese comentario se intercalo la rama del limite
+# alcanzado. La garantia es la MISMA: si la captura deja de cubrir RuntimeError, el turno se cuelga.
 buscar = '''        except RuntimeError as e:
-            # `ProveedoresNoDisponibles` es subclase de RuntimeError: se captura por la base para que el'''
+'''
 sustituir = '''        except ValueError as e:
-            # `ProveedoresNoDisponibles` es subclase de RuntimeError: se captura por la base para que el'''
+'''
 
 # --------- 7 · CABLEADO EN composicion.py / __main__.py (D-FC-7) — FAMILIA OBLIGATORIA ---------
 
@@ -298,6 +296,6 @@ id = "FC-M25"
 garantia = "D-FC-6 declarado != real: el turno vuelve a ejecutarse en linea y el acuse de la CLI nunca se imprime con el bus real"
 fichero = "aura_skeleton/__main__.py"
 pruebas = ["tests/integration/test_acuse_cli_real.py"]
-buscar = '''    tarea = asyncio.create_task(orquestador.handle_utterance("usuario", texto, tid))'''
-sustituir = '''    await orquestador.handle_utterance("usuario", texto, tid)
+buscar = '''    tarea = asyncio.create_task(orquestador.handle_utterance("usuario", texto, tid, activado=activado))'''
+sustituir = '''    await orquestador.handle_utterance("usuario", texto, tid, activado=activado)
     tarea = asyncio.sleep(0)'''

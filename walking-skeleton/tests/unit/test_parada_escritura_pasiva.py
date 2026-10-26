@@ -46,6 +46,7 @@ def test_la_definicion_es_whitelist_y_no_blacklist():
 
 async def _turno(orq, texto):
     import uuid
+
     tid = uuid.uuid4().hex[:12]
     await orq.handle_utterance("mauricio", texto, tid)
     return await orq.wait(tid)
@@ -80,10 +81,14 @@ def _sistema(tmp_path, *, parada: bool):
     motor = MotorAutomatizacion(registro, perm)
     contexto = RegistroContexto([ConectorConversacion()])
     orq = Orchestrator(
-        InProcessEventBus(), mem,
+        InProcessEventBus(),
+        mem,
         ModelRouter([MockProvider("m", 3, healthy=True)], 1200),
-        perm, VoiceAdapterMock(), HomeAssistantMock(),
-        motor=motor, contexto=contexto,  # el orquestador construye el AlmacenSenales
+        perm,
+        VoiceAdapterMock(),
+        HomeAssistantMock(),
+        motor=motor,
+        contexto=contexto,  # el orquestador construye el AlmacenSenales
     )
     return orq, mem, ks
 
@@ -123,7 +128,8 @@ async def test_sin_PARADA_lo_no_pasivo_SI_puede_escribirse(tmp_path):
     await _turno(orq, "Prefiero el té sin azúcar")
 
     assert [i for i in mem._items if i["kind"] in TIPOS_DEL_MODELO], (
-        "sin PARADA, la captura de señales tiene que poder escribir el modelo del usuario")
+        "sin PARADA, la captura de señales tiene que poder escribir el modelo del usuario"
+    )
 
 
 @pytest.mark.asyncio
@@ -164,8 +170,7 @@ def test_una_escritura_NUEVA_no_declarada_se_sigue_detectando(tmp_path):
     from tests.unit import verificador_g1 as v
 
     intruso = tmp_path / "modulo_nuevo.py"
-    intruso.write_text("import pathlib\n\n\ndef f(p):\n    pathlib.Path(p).write_text('x')\n",
-                       encoding="utf-8")
+    intruso.write_text("import pathlib\n\n\ndef f(p):\n    pathlib.Path(p).write_text('x')\n", encoding="utf-8")
     hallazgos = v.analizar_fichero(intruso, autorizado_para=frozenset())
     assert [h for h in hallazgos if h.regla == "R-B"], "una escritura nueva sin declarar debe acusarse"
 
@@ -197,12 +202,14 @@ def test_la_guarda_de_PARADA_esta_en_el_cierre_de_turno():
     import inspect
 
     from aura_skeleton.core.orchestrator import Orchestrator
+
     fuente = inspect.getsource(Orchestrator._finalizar_turno)
     assert "_sistema_detenido()" in fuente, "el cierre de turno dejó de mirar PARADA"
     assert "es_escritura_pasiva(kind)" in fuente, "el cierre de turno dejó de exigir que sea pasiva"
     guarda = fuente.split("_sistema_detenido()")[1][:120]
     assert "not es_escritura_pasiva" in guarda, (
-        "la guarda ya no bloquea lo NO pasivo: comprobar PARADA sin actuar no protege nada")
+        "la guarda ya no bloquea lo NO pasivo: comprobar PARADA sin actuar no protege nada"
+    )
 
 
 def test_la_exencion_por_operacion_NO_exime_las_demas_operaciones(tmp_path, monkeypatch):
@@ -221,10 +228,10 @@ def test_la_exencion_por_operacion_NO_exime_las_demas_operaciones(tmp_path, monk
         "def f(p, fd):\n"
         "    os.unlink(p, dir_fd=fd)\n"
         "    pathlib.Path(p).write_text('x')\n",
-        encoding="utf-8")
+        encoding="utf-8",
+    )
     monkeypatch.setattr(v, "_excluidos_por_operacion", lambda: {v._rel(modulo): {"unlink"}})
 
-    ops = {h.operacion for h in v.analizar_fichero(modulo, autorizado_para=frozenset())
-           if h.regla == "R-B"}
+    ops = {h.operacion for h in v.analizar_fichero(modulo, autorizado_para=frozenset()) if h.regla == "R-B"}
     assert "unlink" not in ops, "la operación declarada debía quedar exenta"
     assert "write_text" in ops, "la exención se comió una operación que nadie declaró: es una amnistía"

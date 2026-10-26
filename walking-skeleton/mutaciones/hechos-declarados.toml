@@ -46,10 +46,12 @@ sustituir = '''    return False'''
 [[mutante]]
 id = "H4"
 garantia = "la guarda de terceros deja de aplicarse a los hechos: se perfila a otra persona (ALERTA-002)"
-fichero = "aura_skeleton/conectores/conversacion.py"
-buscar = '''def _habla_de_tercero(texto_norm: str) -> bool:
-    return any(re.search(p, texto_norm) for p in _TERCERO)'''
-sustituir = '''def _habla_de_tercero(texto_norm: str) -> bool:
+# RE-ANCLADO 2026-10-11 (D-AMP-2): la regla de sujeto se movio a `core/sujeto.py` (una sola definicion,
+# compartida con el Memory Context Builder). La garantia es la MISMA; solo cambio de fichero y de nombre.
+fichero = "aura_skeleton/core/sujeto.py"
+buscar = '''def habla_de_tercero(texto_norm: str) -> bool:
+    return any(re.search(p, texto_norm) for p in TERCERO)'''
+sustituir = '''def habla_de_tercero(texto_norm: str) -> bool:
     return False'''
 
 # (5) EL IRRENUNCIABLE DE ESTE INCREMENTO. La recuperacion por intencion se apaga, asi que la

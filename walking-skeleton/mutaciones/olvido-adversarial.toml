@@ -1,0 +1,43 @@
+incremento = "Olvido y retencion: bateria adversarial T1-T10 y eco de soberania T11 - contrato 2026-10-07 (v2)"
+# CONTRATO-OLVIDO-Y-RETENCION.md §2. Solo se declaran mutantes sobre codigo VIGENTE en la base: memory.py y
+# memory_semantic.py estan restaurados a la base y NO contienen los cambios de D-N2-5 ni el re-anexado de
+# lapidas de `restore` (parche no promovido: milestones/m3-entry/propuestas/D-N2-5-y-restore.patch). Los
+# mutantes OA-M1, M2, M4, M5 y M6 apuntaban a ese codigo y se RETIRAN; se reintroduciran al promoverse el parche.
+# Medido 2026-10-07: test_eco_de_soberania_t11.py + test_olvido_adversarial.py = ~5.8 s con el modelo de
+# embeddings presente (variantes n2 en xfail); timeout_s = 30 deja >5x.
+pruebas = ["tests/integration/test_olvido_adversarial.py", "tests/integration/test_eco_de_soberania_t11.py"]
+timeout_s = 30
+
+[[mutante]]
+id = "OA-M3"
+garantia = "T2: la proyeccion aplica la lapida (sin ella, lo olvidado reaparece al reiniciar)"
+fichero = "aura_skeleton/modules/memory.py"
+pruebas = ["tests/integration/test_olvido_adversarial.py"]
+buscar = '''    return [i for i in vigente.values() if not i.get(_LAPIDA)]'''
+sustituir = '''    return list(vigente.values())'''
+
+[[mutante]]
+id = "OA-M7"
+garantia = "T11: el eco de un turno de soberania NO se persiste (sin ello 'olvida que X' deja X vigente en memoria y el modelo lo recibe)"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_eco_de_soberania_t11.py"]
+buscar = '''        if dominio == "modelo_usuario":'''
+sustituir = '''        if False and dominio == "modelo_usuario":'''
+
+[[mutante]]
+id = "OA-M8"
+garantia = "T11: el eco de soberania se guarda como historico (otra copia en claro del contenido olvidado, contrato §5)"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_eco_de_soberania_t11.py"]
+buscar = '''(A1).
+            destino = None'''
+sustituir = '''(A1).
+            destino = intencion.HISTORICO_NO_RECUPERABLE'''
+
+[[mutante]]
+id = "OA-M9"
+garantia = "A1: la captura de senales vuelve a correr en un turno de soberania (guarda 'olvidalo, <dato>' como vigente)"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_eco_de_soberania_t11.py"]
+buscar = '''        if dominio != "modelo_usuario":  # T11/A1: ver el comentario de arriba'''
+sustituir = '''        if True:  # T11/A1: ver el comentario de arriba'''

@@ -35,10 +35,18 @@ def _sistema(tmp_path, armado: bool):
     ruta = tmp_path / "memoria.json"
     mem = PersistentMemory(str(ruta))
     mem._items = [
-        {"user_id": "mauricio", "kind": "semantica", "content": "tiene alergia a la penicilina",
-         "provenance": {"origen": "declarada"}},
-        {"user_id": "mauricio", "kind": "semantica", "content": "prefiere el te",
-         "provenance": {"origen": "declarada"}},
+        {
+            "user_id": "mauricio",
+            "kind": "semantica",
+            "content": "tiene alergia a la penicilina",
+            "provenance": {"origen": "declarada"},
+        },
+        {
+            "user_id": "mauricio",
+            "kind": "semantica",
+            "content": "prefiere el te",
+            "provenance": {"origen": "declarada"},
+        },
     ]
     mem._persist()
     kill = KillSwitch(trigger_file=str(tmp_path / "KILL"))
@@ -96,6 +104,7 @@ async def test_f4_la_operacion_esta_catalogada_y_por_eso_puede_ejecutarse(tmp_pa
     """G-3 #4: antes se ejecutaba **sin estar catalogada**. Ahora existe en el catálogo y por eso
     `authorize` la deja pasar — no por casualidad de que nadie la mirase."""
     from aura_skeleton.core.permissions import CATALOGO
+
     assert "olvidar_informacion_usuario" in CATALOGO
     modelo, _, _ = _sistema(tmp_path, armado=False)
     assert await modelo.borrar("mauricio", "penicilina") == 1
@@ -111,7 +120,7 @@ async def test_f4_sin_motor_NO_hay_ruta_directa(tmp_path):
     mem = PersistentMemory(str(ruta))
     mem._items = [{"user_id": "mauricio", "kind": "semantica", "content": "dato", "provenance": {}}]
     mem._persist()
-    modelo = ModeloUsuario(mem)          # sin motor: fuera del sistema
+    modelo = ModeloUsuario(mem)  # sin motor: fuera del sistema
     assert await modelo.borrar("mauricio", "dato") == 0
     assert [i["content"] for i in mem._items] == ["dato"], "mutó sin pasar por el motor"
 
@@ -133,6 +142,7 @@ async def test_f4_el_audit_registra_QUE_se_borro_y_SOBRE_QUIEN(tmp_path, monkeyp
     """`§5.1`: *«a partir del audit log debe poder responderse ¿qué había antes y qué hay ahora?»*.
     Sin contenido ni sujeto, el registro existe pero no permite reconstruir lo perdido."""
     from aura_skeleton import observability as obs
+
     registros: list[tuple] = []
     monkeypatch.setattr(obs, "log", lambda *a, **k: registros.append((a, k)))
     modelo, _, _ = _sistema(tmp_path, armado=False)
@@ -144,6 +154,7 @@ async def test_f4_el_audit_registra_QUE_se_borro_y_SOBRE_QUIEN(tmp_path, monkeyp
 
 async def test_f4_el_bloqueo_por_kill_switch_tambien_queda_auditado(tmp_path, monkeypatch):
     from aura_skeleton import observability as obs
+
     registros: list[tuple] = []
     monkeypatch.setattr(obs, "log", lambda *a, **k: registros.append((a, k)))
     modelo, _, _ = _sistema(tmp_path, armado=True)
@@ -166,7 +177,8 @@ async def test_e2e_flujo_completo_de_soberania(armado, esperado, tmp_path):
     releida = PersistentMemory(str(ruta))
     vivos = [i["content"] for i in releida._items]
     assert ("tiene alergia a la penicilina" in vivos) is bool(armado), (
-        f"persistencia incoherente con armado={armado}: {vivos}")
+        f"persistencia incoherente con armado={armado}: {vivos}"
+    )
     assert "prefiere el te" in vivos, "el olvido selectivo se llevó por delante otra entrada"
 
 
@@ -182,14 +194,14 @@ async def test_refutar_lo_YA_refutado_no_narra_efecto(tmp_path):
     """
     modelo, _, _ = _sistema(tmp_path, armado=False)
     assert await modelo.refutar("mauricio", "penicilina") == 1
-    assert await modelo.refutar("mauricio", "penicilina") == 0, (
-        "la segunda refutación no puede contar como efecto")
+    assert await modelo.refutar("mauricio", "penicilina") == 0, "la segunda refutación no puede contar como efecto"
 
 
 def test_el_ejecutor_no_atiende_acciones_ajenas(tmp_path):
     """Lo destapó `BLQ-M9`. Un ejecutor que responde a todo se convierte en comodín: resolvería
     `borrar_archivo` con la lógica de olvidar información del usuario."""
     from aura_skeleton.core.ejecutor_modelo_usuario import ACCIONES, EjecutorModeloUsuario
+
     ejecutor = EjecutorModeloUsuario(PersistentMemory(str(tmp_path / "m.json")))
     for accion in ACCIONES:
         assert ejecutor.para(accion) is ejecutor
@@ -234,8 +246,9 @@ async def test_corregir_sin_motor_no_muta(tmp_path):
     """Fail-closed, igual que `borrar` y `refutar`: sin motor no hay ruta directa de reserva."""
     ruta = tmp_path / "m.json"
     mem = PersistentMemory(str(ruta))
-    mem._items = [{"user_id": "mauricio", "kind": "semantica", "content": "prefiere el te",
-                   "provenance": {"origen": "declarada"}}]
+    mem._items = [
+        {"user_id": "mauricio", "kind": "semantica", "content": "prefiere el te", "provenance": {"origen": "declarada"}}
+    ]
     mem._persist()
     await ModeloUsuario(mem).corregir("mauricio", "prefiere el te", "prefiere el cafe")
     assert [i["content"] for i in mem._items] == ["prefiere el te"]

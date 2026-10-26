@@ -1,0 +1,194 @@
+incremento = '''CM1 voz: motor espeak-ng opcional, cableado AURA_TTS_MOTOR, latencia de audio'''
+pruebas = ["tests/unit/test_tts_espeak.py", "tests/unit/test_voz_motor_seleccionable.py", "tests/integration/test_composicion_motor_de_voz.py", "tests/unit/test_escucha_continua.py", "tests/unit/test_microfono.py", "tests/unit/test_voz_real_sin_red_ni_cuelgue.py"]
+timeout_s = 300
+
+[[mutante]]
+id = "CM1-M1"
+garantia = '''el callback no se retiene a nivel de módulo (se libera por GC)'''
+fichero = "aura_skeleton/adapters/tts_espeak.py"
+# La prueba que vigila esta garantía con una ASERCIÓN (weakref + gc.collect). Con el fichero entero,
+# la prueba con la librería real muere antes por SIGSEGV y el arnés lo clasifica AMBIGUO.
+pruebas = ["tests/unit/test_tts_espeak.py::test_el_callback_se_retiene_aunque_pase_el_recolector"]
+buscar = '''    _callback = _CALLBACK(_acumular)
+    lib.espeak_SetSynthCallback(_callback)
+'''
+sustituir = '''    _cb_local = _CALLBACK(_acumular)
+    lib.espeak_SetSynthCallback(_cb_local)
+'''
+
+[[mutante]]
+id = "CM1-M2"
+garantia = '''el texto se pasa a espeak sin el NUL final'''
+fichero = "aura_skeleton/adapters/tts_espeak.py"
+pruebas = ["tests/unit/test_tts_espeak.py"]
+buscar = '''texto.encode("utf-8") + b"\0"'''
+sustituir = '''texto.encode("utf-8")'''
+
+[[mutante]]
+id = "CM1-M3"
+garantia = '''la longitud de espeak_Synth se calcula sobre texto y no sobre los bytes'''
+fichero = "aura_skeleton/adapters/tts_espeak.py"
+pruebas = ["tests/unit/test_tts_espeak.py"]
+buscar = '''espeak_Synth(datos, len(datos),'''
+sustituir = '''espeak_Synth(datos, len(texto),'''
+
+[[mutante]]
+id = "CM1-M4"
+garantia = '''la síntesis deja de estar bajo el cerrojo'''
+fichero = "aura_skeleton/adapters/tts_espeak.py"
+pruebas = ["tests/unit/test_tts_espeak.py"]
+buscar = '''        with _CERROJO:
+            self._preparar()
+            _muestras.clear()'''
+sustituir = '''        if True:
+            self._preparar()
+            _muestras.clear()'''
+
+[[mutante]]
+id = "CM1-M5"
+garantia = '''el búfer de muestras no se vacía antes de sintetizar'''
+fichero = "aura_skeleton/adapters/tts_espeak.py"
+pruebas = ["tests/unit/test_tts_espeak.py"]
+buscar = '''            self._preparar()
+            _muestras.clear()
+'''
+sustituir = '''            self._preparar()
+'''
+
+[[mutante]]
+id = "CM1-M6"
+garantia = '''se ignora el error de espeak_Synth'''
+fichero = "aura_skeleton/adapters/tts_espeak.py"
+pruebas = ["tests/unit/test_tts_espeak.py"]
+buscar = '''            if estado != 0:'''
+sustituir = '''            if False:'''
+
+[[mutante]]
+id = "CM1-M7"
+garantia = '''frecuencia == 0 se acepta como inicialización válida'''
+fichero = "aura_skeleton/adapters/tts_espeak.py"
+pruebas = ["tests/unit/test_tts_espeak.py"]
+buscar = '''    if frecuencia <= 0:'''
+sustituir = '''    if frecuencia < 0:'''
+
+[[mutante]]
+id = "CM1-M8"
+garantia = '''el WAV declara siempre 22050 Hz en vez de la frecuencia real'''
+fichero = "aura_skeleton/adapters/tts_espeak.py"
+pruebas = ["tests/unit/test_tts_espeak.py"]
+buscar = '''destino.setframerate(frecuencia)'''
+sustituir = '''destino.setframerate(22050)'''
+
+[[mutante]]
+id = "CM1-M9"
+garantia = '''comprobar() no delega en el sintetizador'''
+fichero = "aura_skeleton/adapters/voice_real.py"
+pruebas = ["tests/unit/test_voz_motor_seleccionable.py", "tests/unit/test_voz_real_sin_red_ni_cuelgue.py", "tests/unit/test_tts_espeak.py"]
+buscar = '''        if self._sintetizador is not None:
+            return self._sintetizador.comprobar()
+'''
+sustituir = '''        if False:
+            return self._sintetizador.comprobar()
+'''
+
+[[mutante]]
+id = "CM1-M10"
+garantia = '''_tts_sync no usa el sintetizador'''
+fichero = "aura_skeleton/adapters/voice_real.py"
+pruebas = ["tests/unit/test_voz_motor_seleccionable.py", "tests/unit/test_voz_real_sin_red_ni_cuelgue.py", "tests/unit/test_tts_espeak.py", "tests/integration/test_composicion_motor_de_voz.py"]
+buscar = '''    def _tts_sync(self, text: str, out: str) -> None:
+        if self._sintetizador is not None:'''
+sustituir = '''    def _tts_sync(self, text: str, out: str) -> None:
+        if False:'''
+
+[[mutante]]
+id = "CM1-M11"
+garantia = '''el motor por defecto pasa a ser espeak'''
+fichero = "aura_skeleton/composicion.py"
+pruebas = ["tests/integration/test_composicion_motor_de_voz.py", "tests/unit/test_voz_motor_seleccionable.py"]
+buscar = '''env.get("AURA_TTS_MOTOR", "piper")'''
+sustituir = '''env.get("AURA_TTS_MOTOR", "espeak")'''
+
+[[mutante]]
+id = "CM1-M12"
+garantia = '''la composición no cablea el sintetizador (ALERTA-005)'''
+fichero = "aura_skeleton/composicion.py"
+pruebas = ["tests/integration/test_composicion_motor_de_voz.py"]
+buscar = '''sintetizador=_sintetizador_de_entorno(os.environ),'''
+sustituir = '''sintetizador=None,'''
+
+[[mutante]]
+id = "CM1-M13"
+garantia = '''parecord sin --latency-msec=20'''
+fichero = "aura_skeleton/adapters/escucha.py"
+pruebas = ["tests/unit/test_escucha_continua.py"]
+buscar = '''"parecord", "--raw", "--latency-msec=20", "--channels=1"'''
+sustituir = '''"parecord", "--raw", "--channels=1"'''
+
+[[mutante]]
+id = "CM1-M14"
+garantia = '''paplay sin --latency-msec=30'''
+fichero = "aura_skeleton/adapters/microfono.py"
+pruebas = ["tests/unit/test_microfono.py"]
+buscar = '''[_REPRODUCTOR, "--latency-msec=30", ruta]'''
+sustituir = '''[_REPRODUCTOR, ruta]'''
+
+[[mutante]]
+id = "CM1-M15"
+garantia = '''el motor de voz desconocido no se audita'''
+fichero = "aura_skeleton/composicion.py"
+pruebas = ["tests/integration/test_composicion_motor_de_voz.py"]
+buscar = '''    obs.log("BOOT", "composicion", f"motor de voz desconocido {motor!r}; se usa piper", "-", audit=True)
+'''
+sustituir = '''    pass
+'''
+
+[[mutante]]
+id = "CM1-M16"
+garantia = '''un fallo ajeno del sintetizador se propaga sin envolver en VozNoDisponible'''
+fichero = "aura_skeleton/adapters/voice_real.py"
+pruebas = ["tests/unit/test_voz_motor_seleccionable.py", "tests/unit/test_voz_real_sin_red_ni_cuelgue.py"]
+buscar = '''            except Exception as e:  # noqa: BLE001
+                raise VozNoDisponible(f"el sintetizador fallo: {e}") from e
+            return
+'''
+sustituir = '''            except ZeroDivisionError as e:  # noqa: BLE001
+                raise VozNoDisponible(f"el sintetizador fallo: {e}") from e
+            return
+'''
+
+[[mutante]]
+id = "CM1-M17"
+garantia = '''AURA_ESPEAK_VOZ se ignora (voz fija es)'''
+fichero = "aura_skeleton/composicion.py"
+pruebas = ["tests/unit/test_voz_motor_seleccionable.py::test_espeak_construye_SintetizadorEspeak_con_la_voz_pedida", "tests/integration/test_composicion_motor_de_voz.py"]
+buscar = '''SintetizadorEspeak(voz=env.get("AURA_ESPEAK_VOZ", "es"))'''
+sustituir = '''SintetizadorEspeak(voz="es")'''
+
+[[mutante]]
+id = "CM1-M18"
+garantia = '''cada instancia no fija su voz antes de sintetizar'''
+fichero = "aura_skeleton/adapters/tts_espeak.py"
+pruebas = ["tests/unit/test_tts_espeak.py"]
+buscar = '''        if _lib.espeak_SetVoiceByName(self._voz.encode("utf-8")) != 0:'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "CM1-M19"
+garantia = '''espeak_Initialize se llama en cada instancia/síntesis en vez de una vez por proceso'''
+fichero = "aura_skeleton/adapters/tts_espeak.py"
+pruebas = ["tests/unit/test_tts_espeak.py"]
+buscar = '''    if _lib is not None:
+        return
+    try:'''
+sustituir = '''    if False:
+        return
+    try:'''
+
+[[mutante]]
+id = "CM1-M20"
+garantia = '''la etiqueta del log de tts() es siempre piper-tts'''
+fichero = "aura_skeleton/adapters/voice_real.py"
+pruebas = ["tests/unit/test_voz_motor_seleccionable.py", "tests/unit/test_voz_real_sin_red_ni_cuelgue.py"]
+buscar = '''motor = "piper-tts" if self._sintetizador is None else "espeak-ng"'''
+sustituir = '''motor = "piper-tts"'''

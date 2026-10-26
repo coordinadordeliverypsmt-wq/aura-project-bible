@@ -1268,8 +1268,10 @@ NO_CONCEDEN_ESTADO = frozenset({
     "validar_tareas",       # valida el borde de persistencia: solo lanza, nunca concede
     "_exigir_humano_para_completar",   # rechaza; es la puerta, no lo que la cruza
     "registrar_evento",     # primitiva publica: NIEGA los eventos que conceden estado
+    "registrar_evento_si",  # la misma primitiva, condicionada y atomica: NIEGA los mismos eventos
     "pedir_revision",       # mueve a WAITING_FOR_REVIEW o DECISION_REQUIRED; nunca a COMPLETED
     "esperar_por_cuota",    # mueve a WAITING_FOR_QUOTA; nunca a COMPLETED
+    "registrar_planificada",  # constancia de INTENCION (tarea_planificada); rechaza si no es elegible; nunca concede
     # La maquinaria de vigilancia. **Nombra** las señales porque su trabajo es encontrarlas, asi que
     # se delata sola en cuanto el barrido se amplio a las privadas. Inspecciona; no concede nada.
     "modulos_vigilados", "invocables_vigilados", "invocables_sin_clasificar",
@@ -1534,6 +1536,35 @@ def lock_estado(directorio: pathlib.Path):
         fcntl.flock(descriptor, fcntl.LOCK_EX)
         try:
             yield centinela
+        finally:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+    finally:
+        os.close(descriptor)
+
+
+NOMBRE_CENTINELA_SUPERVISOR = ".supervisor.lock"
+
+
+@contextlib.contextmanager
+def supervisor_unico(directorio: pathlib.Path):
+    """**Un solo supervisor por log**, durante todo su ciclo (DP-RECUPERACION-TRAS-CAIDAS §4). Cede `True` si lo
+    tiene y `False` si otro proceso lo sostiene: **nunca espera**, porque un supervisor que espera a otro acaba
+    trabajando sobre una cola que ya cambio.
+
+    Por que hace falta: `cambio_aplicado` se atribuye a su tarea por ORDEN en el log. Dos ciclos intercalados sobre
+    tareas distintas harian que una se llevase el resultado de la otra. `flock` muere con su proceso: un SIGKILL no
+    lo deja tomado. Centinela aparte del de `lock_estado`, que se toma y suelta muchas veces dentro del ciclo."""
+    centinela = pathlib.Path(directorio) / NOMBRE_CENTINELA_SUPERVISOR
+    centinela.parent.mkdir(parents=True, exist_ok=True)
+    descriptor = os.open(centinela, os.O_CREAT | os.O_RDWR, 0o644)
+    try:
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            yield False
+            return
+        try:
+            yield True
         finally:
             fcntl.flock(descriptor, fcntl.LOCK_UN)
     finally:
@@ -1886,6 +1917,12 @@ def _registrar_evento_gobernado(directorio: pathlib.Path, tipo: str, datos: dict
         return _registrar_sin_lock(directorio, tipo, datos)
 
 
+def _negar_gobernado(tipo: str) -> None:
+    raise EventoNoGobernado(
+        f"un evento {tipo!r} crudo fabricaria estado sin gobierno: "
+        f"usa la funcion gobernada que le corresponde ({_PUERTA_DE[tipo]})")
+
+
 def registrar_evento(directorio: pathlib.Path, tipo: str, datos: dict | None = None) -> dict:
     """**C1 · cierra P3.** Anade una linea al log. Nunca reescribe ninguna anterior.
 
@@ -1896,10 +1933,24 @@ def registrar_evento(directorio: pathlib.Path, tipo: str, datos: dict | None = N
         # `guardar()` —que escribe lo que le den sin interpretarlo— este evento **produce estado**:
         # la proyeccion lo aplica como bueno. Si se aceptase a pelo, el gobierno de `transicion()`
         # seria decorativo, porque bastaria rodearlo.
-        raise EventoNoGobernado(
-            f"un evento {tipo!r} crudo fabricaria estado sin gobierno: "
-            f"usa la funcion gobernada que le corresponde ({_PUERTA_DE[tipo]})")
+        _negar_gobernado(tipo)
     with lock_estado(directorio):
+        return _registrar_sin_lock(directorio, tipo, datos)
+
+
+def registrar_evento_si(directorio: pathlib.Path, tipo: str, datos: dict | None, condicion) -> dict | None:
+    """**Comprobar y anadir, atomicamente.** `condicion()` se evalua **con el cerrojo del log tomado**, y el evento
+    solo se anade si devuelve verdadero; si no, devuelve `None` y no escribe nada.
+
+    Existe para que nadie fuera de este modulo necesite `_registrar_sin_lock`, que **no** aplica la guardia de
+    `EVENTOS_GOBERNADOS` (DP-RECUPERACION-TRAS-CAIDAS: dos supervisores no pueden planificar la misma tarea).
+    Niega los eventos gobernados igual que `registrar_evento`, **antes** de evaluar la condicion. `condicion` puede
+    leer el log (`leer_eventos` no toma el cerrojo) pero no debe escribir: el cerrojo no es reentrante."""
+    if tipo in EVENTOS_GOBERNADOS:
+        _negar_gobernado(tipo)
+    with lock_estado(directorio):
+        if not condicion():
+            return None
         return _registrar_sin_lock(directorio, tipo, datos)
 
 

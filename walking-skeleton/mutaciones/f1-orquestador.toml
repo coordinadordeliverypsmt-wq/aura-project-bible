@@ -267,8 +267,10 @@ garantia = "H4 · un evento `estado_de_tarea` crudo no fabrica estado: aceptarlo
 fichero = "control_plane.py"
 pruebas = ["test_red_f1_orquestador.py::test_auditoria_h4_un_evento_crudo_no_puede_fabricar_un_estado"]
 # Reapuntado 2026-08-30: el bloqueo cubre ahora los tres eventos que conceden estado.
-buscar = '''    if tipo in EVENTOS_GOBERNADOS:'''
-sustituir = '''    if False:'''
+buscar = '''    if tipo in EVENTOS_GOBERNADOS:
+        # Cuarta ruta, cerrada.'''
+sustituir = '''    if False:
+        # Cuarta ruta, cerrada.'''
 
 [[mutante]]
 id = "F1-M24"

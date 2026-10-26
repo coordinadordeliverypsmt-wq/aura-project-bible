@@ -86,17 +86,41 @@ def trabajar(directorio, raiz, verificacion=None, max_tareas: int = 5) -> dict:
                "actos_humanos_durante_el_ciclo": 0, "motivo_de_parada": "cola agotada",
                "detenida_en": None, "vueltas": 0}
 
-    arranque = cp.registrar_evento(directorio, "motor_iniciado",
-                                   {"raiz": str(raiz), "tope": tope,
-                                    "review": rv.habilitado(directorio)})["seq"]
+    # **Un solo supervisor por log** (DP-RECUPERACION-TRAS-CAIDAS §4). Si otro ciclo esta en marcha sobre este
+    # log, este para sin planificar nada: dos ciclos intercalados sobre tareas distintas se atribuirian los
+    # resultados uno al otro, porque `cambio_aplicado` se enlaza con su tarea por orden en el log.
+    #
+    # **El cerrojo ANTES de `motor_iniciado`.** El rechazado no abre ni cierra ciclo: si escribiera
+    # `motor_iniciado`/`ciclo_detenido`, el observatorio cerraria con ellos el ciclo LEGITIMO en curso, dejaria
+    # huerfanos sus cambios y diria ERROR mientras AURA trabaja. Deja constancia con un evento fuera de los ciclos.
+    with cp.supervisor_unico(directorio) as tomado:
+        if not tomado:
+            cp.registrar_evento(directorio, "supervisor_rechazado", {"raiz": str(raiz), "tope": tope})
+            return {**informe, "motivo_de_parada": "otro supervisor en curso"}
+        arranque = cp.registrar_evento(directorio, "motor_iniciado",
+                                       {"raiz": str(raiz), "tope": tope,
+                                        "review": rv.habilitado(directorio)})["seq"]
+        return _ciclo(directorio, raiz, verificacion, tope, informe, arranque)
 
+
+def _ciclo(directorio, raiz, verificacion, tope: int, informe: dict, arranque: int) -> dict:
+    """El bucle de `trabajar`, ya con el supervisor unico tomado."""
     for _ in range(tope + 1):
         # El kill switch, en **cada** vuelta y antes de nada: un interruptor que solo se consulta al
         # arrancar no detiene lo que ya empezo, que es cuando hace falta detenerlo.
         if orq.parada_solicitada(directorio):
             return _detener(directorio, informe, "kill switch activado", desde=arranque)
 
+        # **Recuperar ANTES de planificar** (DP-RECUPERACION-TRAS-CAIDAS §6). Una muerte entre promover y registrar
+        # deja el cambio en disco y el log sin `cambio_aplicado`; como el patron ya no existe, ninguna tarea volveria
+        # a llamar a `ejecutar()` —que es quien recuperaba— y el log mentiria para siempre. Si hay un diario ambiguo
+        # u otro proceso esta recuperando, no se planifica nada: dos recuperaciones a la vez no existen.
+        recuperacion = ac.recuperar(directorio)
+        if recuperacion["bloqueado"] or recuperacion["ocupado"]:
+            return _detener(directorio, informe, "recuperacion pendiente", desde=arranque)
+
         oportunidades = des.descubrir(raiz, directorio)
+        _registrar_agotadas(directorio, oportunidades)
         informe["vueltas"] += 1
         resumen = plan.informe_de_cola(oportunidades)
         informe["descubiertas"] = len(oportunidades)
@@ -114,7 +138,12 @@ def trabajar(directorio, raiz, verificacion=None, max_tareas: int = 5) -> dict:
             # diferencia entre «no hay nada que hacer» y «no puedo hacer nada».
             return _detener(directorio, informe, "cola agotada", desde=arranque)
 
-        plan.registrar_planificada(directorio, tarea)
+        try:
+            plan.registrar_planificada(directorio, tarea)
+        except plan.TareaNoElegible:
+            # Otro supervisor la tomo entre `siguiente()` y aqui; el cerrojo del log lo impidio. **No es un fallo**:
+            # es la garantia de no duplicar funcionando, y se dice por que se para en lugar de abortar.
+            return _detener(directorio, informe, "tarea tomada por otro supervisor", tarea["id"], desde=arranque)
         try:
             resultado = rv.ejecutar_bajo_review(
                 directorio, tarea, propuesto_por="aura", autoridad="orquestador",
@@ -147,6 +176,18 @@ def trabajar(directorio, raiz, verificacion=None, max_tareas: int = 5) -> dict:
 #: evento gobernado**: no concede estado ni autoridad, informa. Gobernarlo seria confundir informar
 #: con permitir.
 EVENTO_PRESUPUESTO_AGOTADO = "presupuesto_de_tarea_agotado"
+
+
+def _registrar_agotadas(directorio, oportunidades) -> None:
+    """Una tarea agotada por **interrupciones** nunca llega a la rama `revertido`: sus intentos murieron antes y el
+    siguiente ya no es elegible. Sin esto se apagaria en silencio, que es exactamente lo que este evento existe
+    para impedir. Solo mira las oportunidades reales; el registro sigue siendo unico."""
+    for oportunidad in oportunidades:
+        if oportunidad.estado != des.OPORTUNIDAD_REAL:
+            continue
+        tarea = plan.a_tarea(oportunidad)
+        if tarea is not None and plan.estado_de(directorio, tarea["id"]) == "agotada":
+            _registrar_si_agoto_su_presupuesto(directorio, tarea)
 
 
 def _registrar_si_agoto_su_presupuesto(directorio, tarea: dict) -> None:

@@ -5,3 +5,5 @@ __pycache__/
 PARADA
 # El centinela del flock: se crea al primer bloqueo y nunca se borra. Es estado, no codigo.
 .control-plane.lock
+# El centinela del supervisor unico por log (DP-RECUPERACION-TRAS-CAIDAS): estado, no codigo.
+.supervisor.lock

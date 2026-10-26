@@ -22,6 +22,7 @@ segunda politica.
 from __future__ import annotations
 
 import hashlib
+import os
 import pathlib
 
 import control_plane as cp
@@ -119,15 +120,135 @@ def ya_planificada(directorio, id_tarea: str) -> bool:
                for e in cp.leer_eventos(pathlib.Path(directorio)))
 
 
+class TareaNoElegible(RuntimeError):
+    """Se intento dejar constancia de una tarea que ya no es elegible (en curso por otro, completada o agotada)."""
+
+
+def _arranque() -> str:
+    """Identidad del arranque de la maquina: tras un reinicio, ningun proceso anterior sigue vivo."""
+    try:
+        return pathlib.Path("/proc/sys/kernel/random/boot_id").read_text().strip()
+    except OSError:
+        return ""
+
+
+#: `_inicio_de` no puede saberlo (/proc ilegible: `hidepid`, otro espacio de nombres). Ante la duda, VIVO.
+_DESCONOCIDO = "?"
+
+
+def _pid_max() -> int:
+    try:
+        return int(pathlib.Path("/proc/sys/kernel/pid_max").read_text().strip())
+    except (OSError, ValueError):
+        return 2 ** 22  # el maximo que admite Linux en 64 bits (PID_MAX_LIMIT)
+
+
+#: Se lee al importar. Si `pid_max` se sube en caliente, un pid legitimo por encima del valor leido se tomaria por
+#: vivo: lado conservador (espera, no duplica) y se corrige al reiniciar el proceso (DP §10.3).
+_PID_MAX = _pid_max()
+
+
+def _existe(pid: int) -> bool:
+    """`kill(pid, 0)`: solo `ESRCH` prueba que el proceso no existe; `EPERM` es que existe y es ajeno."""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _inicio_de(pid: int) -> str | None:
+    """starttime (campo 22 de `/proc/<pid>/stat`); None si el proceso NO existe o es zombi; `_DESCONOCIDO` si
+    existe la duda (no se puede leer). Confundir «no puedo leer» con «murio» reabriria la ejecucion duplicada."""
+    try:
+        campos = pathlib.Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()
+        estado, inicio = campos[0], campos[19]
+    except (FileNotFoundError, ProcessLookupError):
+        return None if not _existe(pid) else _DESCONOCIDO  # con `hidepid=2` un pid vivo tampoco aparece en /proc
+    except (OSError, IndexError):
+        return _DESCONOCIDO
+    return None if estado == "Z" else inicio
+
+
+def _identidad_del_ejecutor() -> dict | None:
+    """pid + starttime + arranque: el pid SOLO no basta (se reutiliza) y el starttime solo no basta (se repite
+    tras un reinicio). Los tres juntos identifican un proceso concreto de un arranque concreto."""
+    inicio, arranque = _inicio_de(os.getpid()), _arranque()
+    if not inicio or inicio == _DESCONOCIDO or not arranque:
+        return None  # sin /proc fiable: mejor «historico» (conservador) que una identidad que atascaria la tarea
+    return {"pid": os.getpid(), "inicio": inicio, "arranque": arranque}
+
+
+def _ejecutor_vivo(ejecutor: dict) -> bool:
+    """¿Sigue vivo EXACTAMENTE el proceso que dejo la constancia? Ante la duda (sin datos legibles), si."""
+    try:
+        pid, inicio, arranque = int(ejecutor["pid"]), str(ejecutor["inicio"]), str(ejecutor["arranque"])
+    except (KeyError, TypeError, ValueError):
+        return True
+    if not arranque or not inicio:
+        return True
+    if not 0 < pid <= _PID_MAX:
+        # Un pid fuera del rango del nucleo no identifica a ningun proceso (y `kill(0|-1, 0)` preguntaria por un
+        # GRUPO). Dato malformado o forjado: ante la duda, vivo. Nunca tumba el ciclo ni duplica.
+        return True
+    if arranque != _arranque():
+        return False
+    actual = _inicio_de(pid)
+    if actual == _DESCONOCIDO:
+        return True
+    return actual == inicio
+
+
+def _ultima_planificada(directorio, id_tarea: str) -> dict | None:
+    datos = None
+    for evento in cp.leer_eventos(pathlib.Path(directorio)):
+        if evento["tipo"] == "tarea_planificada" and evento["datos"].get("id") == id_tarea:
+            datos = evento["datos"]
+    return datos
+
+
+def _cierre_sin_resultado(directorio, id_tarea: str) -> str | None:
+    """¿El ultimo intento termino SIN `cambio_aplicado` por una decision del propio ciclo? Elevada a decision humana,
+    esperando revisor u objetada: nada de eso es una interrupcion y la tarea NO se reofrece."""
+    cierre = None
+    for evento in cp.leer_eventos(pathlib.Path(directorio)):
+        datos = evento.get("datos") or {}
+        if datos.get("id") != id_tarea:
+            continue
+        if evento["tipo"] == "tarea_planificada":
+            cierre = None
+        elif evento["tipo"] == "decision_requerida":
+            cierre = "elevada"
+        elif evento["tipo"] == "revision_sin_revisor_capaz":
+            cierre = "esperando_revisor"
+        elif evento["tipo"] == "veredicto_emitido" and datos.get("cumple") is False:
+            cierre = "objetada"
+    return cierre
+
+
 def registrar_planificada(directorio, tarea: dict) -> dict:
     """Deja constancia **antes** de ejecutar, y con su origen.
 
     Lo que se registra aqui es la intencion, no el resultado: marcar el resultado antes de tenerlo es
     el defecto que la 3.a auditoria encontro en `registrar_sesion`, y que quemaba toda tarea `AUTO`
-    en su primer intento."""
-    return cp.registrar_evento(pathlib.Path(directorio), "tarea_planificada", {
-        "id": tarea["id"], "origen": tarea["origen"], "accion": tarea["accion"],
-        "fichero": tarea["fichero"], "riesgo": tarea["riesgo"]})
+    en su primer intento.
+
+    **Con la identidad del ejecutor y comprobando bajo el cerrojo del log** (DP-RECUPERACION-TRAS-CAIDAS): una
+    tarea interrumpida solo puede volver a planificarse si nadie la ha replanificado ya; dos supervisores que la
+    vean interrumpida a la vez no pueden ejecutarla dos veces."""
+    directorio = pathlib.Path(directorio)
+    datos = {"id": tarea["id"], "origen": tarea["origen"], "accion": tarea["accion"],
+             "fichero": tarea["fichero"], "riesgo": tarea["riesgo"]}
+    ejecutor = _identidad_del_ejecutor()
+    if ejecutor is not None:
+        datos["ejecutor"] = ejecutor
+    evento = cp.registrar_evento_si(directorio, "tarea_planificada", datos,
+                                    lambda: elegible(directorio, tarea["id"]))
+    if evento is None:
+        raise TareaNoElegible(f"{tarea['id']}: {estado_de(directorio, tarea['id'])}")
+    return evento
 
 
 #: **El tope de intentos, y no es un numero inventado.** Sale del modelo que este plano ya tiene:
@@ -146,6 +267,8 @@ def resultado_de(directorio, id_tarea: str) -> dict | None:
     for evento in cp.leer_eventos(pathlib.Path(directorio)):
         if evento["tipo"] == "tarea_planificada":
             mio = evento["datos"].get("id") == id_tarea
+            if mio:
+                resultado = None  # un intento NUEVO: el resultado de uno anterior no es el suyo
         elif evento["tipo"] == "cambio_aplicado" and mio:
             resultado = evento["datos"]
     return resultado
@@ -166,32 +289,66 @@ def completada(directorio, id_tarea: str) -> bool:
     asi que mirar solo `revertido` bastaria; escribirlas las tres es lo que impide que un cambio en
     esa derivacion abra una puerta aqui sin que nadie se entere. Y un evento sin los campos no
     concede: la duda nunca completa."""
-    resultado = resultado_de(directorio, id_tarea)
-    if not resultado:
-        return False
+    return any(_dejo_efecto(r) for r in _resultados_de(directorio, id_tarea))
+
+
+def _dejo_efecto(resultado: dict) -> bool:
     return (resultado.get("efecto_verificado") is True
             and resultado.get("verificacion_sana") is True
             and resultado.get("revertido") is False)
 
 
+def _resultados_de(directorio, id_tarea: str) -> list[dict]:
+    """Los resultados de TODOS los intentos. **Completada es monotona**: un efecto verificado no se deshace porque un
+    log heredado replanificase la tarea despues (lo que `registrar_planificada` ya no permite)."""
+    resultados, mio = [], False
+    for evento in cp.leer_eventos(pathlib.Path(directorio)):
+        if evento["tipo"] == "tarea_planificada":
+            mio = evento["datos"].get("id") == id_tarea
+        elif evento["tipo"] == "cambio_aplicado" and mio:
+            resultados.append(evento["datos"])
+    return resultados
+
+
+def estado_de(directorio, id_tarea: str) -> str:
+    """El estado OBSERVABLE de una tarea (DP-RECUPERACION-TRAS-CAIDAS §2), **solo desde el log**. Once respuestas:
+
+    nunca · en_curso (ejecutor vivo) · completada (algun intento dejo efecto; monotona) · revertida_reintentable ·
+    interrumpida_reintentable (ejecutor muerto, otro arranque o pid reutilizado) · agotada (sin presupuesto) ·
+    elevada · esperando_revisor · objetada (el intento cerro SIN resultado por una decision del ciclo) ·
+    sin_resultado_historico (constancia anterior al contrato, sin `ejecutor`) · resultado_ambiguo (ni completada ni
+    revertida). Solo `nunca` y los dos `*_reintentable` conceden."""
+    intentos = intentos_de(directorio, id_tarea)
+    if intentos == 0:
+        return "nunca"
+    if completada(directorio, id_tarea):
+        return "completada"
+    resultado = resultado_de(directorio, id_tarea)
+    if resultado is not None:
+        if not resultado.get("revertido", False):
+            return "resultado_ambiguo"  # ni completada ni revertida: ante la duda, no
+        return "revertida_reintentable" if intentos < TOPE_DE_REINTENTOS else "agotada"
+    cierre = _cierre_sin_resultado(directorio, id_tarea)
+    if cierre is not None:
+        return cierre
+    ejecutor = (_ultima_planificada(directorio, id_tarea) or {}).get("ejecutor")
+    if ejecutor is None:
+        return "sin_resultado_historico"
+    if _ejecutor_vivo(ejecutor):
+        return "en_curso"
+    return "interrumpida_reintentable" if intentos < TOPE_DE_REINTENTOS else "agotada"
+
+
 def elegible(directorio, id_tarea: str) -> bool:
     """Si la tarea puede entrar en la cola. **Ante la duda, no.**
 
-    Cuatro respuestas, y solo una concede: nunca intentada -> si; completada -> no; planificada y sin
-    resultado todavia -> no (puede estar corriendo, y duplicarla es el defecto que
-    `registrar_planificada` existe para evitar); revertida -> si, **mientras quede presupuesto**.
+    Concede solo `nunca` y los dos `*_reintentable` de `estado_de`: planificada y sin resultado con el ejecutor
+    VIVO (o sin poder saberlo) -> no, porque duplicarla es el defecto que `registrar_planificada` existe para
+    evitar; revertida o interrumpida -> si, **mientras quede presupuesto**.
 
     Una reversion no es un permiso permanente: es el resto de un presupuesto acotado. Agotado, la
     tarea se apaga y hace falta evidencia nueva —otra oportunidad, con otra identidad— para volver."""
-    intentos = intentos_de(directorio, id_tarea)
-    if intentos == 0:
-        return True
-    resultado = resultado_de(directorio, id_tarea)
-    if resultado is None:
-        return False
-    if not resultado.get("revertido", False):
-        return False
-    return intentos < TOPE_DE_REINTENTOS
+    return estado_de(directorio, id_tarea) in ("nunca", "revertida_reintentable", "interrumpida_reintentable")
 
 
 def cola(directorio, oportunidades) -> list[dict]:

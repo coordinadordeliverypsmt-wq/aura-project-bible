@@ -257,20 +257,49 @@ def registrar_planificada(directorio, tarea: dict) -> dict:
 TOPE_DE_REINTENTOS = 2
 
 
+def _cambios_atribuidos(directorio, id_tarea: str) -> tuple[list[int], list[tuple[int | None, int, dict]]]:
+    """`(planificadas, cambios)`: los `seq` de las `tarea_planificada` de esa tarea y, por cada
+    `cambio_aplicado` que le pertenece, `(intento, planificadas_hasta_entonces, datos)`.
+
+    **La atribucion sale de la correlacion, no del orden** (DP-AUTOCONSTRUCCION I1):
+    * `via == "ciclo"` -> JAMAS se atribuye a una tarea, ni por orden.
+    * con `tarea`/`intento` -> es de esa tarea solo si coincide el id y `intento` es el `seq` de una de sus
+      `tarea_planificada` ya vistas. Un par mal formado o ajeno no se atribuye (ni por orden).
+    * sin ninguno de los dos (evento anterior al contrato) -> por orden: el de la ultima planificada."""
+    planificadas: list[int] = []
+    cambios: list[tuple[int | None, int, dict]] = []
+    mio = False
+    for evento in cp.leer_eventos(pathlib.Path(directorio)):
+        datos = evento.get("datos") or {}
+        if evento["tipo"] == "tarea_planificada":
+            mio = datos.get("id") == id_tarea
+            if mio:
+                planificadas.append(evento["seq"])
+        elif evento["tipo"] == "cambio_aplicado":
+            if datos.get("via") == "ciclo":
+                continue
+            if "tarea" in datos or "intento" in datos:
+                intento = datos.get("intento")
+                if (datos.get("tarea") == id_tarea and isinstance(intento, int)
+                        and not isinstance(intento, bool) and intento in planificadas):
+                    cambios.append((intento, len(planificadas), datos))
+            elif mio:
+                cambios.append((None, len(planificadas), datos))
+    return planificadas, cambios
+
+
 def resultado_de(directorio, id_tarea: str) -> dict | None:
     """El resultado del ultimo intento de esa tarea, o `None` si aun no lo hay.
 
-    **El enlace sale del orden del historial, sin campos nuevos.** El log es secuencial y append-only
-    (`ADR-0023`): entre una `tarea_planificada` y la siguiente, el `cambio_aplicado` que aparezca
-    pertenece a la primera. Se comprobo contra los cuatro intentos que existen en el log real."""
-    resultado, mio = None, False
-    for evento in cp.leer_eventos(pathlib.Path(directorio)):
-        if evento["tipo"] == "tarea_planificada":
-            mio = evento["datos"].get("id") == id_tarea
-            if mio:
-                resultado = None  # un intento NUEVO: el resultado de uno anterior no es el suyo
-        elif evento["tipo"] == "cambio_aplicado" and mio:
-            resultado = evento["datos"]
+    Un `cambio_aplicado` con `(tarea, intento)` se atribuye a ese intento; solo los eventos anteriores al
+    contrato (sin esos campos) se enlazan por el orden del historial (`ADR-0023`: secuencial y append-only)."""
+    planificadas, cambios = _cambios_atribuidos(directorio, id_tarea)
+    if not planificadas:
+        return None
+    resultado = None
+    for intento, posicion, datos in cambios:
+        if intento == planificadas[-1] or (intento is None and posicion == len(planificadas)):
+            resultado = datos
     return resultado
 
 
@@ -301,13 +330,7 @@ def _dejo_efecto(resultado: dict) -> bool:
 def _resultados_de(directorio, id_tarea: str) -> list[dict]:
     """Los resultados de TODOS los intentos. **Completada es monotona**: un efecto verificado no se deshace porque un
     log heredado replanificase la tarea despues (lo que `registrar_planificada` ya no permite)."""
-    resultados, mio = [], False
-    for evento in cp.leer_eventos(pathlib.Path(directorio)):
-        if evento["tipo"] == "tarea_planificada":
-            mio = evento["datos"].get("id") == id_tarea
-        elif evento["tipo"] == "cambio_aplicado" and mio:
-            resultados.append(evento["datos"])
-    return resultados
+    return [datos for _i, _p, datos in _cambios_atribuidos(directorio, id_tarea)[1]]
 
 
 def estado_de(directorio, id_tarea: str) -> str:

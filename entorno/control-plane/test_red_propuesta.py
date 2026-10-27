@@ -214,10 +214,12 @@ def test_tambien_representa_una_oportunidad_de_codigo_muerto(tmp_path):
 
 
 def test_el_circuito_de_codigo_muerto_sigue_intacto():
-    """`DR-E` es una generalizacion **al lado**, no una sustitucion: `proponer` no se ha tocado."""
+    """`DR-E` es una generalizacion **al lado**, no una sustitucion: `proponer` conserva sus dos parametros de
+    siempre; la correlacion (D1) llega como argumentos SOLO de palabra clave."""
     import autoconstruccion as ac
     firma = inspect.signature(ac.proponer)
-    assert list(firma.parameters) == ["directorio", "hallazgo"]
+    assert list(firma.parameters) == ["directorio", "hallazgo", "tarea", "intento", "via"]
+    assert [n for n, p in firma.parameters.items() if p.kind is p.KEYWORD_ONLY] == ["tarea", "intento", "via"]
     cuerpo = inspect.getsource(ac.proponer)
     assert "registrar_evento" in cuerpo          # sigue registrando, como siempre
     assert "propuesta_registrada" in cuerpo

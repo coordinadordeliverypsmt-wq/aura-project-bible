@@ -118,8 +118,8 @@ garantia = "TRAZABILIDAD: la planificacion queda registrada ANTES de ejecutar"
 fichero = "motor_autonomia.py"
 pruebas = ["test_red_motor_autonomia.py::test_cada_tarea_del_encadenado_deja_su_RASTRO",
            "test_red_motor_autonomia.py::test_no_se_planifica_DOS_VECES_la_misma_tarea"]
-buscar = '''        plan.registrar_planificada(directorio, tarea)'''
-sustituir = '''        pass'''
+buscar = '''            planificada = plan.registrar_planificada(directorio, tarea)'''
+sustituir = '''            planificada = {"seq": 0}'''
 
 # --------- PARADA OBLIGATORIA ---------
 

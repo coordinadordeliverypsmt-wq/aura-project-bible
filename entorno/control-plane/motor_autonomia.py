@@ -139,7 +139,7 @@ def _ciclo(directorio, raiz, verificacion, tope: int, informe: dict, arranque: i
             return _detener(directorio, informe, "cola agotada", desde=arranque)
 
         try:
-            plan.registrar_planificada(directorio, tarea)
+            planificada = plan.registrar_planificada(directorio, tarea)
         except plan.TareaNoElegible:
             # Otro supervisor la tomo entre `siguiente()` y aqui; el cerrojo del log lo impidio. **No es un fallo**:
             # es la garantia de no duplicar funcionando, y se dice por que se para en lugar de abortar.
@@ -147,7 +147,7 @@ def _ciclo(directorio, raiz, verificacion, tope: int, informe: dict, arranque: i
         try:
             resultado = rv.ejecutar_bajo_review(
                 directorio, tarea, propuesto_por="aura", autoridad="orquestador",
-                verificacion=verificacion)
+                verificacion=verificacion, intento=planificada["seq"])   # un dato: el seq de la planificada
         except (ac.ZonaProhibida, rv.MateriaReservada, rv.ReviewNoHabilitado) as exc:
             cp.registrar_evento(directorio, "decision_requerida",
                                 {"id": tarea["id"], "origen": tarea["origen"],

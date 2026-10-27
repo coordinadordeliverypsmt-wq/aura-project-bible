@@ -441,10 +441,9 @@ def test_E2E_muerte_entre_PROMOVER_y_REGISTRAR_no_cuenta_otro_intento_ni_duplica
     assert seguir.stdout.split()[:1] == ["0"], seguir.stdout + seguir.stderr   # nada que volver a ejecutar
     eventos = cp.leer_eventos(base)
     assert pl.intentos_de(base, id_tarea) == 1, "la recuperacion no puede contar un intento de mas"
-    # `recuperar()` confirma la promocion pero su `cambio_aplicado` NO trae `efecto_verificado`/`verificacion_sana`
-    # (autoconstruccion.py:956). La duda nunca completa: queda AMBIGUA —no elegible, no se repite— y observable para
-    # revision. Que conste como completada exige cambiar `autoconstruccion` (DP §8, fuera del alcance autorizado).
-    assert (pl.estado_de(base, id_tarea), pl.elegible(base, id_tarea)) == ("resultado_ambiguo", False)
+    # D2 (DP-AUTOCONSTRUCCION): el diario guarda la verificacion REAL y `recuperar()` la copia al `cambio_aplicado`
+    # recuperado (`recuperado: true`). La tarea queda `completada` -no elegible, no se repite- en vez de ambigua.
+    assert (pl.estado_de(base, id_tarea), pl.elegible(base, id_tarea)) == ("completada", False)
     assert [e["datos"]["resultado"] for e in eventos if e["tipo"] == "recuperacion_al_arranque"] == \
         ["promocion_confirmada"], "el log tiene que decir que se recupero, no callarlo"
     assert len([e for e in eventos if e["tipo"] == "cambio_aplicado" and e["datos"].get("promovido")]) == 1
@@ -522,9 +521,7 @@ def test_el_motor_solo_usa_RECUPERAR_de_autoconstruccion_el_deshacer_gobernado_n
     assert usados == {"recuperar", "ZonaProhibida"}, usados
 
 
-@pytest.mark.xfail(strict=True, reason="LIMITE CONOCIDO (DP §8): `autoconstruccion.recuperar` registra el cambio "
-                   "promovido SIN efecto_verificado/verificacion_sana (L956), asi que queda `resultado_ambiguo`. Cuando "
-                   "se corrija autoconstruccion esta prueba pasara y el xfail estricto obligara a actualizar el contrato.")
+# Era un xfail estricto (LIMITE CONOCIDO DP §8): su alarma saltó al cerrarse D2 y se convierte en prueba normal.
 @pytest.mark.skipif(not __import__("aislamiento").estricto_disponible(), reason="sin confinamiento estricto")
 def test_PENDIENTE_la_promocion_recuperada_deberia_constar_COMPLETADA(tmp_path):
     guion = tmp_path / "guion.py"

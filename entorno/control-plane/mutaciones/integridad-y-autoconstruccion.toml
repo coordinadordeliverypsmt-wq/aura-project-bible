@@ -1,0 +1,297 @@
+incremento = "Integridad del log (D-LOG-1: ancla externa) y autoconstruccion (D1 correlacion, D2 verificacion real recuperada, D3 id sin carrera) - 2026-10-26"
+# Defectos: (1) borrar la cola del log no se detectaba; (2) atribucion por orden; (3) la recuperacion no publicaba la verificacion; (4) carrera en P-NNN.
+# NADA en paralelo con este arnes (CLAUDE.md §2). Cadenas LITERALES '''...''' (nunca """).
+pruebas = ["test_red_ancla_log.py", "test_red_correlacion_autoconstruccion.py", "test_red_reanudacion_tras_caida.py", "test_red_review.py", "test_red_f1_orquestador.py"]
+timeout_s = 900
+
+[[mutante]]
+id = "IL1"
+garantia = "quitar la comparacion de la cola con el ancla: borrar eventos finales vuelve a parecer integro"
+fichero = "control_plane.py"
+buscar = '''    if not eventos or ancla["seq"] > len(eventos):
+        return "cola_mas_corta_que_el_ancla"'''
+sustituir = '''    if not eventos or ancla["seq"] > len(eventos):
+        return None'''
+
+[[mutante]]
+id = "IL2"
+garantia = "no comparar el hash del evento anclado: reescribir el ultimo evento con hash valido pasa"
+fichero = "control_plane.py"
+buscar = '''    if eventos[ancla["seq"] - 1].get("hash") != ancla["hash"]:'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "IL3"
+garantia = "un log no vacio sin ancla se da por integro (ancla ausente tolerada)"
+fichero = "control_plane.py"
+buscar = '''        if estado_ancla == "ancla_ausente" and not eventos:'''
+sustituir = '''        if estado_ancla == "ancla_ausente":'''
+
+[[mutante]]
+id = "IL4"
+garantia = "un escritor inicializa el ancla en silencio sobre un log existente"
+fichero = "control_plane.py"
+buscar = '''        return None if previos else "anclar"'''
+sustituir = '''        return "anclar"'''
+
+[[mutante]]
+id = "IL5"
+garantia = "la escritura del ancla no es atomica (se escribe encima, sin rename)"
+fichero = "control_plane.py"
+buscar = '''        os.replace(tmp, ruta)'''
+sustituir = '''        ruta.write_bytes(tmp.read_bytes())
+        tmp.unlink()'''
+
+[[mutante]]
+id = "IL6"
+garantia = "reparar_ancla baja o sustituye el ancla aunque el log no concuerde (tapa un truncamiento)"
+fichero = "control_plane.py"
+buscar = '''        codigo = _cotejar_ancla(directorio, eventos, ancla)
+        if codigo is not None:
+            return {"reparada": False, "motivo_codigo": codigo}'''
+sustituir = '''        codigo = _cotejar_ancla(directorio, eventos, ancla)
+        if False:
+            return {"reparada": False, "motivo_codigo": codigo}'''
+
+[[mutante]]
+id = "IL7"
+garantia = "reparar_ancla no es idempotente (reescribe aunque este al dia)"
+fichero = "control_plane.py"
+buscar = '''        if ancla["seq"] == len(eventos):
+            return {"reparada": False, "motivo_codigo": "ancla_al_dia"}'''
+sustituir = '''        if False:
+            return {"reparada": False, "motivo_codigo": "ancla_al_dia"}'''
+
+[[mutante]]
+id = "IL8"
+garantia = "un escritor sigue anadiendo sobre un log truncado respecto de su ancla"
+fichero = "control_plane.py"
+buscar = '''    if codigo is not None:
+        raise AnclaInconsistente(f"{codigo}: el log no concuerda con su ancla externa; no se escribe")'''
+sustituir = '''    if False:
+        raise AnclaInconsistente(f"{codigo}: el log no concuerda con su ancla externa; no se escribe")'''
+
+[[mutante]]
+id = "IL9"
+garantia = "el fichero del ancla queda legible por otros usuarios"
+fichero = "control_plane.py"
+buscar = '''os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)'''
+sustituir = '''os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)'''
+
+[[mutante]]
+id = "IL10"
+garantia = "adoptar_ancla acepta quien/por que vacios"
+fichero = "control_plane.py"
+buscar = '''    if not isinstance(por, str) or not por.strip() or not isinstance(motivo, str) or not motivo.strip():'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "IL11"
+garantia = "adoptar_ancla pisa un ancla existente sin reemplazar=True (tapa un truncamiento)"
+fichero = "control_plane.py"
+buscar = '''        if estado != "ancla_ausente" and not reemplazar:'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "IL12"
+garantia = "un ancla de otro historial se acepta"
+fichero = "control_plane.py"
+buscar = '''    if ancla["historial"]["ruta"] != str(pathlib.Path(directorio).resolve()):
+        return "ancla_de_otro_historial"'''
+sustituir = '''    if False:
+        return "ancla_de_otro_historial"'''
+
+[[mutante]]
+id = "IL13"
+garantia = "los escritores no actualizan el ancla (la cabeza anclada se queda atras)"
+fichero = "control_plane.py"
+buscar = '''    if anclar:
+        _escribir_ancla('''
+sustituir = '''    if False:
+        _escribir_ancla('''
+
+[[mutante]]
+id = "IL14"
+garantia = "los escritores no consultan el ancla antes de escribir"
+fichero = "control_plane.py"
+buscar = '''    anclar = "anclar" if adoptando else _ancla_antes_de_escribir(directorio, previos)'''
+sustituir = '''    anclar = "anclar"'''
+
+[[mutante]]
+id = "IL15"
+garantia = "la verificacion lee el ancla DESPUES de los eventos (falso truncamiento bajo escritura concurrente)"
+fichero = "control_plane.py"
+buscar = '''    estado_ancla, ancla = _leer_ancla(directorio)
+    eventos, cola_truncada = _leer_con_cola(directorio)
+    limites'''
+sustituir = '''    eventos, cola_truncada = _leer_con_cola(directorio)
+    estado_ancla, ancla = _leer_ancla(directorio)
+    limites'''
+
+[[mutante]]
+id = "IL16"
+garantia = "un ancla corrupta se da por ausente-valida (se ignora)"
+fichero = "control_plane.py"
+buscar = '''    try:
+        ancla = json.loads(bruto)
+    except ValueError:
+        return "ancla_corrupta", None'''
+sustituir = '''    try:
+        ancla = json.loads(bruto)
+    except ValueError:
+        return "ancla_ausente", None'''
+
+[[mutante]]
+id = "AC1"
+garantia = "el cambio_aplicado no lleva tarea ni intento"
+fichero = "autoconstruccion.py"
+buscar = '''    for clave in ("tarea", "intento", "via"):
+        if clave in propuesta:'''
+sustituir = '''    for clave in ():
+        if clave in propuesta:'''
+
+[[mutante]]
+id = "AC2"
+garantia = "el diario no guarda tarea ni intento"
+fichero = "autoconstruccion.py"
+buscar = '''        diario.update({"tarea": propuesta["tarea"], "intento": propuesta["intento"]})'''
+sustituir = '''        pass'''
+
+[[mutante]]
+id = "AC3"
+garantia = "la recuperacion fabrica una verificacion verdadera cuando el diario no la trae"
+fichero = "autoconstruccion.py"
+buscar = '''**(verif if verif is not None else {"verificacion_no_registrada": True})})'''
+sustituir = '''**(verif if verif is not None else {"efecto_verificado": True, "verificacion_sana": True, "verificacion_aislada": True, "ejecucion_confinada": True})})'''
+
+[[mutante]]
+id = "AC4"
+garantia = "el diario guarda verificacion_aislada=true aunque la medida fuese falsa"
+fichero = "autoconstruccion.py"
+buscar = '''verif={"efecto_verificado": bool(efecto), "verificacion_sana": sano,
+                       "verificacion_aislada": aislada, "ejecucion_confinada": confinada})'''
+sustituir = '''verif={"efecto_verificado": bool(efecto), "verificacion_sana": sano,
+                       "verificacion_aislada": True, "ejecucion_confinada": True})'''
+
+[[mutante]]
+id = "AC5"
+garantia = "recuperar vuelve a registrar un cambio ya constado (sin idempotencia)"
+fichero = "autoconstruccion.py"
+buscar = '''        if not constaba:
+            # I3'''
+sustituir = '''        if True:
+            # I3'''
+
+[[mutante]]
+id = "AC6"
+garantia = "el cambio constado se busca solo por id de propuesta, no por (tarea, intento)"
+fichero = "autoconstruccion.py"
+buscar = '''    if correlacion:
+        return d.get("tarea")'''
+sustituir = '''    if False:
+        return d.get("tarea")'''
+
+[[mutante]]
+id = "AC7"
+garantia = "el P-NNN se calcula fuera del cerrojo (carrera de ids)"
+fichero = "autoconstruccion.py"
+buscar = '''    cp.registrar_evento_si(directorio, "propuesta_registrada", None, lambda: True, derivar=derivar)'''
+sustituir = '''    cp.registrar_evento(directorio, "propuesta_registrada", derivar())'''
+
+[[mutante]]
+id = "AC8"
+garantia = "la validacion acepta un valor que solo se evalua como verdadero (1, 'true')"
+fichero = "autoconstruccion.py"
+buscar = '''    if diario.get("efecto_verificado") is not True or diario.get("verificacion_sana") is not True:'''
+sustituir = '''    if not diario.get("efecto_verificado") or not diario.get("verificacion_sana"):'''
+
+[[mutante]]
+id = "AC9"
+garantia = "la validacion no exige booleanos reales en aislada/confinada"
+fichero = "autoconstruccion.py"
+buscar = '''    if not isinstance(aislada, bool) or not isinstance(confinada, bool):'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "AC10"
+garantia = "un intento booleano se acepta como entero"
+fichero = "autoconstruccion.py"
+buscar = '''and isinstance(intento, int) and not isinstance(intento, bool) and intento > 0)'''
+sustituir = '''and isinstance(intento, int) and intento > 0)'''
+
+[[mutante]]
+id = "AC11"
+garantia = "ciclo() no marca via=ciclo"
+fichero = "autoconstruccion.py"
+buscar = '''proponer(directorio, h, via="ciclo")'''
+sustituir = '''proponer(directorio, h)'''
+
+[[mutante]]
+id = "AC12"
+garantia = "la recuperacion no marca recuperado=true"
+fichero = "autoconstruccion.py"
+buscar = '''"promovido": True, "recuperado": True,'''
+sustituir = '''"promovido": True,'''
+
+[[mutante]]
+id = "AC13"
+garantia = "la recuperacion no copia tarea ni intento al cambio recuperado"
+fichero = "autoconstruccion.py"
+buscar = '''                                 **correlacion,
+                                 **(verif'''
+sustituir = '''                                 **(verif'''
+
+[[mutante]]
+id = "PL1"
+garantia = "atribuir por orden un cambio que trae correlacion"
+fichero = "planificador.py"
+buscar = '''            if "tarea" in datos or "intento" in datos:'''
+sustituir = '''            if False:'''
+
+[[mutante]]
+id = "PL2"
+garantia = "un evento via=ciclo se atribuye a la tarea (por orden)"
+fichero = "planificador.py"
+buscar = '''            if datos.get("via") == "ciclo":
+                continue'''
+sustituir = '''            if False:
+                continue'''
+
+[[mutante]]
+id = "PL3"
+garantia = "el resultado de un intento anterior se hereda al intento nuevo"
+fichero = "planificador.py"
+buscar = '''        if intento == planificadas[-1] or (intento is None and posicion == len(planificadas)):'''
+sustituir = '''        if True:'''
+
+[[mutante]]
+id = "MO1"
+garantia = "el motor no transporta el seq de la planificada (el review registra otra)"
+fichero = "motor_autonomia.py"
+buscar = '''verificacion=verificacion, intento=planificada["seq"])'''
+sustituir = '''verificacion=verificacion)'''
+
+[[mutante]]
+id = "RV1"
+garantia = "el review manual no registra su propia tarea_planificada"
+fichero = "review.py"
+buscar = '''    if intento is None:
+        intento = _planificar_intento_manual(directorio, tarea, accion)'''
+sustituir = '''    if intento is None:
+        intento = 1'''
+
+[[mutante]]
+id = "RV2"
+garantia = "la propuesta del review no lleva la correlacion"
+fichero = "review.py"
+buscar = '''                           tarea=tarea["id"], intento=intento)'''
+sustituir = ''')'''
+
+[[mutante]]
+id = "CP1"
+garantia = "registrar_evento_si ignora el parametro derivar"
+fichero = "control_plane.py"
+buscar = '''        if derivar is not None:
+            datos = derivar()'''
+sustituir = '''        if derivar is not None:
+            pass'''

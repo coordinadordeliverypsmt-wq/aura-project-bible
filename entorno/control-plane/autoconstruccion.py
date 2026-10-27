@@ -332,22 +332,53 @@ def diagnosticar(hallazgos: list[dict]) -> list[dict]:
 
 # ---------------------------------------------------------------- 3-4 · PROPONER / AUTORIZAR --
 
-def proponer(directorio, hallazgo: dict) -> dict:
+def _correlacion_valida(tarea, intento) -> bool:
+    """`tarea` cadena no vacia e `intento` entero (no booleano) y positivo. Tipo estricto. (El DP pedia la forma
+    `TA-…`, pero el `review` manual usa ids propios —`T-A1`, `AUT-001`— y exigirla dejaria sin correlacion
+    justo esas tareas: la identidad la garantiza el `seq` de la `tarea_planificada`, no el prefijo.)"""
+    return (isinstance(tarea, str) and bool(tarea.strip())
+            and isinstance(intento, int) and not isinstance(intento, bool) and intento > 0)
+
+
+def proponer(directorio, hallazgo: dict, *, tarea: str | None = None, intento: int | None = None,
+             via: str | None = None) -> dict:
     """Una propuesta es una **peticion**, no una decision. Nace sin autorizar, y nada la concede por
-    el paso del tiempo: `1.1:85`."""
+    el paso del tiempo: `1.1:85`.
+
+    **Correlacion (DP-AUTOCONSTRUCCION D1).** `tarea` e `intento` (el `seq` de su `tarea_planificada`)
+    viajan con la propuesta y, desde ella, en el diario y en cada `cambio_aplicado`. `via="ciclo"` marca
+    la API `ciclo()`, que no tiene tarea: sus eventos llevan `tarea: None, intento: None` y el
+    planificador nunca los atribuye a ninguna.
+
+    **Id sin carrera (D3).** `P-NNN` se calcula **y** se anade bajo el mismo `lock_estado`, derivandolo
+    dentro de `registrar_evento_si`: dos `proponer` concurrentes no pueden obtener el mismo."""
     directorio = pathlib.Path(directorio)
-    existentes = [e for e in cp.leer_eventos(directorio) if e["tipo"] == "propuesta_registrada"]
-    propuesta = {"id": f"P-{len(existentes) + 1:03d}", "estado": "PROPUESTA", "autorizada": False,
-                 # `forma` viaja con la propuesta desde que la capacidad cubre las cinco formas del
-                 # codigo muerto: sin ella el ejecutor volveria a suponer «funcion» y no borraria
-                 # nada, que es exactamente lo que pasaba —en silencio y revirtiendo— antes de esto.
-                 **{k: hallazgo.get(k) for k in ("simbolo", "fichero", "motivo", "linea",
-                                                  "buscar", "sustituir")},
-                 # La operacion viaja con la propuesta. Por defecto la de siempre: sin esto, una
-                 # propuesta antigua cambiaria de comportamiento al aparecer el vocabulario nuevo.
-                 "operacion": hallazgo.get("operacion", "eliminar_codigo_muerto"),
-                 "forma": hallazgo.get("forma", "funcion")}
-    cp.registrar_evento(directorio, "propuesta_registrada", propuesta)
+    if (tarea is None) != (intento is None):
+        raise ValueError("`tarea` e `intento` van juntos: una correlacion a medias no correlaciona")
+    if tarea is not None and not _correlacion_valida(tarea, intento):
+        raise ValueError(f"correlacion mal formada: tarea={tarea!r} (cadena), intento={intento!r} (entero > 0)")
+    propuesta: dict = {}
+
+    def derivar() -> dict:
+        existentes = [e for e in cp.leer_eventos(directorio) if e["tipo"] == "propuesta_registrada"]
+        propuesta.update({
+            "id": f"P-{len(existentes) + 1:03d}", "estado": "PROPUESTA", "autorizada": False,
+            # `forma` viaja con la propuesta desde que la capacidad cubre las cinco formas del
+            # codigo muerto: sin ella el ejecutor volveria a suponer «funcion» y no borraria
+            # nada, que es exactamente lo que pasaba —en silencio y revirtiendo— antes de esto.
+            **{k: hallazgo.get(k) for k in ("simbolo", "fichero", "motivo", "linea",
+                                             "buscar", "sustituir")},
+            # La operacion viaja con la propuesta. Por defecto la de siempre: sin esto, una
+            # propuesta antigua cambiaria de comportamiento al aparecer el vocabulario nuevo.
+            "operacion": hallazgo.get("operacion", "eliminar_codigo_muerto"),
+            "forma": hallazgo.get("forma", "funcion")})
+        if tarea is not None:
+            propuesta.update({"tarea": tarea, "intento": intento})
+        if via is not None:
+            propuesta.update({"tarea": None, "intento": None, "via": via})
+        return dict(propuesta)
+
+    cp.registrar_evento_si(directorio, "propuesta_registrada", None, lambda: True, derivar=derivar)
     return propuesta
 
 
@@ -930,6 +961,37 @@ def _bloqueo_de_recuperacion(directorio, estado, op, informe, motivo, evento="pr
     return False
 
 
+def _correlacion_del_diario(diario: dict) -> dict:
+    """`{tarea, intento}` si el diario los trae bien formados; `{}` si faltan o estan mal (= ausentes)."""
+    if _correlacion_valida(diario.get("tarea"), diario.get("intento")):
+        return {"tarea": diario["tarea"], "intento": diario["intento"]}
+    return {}
+
+
+def _verificacion_del_diario(diario: dict) -> dict | None:
+    """La verificacion que `_promover` midio, o `None` si falta algo o no es del tipo exacto. Estricto:
+    `efecto_verificado` y `verificacion_sana` solo valen si son `True` (un diario promovido solo existe si
+    ambos lo fueron) y los otros dos deben ser booleanos reales; cualquier otra cosa se trata como ausente."""
+    if diario.get("efecto_verificado") is not True or diario.get("verificacion_sana") is not True:
+        return None
+    aislada, confinada = diario.get("verificacion_aislada"), diario.get("ejecucion_confinada")
+    if not isinstance(aislada, bool) or not isinstance(confinada, bool):
+        return None
+    return {"efecto_verificado": True, "verificacion_sana": True, "verificacion_aislada": aislada,
+            "ejecucion_confinada": confinada}
+
+
+def _es_el_cambio_de(evento: dict, id_propuesta: str, correlacion: dict) -> bool:
+    """I2 · un intento, un desenlace. Con correlacion, la clave es `(tarea, intento)`; sin ella (diario
+    anterior al contrato), la propuesta, como siempre."""
+    if evento["tipo"] != "cambio_aplicado":
+        return False
+    d = evento["datos"]
+    if correlacion:
+        return d.get("tarea") == correlacion["tarea"] and d.get("intento") == correlacion["intento"]
+    return d.get("id") == id_propuesta and not d.get("revertido")
+
+
 def _resolver(directorio, estado, op, informe) -> bool:
     """Resuelve UN diario. `False` si hay que parar (bloqueo)."""
     try:
@@ -950,11 +1012,17 @@ def _resolver(directorio, estado, op, informe) -> bool:
                                             evento="restauracion_fallida", datos=datos)
         resultado = "restaurado"
     elif diario["estado"] == "promovido" and vivo == diario["sha_candidato"]:
-        constaba = any(e["tipo"] == "cambio_aplicado" and e["datos"].get("id") == datos["id"]
-                       and not e["datos"].get("revertido") for e in cp.leer_eventos(directorio))
+        correlacion = _correlacion_del_diario(diario)
+        constaba = any(_es_el_cambio_de(e, datos["id"], correlacion) for e in cp.leer_eventos(directorio))
         if not constaba:
+            # I3: la verificacion es COPIA LITERAL de lo que midio `_promover`; si el diario no la trae
+            # (anterior al contrato, o mal formada) no se inventa: `verificacion_no_registrada` y la tarea
+            # queda `resultado_ambiguo`. `recuperado: true` hace auditable toda finalizacion por esta via.
+            verif = _verificacion_del_diario(diario)
             cp.registrar_evento(directorio, "cambio_aplicado",
-                                {**datos, "revertido": False, "promovido": True})
+                                {**datos, "revertido": False, "promovido": True, "recuperado": True,
+                                 **correlacion,
+                                 **(verif if verif is not None else {"verificacion_no_registrada": True})})
         resultado = "promocion_confirmada"
     else:
         return _bloqueo_de_recuperacion(directorio, estado, op, informe, "contenido ambiguo",
@@ -1040,7 +1108,7 @@ def _exigir_raiz(verificacion) -> None:
 
 
 def _promover(directorio: pathlib.Path, destino: pathlib.Path, propuesta: dict, candidato: bytes,
-              efecto_en, sha_esperado: str) -> pathlib.Path | None:
+              efecto_en, sha_esperado: str, verif: dict | None = None) -> pathlib.Path | None:
     """Promueve el candidato al vivo (con el cerrojo ya tomado). Devuelve el directorio del diario si
     quedo promovido (lo cierra quien llama, DESPUES de registrar el evento); `None` si se revirtio (y
     verifico). `_BaseCambiada` si el vivo ya no es el original verificado. `RestauracionFallida` si no
@@ -1057,6 +1125,8 @@ def _promover(directorio: pathlib.Path, destino: pathlib.Path, propuesta: dict, 
     diario = {"id_op": id_op, "directorio": str(directorio.resolve()), "ruta": str(destino),
               "propuesta": propuesta["id"], "sha_original": _sha(original),
               "sha_candidato": _sha(candidato), "tmp": str(tmp), "estado": "preparado"}
+    if _correlacion_valida(propuesta.get("tarea"), propuesta.get("intento")):
+        diario.update({"tarea": propuesta["tarea"], "intento": propuesta["intento"]})
     _escribir_privado(op / "original", original)
     _guardar_diario(op, diario)                           # ANTES de tocar el vivo
     datos = {"id": propuesta["id"], "fichero": str(destino), "id_op": id_op}
@@ -1075,7 +1145,9 @@ def _promover(directorio: pathlib.Path, destino: pathlib.Path, propuesta: dict, 
         cp.registrar_evento(directorio, "promocion_revertida", {**datos, "motivo": str(exc)})
         shutil.rmtree(op, ignore_errors=True)
         return None
-    _guardar_diario(op, {**diario, "estado": "promovido"})
+    # D2: el diario promovido guarda lo que se MIDIO (valores reales; nunca un `true` por defecto). Sin
+    # `verif` no se escribe ningun campo: un diario sin ellos se recupera como resultado ambiguo.
+    _guardar_diario(op, {**diario, "estado": "promovido", **(verif or {})})
     return op
 
 
@@ -1256,6 +1328,10 @@ def _registro(propuesta, ruta, efecto, sano, autoridad, aislada, motivo=None, pr
                 "verificacion_aislada": bool(aislada), "ejecucion_confinada": bool(confinada)}
     if not promovido:
         registro["motivo"] = motivo
+    # D1: la correlacion viaja en CADA cambio_aplicado (normal, rechazado) de la via review/motor.
+    for clave in ("tarea", "intento", "via"):
+        if clave in propuesta:
+            registro[clave] = propuesta[clave]
     return registro
 
 
@@ -1310,8 +1386,10 @@ def _aplicar_en_copia(directorio, ruta, destino, rel, copia, manifiesto, propues
     _asegurar_estado(estado)
     with _cerrojo(estado, bloqueante=True):               # hasta cerrar el diario
         try:
-            resultado, cierre = _promover_si_procede(directorio, destino, rel, propuesta, candidato,
-                                                     efecto_en, manifiesto)
+            resultado, cierre = _promover_si_procede(
+                directorio, destino, rel, propuesta, candidato, efecto_en, manifiesto,
+                verif={"efecto_verificado": bool(efecto), "verificacion_sana": sano,
+                       "verificacion_aislada": aislada, "ejecucion_confinada": confinada})
             registro = _registro(propuesta, ruta, efecto, sano, autoridad, aislada,
                                  None if cierre else resultado, promovido=bool(cierre),
                              confinada=confinada)
@@ -1323,7 +1401,8 @@ def _aplicar_en_copia(directorio, ruta, destino, rel, copia, manifiesto, propues
     return registro
 
 
-def _promover_si_procede(directorio, destino, rel, propuesta, candidato, efecto_en, manifiesto):
+def _promover_si_procede(directorio, destino, rel, propuesta, candidato, efecto_en, manifiesto,
+                         verif=None):
     """PARADA otra vez, precondicion de hashes y promocion. Devuelve `(motivo, None)` si no se promovio
     o `("promovido", directorio_del_diario)`."""
     datos = {"id": propuesta["id"], "fichero": str(destino)}
@@ -1343,7 +1422,8 @@ def _promover_si_procede(directorio, destino, rel, propuesta, candidato, efecto_
     try:
         if cambiadas:
             raise _BaseCambiada()
-        op = _promover(directorio, destino, propuesta, candidato, efecto_en, manifiesto[rel.as_posix()])
+        op = _promover(directorio, destino, propuesta, candidato, efecto_en, manifiesto[rel.as_posix()],
+                       verif)
     except _BaseCambiada:
         cp.registrar_evento(directorio, "promocion_abortada_base_cambiada",
                             {**datos, "rutas": (cambiadas or [rel.as_posix()])[:20]})
@@ -1362,7 +1442,7 @@ def ciclo(directorio, ficheros, autoridad_humana: str | None, acta: str,
     hallazgos = diagnosticar(observar(ficheros))
     informe = {"observados": len(hallazgos), "propuestos": 0, "autorizados": 0, "aplicados": 0,
                "revertidos": 0, "detenido_en": "continuar"}
-    propuestas = [proponer(directorio, h) for h in hallazgos]
+    propuestas = [proponer(directorio, h, via="ciclo") for h in hallazgos]
     informe["propuestos"] = len(propuestas)
 
     if autoridad_humana not in AUTORIDADES_HUMANAS or not (acta or "").strip():

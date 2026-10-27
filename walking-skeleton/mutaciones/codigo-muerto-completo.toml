@@ -132,8 +132,8 @@ id = "CMC-M14"
 garantia = "la FORMA sobrevive al registro de la propuesta: se perdia ahi, en silencio y revirtiendo"
 fichero = "autoconstruccion.py"
 pruebas = ["test_red_codigo_muerto_completo.py::test_AURA_ejecuta_las_CUATRO_formas_encadenadas"]
-buscar = '''                 "forma": hallazgo.get("forma", "funcion")}'''
-sustituir = '''                 "forma": "funcion"}'''
+buscar = '''"forma": hallazgo.get("forma", "funcion")})'''
+sustituir = '''"forma": "funcion"})'''
 
 [[mutante]]
 id = "CMC-M15"

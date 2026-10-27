@@ -523,11 +523,30 @@ def _verificador_de_review(contrato: dict, directorio):
     return verificar
 
 
+def _planificar_intento_manual(directorio, tarea: dict, accion: str) -> int:
+    """C3: el `review` manual deja su propia `tarea_planificada` (mismo mecanismo que el motor) y devuelve su
+    `seq`. Sin `id` o `fichero`, error explicito y sin efecto; una tarea no elegible lanza `TareaNoElegible`."""
+    import planificador as plan
+    faltan = [k for k in ("id", "fichero") if not str(tarea.get(k) or "").strip()]
+    if faltan:
+        raise ValueError(f"un review manual sin intento necesita {faltan} para registrar su tarea_planificada")
+    evento = plan.registrar_planificada(directorio, {
+        "id": tarea["id"], "origen": tarea.get("origen") or "manual", "accion": accion,
+        "fichero": tarea["fichero"], "riesgo": tarea.get("riesgo") or "manual"})
+    return evento["seq"]
+
+
 def ejecutar_bajo_review(directorio, tarea: dict, propuesto_por: str, autoridad: str,
-                         verificacion=None, revisor: str | None = None) -> dict:
+                         verificacion=None, revisor: str | None = None,
+                         intento: int | None = None) -> dict:
     """`clasificar → revisar → ejecutar → verificar → registrar`, con **cinco** puertas antes de
     tocar nada: materia reservada, ejecutor construido, nivel habilitado, alcance del acta y
-    **correspondencia con el contrato** — mas el veredicto sin objeciones."""
+    **correspondencia con el contrato** — mas el veredicto sin objeciones.
+
+    `intento` es el `seq` de la `tarea_planificada` de este intento (lo pasa el motor). Un `review` manual
+    sin `intento` registra antes **su propia** `tarea_planificada` (DP-AUTOCONSTRUCCION C3): asi todo
+    intento tiene `seq`, ejecutor, recuperacion e intentos contados. Cambio de contrato declarado: puede
+    lanzar `TareaNoElegible`, y exige `id`, `accion` y `fichero` (`origen` y `riesgo` valen `manual`)."""
     directorio = pathlib.Path(directorio)
     accion = tarea.get("accion", "")
 
@@ -574,6 +593,8 @@ def ejecutar_bajo_review(directorio, tarea: dict, propuesto_por: str, autoridad:
             f"{revisor!r} no es un revisor capaz: los que hoy pueden revisar son {capaces}. "
             f"Un veredicto en nombre de quien no existe es un sello, no una revision")
     revisor = revisor or next(r for r in capaces)
+    if intento is None:
+        intento = _planificar_intento_manual(directorio, tarea, accion)
     veredicto = pedir_veredicto(directorio, tarea, propuesto_por=propuesto_por, revisor=revisor)
     if not permite_seguir(veredicto):
         return {"ejecutado": False, "revisor": revisor, "objeciones": list(veredicto.objeciones),
@@ -590,7 +611,8 @@ def ejecutar_bajo_review(directorio, tarea: dict, propuesto_por: str, autoridad:
                                          "operacion": tarea.get("operacion", "eliminar_codigo_muerto"),
                                          "buscar": tarea.get("buscar"),
                                          "sustituir": tarea.get("sustituir"),
-                                         "motivo": f"{accion} bajo REVIEW"})
+                                         "motivo": f"{accion} bajo REVIEW"},
+                           tarea=tarea["id"], intento=intento)
     cp.registrar_propuesta_autorizada(
         directorio, propuesta["id"], autorizada_por=f"{cp.PREFIJO_REVIEW}{revisor}",
         acta=f"alcance habilitado por acta del CEO; veredicto de {revisor}")

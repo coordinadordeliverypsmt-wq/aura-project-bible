@@ -80,6 +80,9 @@ class ConfigAgente:
     usuario: str
     nombre: str
     intervalo_s: float
+    spki_fijada: tuple[str, ...] = ()
+    """A3 (DP-DELEGACION-NODOS): huellas sha256 de la SPKI de HC-1 (actual + siguiente). Si hay alguna, la fijación es
+    OBLIGATORIA (fallo cerrado, TLS >= 1.3). Vacío = comportamiento histórico (solo CA privada): no rompe NODO-01."""
 
 
 class Publicador(Protocol):
@@ -145,6 +148,21 @@ def _validar_conf(conf: dict[str, Any]) -> tuple[list[str], str, str, float]:
     return list(servidores), usuario, nombre, float(intervalo)  # type: ignore[arg-type]
 
 
+def _leer_spki(conf: dict[str, Any]) -> tuple[str, ...]:
+    """`spki_fijada` ausente => (). Presente pero inválida => ErrorConfiguracion (nunca se degrada a «solo CA»)."""
+    if "spki_fijada" not in conf:
+        return ()
+    from .adapters.fijacion_spki import ErrorFijacion, normalizar_pines
+
+    valor = conf["spki_fijada"]
+    if not isinstance(valor, list):
+        raise ErrorConfiguracion("nodo.conf: spki_fijada debe ser una lista de huellas sha256 (hex)")
+    try:
+        return tuple(sorted(normalizar_pines(valor, exigida=True)))
+    except ErrorFijacion as e:
+        raise ErrorConfiguracion(f"nodo.conf: spki_fijada inválida: {e}") from e
+
+
 def _leer_credencial(datos: str) -> str:
     ruta = os.path.join(datos, "credencial")
     if not os.path.isfile(ruta):
@@ -169,7 +187,7 @@ def cargar_config(datos: str) -> tuple[ConfigAgente, str]:
         nodo_id = cargar_o_crear(datos)
     except IdentidadCorrupta as e:
         raise ErrorConfiguracion(f"identidad del nodo no confiable: {e}") from e
-    return ConfigAgente(datos, nodo_id, servidores, usuario, nombre, intervalo), password
+    return ConfigAgente(datos, nodo_id, servidores, usuario, nombre, intervalo, _leer_spki(conf)), password
 
 
 # --- agente -----------------------------------------------------------------------------------------------
@@ -398,6 +416,10 @@ def _fabrica_nats(
         ctx.verify_mode = ssl.CERT_REQUIRED
         # Explícito: Python 3.13 lo activa por defecto; así HC-1 (3.12) y el nodo (3.13) verifican igual.
         ctx.verify_flags |= ssl.VERIFY_X509_STRICT
+        if config.spki_fijada:  # A3: si está configurada, es obligatoria (la comprueba el handshake, antes del CONNECT)
+            from .adapters.fijacion_spki import aplicar_fijacion
+
+            aplicar_fijacion(ctx, config.spki_fijada)
 
         async def error_cb(e: Exception) -> None:
             # nats-py imprime la traza completa en cada intento (ruido y posible filtración): solo el tipo.

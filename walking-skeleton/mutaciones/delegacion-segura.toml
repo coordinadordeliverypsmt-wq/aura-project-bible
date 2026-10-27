@@ -1,0 +1,369 @@
+incremento = "Delegacion segura a nodos: A1 A2 A3 N1 N2 (biblioteca aislada, 2026-10-26)"
+# NO ejecutado en la sesion que lo escribio (orden expresa): ejecutar con `python3 -m herramientas.mutar mutaciones/delegacion-segura.toml`.
+pruebas = ["tests/unit/test_delegacion_orden_firmada.py"]
+timeout_s = 120
+
+[[mutante]]
+id = "M1"
+garantia = "quitar la verificación de firma de la orden"
+fichero = "aura_skeleton/core/delegacion.py"
+pruebas = ["tests/unit/test_delegacion_orden_firmada.py"]
+buscar = '''if not verificar(abierto.kid, mensaje_con_dominio(dominio, abierto.payload), abierto.firma):'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M2"
+garantia = "aceptar destinatario ajeno"
+fichero = "aura_skeleton/core/delegacion.py"
+pruebas = ["tests/unit/test_delegacion_orden_firmada.py"]
+buscar = '''if c["destinatario"] != politica.id_nodo:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M3"
+garantia = "aceptar v menor que la mínima (N8)"
+fichero = "aura_skeleton/core/delegacion.py"
+pruebas = ["tests/unit/test_delegacion_orden_firmada.py"]
+buscar = '''if v < v_minima:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M4"
+garantia = "aceptar v mayor que la soportada"
+fichero = "aura_skeleton/core/delegacion.py"
+pruebas = ["tests/unit/test_delegacion_orden_firmada.py"]
+buscar = '''if v > V_ACTUAL:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M5"
+garantia = "no persistir las órdenes consumidas"
+fichero = "aura_skeleton/core/delegacion.py"
+pruebas = ["tests/unit/test_delegacion_anti_replay.py"]
+buscar = '''almacen.consumir(c["id_ejecucion"], c["epoch_hc1"])'''
+sustituir = '''pass'''
+
+[[mutante]]
+id = "M6"
+garantia = "aceptar un emisor que no corresponde al kid"
+fichero = "aura_skeleton/core/delegacion.py"
+pruebas = ["tests/unit/test_delegacion_orden_firmada.py"]
+buscar = '''if c["emisor"] != emisor:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M7"
+garantia = "no exigir reloj sincronizado (N1/N5)"
+fichero = "aura_skeleton/core/delegacion.py"
+pruebas = ["tests/unit/test_delegacion_anti_replay.py"]
+buscar = '''if not politica.reloj.sincronizado():'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M8"
+garantia = "aceptar órdenes caducadas"
+fichero = "aura_skeleton/core/delegacion.py"
+pruebas = ["tests/unit/test_delegacion_anti_replay.py"]
+buscar = '''if c["caduca_en"] <= ahora:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M9"
+garantia = "aceptar órdenes emitidas antes del arranque"
+fichero = "aura_skeleton/core/delegacion.py"
+pruebas = ["tests/unit/test_delegacion_anti_replay.py"]
+buscar = '''if c["emitida_en"] < pol.arranque:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M10"
+garantia = "aceptar payload no canónico"
+fichero = "aura_skeleton/core/delegacion.py"
+pruebas = ["tests/unit/test_delegacion_orden_firmada.py"]
+buscar = '''if canonico != abierto.payload:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M11"
+garantia = "sin separación de dominio"
+fichero = "aura_skeleton/core/delegacion.py"
+pruebas = ["tests/unit/test_delegacion_orden_firmada.py"]
+buscar = '''return dominio + payload'''
+sustituir = '''return payload'''
+
+[[mutante]]
+id = "M12"
+garantia = "aceptar campos desconocidos"
+fichero = "aura_skeleton/core/delegacion.py"
+pruebas = ["tests/unit/test_delegacion_orden_firmada.py"]
+buscar = '''    if extra:'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "M13"
+garantia = "ignorar la lista local de capacidades del nodo (M5)"
+fichero = "aura_skeleton/core/delegacion.py"
+pruebas = ["tests/unit/test_delegacion_orden_firmada.py"]
+buscar = '''capacidad_registrada(c["capacidad"], politica.capacidades)'''
+sustituir = '''capacidad_registrada(c["capacidad"], None)'''
+
+[[mutante]]
+id = "M14"
+garantia = "no validar el esquema de argumentos en el nodo"
+fichero = "aura_skeleton/core/delegacion.py"
+pruebas = ["tests/unit/test_delegacion_orden_firmada.py"]
+buscar = '''    cap.validar_argumentos(c["argumentos"])
+'''
+sustituir = '''    pass
+'''
+
+[[mutante]]
+id = "M15"
+garantia = "aceptar kid del sobre distinto del firmado"
+fichero = "aura_skeleton/core/delegacion.py"
+pruebas = ["tests/unit/test_delegacion_orden_firmada.py"]
+buscar = '''if c["kid"] != abierto.kid:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M16"
+garantia = "aceptar kid distinto del esperado del subject"
+fichero = "aura_skeleton/core/delegacion.py"
+pruebas = ["tests/unit/test_delegacion_resultado_firmado.py"]
+buscar = '''if kid_esperado is not None and abierto.kid != kid_esperado:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M17"
+garantia = "aceptar salida de más de 64 KiB"
+fichero = "aura_skeleton/core/delegacion.py"
+pruebas = ["tests/unit/test_delegacion_resultado_firmado.py"]
+buscar = '''    if len(c["salida"].encode("utf-8")) > SALIDA_MAX_BYTES:'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "M18"
+garantia = "aceptar resultado sin comprobar hash_tarea (HAL-041-2)"
+fichero = "aura_skeleton/core/delegacion_hc1.py"
+pruebas = ["tests/unit/test_delegacion_resultado_firmado.py"]
+buscar = '''if c["hash_tarea"] != ej.hash_tarea:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M19"
+garantia = "aceptar resultado con id_nodo distinto del subject"
+fichero = "aura_skeleton/core/delegacion_hc1.py"
+pruebas = ["tests/unit/test_delegacion_resultado_firmado.py"]
+buscar = '''if c["id_nodo"] != id_nodo_subject:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M20"
+garantia = "aceptar resultado de un nodo que no es el destinatario"
+fichero = "aura_skeleton/core/delegacion_hc1.py"
+pruebas = ["tests/unit/test_delegacion_resultado_firmado.py"]
+buscar = '''if ej.destinatario != id_nodo_subject:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M21"
+garantia = "aceptar resultado de una ejecución que no está en curso / duplicado"
+fichero = "aura_skeleton/core/delegacion_hc1.py"
+pruebas = ["tests/unit/test_delegacion_resultado_firmado.py"]
+buscar = '''if ej.estado not in _EN_CURSO:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M22"
+garantia = "aceptar tarea/intento que no corresponden"
+fichero = "aura_skeleton/core/delegacion_hc1.py"
+pruebas = ["tests/unit/test_delegacion_resultado_firmado.py"]
+buscar = '''if c["tarea"] != ej.tarea or c["intento"] != ej.intento:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M23"
+garantia = "contar como completada lo solo validado"
+fichero = "aura_skeleton/core/delegacion_hc1.py"
+pruebas = ["tests/unit/test_delegacion_resultado_firmado.py"]
+buscar = '''return self.estado is Estado.INCORPORADO'''
+sustituir = '''return self.estado is Estado.VALIDADO'''
+
+[[mutante]]
+id = "M24"
+garantia = "incorporar sin haber validado"
+fichero = "aura_skeleton/core/delegacion_hc1.py"
+pruebas = ["tests/unit/test_delegacion_resultado_firmado.py"]
+buscar = '''if ej.estado is not Estado.VALIDADO or ej.sobre_resultado is None:'''
+sustituir = '''if ej.sobre_resultado is None:'''
+
+[[mutante]]
+id = "M25"
+garantia = "creer el ok del nodo sin verificador propio"
+fichero = "aura_skeleton/core/delegacion_hc1.py"
+pruebas = ["tests/unit/test_delegacion_resultado_firmado.py"]
+buscar = '''ok = cap.verificar(ej.argumentos, ej.salida)'''
+sustituir = '''ok = True'''
+
+[[mutante]]
+id = "M26"
+garantia = "el acuse prorroga el techo de duración"
+fichero = "aura_skeleton/core/delegacion_hc1.py"
+pruebas = ["tests/unit/test_delegacion_resultado_firmado.py"]
+buscar = '''ej.recibida_en = c["recibida_en"]'''
+sustituir = '''ej.recibida_en = c["recibida_en"]; ej.vence_en += 600'''
+
+[[mutante]]
+id = "M27"
+garantia = "desconexión con acuse tratada como reintentable"
+fichero = "aura_skeleton/core/delegacion_hc1.py"
+pruebas = ["tests/unit/test_delegacion_resultado_firmado.py"]
+buscar = '''ej.estado = Estado.INTERRUMPIDA if ej.estado is Estado.EMITIDA else Estado.AMBIGUO'''
+sustituir = '''ej.estado = Estado.INTERRUMPIDA'''
+
+[[mutante]]
+id = "M28"
+garantia = "no comprobar la SPKI fijada"
+fichero = "aura_skeleton/adapters/fijacion_spki.py"
+pruebas = ["tests/unit/test_fijacion_spki.py"]
+buscar = '''if conjunto and huella not in conjunto:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M29"
+garantia = "aceptar certificado caducado"
+fichero = "aura_skeleton/adapters/fijacion_spki.py"
+pruebas = ["tests/unit/test_fijacion_spki.py"]
+buscar = '''    if t > hasta:'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "M30"
+garantia = "fijación exigida sin pines no falla"
+fichero = "aura_skeleton/adapters/fijacion_spki.py"
+pruebas = ["tests/unit/test_fijacion_spki.py"]
+buscar = '''if exigida and not conjunto:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M31"
+garantia = "sin TLS 1.3 mínimo"
+fichero = "aura_skeleton/adapters/fijacion_spki.py"
+pruebas = ["tests/unit/test_fijacion_spki.py"]
+buscar = '''ctx.minimum_version = ssl.TLSVersion.TLSv1_3'''
+sustituir = '''ctx.minimum_version = ssl.TLSVersion.TLSv1_2'''
+
+[[mutante]]
+id = "M32"
+garantia = "no verificar el pin al terminar el handshake (objeto)"
+fichero = "aura_skeleton/adapters/fijacion_spki.py"
+pruebas = ["tests/unit/test_fijacion_spki.py"]
+buscar = '''            super().do_handshake()  # SSLWantRead/Write se propagan hasta completar
+            comprobar(self.getpeercert(binary_form=True))'''
+sustituir = '''            super().do_handshake()  # SSLWantRead/Write se propagan hasta completar'''
+
+[[mutante]]
+id = "M33"
+garantia = "el agente ignora spki_fijada"
+fichero = "aura_skeleton/nodo_agente.py"
+pruebas = ["tests/unit/test_nodo_agente_spki.py"]
+buscar = '''if config.spki_fijada:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M34"
+garantia = "almacén tolera una línea truncada"
+fichero = "aura_skeleton/adapters/almacen_consumidas.py"
+pruebas = ["tests/unit/test_delegacion_anti_replay.py"]
+buscar = '''if datos and not datos.endswith(b"\n"):'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M35"
+garantia = "almacén ignora el epoch antiguo"
+fichero = "aura_skeleton/adapters/almacen_consumidas.py"
+pruebas = ["tests/unit/test_delegacion_anti_replay.py"]
+buscar = '''if epoch < maximo:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M36"
+garantia = "almacén no detecta la orden repetida"
+fichero = "aura_skeleton/adapters/almacen_consumidas.py"
+pruebas = ["tests/unit/test_delegacion_anti_replay.py"]
+buscar = '''if id_ejecucion in ids:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M37"
+garantia = "firmador firma caducidad excesiva"
+fichero = "aura_skeleton/adapters/firmador_hc1.py"
+pruebas = ["tests/unit/test_firmador_hc1.py"]
+buscar = '''if vida > self._pol.vida_max_s:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M38"
+garantia = "firmador no comprueba SO_PEERCRED"
+fichero = "aura_skeleton/adapters/firmador_hc1.py"
+pruebas = ["tests/unit/test_firmador_hc1.py"]
+buscar = '''if not uid_autorizado(uid, permitidos):'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M39"
+garantia = "firmador acepta destinatario desconocido"
+fichero = "aura_skeleton/adapters/firmador_hc1.py"
+pruebas = ["tests/unit/test_firmador_hc1.py"]
+buscar = '''if p["destinatario"] not in self._pol.destinatarios:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M40"
+garantia = "firmador acepta campos extra en la petición"
+fichero = "aura_skeleton/adapters/firmador_hc1.py"
+pruebas = ["tests/unit/test_firmador_hc1.py"]
+buscar = '''if not isinstance(p, dict) or set(p) != PETICION_CAMPOS:'''
+sustituir = '''if not isinstance(p, dict):'''
+
+[[mutante]]
+id = "M41"
+garantia = "firmador firma capacidades no permitidas"
+fichero = "aura_skeleton/adapters/firmador_hc1.py"
+pruebas = ["tests/unit/test_firmador_hc1.py"]
+buscar = '''cap = capacidad_registrada(str(p["capacidad"]), self._pol.capacidades)'''
+sustituir = '''cap = CAPACIDADES["calcular_resumen_sha256"]'''
+
+[[mutante]]
+id = "M42"
+garantia = "firmador no valida argumentos"
+fichero = "aura_skeleton/adapters/firmador_hc1.py"
+pruebas = ["tests/unit/test_firmador_hc1.py"]
+buscar = '''        cap.validar_argumentos(p["argumentos"])
+'''
+sustituir = '''        pass
+'''
+
+[[mutante]]
+id = "M43"
+garantia = "firmador no registra la firma"
+fichero = "aura_skeleton/adapters/firmador_hc1.py"
+pruebas = ["tests/unit/test_firmador_hc1.py"]
+buscar = '''os.write(fd, linea.encode("utf-8"))'''
+sustituir = '''pass'''
+
+[[mutante]]
+id = "M44"
+garantia = "firmador acepta un directorio de socket abierto"
+fichero = "aura_skeleton/adapters/firmador_hc1.py"
+pruebas = ["tests/unit/test_firmador_hc1.py"]
+buscar = '''if dir_.stat().st_mode & 0o077:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M45"
+garantia = "clave con permisos abiertos se carga"
+fichero = "aura_skeleton/adapters/firma_delegacion.py"
+pruebas = ["tests/unit/test_firmador_hc1.py"]
+buscar = '''if st.st_mode & 0o077 or dst.st_mode & 0o077:'''
+sustituir = '''if False:'''

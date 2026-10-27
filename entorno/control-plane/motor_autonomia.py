@@ -97,9 +97,18 @@ def trabajar(directorio, raiz, verificacion=None, max_tareas: int = 5) -> dict:
         if not tomado:
             cp.registrar_evento(directorio, "supervisor_rechazado", {"raiz": str(raiz), "tope": tope})
             return {**informe, "motivo_de_parada": "otro supervisor en curso"}
+        # **Un historial que no se puede verificar no sirve para DECIDIR** (decision del orquestador, 2026-10-26):
+        # planificar y promover leen el log para saber que esta hecho, que se intento y que esta autorizado. Si el
+        # log esta truncado, alterado, roto o sin ancla, no se planifica ni se promueve nada. Solo se LEE (la
+        # guardia AST de este modulo lo exige); el motivo queda escrito y NO es una parada normal (codigo de salida
+        # distinto de 0). El despertador y los eventos pasivos siguen escribiendo: la evidencia no se pierde.
+        integridad = cp.verificar_integridad_log(directorio)
         arranque = cp.registrar_evento(directorio, "motor_iniciado",
                                        {"raiz": str(raiz), "tope": tope,
                                         "review": rv.habilitado(directorio)})["seq"]
+        if not integridad["integro"]:
+            return _detener(directorio, informe, f"historial no verificable: {integridad['motivo']}",
+                            desde=arranque)
         return _ciclo(directorio, raiz, verificacion, tope, informe, arranque)
 
 
@@ -139,7 +148,7 @@ def _ciclo(directorio, raiz, verificacion, tope: int, informe: dict, arranque: i
             return _detener(directorio, informe, "cola agotada", desde=arranque)
 
         try:
-            plan.registrar_planificada(directorio, tarea)
+            planificada = plan.registrar_planificada(directorio, tarea)
         except plan.TareaNoElegible:
             # Otro supervisor la tomo entre `siguiente()` y aqui; el cerrojo del log lo impidio. **No es un fallo**:
             # es la garantia de no duplicar funcionando, y se dice por que se para en lugar de abortar.
@@ -147,7 +156,7 @@ def _ciclo(directorio, raiz, verificacion, tope: int, informe: dict, arranque: i
         try:
             resultado = rv.ejecutar_bajo_review(
                 directorio, tarea, propuesto_por="aura", autoridad="orquestador",
-                verificacion=verificacion)
+                verificacion=verificacion, intento=planificada["seq"])   # un dato: el seq de la planificada
         except (ac.ZonaProhibida, rv.MateriaReservada, rv.ReviewNoHabilitado) as exc:
             cp.registrar_evento(directorio, "decision_requerida",
                                 {"id": tarea["id"], "origen": tarea["origen"],

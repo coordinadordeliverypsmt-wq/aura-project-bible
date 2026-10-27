@@ -1119,17 +1119,17 @@ def t(n, f):
         R[n] = errno.errorcode.get(e.errno, str(e.errno))
 def attr(pid):
     buf = ctypes.create_string_buffer(48); ctypes.c_uint32.from_buffer(buf).value = 48
-    ctypes.c_int32.from_buffer(buf, 16).value = 7                    # sched_nice
+    ctypes.c_int32.from_buffer(buf, 16).value = D["nice"]           # sched_nice
     if libc.syscall(314, ctypes.c_long(pid), buf, 0) != 0:
         raise OSError(ctypes.get_errno(), "sched_setattr")
 V = D["victima"]
 for sufijo, pid in (("_ajeno", V), ("_propio", 0)):
-    t("setpriority" + sufijo, lambda: os.setpriority(os.PRIO_PROCESS, pid, 7))
+    t("setpriority" + sufijo, lambda: os.setpriority(os.PRIO_PROCESS, pid, D["nice"]))
     t("sched_setaffinity" + sufijo, lambda: os.sched_setaffinity(pid, {D["cpu"]}))
     t("sched_setscheduler" + sufijo, lambda: os.sched_setscheduler(pid, os.SCHED_BATCH, os.sched_param(0)))
     t("sched_setparam" + sufijo, lambda: os.sched_setparam(pid, os.sched_param(0)))
     t("sched_setattr" + sufijo, lambda: attr(pid))
-t("setpriority_grupo_ajeno", lambda: os.setpriority(os.PRIO_PGRP, V, 7))
+t("setpriority_grupo_ajeno", lambda: os.setpriority(os.PRIO_PGRP, V, D["nice"]))
 print(json.dumps(R))
 """
 
@@ -1141,13 +1141,22 @@ _PLANIF_ESPERADO_CONFINADO = {
     "setpriority_grupo_ajeno": "EPERM"}
 
 
+def _nice_permitido(victima) -> int:
+    """Un nice que un proceso sin privilegios SIEMPRE puede fijar: nunca menor que el actual (propio ni de la
+    victima; bajar el nice exige CAP_SYS_NICE y daba EACCES/EPERM incluso al propio proceso cuando la sesion
+    hereda `nice -n 12`). La garantia no cambia: ajeno -> EPERM, propio -> OK; la prueba solo deja de depender
+    del nice heredado del entorno."""
+    actual = max(os.getpriority(os.PRIO_PROCESS, 0), os.getpriority(os.PRIO_PROCESS, victima.pid))
+    return min(19, actual + 1)
+
+
 @necesita_estricto
 def test_planificacion_y_prioridad_de_un_proceso_ajeno_dan_EPERM_y_la_del_propio_funciona(esc, victima):
     script = _escribir(esc, "pl.py", _PLANIF)
     prio = os.getpriority(os.PRIO_PROCESS, victima.pid)
     afin = os.sched_getaffinity(victima.pid)
     cpu = sorted(afin)[0]
-    r = _lanzar(esc, script, {"victima": victima.pid, "cpu": cpu}, True)
+    r = _lanzar(esc, script, {"victima": victima.pid, "cpu": cpu, "nice": _nice_permitido(victima)}, True)
     assert json.loads(r.stdout) == _PLANIF_ESPERADO_CONFINADO, (r.stdout, r.stderr)
     assert os.getpriority(os.PRIO_PROCESS, victima.pid) == prio and os.sched_getaffinity(victima.pid) == afin
     assert os.sched_getscheduler(victima.pid) == os.SCHED_OTHER
@@ -1157,9 +1166,10 @@ def test_planificacion_y_prioridad_de_un_proceso_ajeno_dan_EPERM_y_la_del_propio
 def test_planificacion_CONTROL_sin_confinar_si_altera_al_proceso_ajeno(esc, victima):
     script = _escribir(esc, "pl.py", _PLANIF)
     cpu = sorted(os.sched_getaffinity(victima.pid))[0]
-    res = json.loads(_lanzar(esc, script, {"victima": victima.pid, "cpu": cpu}, False).stdout)
+    nice = _nice_permitido(victima)
+    res = json.loads(_lanzar(esc, script, {"victima": victima.pid, "cpu": cpu, "nice": nice}, False).stdout)
     assert all(res[k] == "OK" for k in res if k.endswith("_ajeno")), res
-    assert os.getpriority(os.PRIO_PROCESS, victima.pid) == 7
+    assert os.getpriority(os.PRIO_PROCESS, victima.pid) == nice
 
 
 _INOTIFY = r"""

@@ -961,10 +961,24 @@ def _bloqueo_de_recuperacion(directorio, estado, op, informe, motivo, evento="pr
     return False
 
 
+#: Valor de `correlacion` que marca un `cambio_aplicado` POSTERIOR al contrato sin tarea/intento: el planificador
+#: no lo atribuye nunca (ni por orden). Solo un evento SIN ninguna clave de correlacion es anterior al contrato.
+_SIN_CORRELACION = "ninguna"
+
+
 def _correlacion_del_diario(diario: dict) -> dict:
-    """`{tarea, intento}` si el diario los trae bien formados; `{}` si faltan o estan mal (= ausentes)."""
+    """Lo que el `cambio_aplicado` recuperado debe llevar para no atribuirse mal. `{tarea, intento}` si el diario
+    los trae bien formados (via review/motor); si no, la ausencia EXPLICITA (`tarea`/`intento` nulos,
+    `correlacion: "ninguna"` y la `via` del diario). `{}` solo para un diario anterior al contrato (sin ninguna
+    de las claves): ese sigue recuperandose como siempre."""
     if _correlacion_valida(diario.get("tarea"), diario.get("intento")):
         return {"tarea": diario["tarea"], "intento": diario["intento"]}
+    if (diario.get("correlacion") == _SIN_CORRELACION or diario.get("via") is not None
+            or "tarea" in diario or "intento" in diario):          # mal formada = ausente, pero explicita
+        explicita = {"tarea": None, "intento": None, "correlacion": _SIN_CORRELACION}
+        if diario.get("via") is not None:
+            explicita["via"] = diario["via"]
+        return explicita
     return {}
 
 
@@ -987,7 +1001,7 @@ def _es_el_cambio_de(evento: dict, id_propuesta: str, correlacion: dict) -> bool
     if evento["tipo"] != "cambio_aplicado":
         return False
     d = evento["datos"]
-    if correlacion:
+    if isinstance(correlacion.get("tarea"), str):
         return d.get("tarea") == correlacion["tarea"] and d.get("intento") == correlacion["intento"]
     return d.get("id") == id_propuesta and not d.get("revertido")
 
@@ -1127,6 +1141,11 @@ def _promover(directorio: pathlib.Path, destino: pathlib.Path, propuesta: dict, 
               "sha_candidato": _sha(candidato), "tmp": str(tmp), "estado": "preparado"}
     if _correlacion_valida(propuesta.get("tarea"), propuesta.get("intento")):
         diario.update({"tarea": propuesta["tarea"], "intento": propuesta["intento"]})
+    else:
+        # La AUSENCIA de correlacion tambien se guarda: un recuperado sin ella no se atribuye a ninguna tarea.
+        diario["correlacion"] = _SIN_CORRELACION
+    if propuesta.get("via") is not None:
+        diario["via"] = propuesta["via"]
     _escribir_privado(op / "original", original)
     _guardar_diario(op, diario)                           # ANTES de tocar el vivo
     datos = {"id": propuesta["id"], "fichero": str(destino), "id_op": id_op}

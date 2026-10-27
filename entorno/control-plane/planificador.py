@@ -262,6 +262,7 @@ def _cambios_atribuidos(directorio, id_tarea: str) -> tuple[list[int], list[tupl
     `cambio_aplicado` que le pertenece, `(intento, planificadas_hasta_entonces, datos)`.
 
     **La atribucion sale de la correlacion, no del orden** (DP-AUTOCONSTRUCCION I1):
+    * `correlacion == "ninguna"` (un recuperado sin tarea/intento) -> tampoco, ni por orden.
     * `via == "ciclo"` -> JAMAS se atribuye a una tarea, ni por orden.
     * con `tarea`/`intento` -> es de esa tarea solo si coincide el id y `intento` es el `seq` de una de sus
       `tarea_planificada` ya vistas. Un par mal formado o ajeno no se atribuye (ni por orden).
@@ -276,7 +277,7 @@ def _cambios_atribuidos(directorio, id_tarea: str) -> tuple[list[int], list[tupl
             if mio:
                 planificadas.append(evento["seq"])
         elif evento["tipo"] == "cambio_aplicado":
-            if datos.get("via") == "ciclo":
+            if datos.get("via") == "ciclo" or datos.get("correlacion") == "ninguna":
                 continue
             if "tarea" in datos or "intento" in datos:
                 intento = datos.get("intento")

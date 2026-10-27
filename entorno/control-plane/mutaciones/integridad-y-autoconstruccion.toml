@@ -1,7 +1,7 @@
 incremento = "Integridad del log (D-LOG-1: ancla externa) y autoconstruccion (D1 correlacion, D2 verificacion real recuperada, D3 id sin carrera) - 2026-10-26"
 # Defectos: (1) borrar la cola del log no se detectaba; (2) atribucion por orden; (3) la recuperacion no publicaba la verificacion; (4) carrera en P-NNN.
 # NADA en paralelo con este arnes (CLAUDE.md §2). Cadenas LITERALES '''...''' (nunca """).
-pruebas = ["test_red_ancla_log.py", "test_red_ancla_escritor.py", "test_red_correlacion_autoconstruccion.py", "test_red_reanudacion_tras_caida.py", "test_red_review.py", "test_red_f1_orquestador.py"]
+pruebas = ["test_red_ancla_log.py", "test_red_ancla_escritor.py", "test_red_correlacion_autoconstruccion.py", "test_red_fiabilidad_2.py", "test_red_reanudacion_tras_caida.py", "test_red_review.py", "test_red_f1_orquestador.py"]
 timeout_s = 900
 
 [[mutante]]
@@ -187,7 +187,7 @@ sustituir = '''        if True:
 id = "AC6"
 garantia = "el cambio constado se busca solo por id de propuesta, no por (tarea, intento)"
 fichero = "autoconstruccion.py"
-buscar = '''    if correlacion:
+buscar = '''    if isinstance(correlacion.get("tarea"), str):
         return d.get("tarea")'''
 sustituir = '''    if False:
         return d.get("tarea")'''
@@ -251,12 +251,17 @@ sustituir = '''            if False:'''
 
 [[mutante]]
 id = "PL2"
-garantia = "un evento via=ciclo se atribuye a la tarea (por orden)"
+garantia = "un evento via=ciclo (sin tarea ni intento: el recuperado) se atribuye a la tarea (por orden)"
 fichero = "planificador.py"
-buscar = '''            if datos.get("via") == "ciclo":
-                continue'''
-sustituir = '''            if False:
-                continue'''
+buscar = '''            if datos.get("via") == "ciclo" or datos.get("correlacion") == "ninguna":'''
+sustituir = '''            if datos.get("correlacion") == "ninguna":'''
+
+[[mutante]]
+id = "PL2b"
+garantia = "un evento con correlacion=ninguna (recuperado sin tarea) se atribuye a la tarea (por orden)"
+fichero = "planificador.py"
+buscar = '''            if datos.get("via") == "ciclo" or datos.get("correlacion") == "ninguna":'''
+sustituir = '''            if datos.get("via") == "ciclo":'''
 
 [[mutante]]
 id = "PL3"
@@ -276,10 +281,8 @@ sustituir = '''verificacion=verificacion)'''
 id = "RV1"
 garantia = "el review manual no registra su propia tarea_planificada"
 fichero = "review.py"
-buscar = '''    if intento is None:
-        intento = _planificar_intento_manual(directorio, tarea, accion)'''
-sustituir = '''    if intento is None:
-        intento = 1'''
+buscar = '''            intento = _planificar_intento_manual(directorio, tarea, accion)'''
+sustituir = '''            intento = 1'''
 
 [[mutante]]
 id = "RV2"
@@ -379,3 +382,65 @@ garantia = "la clave de correlacion ignora el hallazgo concreto dentro del fiche
 fichero = "review.py"
 buscar = '''    objeto = str(tarea.get("simbolo") or tarea.get("buscar") or "")'''
 sustituir = '''    objeto = ""'''
+
+[[mutante]]
+id = "FR1"
+garantia = "el cambio_aplicado recuperado pierde la via del diario"
+fichero = "autoconstruccion.py"
+buscar = '''        if diario.get("via") is not None:
+            explicita["via"] = diario["via"]'''
+sustituir = '''        if False:
+            explicita["via"] = diario["via"]'''
+
+[[mutante]]
+id = "FR2"
+garantia = "el recuperado de un diario sin correlacion no lleva la ausencia explicita (vuelve la atribucion por orden)"
+fichero = "autoconstruccion.py"
+buscar = '''    if (diario.get("correlacion") == _SIN_CORRELACION or diario.get("via") is not None'''
+sustituir = '''    if (False or diario.get("via") is not None'''
+
+[[mutante]]
+id = "FR3"
+garantia = "el diario no guarda la via de la propuesta"
+fichero = "autoconstruccion.py"
+buscar = '''    if propuesta.get("via") is not None:
+        diario["via"] = propuesta["via"]'''
+sustituir = '''    if False:
+        diario["via"] = propuesta["via"]'''
+
+[[mutante]]
+id = "FR4"
+garantia = "el diario no guarda la ausencia explicita de correlacion"
+fichero = "autoconstruccion.py"
+buscar = '''        diario["correlacion"] = _SIN_CORRELACION'''
+sustituir = '''        pass'''
+
+[[mutante]]
+id = "FR5"
+garantia = "el veredicto de un review manual vuelve a llevar el id crudo del llamante (el cierre no se ve)"
+fichero = "review.py"
+buscar = '''    veredicto = pedir_veredicto(directorio, {**tarea, "id": tarea_correlacion}, propuesto_por=propuesto_por,'''
+sustituir = '''    veredicto = pedir_veredicto(directorio, {**tarea}, propuesto_por=propuesto_por,'''
+
+[[mutante]]
+id = "FR6"
+garantia = "una tarea manual no elegible vuelve a lanzar TareaNoElegible (rompe el ciclo autonomo)"
+fichero = "review.py"
+buscar = '''        except plan.TareaNoElegible:'''
+sustituir = '''        except ZeroDivisionError:'''
+
+[[mutante]]
+id = "FR7"
+garantia = "un directorio de anclas con permisos laxos se acepta para escribir"
+fichero = "control_plane.py"
+buscar = '''    if _dir_ancla_laxo(ruta):
+        raise AnclaInconsistente('''
+sustituir = '''    if False:
+        raise AnclaInconsistente('''
+
+[[mutante]]
+id = "FR8"
+garantia = "el verificador no informa del directorio de anclas laxo (lo toma por un ancla valida)"
+fichero = "control_plane.py"
+buscar = '''    if _dir_ancla_laxo(ruta.parent):    # un ancla en un directorio laxo no es evidencia: se dice por que'''
+sustituir = '''    if False:    # un ancla en un directorio laxo no es evidencia: se dice por que'''

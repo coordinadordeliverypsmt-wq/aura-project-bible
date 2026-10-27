@@ -1945,6 +1945,18 @@ def _asegurar_dir_ancla(ruta: pathlib.Path) -> None:
     st = os.lstat(ruta)
     if not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid():
         raise AnclaInconsistente(f"{ruta} no es un directorio real y propio: no se escribe el ancla")
+    if _dir_ancla_laxo(ruta):
+        raise AnclaInconsistente(f"{ruta} tiene permisos laxos (modo {stat.S_IMODE(st.st_mode):o}): "
+                                 f"no se escribe el ancla")
+
+
+def _dir_ancla_laxo(ruta: pathlib.Path) -> bool:
+    """Un directorio de anclas EXISTENTE con algun bit de grupo u otros no es fiable: otro usuario podria
+    reescribir el ancla. Solo se evalua si existe (si no existe, se crea 0700)."""
+    try:
+        return bool(stat.S_IMODE(os.lstat(ruta).st_mode) & 0o077)
+    except OSError:
+        return False
 
 
 def _escribir_ancla(directorio: pathlib.Path, evento: dict | None, genesis: str | None,
@@ -1979,8 +1991,11 @@ def _escribir_ancla(directorio: pathlib.Path, evento: dict | None, genesis: str 
 
 
 def _leer_ancla(directorio: pathlib.Path) -> tuple[str, dict | None]:
-    """`("ok", ancla)`, o `(codigo, None)` con `ancla_ausente` | `ancla_corrupta` | `ancla_incompatible`."""
+    """`("ok", ancla)`, o `(codigo, None)` con `ancla_ausente` | `ancla_corrupta` | `ancla_incompatible` |
+    `dir_ancla_permisos_laxos`."""
     ruta = ruta_ancla(directorio)
+    if _dir_ancla_laxo(ruta.parent):    # un ancla en un directorio laxo no es evidencia: se dice por que
+        return "dir_ancla_permisos_laxos", None
     try:
         bruto = ruta.read_text(encoding="utf-8")
     except FileNotFoundError:
@@ -2233,7 +2248,8 @@ def verificar_integridad_log(directorio: pathlib.Path) -> dict:
     if ancla is None:
         if diag["integro"]:
             return {**base, "ancla": {"presente": False}, "motivo": "log vacio" + sufijo}
-        return {**base, "motivo_codigo": estado_ancla, "ancla": {"presente": estado_ancla != "ancla_ausente"},
+        presente = estado_ancla not in ("ancla_ausente", "dir_ancla_permisos_laxos")
+        return {**base, "motivo_codigo": estado_ancla, "ancla": {"presente": presente},
                 "motivo": f"{estado_ancla}: la cabeza del log no esta anclada fuera de el"}
     if diag["motivo_codigo"] is not None:
         return {**base, "motivo_codigo": diag["motivo_codigo"], "seq_ancla": ancla["seq"],

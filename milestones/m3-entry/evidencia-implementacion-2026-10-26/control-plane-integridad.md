@@ -159,3 +159,28 @@ de la tanda. El toml queda con 47 mutantes (36 + 11 nuevos; 5 reescritos porque 
 
 Los 31 mutantes restantes del toml no cambiaron de patron (comprobado: cada `buscar` aparece exactamente una vez); no se
 re-ejecutaron en esta ronda.
+
+---
+
+## Fiabilidad 2 — correcciones tras la revision independiente y la bateria oficial (2026-10-26)
+
+Resultado de la revision independiente (APTO CON CONDICIONES) y de la bateria oficial de mutacion del orquestador.
+Pruebas nuevas: `entorno/control-plane/test_red_fiabilidad_2.py` (22 pruebas, cada una con control). `[EJEC]`.
+
+| Hallazgo | Causa | Correccion | Resultado |
+|---|---|---|---|
+| MEDIO-1 (+ mutante PL2 sobrevivia) | `_promover` guardaba en el diario solo `tarea`/`intento` validos y no `via`; `_resolver` emitia el `cambio_aplicado` recuperado sin ninguna clave y caia en la rama «evento antiguo, por orden» del planificador | El diario guarda `via` y la ausencia explicita (`correlacion: "ninguna"`); `_resolver` las copia (`tarea`/`intento` nulos, `via`, `correlacion`); el planificador nunca atribuye `correlacion == "ninguna"`; solo un diario/evento SIN ninguna clave nueva (anterior al contrato) sigue por orden. Una correlacion mal formada en el diario tambien es ausencia EXPLICITA | SIGKILL simulado entre promover y registrar en `ciclo()`: antes el recuperado completaba la ultima tarea ajena; ahora no. Control: el recuperado de la via review/motor sigue atribuyendose a su `(tarea, intento)` |
+| MEDIO-2 | En la via manual la `tarea_planificada` llevaba `id@huella` pero `veredicto_emitido`/`revision_sin_revisor_capaz` el id crudo: `_cierre_sin_resultado` no los veia; el hallazgo reintentado acababa `agotada` y `ejecutar_bajo_review` lanzaba `TareaNoElegible`, que `ciclo_autonomo` (intocable) no gestiona | `review.py`: los eventos de cierre de la via manual usan la MISMA clave; una tarea manual no elegible devuelve `{ejecutado: False, revertido: False, efecto_verificado: False, estado: "no_elegible", motivo: <estado_de>}` sin lanzar. La via del motor (con `intento`) conserva su contrato | `ciclo_autonomo` de bf13a47 (identico): hallazgo objetado y hallazgo reintentado hasta `agotada` en 3-4 vueltas, sin excepcion ni `agente_no_disponible`; el ciclo termina limpio con `verificacion fallida` (es lo que su contrato hace con `efecto_verificado False`; no continua con otras tareas porque eso exigiria tocar `ciclo_autonomo.py`) |
+| BAJO-1 | `_asegurar_dir_ancla` aceptaba un directorio existente con permisos laxos | Un directorio de anclas existente con `modo & 0o077` no es fiable: el escritor no escribe el ancla (no bloquea el evento) y el verificador informa `dir_ancla_permisos_laxos` | Pruebas con 0755/0770/0707/0750/0705; control 0700 funciona |
+| IL15 sobrevivia | La prueba dependia de una carrera con 60 escrituras | Prueba DETERMINISTA: se inyecta una escritura justo despues de la lectura de eventos de `verificar_integridad_log`; el orden «ancla antes que eventos» nunca da falso truncamiento; control: el orden inverso hecho a mano SI lo da | IL15 muere 3 de 3 aplicaciones manuales |
+| RC10, RC14 NO_APLICADO | Su `buscar` ya no existia tras D1-D3 | RC10 apunta a la seleccion por intento de `resultado_de` (misma garantia: el resultado de un intento anterior no se atribuye al vivo); RC14 al `with lock_estado` de `registrar_evento_si` (misma garantia: la constancia toma el cerrojo) | Ambos mueren con sus pruebas; cada `buscar` aparece una vez |
+
+Mutantes nuevos en `integridad-y-autoconstruccion.toml`: PL2 reescrito, PL2b, FR1-FR8; AC6 y RV1 actualizados a la
+nueva redaccion. Verificados a mano en copia temporal (sin `herramientas.mutar`): todos DETECTADOS.
+
+Pruebas existentes cuyo contrato cambia por decision del orquestador: `test_C3_una_tarea_NO_elegible...`,
+`test_C3_CONTROL_el_MISMO_hallazgo_reintentado...` (ya no lanzan: resultado `no_elegible`) y
+`test_D2_una_correlacion_del_diario_mal_formada...` (la ausencia es explicita).
+
+Suite completa del plano: 1580 passed, 3 skipped, 4 failed (los 4 conocidos de datos/ruta). `test_garantias_vigentes` y
+`test_panel_progreso` en verde. `git diff bf13a47 -- entorno/control-plane/ciclo_autonomo.py` vacio.

@@ -536,6 +536,14 @@ def clave_de_tarea_manual(tarea: dict) -> str:
     return f"{tarea['id']}@{huella}"
 
 
+def _clave_si_posible(tarea: dict) -> str | None:
+    """La clave de la vía manual si la tarea la admite; si no (sin `id`/`fichero`), el id crudo."""
+    try:
+        return clave_de_tarea_manual(tarea)
+    except (KeyError, TypeError):
+        return tarea.get("id")
+
+
 def _planificar_intento_manual(directorio, tarea: dict, accion: str) -> int:
     """C3: el `review` manual deja su propia `tarea_planificada` (mismo mecanismo que el motor) bajo la
     `clave_de_tarea_manual` y devuelve su `seq`. Sin `id` o `fichero`, error explicito y sin efecto; una tarea no
@@ -563,6 +571,9 @@ def ejecutar_bajo_review(directorio, tarea: dict, propuesto_por: str, autoridad:
     lanzar `TareaNoElegible`, y exige `id`, `accion` y `fichero` (`origen` y `riesgo` valen `manual`)."""
     directorio = pathlib.Path(directorio)
     accion = tarea.get("accion", "")
+    # Con `intento` (motor) el id de la tarea es el del planificador; sin el, la correlacion Y los eventos de
+    # cierre usan la clave estable por hallazgo (no el id posicional del llamante): la misma que su planificada.
+    tarea_correlacion = tarea.get("id") if intento is not None else None
 
     if es_materia_reservada(accion):
         raise MateriaReservada(
@@ -595,7 +606,8 @@ def ejecutar_bajo_review(directorio, tarea: dict, propuesto_por: str, autoridad:
     capaces = [r for r in revisores_capaces() if r != propuesto_por]
     if not capaces:
         cp.registrar_evento(directorio, "revision_sin_revisor_capaz",
-                            {"id": tarea.get("id"), "accion": accion, "propuesto_por": propuesto_por})
+                            {"id": tarea_correlacion or _clave_si_posible(tarea), "accion": accion,
+                             "propuesto_por": propuesto_por})
         return {"ejecutado": False, "revisor": None, "objeciones": [],
                 "efecto_verificado": False, "revertido": False, "estado": cp.ESTADO_REVISION}
     if revisor is not None and revisor not in capaces:
@@ -607,13 +619,19 @@ def ejecutar_bajo_review(directorio, tarea: dict, propuesto_por: str, autoridad:
             f"{revisor!r} no es un revisor capaz: los que hoy pueden revisar son {capaces}. "
             f"Un veredicto en nombre de quien no existe es un sello, no una revision")
     revisor = revisor or next(r for r in capaces)
-    # Con `intento` (motor) el id de la tarea es el del planificador; sin el, la correlacion usa la clave
-    # estable por hallazgo (no el id posicional del llamante).
-    tarea_correlacion = tarea.get("id")
     if intento is None:
-        intento = _planificar_intento_manual(directorio, tarea, accion)
+        import planificador as plan    # local, como en `_planificar_intento_manual` (no desplaza lineas citadas)
+        try:
+            intento = _planificar_intento_manual(directorio, tarea, accion)
+        except plan.TareaNoElegible:
+            # Una tarea manual no elegible (agotada, en curso, objetada, elevada...) NO es una excepcion: es un
+            # resultado gobernado no ejecutado, con su motivo. (La via del motor, con `intento`, no pasa por aqui.)
+            return {"ejecutado": False, "revisor": None, "objeciones": [], "efecto_verificado": False,
+                    "revertido": False, "estado": "no_elegible",
+                    "motivo": plan.estado_de(directorio, clave_de_tarea_manual(tarea))}
         tarea_correlacion = clave_de_tarea_manual(tarea)
-    veredicto = pedir_veredicto(directorio, tarea, propuesto_por=propuesto_por, revisor=revisor)
+    veredicto = pedir_veredicto(directorio, {**tarea, "id": tarea_correlacion}, propuesto_por=propuesto_por,
+                                revisor=revisor)
     if not permite_seguir(veredicto):
         return {"ejecutado": False, "revisor": revisor, "objeciones": list(veredicto.objeciones),
                 "efecto_verificado": False, "revertido": False}

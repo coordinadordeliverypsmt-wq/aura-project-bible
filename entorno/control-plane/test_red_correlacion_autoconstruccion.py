@@ -254,9 +254,9 @@ def test_C3_una_tarea_NO_elegible_se_rechaza_sin_propuesta_ni_efecto(tmp_path):
             "accion": "eliminar_codigo_muerto", "fichero": str(objetivo),
             "riesgo": "bajo"})
     assert _planificada_sintetica_viva["seq"]
-    with pytest.raises(pl.TareaNoElegible):
-        rv.ejecutar_bajo_review(d, _tarea_manual(objetivo), propuesto_por="aura", autoridad="orquestador",
+    r = rv.ejecutar_bajo_review(d, _tarea_manual(objetivo), propuesto_por="aura", autoridad="orquestador",
                                 verificacion=lambda raiz: True)
+    assert r["ejecutado"] is False and r["estado"] == "no_elegible"      # FIABILIDAD 2: no lanza
     assert objetivo.read_text(encoding="utf-8") == fuente
     assert not [e for e in cp.leer_eventos(d) if e["tipo"] in ("propuesta_registrada", "veredicto_emitido")]
 
@@ -288,9 +288,9 @@ def test_C3_CONTROL_el_MISMO_hallazgo_reintentado_se_reconoce_y_no_se_duplica(tm
     a = _dos_muertas(d, "a.py")
     rv.ejecutar_bajo_review(d, _tarea_manual(a, "AUT-001"), propuesto_por="aura", autoridad="orquestador",
                             verificacion=lambda raiz: True)
-    with pytest.raises(pl.TareaNoElegible):
-        rv.ejecutar_bajo_review(d, _tarea_manual(a, "AUT-001"), propuesto_por="aura",
+    r = rv.ejecutar_bajo_review(d, _tarea_manual(a, "AUT-001"), propuesto_por="aura",
                                 autoridad="orquestador", verificacion=lambda raiz: True)
+    assert r["ejecutado"] is False and r["estado"] == "no_elegible" and r["motivo"] == "completada"
     assert len([e for e in cp.leer_eventos(d) if e["tipo"] == "tarea_planificada"]) == 1
     assert len(_cambios(d)) == 1
     assert rv.clave_de_tarea_manual(_tarea_manual(a, "AUT-001")) == rv.clave_de_tarea_manual(
@@ -419,7 +419,8 @@ def test_D2_una_correlacion_del_diario_mal_formada_se_trata_como_ausente(mundo, 
     _editar_diario(estado, tarea=tarea, intento=intento)
     ac.recuperar(d)
     (cambio,) = _cambios(d)
-    assert "tarea" not in cambio and "intento" not in cambio
+    # FIABILIDAD 2: mal formada = ausente, pero EXPLICITA (nunca se atribuye por orden)
+    assert cambio["tarea"] is None and cambio["intento"] is None and cambio["correlacion"] == "ninguna"
 
 
 def test_D2_recuperar_tres_veces_deja_un_solo_cambio_y_una_sola_recuperacion(mundo, monkeypatch):

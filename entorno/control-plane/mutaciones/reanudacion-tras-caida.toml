@@ -75,10 +75,8 @@ sustituir = '''        return None'''
 id = "RC10"
 garantia = "el resultado de un intento anterior se atribuye al intento vivo (M4)"
 fichero = "planificador.py"
-buscar = '''            if mio:
-                resultado = None'''
-sustituir = '''            if False:
-                resultado = None'''
+buscar = '''        if intento == planificadas[-1] or (intento is None and posicion == len(planificadas)):'''
+sustituir = '''        if True:'''
 
 [[mutante]]
 id = "RC11"
@@ -108,11 +106,11 @@ fichero = "control_plane.py"
 buscar = '''    with lock_estado(directorio):
         if not condicion():
             return None
-        return _registrar_sin_lock(directorio, tipo, datos)'''
+        if derivar is not None:'''
 sustituir = '''    if True:
         if not condicion():
             return None
-        return _registrar_sin_lock(directorio, tipo, datos)'''
+        if derivar is not None:'''
 
 [[mutante]]
 id = "RC15"

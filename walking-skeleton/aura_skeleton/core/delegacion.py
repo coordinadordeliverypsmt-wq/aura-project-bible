@@ -27,6 +27,7 @@ import hashlib
 import json
 import math
 import re
+import unicodedata
 import uuid
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -38,6 +39,11 @@ from typing import Any, Protocol
 
 V_ACTUAL = 1
 """Versión de esquema que emite y entiende esta biblioteca."""
+
+ALG = "ed25519"
+"""Único algoritmo de firma admitido. Va DENTRO del payload firmado y no se negocia: otro valor se rechaza."""
+PROFUNDIDAD_MAX = 32
+"""Profundidad máxima de anidamiento JSON aceptada de la red (M-1: un `[[[…]]]` de 90 000 niveles cabe en 192 KiB)."""
 
 DOMINIO_ORDEN = b"aura.delegacion.orden/1\n"
 DOMINIO_RESULTADO = b"aura.delegacion.resultado/1\n"
@@ -65,16 +71,26 @@ CAMPOS_ORDEN = frozenset(
         "caduca_en",
         "epoch_hc1",
         "kid",
+        "alg",
     }
 )
-CAMPOS_RESULTADO = frozenset({"v", "tarea", "intento", "id_nodo", "id_ejecucion", "hash_tarea", "salida"})
-CAMPOS_ACUSE = frozenset({"v", "tarea", "intento", "id_nodo", "id_ejecucion", "hash_tarea", "recibida_en"})
+CAMPOS_RESULTADO = frozenset({"v", "alg", "tarea", "intento", "id_nodo", "id_ejecucion", "hash_tarea", "salida"})
+CAMPOS_ACUSE = frozenset({"v", "alg", "tarea", "intento", "id_nodo", "id_ejecucion", "hash_tarea", "recibida_en"})
 CAMPOS_SOBRE = frozenset({"p", "f", "kid"})
 
-_RE_ID_NODO = re.compile(r"^[0-9a-f]{32}$")
-_RE_TEXTO_ID = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
-_RE_HASH = re.compile(r"^[0-9a-f]{64}$")
+_RE_ID_NODO = re.compile(r"[0-9a-f]{32}")
+_RE_TEXTO_ID = re.compile(r"[A-Za-z0-9._-]{1,64}")
+_RE_HASH = re.compile(r"[0-9a-f]{64}")
 INTENTO_MAX = 100
+
+
+def coincide(patron: re.Pattern[str], valor: object) -> bool:
+    """Coincidencia EXACTA de toda la cadena. `$` aceptaba un `\n` final (B-1): se usa `fullmatch`, nunca `match`."""
+    return isinstance(valor, str) and patron.fullmatch(valor) is not None
+
+
+def es_texto_id(valor: object) -> bool:
+    return coincide(_RE_TEXTO_ID, valor)
 
 
 class Motivo(StrEnum):
@@ -101,6 +117,14 @@ class Motivo(StrEnum):
     EPOCH_ANTIGUO = "epoch_antiguo"
     ORDEN_REPETIDA = "orden_repetida"
     ALMACEN_ILEGIBLE = "almacen_ilegible"
+    KID_REVOCADO = "kid_revocado"
+    ALG_NO_SOPORTADO = "alg_no_soportado"
+    EJECUCION_REPETIDA = "ejecucion_repetida"
+    EJECUCION_AMBIGUA = "ejecucion_ambigua"
+    SIN_AUTORIDAD = "sin_autoridad"
+    DIARIO_NO_DURABLE = "diario_no_durable"
+    DIARIO_ILEGIBLE = "diario_ilegible"
+    TASA_EXCEDIDA = "tasa_excedida"
     # resultados / acuses (lado HC-1)
     NODO_AJENO = "nodo_ajeno"
     EJECUCION_DESCONOCIDA = "ejecucion_desconocida"
@@ -118,6 +142,17 @@ class RechazoOrden(Exception):
     def __init__(self, motivo: Motivo, detalle: str = "") -> None:
         super().__init__(f"{motivo.value}: {detalle}" if detalle else motivo.value)
         self.motivo = motivo
+
+
+class EstadoNodo(StrEnum):
+    """Estado persistente de una orden en el NODO (M-3). AMBIGUA no se escribe: se DEDUCE de un EJECUTANDO que no
+    pertenece a esta instancia (el nodo cayó ejecutando). Una ejecución AMBIGUA nunca se re-ejecuta sola."""
+
+    CONSUMIDA = "consumida"
+    EJECUTANDO = "ejecutando"
+    COMPLETADA = "completada"
+    FALLIDA = "fallida"
+    AMBIGUA = "ambigua"
 
 
 class Reloj(Protocol):
@@ -154,9 +189,49 @@ def _constante_prohibida(_: str) -> Any:
     raise ValueError("constante no permitida")
 
 
+def _exigir_profundidad(texto: str) -> None:
+    """Recuento LINEAL de anidamiento fuera de cadenas, ANTES de `json.loads` (que recurre y lanzaría RecursionError)."""
+    profundidad = 0
+    en_cadena = escapado = False
+    for ch in texto:
+        if en_cadena:
+            if escapado:
+                escapado = False
+            elif ch == "\\":
+                escapado = True
+            elif ch == '"':
+                en_cadena = False
+        elif ch == '"':
+            en_cadena = True
+        elif ch in "[{":
+            profundidad += 1
+            if profundidad > PROFUNDIDAD_MAX:
+                raise ValueError("profundidad excesiva")
+        elif ch in "]}":
+            profundidad -= 1
+
+
 def leer_json_estricto(datos: bytes) -> Any:
-    """Decodifica JSON rechazando NaN/Infinity y claves duplicadas. Lanza `ValueError` si no es válido."""
-    return json.loads(datos.decode("utf-8"), object_pairs_hook=_par_sin_duplicados, parse_constant=_constante_prohibida)
+    """Decodifica JSON rechazando NaN/Infinity, claves duplicadas y anidamiento > `PROFUNDIDAD_MAX`.
+
+    Lanza SOLO `ValueError` (UnicodeError incluido) ante cualquier entrada inválida, nunca `RecursionError`."""
+    texto = datos.decode("utf-8")
+    _exigir_profundidad(texto)
+    try:
+        return json.loads(texto, object_pairs_hook=_par_sin_duplicados, parse_constant=_constante_prohibida)
+    except RecursionError as e:  # defensa en profundidad: no debería alcanzarse tras el recuento
+        raise ValueError("profundidad excesiva") from e
+
+
+def _es_nfc(obj: Any) -> bool:
+    """Todas las cadenas (claves y valores) en forma NFC. No se normaliza en silencio: lo que no es NFC se rechaza."""
+    if isinstance(obj, str):
+        return unicodedata.is_normalized("NFC", obj)
+    if isinstance(obj, dict):
+        return all(_es_nfc(k) and _es_nfc(v) for k, v in obj.items())
+    if isinstance(obj, list):
+        return all(_es_nfc(v) for v in obj)
+    return True
 
 
 def hash_de(datos: bytes) -> str:
@@ -197,12 +272,12 @@ def abrir_sobre(sobre: bytes) -> SobreAbierto:
         raise RechazoOrden(Motivo.SOBRE_MALFORMADO, "tamaño")
     try:
         obj = leer_json_estricto(sobre)
-    except (ValueError, UnicodeDecodeError) as e:
+    except (ValueError, RecursionError) as e:  # UnicodeError es ValueError
         raise RechazoOrden(Motivo.SOBRE_MALFORMADO, "json") from e
     if not isinstance(obj, dict) or set(obj) != CAMPOS_SOBRE:
         raise RechazoOrden(Motivo.SOBRE_MALFORMADO, "campos")
     kid, p, f = obj["kid"], obj["p"], obj["f"]
-    if not (isinstance(kid, str) and isinstance(p, str) and isinstance(f, str)) or not _RE_TEXTO_ID.match(kid):
+    if not (isinstance(kid, str) and isinstance(p, str) and isinstance(f, str)) or not coincide(_RE_TEXTO_ID, kid):
         raise RechazoOrden(Motivo.SOBRE_MALFORMADO, "tipos")
     try:
         return SobreAbierto(kid, base64.b64decode(p, validate=True), base64.b64decode(f, validate=True))
@@ -225,16 +300,18 @@ def verificar_y_leer(
         raise RechazoOrden(Motivo.FIRMA_INVALIDA, "firma")
     try:
         campos = leer_json_estricto(abierto.payload)
-    except (ValueError, UnicodeDecodeError) as e:
+    except (ValueError, RecursionError) as e:
         raise RechazoOrden(Motivo.SOBRE_MALFORMADO, "payload") from e
     if not isinstance(campos, dict):
         raise RechazoOrden(Motivo.SOBRE_MALFORMADO, "payload")
     try:
         canonico = bytes_canonicos(campos)
-    except (ValueError, TypeError) as e:
+    except (ValueError, TypeError, RecursionError) as e:
         raise RechazoOrden(Motivo.NO_CANONICO, "payload") from e
     if canonico != abierto.payload:
         raise RechazoOrden(Motivo.NO_CANONICO, "payload")
+    if not _es_nfc(campos):
+        raise RechazoOrden(Motivo.NO_CANONICO, "no NFC")
     return abierto, campos
 
 
@@ -282,8 +359,14 @@ def exigir_version(campos: Mapping[str, Any], v_minima: int) -> None:
         raise RechazoOrden(Motivo.VERSION_NO_SOPORTADA, "v")
 
 
+def _exigir_alg(c: Mapping[str, Any]) -> None:
+    """A1: algoritmo fijo y firmado. Sin negociación ni degradación: cualquier otro valor se rechaza."""
+    if c["alg"] != ALG:
+        raise RechazoOrden(Motivo.ALG_NO_SOPORTADO, "alg")
+
+
 def _validar_comunes(c: Mapping[str, Any]) -> None:
-    _exigir(isinstance(c["tarea"], str) and bool(_RE_TEXTO_ID.match(c["tarea"])), "tarea")
+    _exigir(coincide(_RE_TEXTO_ID, c["tarea"]), "tarea")
     _exigir(_es_entero(c["intento"]) and 1 <= c["intento"] <= INTENTO_MAX, "intento")
     _exigir(_es_uuid4(c["id_ejecucion"]), "id_ejecucion")
 
@@ -292,14 +375,15 @@ def validar_campos_orden(c: Mapping[str, Any], v_minima: int = V_ACTUAL) -> None
     """Esquema de una orden (sin firma ni frescura). Lanza `RechazoOrden`."""
     _exigir_esquema_cerrado(c, CAMPOS_ORDEN)
     exigir_version(c, v_minima)
+    _exigir_alg(c)
     _validar_comunes(c)
-    _exigir(isinstance(c["emisor"], str) and bool(_RE_TEXTO_ID.match(c["emisor"])), "emisor")
-    _exigir(isinstance(c["destinatario"], str) and bool(_RE_ID_NODO.match(c["destinatario"])), "destinatario")
-    _exigir(isinstance(c["capacidad"], str) and bool(_RE_TEXTO_ID.match(c["capacidad"])), "capacidad")
+    _exigir(coincide(_RE_TEXTO_ID, c["emisor"]), "emisor")
+    _exigir(coincide(_RE_ID_NODO, c["destinatario"]), "destinatario")
+    _exigir(coincide(_RE_TEXTO_ID, c["capacidad"]), "capacidad")
     _exigir(isinstance(c["argumentos"], dict), "argumentos")
     _exigir(_es_tiempo(c["emitida_en"]) and _es_tiempo(c["caduca_en"]), "tiempos")
     _exigir(_es_entero(c["epoch_hc1"]) and c["epoch_hc1"] >= 0, "epoch_hc1")
-    _exigir(isinstance(c["kid"], str) and bool(_RE_TEXTO_ID.match(c["kid"])), "kid")
+    _exigir(coincide(_RE_TEXTO_ID, c["kid"]), "kid")
 
 
 # --- catálogo de capacidades REGISTRADAS ------------------------------------------------------------------
@@ -374,6 +458,9 @@ class PoliticaNodo:
     v_minima: int = V_ACTUAL
     vida_max_s: float = VIDA_MAX_S
     tolerancia_futuro_s: float = TOLERANCIA_FUTURO_S
+    revocados: frozenset[str] = frozenset()
+    """kids REVOCADOS de HC-1 (lista persistente: `adapters.firma_delegacion.cargar_revocados`). Una orden firmada
+    con uno de ellos se rechaza aunque la firma sea matemáticamente válida y el kid siga en `emisores`."""
 
 
 @dataclass(frozen=True)
@@ -403,6 +490,8 @@ def validar_orden(
     if not politica.reloj.sincronizado():  # N1/N5: sin hora fiable se rechaza TODO, antes de mirar nada
         raise RechazoOrden(Motivo.RELOJ_NO_SINCRONIZADO)
     abierto = abrir_sobre(sobre)
+    if abierto.kid in politica.revocados:
+        raise RechazoOrden(Motivo.KID_REVOCADO, "kid")
     emisor = politica.emisores.get(abierto.kid)
     if emisor is None:
         raise RechazoOrden(Motivo.KID_DESCONOCIDO, "kid")
@@ -436,6 +525,7 @@ def payload_resultado(orden: OrdenValida, id_nodo: str, salida: str) -> bytes:
     return bytes_canonicos(
         {
             "v": V_ACTUAL,
+            "alg": ALG,
             "tarea": orden.campos["tarea"],
             "intento": orden.campos["intento"],
             "id_nodo": id_nodo,
@@ -450,6 +540,7 @@ def payload_acuse(orden: OrdenValida, id_nodo: str, recibida_en: float) -> bytes
     return bytes_canonicos(
         {
             "v": V_ACTUAL,
+            "alg": ALG,
             "tarea": orden.campos["tarea"],
             "intento": orden.campos["intento"],
             "id_nodo": id_nodo,
@@ -463,9 +554,10 @@ def payload_acuse(orden: OrdenValida, id_nodo: str, recibida_en: float) -> bytes
 def validar_campos_resultado(c: Mapping[str, Any]) -> None:
     _exigir_esquema_cerrado(c, CAMPOS_RESULTADO)
     exigir_version(c, V_ACTUAL)
+    _exigir_alg(c)
     _validar_comunes(c)
-    _exigir(isinstance(c["id_nodo"], str) and bool(_RE_ID_NODO.match(c["id_nodo"])), "id_nodo")
-    _exigir(isinstance(c["hash_tarea"], str) and bool(_RE_HASH.match(c["hash_tarea"])), "hash_tarea")
+    _exigir(coincide(_RE_ID_NODO, c["id_nodo"]), "id_nodo")
+    _exigir(coincide(_RE_HASH, c["hash_tarea"]), "hash_tarea")
     _exigir(isinstance(c["salida"], str), "salida")
     if len(c["salida"].encode("utf-8")) > SALIDA_MAX_BYTES:
         raise RechazoOrden(Motivo.SALIDA_EXCESIVA, "salida")
@@ -474,7 +566,8 @@ def validar_campos_resultado(c: Mapping[str, Any]) -> None:
 def validar_campos_acuse(c: Mapping[str, Any]) -> None:
     _exigir_esquema_cerrado(c, CAMPOS_ACUSE)
     exigir_version(c, V_ACTUAL)
+    _exigir_alg(c)
     _validar_comunes(c)
-    _exigir(isinstance(c["id_nodo"], str) and bool(_RE_ID_NODO.match(c["id_nodo"])), "id_nodo")
-    _exigir(isinstance(c["hash_tarea"], str) and bool(_RE_HASH.match(c["hash_tarea"])), "hash_tarea")
+    _exigir(coincide(_RE_ID_NODO, c["id_nodo"]), "id_nodo")
+    _exigir(coincide(_RE_HASH, c["hash_tarea"]), "hash_tarea")
     _exigir(_es_tiempo(c["recibida_en"]), "recibida_en")

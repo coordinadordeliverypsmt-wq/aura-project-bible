@@ -37,10 +37,12 @@ class RelojFalso:
 
 
 class AlmacenMemoria:
-    """Doble de prueba SOLO para pruebas que no ejercitan la persistencia."""
+    """Doble de prueba SOLO para pruebas que no ejercitan la persistencia (misma semántica de estados que el real)."""
 
     def __init__(self) -> None:
         self.vistas: set[str] = set()
+        self.estados: dict[str, str] = {}
+        self.resultados: dict[str, bytes] = {}
 
     def consumir(self, id_ejecucion: str, epoch: int) -> None:
         from aura_skeleton.core.delegacion import Motivo, RechazoOrden
@@ -48,6 +50,30 @@ class AlmacenMemoria:
         if id_ejecucion in self.vistas:
             raise RechazoOrden(Motivo.ORDEN_REPETIDA)
         self.vistas.add(id_ejecucion)
+
+    def iniciar_ejecucion(self, id_ejecucion: str) -> None:
+        from aura_skeleton.core.delegacion import Motivo, RechazoOrden
+
+        if id_ejecucion in self.estados:
+            raise RechazoOrden(Motivo.EJECUCION_REPETIDA)
+        self.estados[id_ejecucion] = "ejecutando"
+
+    def completar(self, id_ejecucion: str, resultado_firmado: bytes) -> None:
+        self.estados[id_ejecucion] = "completada"
+        self.resultados[id_ejecucion] = resultado_firmado
+
+    def fallar(self, id_ejecucion: str) -> None:
+        self.estados[id_ejecucion] = "fallida"
+
+    def estado(self, id_ejecucion: str):  # type: ignore[no-untyped-def]
+        from aura_skeleton.core.delegacion import EstadoNodo
+
+        if id_ejecucion not in self.vistas:
+            return None
+        return EstadoNodo(self.estados.get(id_ejecucion, "consumida"))
+
+    def resultado_guardado(self, id_ejecucion: str) -> bytes | None:
+        return self.resultados.get(id_ejecucion)
 
 
 @dataclass
@@ -82,6 +108,7 @@ def mundo() -> Mundo:
 def campos_validos(**cambios: Any) -> dict[str, Any]:
     c: dict[str, Any] = {
         "v": 1,
+        "alg": "ed25519",
         "emisor": "hc1",
         "destinatario": NODO,
         "tarea": "t-001",

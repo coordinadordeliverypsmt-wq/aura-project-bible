@@ -64,6 +64,7 @@ def _base_resultado(esc: Escena, ident: str, **cambios: Any) -> dict[str, Any]:
     assert ej is not None
     base = {
         "v": 1,
+        "alg": "ed25519",
         "tarea": ej.tarea,
         "intento": ej.intento,
         "id_nodo": NODO,
@@ -261,6 +262,7 @@ def test_acuse_con_hash_equivocado_o_nodo_ajeno_se_rechaza(esc: Escena) -> None:
     assert ej is not None
     base = {
         "v": 1,
+        "alg": "ed25519",
         "tarea": ej.tarea,
         "intento": 1,
         "id_nodo": NODO,

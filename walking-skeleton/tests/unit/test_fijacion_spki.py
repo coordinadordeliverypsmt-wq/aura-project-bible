@@ -68,11 +68,10 @@ def test_certificado_caducado_se_rechaza_aunque_el_pin_coincida(ac: AcPrueba, se
     par = ac.servidor("viejo", caducado=True)
     s = ServidorTls(par)
     servidores.append(s)
-    # sin verificar la cadena (para aislar NUESTRA comprobación de la de OpenSSL) y con el pin correcto
-    ctx = contexto_cliente(ac.ca_pem)
-    ctx.verify_mode = ssl.CERT_NONE
-    aplicar_fijacion(ctx, [huella_spki(par.der)])
-    with pytest.raises(ssl.SSLCertVerificationError, match="caducado"):
+    # con el pin correcto y CERT_REQUIRED (B-6 ya no permite aislar la comprobación apagando la cadena): rechaza
+    # igualmente; la comprobación PROPIA de vigencia se cubre aislada en la prueba siguiente.
+    ctx = aplicar_fijacion(contexto_cliente(ac.ca_pem), [huella_spki(par.der)])
+    with pytest.raises(ssl.SSLCertVerificationError):
         _hablar(s.puerto, ctx)
 
 

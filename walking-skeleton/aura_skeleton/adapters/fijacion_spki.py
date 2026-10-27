@@ -9,7 +9,8 @@ para rotar sin desactivar la validación). Reglas:
 * Se comprueba DENTRO del handshake (antes de que el cliente envíe nada, p. ej. la credencial NATS de `CONNECT`),
   no después: `aplicar_fijacion` sustituye las clases `SSLObject`/`SSLSocket` del contexto por variantes que
   verifican al terminar `do_handshake`. Un fallo se propaga como `ssl.SSLCertVerificationError`.
-* TLS 1.3 como mínimo (A3) cuando hay fijación.
+* TLS 1.3 como mínimo (A3) cuando hay fijación, `CERT_REQUIRED` y `VERIFY_X509_STRICT`. Un contexto sin verificación
+  o sin CA cargada se rechaza al construir: la fijación se SUMA a la validación de la CA, nunca la sustituye.
 * Aprovisionamiento inicial FUERA DE BANDA (TOFU prohibido): este módulo no aprende pines, solo los aplica.
 """
 
@@ -25,7 +26,7 @@ from datetime import UTC, datetime
 from cryptography import x509
 from cryptography.hazmat.primitives import serialization
 
-_RE_PIN = re.compile(r"^[0-9a-f]{64}$")
+_RE_PIN = re.compile(r"[0-9a-f]{64}")
 MAX_PINES = 2
 """Actual + siguiente. Más de dos ampliaría la ventana de aceptación sin motivo."""
 
@@ -49,7 +50,7 @@ def normalizar_pines(pines: Iterable[str] | None, exigida: bool = True) -> froze
     if not all(isinstance(p, str) for p in lista):
         raise ErrorFijacion("pin mal formado o repetido")
     conjunto = frozenset(p.lower() for p in lista)
-    if any(not _RE_PIN.match(p) for p in conjunto) or len(conjunto) != len(lista):
+    if any(_RE_PIN.fullmatch(p) is None for p in conjunto) or len(conjunto) != len(lista):
         raise ErrorFijacion("pin mal formado o repetido")
     if len(conjunto) > MAX_PINES:
         raise ErrorFijacion("demasiados pines (máximo actual + siguiente)")
@@ -72,8 +73,8 @@ def verificar_fijacion(
     huella = huella_spki(cert_der)
     cert = x509.load_der_x509_certificate(cert_der)
     t = time.time() if ahora is None else ahora
-    desde = _utc(cert.not_valid_before)
-    hasta = _utc(cert.not_valid_after)
+    desde = _utc(getattr(cert, "not_valid_before_utc", None) or cert.not_valid_before)
+    hasta = _utc(getattr(cert, "not_valid_after_utc", None) or cert.not_valid_after)
     if t > hasta:
         raise ErrorFijacion("certificado del servidor caducado")
     if t < desde:
@@ -84,8 +85,8 @@ def verificar_fijacion(
 
 
 def _utc(dt: datetime) -> float:
-    # cryptography < 42 devuelve datetimes naive en UTC
-    return dt.replace(tzinfo=UTC).timestamp()
+    # cryptography >= 42 ofrece `not_valid_*_utc` (con tzinfo); < 42 devuelve datetimes naive en UTC
+    return dt.replace(tzinfo=UTC).timestamp() if dt.tzinfo is None else dt.timestamp()
 
 
 def _comprobador(
@@ -110,7 +111,12 @@ def aplicar_fijacion(
     """Endurece `ctx` (TLS >= 1.3 y verificación del pin al terminar el handshake). Pines inválidos o ausentes con
     `exigida` => `ErrorFijacion` AL CONSTRUIR (no se llega a conectar)."""
     conjunto = normalizar_pines(pines, exigida)
+    if ctx.verify_mode != ssl.CERT_REQUIRED:
+        raise ErrorFijacion("el contexto debe exigir verificación de certificado (CERT_REQUIRED)")
+    if not ctx.get_ca_certs():
+        raise ErrorFijacion("el contexto no tiene ninguna CA cargada")
     ctx.minimum_version = ssl.TLSVersion.TLSv1_3
+    ctx.verify_flags |= ssl.VERIFY_X509_STRICT
     comprobar = _comprobador(conjunto, exigida, reloj)
 
     class ObjetoFijado(ssl.SSLObject):

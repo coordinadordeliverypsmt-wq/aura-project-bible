@@ -7,7 +7,14 @@
   la orden (emisor, kid, `id_ejecucion` uuid4, `emitida_en`, `epoch_hc1`) y solo firma si: la capacidad está
   registrada y permitida, los argumentos cumplen su esquema, el destinatario es conocido y la vida (`vida_s`) es > 0
   y <= el tope. Todo lo demás se rechaza con un motivo del catálogo cerrado.
-* Cada firma (y cada rechazo) queda en su PROPIO log append-only (`firmador.log.jsonl`) con hash y momento.
+* Cada firma (y cada rechazo) queda en su PROPIO log append-only (`firmador.log.jsonl`) con hash y momento, ENCADENADO:
+  cada entrada lleva `prev` = sha256 de la línea anterior, y `verificar_cadena_log` detecta una línea editada, borrada
+  o intercalada. NO detecta el recorte de las últimas líneas: eso exige un ancla externa (D-LOG-1).
+* Límite de TASA configurable (ventana deslizante): superado, rechaza con `tasa_excedida` y lo registra.
+* `epoch_hc1` MONÓTONO y persistido: al arrancar el firmador lee `epoch.jsonl` (append-only, fsync); si el configurado es
+  MENOR que el último usado, se NIEGA a arrancar; si no, usa `max(configurado, último + 1)` y lo anota ANTES de firmar
+  nada. Cada reinicio sube el epoch, así que una orden vieja no se cuela.
+* Un fallo de codificación (surrogates sueltos, JSON profundo, etc.) es un rechazo REGISTRADO, nunca mata el hilo.
 
 LIMITACIÓN DECLARADA (demostrada en `tests/unit/test_firmador_hc1.py`): con el MISMO uid, cualquier otro proceso
 puede leer el fichero de clave. Esta separación de procesos protege contra errores y contra código que no pueda leer
@@ -18,22 +25,26 @@ distinto (crear usuarios requiere root: dependencia externa) o un HSM/TPM.
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import os
 import signal
 import socket
 import socketserver
+import stat
 import struct
 import sys
 import threading
 import time
 import uuid
+from collections import deque
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from ..core.delegacion import (
+    ALG,
     CAPACIDADES,
     DOMINIO_ORDEN,
     V_ACTUAL,
@@ -42,13 +53,49 @@ from ..core.delegacion import (
     RechazoOrden,
     capacidad_registrada,
     hash_de,
+    leer_json_estricto,
     payload_orden,
 )
 from .firma_delegacion import ErrorClave, Firmante, cargar_clave_privada
+from .jsonl_durable import ErrorDurable, abrir_bloqueado, anexar, leer_registros
 
 PETICION_CAMPOS = frozenset({"tarea", "intento", "destinatario", "capacidad", "argumentos", "vida_s"})
 LINEA_MAX = 16 * 1024
 LOG_NOMBRE = "firmador.log.jsonl"
+EPOCH_NOMBRE = "epoch.jsonl"
+CADENA_INICIAL = "0" * 64
+TASA_MAX_DEFECTO = 60
+TASA_VENTANA_S_DEFECTO = 60.0
+
+
+class ErrorFirmador(Exception):
+    """El firmador se niega a arrancar o a continuar (epoch que retrocede, log roto, ruta insegura)."""
+
+
+def verificar_cadena_log(ruta: Path) -> tuple[int, str]:
+    """Recorre el log verificando la cadena de hashes. Devuelve `(entradas, hash_de_la_última)` o lanza `ErrorFirmador`.
+    Un log inexistente es una cadena vacía válida."""
+    previo = CADENA_INICIAL
+    n = 0
+    try:
+        crudo = Path(ruta).read_bytes()
+    except FileNotFoundError:
+        return 0, previo
+    except OSError as e:
+        raise ErrorFirmador("log del firmador ilegible") from e
+    if crudo and not crudo.endswith(b"\n"):
+        raise ErrorFirmador("log del firmador truncado")
+    for linea in crudo.splitlines():
+        try:
+            entrada = json.loads(linea)
+            ok = isinstance(entrada, dict) and entrada.get("prev") == previo
+        except (ValueError, RecursionError):
+            ok = False
+        if not ok:
+            raise ErrorFirmador(f"cadena del log rota en la entrada {n + 1}")
+        previo = hashlib.sha256(linea).hexdigest()
+        n += 1
+    return n, previo
 
 
 @dataclass(frozen=True)
@@ -59,6 +106,9 @@ class PoliticaFirmador:
     capacidades: frozenset[str]
     epoch: int
     vida_max_s: float = VIDA_MAX_S
+    tasa_max: int = TASA_MAX_DEFECTO
+    """Máximo de firmas dentro de `tasa_ventana_s`."""
+    tasa_ventana_s: float = TASA_VENTANA_S_DEFECTO
 
 
 class Firmador:
@@ -70,24 +120,81 @@ class Firmador:
         politica: PoliticaFirmador,
         ruta_log: Path,
         ahora: Callable[[], float] = time.time,
+        ruta_epoch: Path | None = None,
     ) -> None:
         if firmante.kid != politica.kid:
             raise ValueError("el kid de la clave no coincide con la política")
+        if politica.tasa_max < 1 or not politica.tasa_ventana_s > 0:
+            raise ValueError("límite de tasa inválido")
         self._firmante = firmante
         self._pol = politica
         self._log = Path(ruta_log)
         self._ahora = ahora
         self._hilo = threading.Lock()
+        self._hilo_tasa = threading.Lock()
+        self._firmas: deque[float] = deque()
+        _, self._ultimo = verificar_cadena_log(self._log)
+        self._ruta_epoch = Path(ruta_epoch) if ruta_epoch else self._log.with_name(EPOCH_NOMBRE)
+        self._epoch = self._arrancar_epoch()
+
+    @property
+    def epoch(self) -> int:
+        """El epoch EFECTIVO de esta ejecución (monótono entre arranques)."""
+        return self._epoch
+
+    def _arrancar_epoch(self) -> int:
+        """Epoch MONÓTONO persistido (diario append-only `epoch.jsonl`, fsync de fichero y directorio): niega arrancar
+        con uno menor que el último y registra el efectivo ANTES de firmar nada. Sin `rename`/`replace`: solo se añade."""
+        try:
+            with abrir_bloqueado(self._ruta_epoch) as fd:
+                registros, _ = leer_registros(fd)
+                ultimo: int | None = None
+                for r in registros:
+                    e = r.get("epoch")
+                    if not isinstance(e, int) or isinstance(e, bool) or e < 0:
+                        raise ErrorDurable("registro de epoch inválido")
+                    ultimo = e if ultimo is None else max(ultimo, e)
+                if ultimo is None:
+                    efectivo = self._pol.epoch
+                elif self._pol.epoch < ultimo:
+                    raise ErrorFirmador("el epoch configurado es menor que el último usado: el firmador no arranca")
+                else:
+                    efectivo = max(self._pol.epoch, ultimo + 1)
+                anexar(fd, {"epoch": efectivo})
+        except ErrorDurable as e:
+            raise ErrorFirmador("fichero de epoch ilegible") from e
+        return efectivo
 
     def _registrar(self, entrada: dict[str, Any]) -> None:
-        linea = json.dumps(entrada, sort_keys=True, separators=(",", ":")) + "\n"
         with self._hilo:
+            linea = json.dumps({**entrada, "prev": self._ultimo}, sort_keys=True, separators=(",", ":")).encode("utf-8")
+            nuevo = not self._log.exists()
             fd = os.open(self._log, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
             try:
-                os.write(fd, linea.encode("utf-8"))
+                os.write(fd, linea + b"\n")
                 os.fsync(fd)
+                if nuevo:
+                    dfd = os.open(self._log.parent, os.O_RDONLY | os.O_DIRECTORY)
+                    try:
+                        os.fsync(dfd)
+                    finally:
+                        os.close(dfd)
             finally:
                 os.close(fd)
+            self._ultimo = hashlib.sha256(linea).hexdigest()
+
+    def registrar_fallo(self, tipo: str, uid_par: int | None = None) -> None:
+        """Deja constancia de un fallo inesperado en el procesamiento de una petición (el hilo sigue vivo)."""
+        self._registrar({"tipo": "fallo", "momento": self._ahora(), "causa": tipo, "uid_par": uid_par})
+
+    def _reservar_tasa(self, ahora: float) -> None:
+        with self._hilo_tasa:
+            limite = ahora - self._pol.tasa_ventana_s
+            while self._firmas and self._firmas[0] <= limite:
+                self._firmas.popleft()
+            if len(self._firmas) >= self._pol.tasa_max:
+                raise RechazoOrden(Motivo.TASA_EXCEDIDA, "demasiadas firmas en la ventana")
+            self._firmas.append(ahora)
 
     def _validar(self, p: Mapping[str, Any]) -> float:
         if not isinstance(p, dict) or set(p) != PETICION_CAMPOS:
@@ -108,11 +215,14 @@ class Firmador:
     def firmar(self, peticion: Mapping[str, Any], uid_par: int | None = None) -> tuple[bytes, str]:
         """Devuelve (sobre firmado, id_ejecucion) o lanza `RechazoOrden`. Registra la firma o el rechazo."""
         ahora = self._ahora()
+        rechazo: RechazoOrden | None = None
         try:
             vida = self._validar(peticion)
+            self._reservar_tasa(ahora)
             id_ejecucion = str(uuid.uuid4())
             campos = {
                 "v": V_ACTUAL,
+                "alg": ALG,
                 "emisor": self._pol.emisor,
                 "destinatario": peticion["destinatario"],
                 "tarea": peticion["tarea"],
@@ -122,14 +232,19 @@ class Firmador:
                 "argumentos": peticion["argumentos"],
                 "emitida_en": ahora,
                 "caduca_en": ahora + vida,
-                "epoch_hc1": self._pol.epoch,
+                "epoch_hc1": self._epoch,
                 "kid": self._pol.kid,
             }
             payload = payload_orden(campos)  # esquema completo: lo que no sea una orden no se firma
             sobre = self._firmante.firmar(DOMINIO_ORDEN, payload)
         except RechazoOrden as e:
-            self._registrar({"tipo": "rechazo", "momento": ahora, "motivo": e.motivo.value, "uid_par": uid_par})
-            raise
+            rechazo = e
+        except (ValueError, TypeError, RecursionError) as e:  # surrogates sueltos, JSON profundo, tipos raros
+            rechazo = RechazoOrden(Motivo.CAMPO_INVALIDO, "codificación")
+            rechazo.__cause__ = e
+        if rechazo is not None:
+            self._registrar({"tipo": "rechazo", "momento": ahora, "motivo": rechazo.motivo.value, "uid_par": uid_par})
+            raise rechazo
         self._registrar(
             {
                 "tipo": "firma",
@@ -174,8 +289,9 @@ def _fabrica_manejador(firmador: Firmador, permitidos: frozenset[int]) -> type[s
                     _responder(self.wfile, {"ok": False, "motivo": Motivo.SOBRE_MALFORMADO.value})
                     return
                 try:
-                    peticion = json.loads(linea)
+                    peticion = leer_json_estricto(linea)  # profundidad acotada: nunca RecursionError
                 except ValueError:
+                    firmador.registrar_fallo("peticion_ilegible", uid)
                     _responder(self.wfile, {"ok": False, "motivo": Motivo.SOBRE_MALFORMADO.value})
                     return
                 try:
@@ -188,6 +304,12 @@ def _fabrica_manejador(firmador: Firmador, permitidos: frozenset[int]) -> type[s
                 )
             except (OSError, TimeoutError):
                 return
+            except Exception as e:  # noqa: BLE001 - un fallo inesperado se REGISTRA y el servidor sigue vivo
+                try:
+                    firmador.registrar_fallo(type(e).__name__)
+                    _responder(self.wfile, {"ok": False, "motivo": "error_interno"})
+                except OSError:
+                    pass
 
     return Manejador
 
@@ -199,10 +321,27 @@ class ServidorFirmador(socketserver.ThreadingMixIn, socketserver.UnixStreamServe
 def crear_servidor(firmador: Firmador, ruta_socket: Path, permitidos: frozenset[int]) -> ServidorFirmador:
     """Socket 0600 en directorio 0700. Fallo CERRADO si el directorio es más permisivo."""
     dir_ = ruta_socket.parent
-    if dir_.stat().st_mode & 0o077:
-        raise ErrorClave("el directorio del socket debe ser 0700")
-    if ruta_socket.exists():
-        ruta_socket.unlink()
+    st_dir = dir_.stat()
+    if st_dir.st_mode & 0o077 or st_dir.st_uid != os.getuid():
+        raise ErrorClave("el directorio del socket debe ser 0700 y propio")
+    try:
+        existente: os.stat_result | None = os.lstat(ruta_socket)
+    except FileNotFoundError:
+        existente = None
+    if existente is not None:
+        # G-1 (Ruta Única de Mutación) no autoriza a este módulo a BORRAR nada: ni un fichero ni un socket residual. Un
+        # objeto que no sea un socket propio es una anomalía; un socket propio muerto exige retirarlo a mano. En ambos
+        # casos se falla CERRADO y no se toca lo que ocupa la ruta (retirar el residual solo desde aquí requeriría
+        # una exclusión `opera = ["unlink"]` en architecture_manifest.toml: decisión del CEO, no tomada).
+        if not stat.S_ISSOCK(existente.st_mode) or existente.st_uid != os.getuid():
+            raise ErrorClave("la ruta del socket existe y no es un socket propio")
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sonda:
+            sonda.settimeout(1)
+            try:
+                sonda.connect(str(ruta_socket))
+            except OSError:
+                raise ErrorClave("socket residual de un arranque anterior: retírelo manualmente") from None
+        raise ErrorClave("ya hay un firmador escuchando en ese socket")
     previo = os.umask(0o177)
     try:
         servidor = ServidorFirmador(str(ruta_socket), _fabrica_manejador(firmador, permitidos))
@@ -252,10 +391,20 @@ def main(argv: list[str] | None = None) -> int:
         frozenset(conf["capacidades"]) & frozenset(CAPACIDADES),
         int(conf["epoch"]),
         float(conf.get("vida_max_s", VIDA_MAX_S)),
+        int(conf.get("tasa_max", TASA_MAX_DEFECTO)),
+        float(conf.get("tasa_ventana_s", TASA_VENTANA_S_DEFECTO)),
     )
-    firmador = Firmador(firmante, politica, Path(conf["log"]))
+    try:
+        firmador = Firmador(firmante, politica, Path(conf["log"]))
+    except ErrorFirmador as e:
+        print(f"firmador: {e}", file=sys.stderr)
+        return 4
     permitidos = frozenset(conf.get("uids") or [os.getuid()])
-    servidor = crear_servidor(firmador, Path(conf["socket"]), permitidos)
+    try:
+        servidor = crear_servidor(firmador, Path(conf["socket"]), permitidos)
+    except ErrorClave as e:
+        print(f"firmador: {e}", file=sys.stderr)
+        return 5
     signal.signal(signal.SIGTERM, lambda *_: threading.Thread(target=servidor.shutdown, daemon=True).start())
     print("listo", flush=True)
     servidor.serve_forever()

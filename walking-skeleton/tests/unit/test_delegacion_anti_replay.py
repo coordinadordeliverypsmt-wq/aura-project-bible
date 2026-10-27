@@ -138,9 +138,7 @@ def test_almacen_corrupto_o_truncado_falla_cerrado(tmp_path: Path) -> None:
     nodo = tmp_path / "nodo"
     alm = AlmacenConsumidas(nodo)
     _validar(m, firmante_orden(m.hc1, campos_validos()), alm)
-    with open(nodo / NOMBRE, "ab") as f:
-        f.write(b'{"id":"abc","ep')  # escritura truncada por una caída
-    assert _motivo(m, firmante_orden(m.hc1, campos_validos()), alm) is Motivo.ALMACEN_ILEGIBLE
+    # (una línea FINAL truncada por caída ya no es corrupción: se recupera, ver test_delegacion_nodo_estados.py)
     (nodo / NOMBRE).write_bytes(b"basura\n")
     assert _motivo(m, firmante_orden(m.hc1, campos_validos()), AlmacenConsumidas(nodo)) is Motivo.ALMACEN_ILEGIBLE
 

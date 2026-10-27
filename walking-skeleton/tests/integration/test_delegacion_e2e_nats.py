@@ -25,17 +25,21 @@ import pytest
 
 from aura_skeleton import nodo_agente
 from aura_skeleton.adapters.almacen_consumidas import AlmacenConsumidas
+from aura_skeleton.adapters.diario_hc1 import NOMBRE as NOMBRE_DIARIO
+from aura_skeleton.adapters.diario_hc1 import DiarioHC1
 from aura_skeleton.adapters.fijacion_spki import aplicar_fijacion, huella_spki
 from aura_skeleton.adapters.firma_delegacion import generar_firmante, guardar_clave_privada, verificador_de
 from aura_skeleton.adapters.firmador_hc1 import pedir_firma
 from aura_skeleton.core.delegacion import (
     DOMINIO_ORDEN,
     DOMINIO_RESULTADO,
+    EstadoNodo,
     Motivo,
     PoliticaNodo,
     RechazoOrden,
     abrir_sobre,
     empaquetar_sobre,
+    verificar_y_leer,
 )
 from aura_skeleton.core.delegacion_hc1 import Estado, SeguimientoHC1
 from aura_skeleton.core.delegacion_nodo import NodoDelegado
@@ -55,8 +59,12 @@ pytestmark = pytest.mark.skipif(_binario() is None, reason="nats-server no está
 
 
 class RelojReal:
+    def __init__(self) -> None:
+        self.desfase = 0.0
+        """Segundos que se «avanzan» al reloj de HC-1 (simula el tiempo que HC-1 estuvo caída)."""
+
     def ahora(self) -> float:
-        return time.time()
+        return time.time() + self.desfase
 
     def sincronizado(self) -> bool:
         return True
@@ -173,16 +181,38 @@ class Hc1Sim:
     def __init__(self, env: Entorno, firmador: Firmador) -> None:
         self.env, self.firmador = env, firmador
         self.registro = env.raiz / "registro_sintetico.jsonl"
-        self.seg = SeguimientoHC1(
-            verificador_de({NODO: env.nodo_firmante.publica(), OTRO_NODO: env.otro_firmante.publica()}), RelojReal()
-        )
+        self.dir_diario = env.raiz / "hc1-diario"
+        self.reloj = RelojReal()
+        self.autoridades = frozenset({"mauricio"})
         self.rechazos: list[Motivo] = []
         self.nc: Any = None
+        self.seg = self._arrancar_seguimiento()
+
+    def _arrancar_seguimiento(self) -> SeguimientoHC1:
+        """Proceso de HC-1 «nuevo»: el estado se reconstruye SOLO desde el diario en disco (M-2)."""
+        env = self.env
+        return SeguimientoHC1(
+            verificador_de({NODO: env.nodo_firmante.publica(), OTRO_NODO: env.otro_firmante.publica()}),
+            self.reloj,
+            diario=DiarioHC1(self.dir_diario),
+            autoridades=self.autoridades,
+        )
 
     async def iniciar(self) -> None:
         self.nc = await self.env.conectar("hc1", self.env.claves["hc1"])
         await self.nc.subscribe("nodo.resultado.>", cb=self._al_recibir)
         await self.nc.flush()
+
+    async def caer(self) -> None:
+        """HC-1 muere: se pierde la conexión y TODO el estado en memoria."""
+        if self.nc is not None and not self.nc.is_closed:
+            await self.nc.close()
+        self.seg = None  # type: ignore[assignment]
+
+    async def reiniciar(self, desfase_s: float = 0.0) -> None:
+        self.reloj.desfase += desfase_s
+        self.seg = self._arrancar_seguimiento()
+        await self.iniciar()
 
     def _anotar(self, entrada: dict[str, Any]) -> None:
         with open(self.registro, "a", encoding="utf-8") as f:
@@ -201,10 +231,10 @@ class Hc1Sim:
         except RechazoOrden as e:
             self.rechazos.append(e.motivo)
 
-    async def delegar(self, **cambios: Any) -> tuple[bytes, str]:
+    async def delegar(self, techo: float = 30, **cambios: Any) -> tuple[bytes, str]:
         r = await self.firmador.pedir(**cambios)
         assert r["ok"] is True, r
-        self.seg.registrar_emision(r["sobre"], techo_total_s=30)
+        self.seg.registrar_emision(r["sobre"], techo_total_s=techo)
         await self.nc.publish(f"nodo.tarea.{cambios.get('destinatario', NODO)}", r["sobre"])
         await self.nc.flush()
         return r["sobre"], r["id_ejecucion"]
@@ -223,10 +253,15 @@ class NodoSim:
             id_nodo, {"hc1-k1": "hc1"}, frozenset({"calcular_resumen_sha256"}), RelojReal(),
             time.time() - 5 if arranque is None else arranque,
         )  # fmt: skip
+        self.almacen = AlmacenConsumidas(directorio)
         self.nodo = NodoDelegado(pol, verificador_de({"hc1-k1": env.hc1_firmante.publica()}),
-                                 AlmacenConsumidas(directorio), firmante.firmar)  # fmt: skip
+                                 self.almacen, firmante.firmar)  # fmt: skip
         self.rechazos: list[Motivo] = []
         self.ejecutadas: list[str] = []
+        self.morir_ejecutando = False
+        """Tras acusar y marcar EJECUTANDO, el nodo «muere» (sin marcar FALLIDA ni COMPLETADA)."""
+        self.perder_resultado = False
+        """Ejecuta y COMPLETA (resultado firmado guardado) pero el resultado no llega a publicarse."""
         self.antes_del_resultado: Callable[[], Awaitable[None]] | None = None
         self.manipular: Callable[[bytes], bytes] = lambda b: b
         self.nc: Any = None
@@ -248,8 +283,14 @@ class NodoSim:
             await self.antes_del_resultado()
         if self.nc.is_closed:
             return
+        if self.morir_ejecutando:
+            self.almacen.iniciar_ejecucion(ac.orden.campos["id_ejecucion"])
+            await self.nc.close()
+            return
         self.ejecutadas.append(ac.orden.campos["id_ejecucion"])
         res = self.manipular(self.nodo.ejecutar(ac.orden))
+        if self.perder_resultado:
+            return
         await self.nc.publish(f"nodo.resultado.{self.id}", res, headers={"tipo": "resultado"})
         await self.nc.flush()
 
@@ -367,7 +408,7 @@ async def test_05_resultado_alterado_o_de_otro_nodo_se_rechaza(mundo: Any) -> No
     ej = hc1.seg.ejecucion(ident)
     assert ej is not None
     payload = json.dumps(
-        {"v": 1, "tarea": ej.tarea, "intento": 1, "id_nodo": OTRO_NODO, "id_ejecucion": ident,
+        {"v": 1, "alg": "ed25519", "tarea": ej.tarea, "intento": 1, "id_nodo": OTRO_NODO, "id_ejecucion": ident,
          "hash_tarea": ej.hash_tarea, "salida": "0" * 64}, sort_keys=True, separators=(",", ":"),
     ).encode()  # fmt: skip
     await otro.nc.publish(
@@ -471,7 +512,7 @@ async def test_09_vinculacion_tarea_orden_ejecucion_resultado(mundo: Any) -> Non
     assert hc1.rechazos[-1] is Motivo.RESULTADO_DUPLICADO and ej2.salida != ej1.salida
 
 
-async def test_10_el_resultado_aceptado_queda_en_el_registro_sintetico_y_se_reverifica_offline(mundo: Any) -> None:
+async def test_09b_el_resultado_aceptado_queda_en_el_registro_sintetico_y_se_reverifica_offline(mundo: Any) -> None:
     env, _, hc1, nodos = mundo
     await _nodo(env, nodos)
     _, ident = await hc1.delegar()
@@ -482,11 +523,115 @@ async def test_10_el_resultado_aceptado_queda_en_el_registro_sintetico_y_se_reve
     # ni un rechazo ni un latido generan hechos: solo lo incorporado está en el registro
     orden = base64.b64decode(lineas[0]["orden_firmada"])
     res = base64.b64decode(lineas[0]["resultado_firmado"])
-    from aura_skeleton.core.delegacion import verificar_y_leer
-
     _, co = verificar_y_leer(orden, DOMINIO_ORDEN, verificador_de({"hc1-k1": env.hc1_firmante.publica()}))
     _, cr = verificar_y_leer(res, DOMINIO_RESULTADO, verificador_de({NODO: env.nodo_firmante.publica()}))
     import hashlib
 
     assert co["id_ejecucion"] == cr["id_ejecucion"] == ident
     assert cr["hash_tarea"] == hashlib.sha256(abrir_sobre(orden).payload).hexdigest() == lineas[0]["hash_tarea"]
+
+
+# --- revisión de seguridad: caídas, ambigüedad y persistencia (E2E 10-12) -------------------------------------------
+
+
+async def test_10_caida_de_hc1_y_del_nodo_el_estado_es_recuperable_y_explicito_desde_disco(mundo: Any) -> None:
+    env, _, hc1, nodos = mundo
+    nodo = await _nodo(env, nodos)
+    nodo.morir_ejecutando = True
+    _, ident = await hc1.delegar(techo=30)
+    await esperar(lambda: hc1.seg.ejecucion(ident).estado is Estado.ACEPTADA, "acuse recibido")  # type: ignore[union-attr]
+    await esperar(lambda: nodo.nc.is_closed, "el nodo muere ejecutando")
+    ej_antes = hc1.seg.ejecucion(ident)
+    assert ej_antes is not None
+    await hc1.caer()  # caen HC-1 y el nodo: no queda NADA en memoria
+    # --- reinicio de ambos, 100 s después --------------------------------------------------------------------------
+    await hc1.reiniciar(desfase_s=100)
+    ej = hc1.seg.ejecucion(ident)
+    assert ej is not None and ej.hash_tarea == ej_antes.hash_tarea  # reconstruida desde el diario
+    assert ej.estado is Estado.AMBIGUO  # vencida con acuse: EXPLÍCITO, no «se perdió»
+    assert not ej.completada and hc1.seg.recuperadas == 1
+    nodo2 = await _nodo(env, nodos, arranque=time.time() - 60)
+    assert nodo2.almacen.estado(ident) is EstadoNodo.AMBIGUA  # el nodo también lo sabe, desde su disco
+    assert nodo2.nodo.reenviar_resultado(ident) is None  # no hay resultado: nunca se completó
+    eventos = [json.loads(x)["ev"] for x in (hc1.dir_diario / NOMBRE_DIARIO).read_text().splitlines()]
+    assert eventos == ["emision", "acuse", "interrupcion"]  # y la decisión quedó ANOTADA
+
+
+async def test_11_una_ejecucion_ambigua_no_se_repite_y_solo_se_resuelve_por_la_via_explicita(mundo: Any) -> None:
+    env, _, hc1, nodos = mundo
+    nodo = await _nodo(env, nodos)
+    nodo.perder_resultado = True  # ejecuta y COMPLETA, pero el resultado no llega
+    sobre, ident = await hc1.delegar(techo=30)
+    await esperar(lambda: nodo.ejecutadas == [ident], "el nodo ejecutó")
+    await esperar(lambda: hc1.seg.ejecucion(ident).estado is Estado.ACEPTADA, "acuse recibido")  # type: ignore[union-attr]
+    await hc1.caer()
+    await hc1.reiniciar(desfase_s=100)
+    assert hc1.seg.ejecucion(ident).estado is Estado.AMBIGUO  # type: ignore[union-attr]
+    # 1) la misma orden otra vez: el nodo NO la repite
+    await hc1.publicar_crudo(f"nodo.tarea.{NODO}", sobre)
+    await esperar(lambda: Motivo.ORDEN_REPETIDA in nodo.rechazos, "el nodo rechaza la repetida")
+    assert nodo.ejecutadas == [ident]
+    # 2) el nodo reenvía el resultado YA firmado: HC-1 no lo acepta solo (está AMBIGUA)
+    guardado = nodo.nodo.reenviar_resultado(ident)
+    assert guardado is not None and nodo.nodo.reenviar_resultado(ident) == guardado  # idempotente
+    await nodo.nc.publish(f"nodo.resultado.{NODO}", guardado, headers={"tipo": "resultado"})
+    await nodo.nc.flush()
+    await esperar(lambda: Motivo.EJECUCION_NO_EN_CURSO in hc1.rechazos, "HC-1 no lo acepta solo")
+    assert hc1.seg.ejecucion(ident).estado is Estado.AMBIGUO  # type: ignore[union-attr]
+    # 3) la vía EXPLÍCITA: sin autoridad no; con autoridad declarada, firma y vínculo válidos, sí, y queda registrado
+    with pytest.raises(RechazoOrden) as e:
+        hc1.seg.resolver_ambigua(ident, "intruso", "me da igual", guardado)
+    assert e.value.motivo is Motivo.SIN_AUTORIDAD
+    ej = hc1.seg.resolver_ambigua(ident, "mauricio", "resultado firmado recuperado del nodo", guardado)
+    assert ej.estado is Estado.RESULTADO_FIRMADO and ej.resuelta_por == "mauricio"
+    assert hc1.seg.validar(ident) is True
+    hc1.seg.incorporar(ident, hc1._anotar)
+    assert hc1.seg.ejecucion(ident).completada  # type: ignore[union-attr]
+    await hc1.caer()
+    await hc1.reiniciar()
+    ej2 = hc1.seg.ejecucion(ident)
+    assert ej2 is not None and ej2.completada and ej2.resuelta_por == "mauricio"  # persistente
+    assert nodo.ejecutadas == [ident]  # y la capacidad corrió UNA sola vez en todo el relato
+
+
+async def test_12_resultado_aceptado_vinculado_a_su_orden_y_persistido_con_fsync_reverificable_offline(
+    mundo: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import hashlib
+    import os
+    import stat
+
+    env, _, hc1, nodos = mundo
+    await _nodo(env, nodos)
+    sincronizados: list[bool] = []
+    real = os.fsync
+
+    def espia(fd: int) -> None:
+        sincronizados.append(stat.S_ISDIR(os.fstat(fd).st_mode))
+        real(fd)
+
+    monkeypatch.setattr(os, "fsync", espia)
+    _, ident = await hc1.delegar()
+    await esperar(lambda: hc1.seg.ejecucion(ident).estado is Estado.INCORPORADO, "incorporada")  # type: ignore[union-attr]
+    # emision, acuse, resultado, validacion, incorporado: cinco registros del diario, cada uno con fsync del fichero
+    assert sincronizados.count(False) >= 5
+    monkeypatch.undo()
+    await hc1.caer()  # HC-1 muere; lo único que queda es el disco
+    registros, truncados = DiarioHC1(hc1.dir_diario).recuperar()
+    assert truncados == 0 and [r["ev"] for r in registros] == [
+        "emision",
+        "acuse",
+        "resultado",
+        "validacion",
+        "incorporado",
+    ]
+    # re-verificación OFFLINE: solo bytes del diario + claves públicas, sin HC-1 ni red
+    orden = base64.b64decode(registros[0]["sobre"])
+    resultado = base64.b64decode(registros[2]["sobre"])
+    _, co = verificar_y_leer(orden, DOMINIO_ORDEN, verificador_de({"hc1-k1": env.hc1_firmante.publica()}))
+    _, cr = verificar_y_leer(resultado, DOMINIO_RESULTADO, verificador_de({NODO: env.nodo_firmante.publica()}))
+    assert co["id_ejecucion"] == cr["id_ejecucion"] == ident and co["tarea"] == cr["tarea"]
+    assert cr["hash_tarea"] == hashlib.sha256(abrir_sobre(orden).payload).hexdigest()
+    assert cr["salida"] == hashlib.sha256(co["argumentos"]["texto"].encode()).hexdigest()
+    await hc1.reiniciar()
+    assert hc1.seg.ejecucion(ident).completada  # type: ignore[union-attr]

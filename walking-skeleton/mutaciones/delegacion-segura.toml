@@ -1,4 +1,4 @@
-incremento = "Delegacion segura a nodos: A1 A2 A3 N1 N2 (biblioteca aislada, 2026-10-26)"
+incremento = "Delegacion segura a nodos: A1 A2 A3 N1 N2 + correcciones de la revision de seguridad (biblioteca aislada, 2026-10-26/27)"
 # NO ejecutado en la sesion que lo escribio (orden expresa): ejecutar con `python3 -m herramientas.mutar mutaciones/delegacion-segura.toml`.
 pruebas = ["tests/unit/test_delegacion_orden_firmada.py"]
 timeout_s = 120
@@ -218,8 +218,8 @@ id = "M27"
 garantia = "desconexión con acuse tratada como reintentable"
 fichero = "aura_skeleton/core/delegacion_hc1.py"
 pruebas = ["tests/unit/test_delegacion_resultado_firmado.py"]
-buscar = '''ej.estado = Estado.INTERRUMPIDA if ej.estado is Estado.EMITIDA else Estado.AMBIGUO'''
-sustituir = '''ej.estado = Estado.INTERRUMPIDA'''
+buscar = '''nuevo = Estado.INTERRUMPIDA if ej.estado is Estado.EMITIDA else Estado.AMBIGUO'''
+sustituir = '''nuevo = Estado.INTERRUMPIDA'''
 
 [[mutante]]
 id = "M28"
@@ -272,9 +272,9 @@ sustituir = '''if False:'''
 
 [[mutante]]
 id = "M34"
-garantia = "almacén tolera una línea truncada"
-fichero = "aura_skeleton/adapters/almacen_consumidas.py"
-pruebas = ["tests/unit/test_delegacion_anti_replay.py"]
+garantia = "una línea final truncada por caída no se detecta ni se recupera (B-4)"
+fichero = "aura_skeleton/adapters/jsonl_durable.py"
+pruebas = ["tests/unit/test_delegacion_nodo_estados.py", "tests/unit/test_delegacion_diario_hc1.py"]
 buscar = '''if datos and not datos.endswith(b"\n"):'''
 sustituir = '''if False:'''
 
@@ -349,7 +349,7 @@ id = "M43"
 garantia = "firmador no registra la firma"
 fichero = "aura_skeleton/adapters/firmador_hc1.py"
 pruebas = ["tests/unit/test_firmador_hc1.py"]
-buscar = '''os.write(fd, linea.encode("utf-8"))'''
+buscar = '''os.write(fd, linea + b"\n")'''
 sustituir = '''pass'''
 
 [[mutante]]
@@ -357,7 +357,7 @@ id = "M44"
 garantia = "firmador acepta un directorio de socket abierto"
 fichero = "aura_skeleton/adapters/firmador_hc1.py"
 pruebas = ["tests/unit/test_firmador_hc1.py"]
-buscar = '''if dir_.stat().st_mode & 0o077:'''
+buscar = '''if st_dir.st_mode & 0o077 or st_dir.st_uid != os.getuid():'''
 sustituir = '''if False:'''
 
 [[mutante]]
@@ -367,3 +367,378 @@ fichero = "aura_skeleton/adapters/firma_delegacion.py"
 pruebas = ["tests/unit/test_firmador_hc1.py"]
 buscar = '''if st.st_mode & 0o077 or dst.st_mode & 0o077:'''
 sustituir = '''if False:'''
+
+[[mutante]]
+id = "M46"
+garantia = "M-1 el anidamiento JSON no se acota (profundidad)"
+fichero = "aura_skeleton/core/delegacion.py"
+pruebas = ["tests/unit/test_delegacion_robustez.py"]
+buscar = '''if profundidad > PROFUNDIDAD_MAX:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M47"
+garantia = "M-1 el payload JSON de una petición del firmador no se acota (json.loads a pelo)"
+fichero = "aura_skeleton/adapters/firmador_hc1.py"
+pruebas = ["tests/unit/test_firmador_hc1_endurecido.py"]
+buscar = '''peticion = leer_json_estricto(linea)'''
+sustituir = '''peticion = __import__('json').loads(linea)'''
+
+[[mutante]]
+id = "M48"
+garantia = "M-2 el diario de HC-1 no escribe nada"
+fichero = "aura_skeleton/core/delegacion_hc1.py"
+pruebas = ["tests/unit/test_delegacion_diario_hc1.py"]
+buscar = '''self.diario.anotar(registro)'''
+sustituir = '''pass'''
+
+[[mutante]]
+id = "M49"
+garantia = "M-2 HC-1 no reconstruye su estado desde el diario al arrancar"
+fichero = "aura_skeleton/core/delegacion_hc1.py"
+pruebas = ["tests/unit/test_delegacion_diario_hc1.py"]
+buscar = '''            self._recuperar()'''
+sustituir = '''            pass'''
+
+[[mutante]]
+id = "M50"
+garantia = "M-2 tras recuperar, las vencidas no pasan a INTERRUMPIDA/AMBIGUO"
+fichero = "aura_skeleton/core/delegacion_hc1.py"
+pruebas = ["tests/unit/test_delegacion_diario_hc1.py"]
+buscar = '''self.vencer()  # lo vencido'''
+sustituir = '''pass  # lo vencido'''
+
+[[mutante]]
+id = "M51"
+garantia = "M-2 el truncamiento del diario no se detecta (no se informa)"
+fichero = "aura_skeleton/core/delegacion_hc1.py"
+pruebas = ["tests/unit/test_delegacion_diario_hc1.py"]
+buscar = '''registros, self.bytes_truncados = self.diario.recuperar()'''
+sustituir = '''registros, _ = self.diario.recuperar()'''
+
+[[mutante]]
+id = "M52"
+garantia = "N1 SeguimientoHC1 sin cerrojo: un mismo resultado se incorpora varias veces"
+fichero = "aura_skeleton/core/delegacion_hc1.py"
+pruebas = ["tests/unit/test_delegacion_diario_hc1.py"]
+buscar = '''default_factory=threading.RLock, repr=False'''
+sustituir = '''default_factory=__import__('contextlib').nullcontext, repr=False'''
+
+[[mutante]]
+id = "M53"
+garantia = "M-2/N1 el diario no hace fsync del fichero tras cada registro"
+fichero = "aura_skeleton/adapters/jsonl_durable.py"
+pruebas = ["tests/unit/test_delegacion_diario_hc1.py", "tests/unit/test_delegacion_nodo_estados.py"]
+buscar = '''            raise ErrorDurable("escritura parcial")
+        os.fsync(fd)'''
+sustituir = '''            raise ErrorDurable("escritura parcial")
+        pass'''
+
+[[mutante]]
+id = "M54"
+garantia = "N1 no se hace fsync del directorio al crear el fichero"
+fichero = "aura_skeleton/adapters/jsonl_durable.py"
+pruebas = ["tests/unit/test_delegacion_diario_hc1.py", "tests/unit/test_delegacion_nodo_estados.py"]
+buscar = '''        if creado:'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "M55"
+garantia = "N1 no se hace fsync del directorio padre al crear el directorio"
+fichero = "aura_skeleton/adapters/jsonl_durable.py"
+pruebas = ["tests/unit/test_delegacion_diario_hc1.py", "tests/unit/test_delegacion_nodo_estados.py"]
+buscar = '''            os.chmod(ruta, 0o700)
+            fsync_directorio(ruta.parent)'''
+sustituir = '''            os.chmod(ruta, 0o700)'''
+
+[[mutante]]
+id = "M56"
+garantia = "B-4 un directorio existente con permisos abiertos se acepta"
+fichero = "aura_skeleton/adapters/jsonl_durable.py"
+pruebas = ["tests/unit/test_delegacion_nodo_estados.py", "tests/unit/test_delegacion_diario_hc1.py"]
+buscar = '''    if st.st_mode & 0o077:
+        raise ErrorDurable("permisos inseguros: el directorio'''
+sustituir = '''    if False:
+        raise ErrorDurable("permisos inseguros: el directorio'''
+
+[[mutante]]
+id = "M57"
+garantia = "B-4 un fichero con permisos abiertos o ajeno se acepta"
+fichero = "aura_skeleton/adapters/jsonl_durable.py"
+pruebas = ["tests/unit/test_delegacion_nodo_estados.py", "tests/unit/test_delegacion_diario_hc1.py"]
+buscar = '''if st.st_uid != os.getuid() or st.st_mode & 0o077 or not stat.S_ISREG(st.st_mode):'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M58"
+garantia = "B-4 la línea truncada no se recorta del fichero (el siguiente registro se pegaría a ella)"
+fichero = "aura_skeleton/adapters/jsonl_durable.py"
+pruebas = ["tests/unit/test_delegacion_nodo_estados.py", "tests/unit/test_delegacion_diario_hc1.py"]
+buscar = '''os.ftruncate(fd, corte)'''
+sustituir = '''pass'''
+
+[[mutante]]
+id = "M59"
+garantia = "N1 sin cerrojo de fichero (flock): dos procesos pueden decidir a la vez [puede depender de la carrera]"
+fichero = "aura_skeleton/adapters/jsonl_durable.py"
+pruebas = ["tests/unit/test_delegacion_nodo_estados.py", "tests/unit/test_delegacion_anti_replay.py"]
+buscar = '''fcntl.flock(fd, fcntl.LOCK_EX)'''
+sustituir = '''pass'''
+
+[[mutante]]
+id = "M60"
+garantia = "M-3 el nodo no marca EJECUTANDO: una orden puede ejecutarse dos veces"
+fichero = "aura_skeleton/core/delegacion_nodo.py"
+pruebas = ["tests/unit/test_delegacion_nodo_estados.py"]
+buscar = '''self._almacen.iniciar_ejecucion(ident)'''
+sustituir = '''pass'''
+
+[[mutante]]
+id = "M61"
+garantia = "M-3 el almacén permite iniciar una ejecución ya iniciada o terminada (doble ejecución)"
+fichero = "aura_skeleton/adapters/almacen_consumidas.py"
+pruebas = ["tests/unit/test_delegacion_nodo_estados.py"]
+buscar = '''if previo is not None:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M62"
+garantia = "M-3 un EJECUTANDO ajeno (caída) no se distingue como AMBIGUA al intentar ejecutar"
+fichero = "aura_skeleton/adapters/almacen_consumidas.py"
+pruebas = ["tests/unit/test_delegacion_nodo_estados.py"]
+buscar = '''ambigua = previo["estado"] == _EJECUTANDO and id_ejecucion not in self._mias'''
+sustituir = '''ambigua = False'''
+
+[[mutante]]
+id = "M63"
+garantia = "M-3 tras reiniciar, un EJECUTANDO sin COMPLETADA se lee como EJECUTANDO y no como AMBIGUA"
+fichero = "aura_skeleton/adapters/almacen_consumidas.py"
+pruebas = ["tests/unit/test_delegacion_nodo_estados.py"]
+buscar = '''return (EstadoNodo.EJECUTANDO if id_ejecucion in self._mias else EstadoNodo.AMBIGUA), None'''
+sustituir = '''return EstadoNodo.EJECUTANDO, None'''
+
+[[mutante]]
+id = "M64"
+garantia = "M-3 el nodo no guarda el resultado firmado (no puede reenviarlo idempotente)"
+fichero = "aura_skeleton/core/delegacion_nodo.py"
+pruebas = ["tests/unit/test_delegacion_nodo_estados.py"]
+buscar = '''self._almacen.completar(ident, resultado)'''
+sustituir = '''pass'''
+
+[[mutante]]
+id = "M65"
+garantia = "M-3 una ejecución fallida no queda FALLIDA (se puede reintentar sola)"
+fichero = "aura_skeleton/core/delegacion_nodo.py"
+pruebas = ["tests/unit/test_delegacion_nodo_estados.py"]
+buscar = '''self._almacen.fallar(ident)'''
+sustituir = '''pass'''
+
+[[mutante]]
+id = "M66"
+garantia = "M-3 se ejecuta lo que nunca se consumió"
+fichero = "aura_skeleton/adapters/almacen_consumidas.py"
+pruebas = ["tests/unit/test_delegacion_nodo_estados.py"]
+buscar = '''if not self._fue_consumida(id_ejecucion):'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M67"
+garantia = "M-3 resolver_ambigua sin autoridad declarada"
+fichero = "aura_skeleton/core/delegacion_hc1.py"
+pruebas = ["tests/unit/test_delegacion_diario_hc1.py"]
+buscar = '''if not isinstance(por, str) or por not in self.autoridades:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M68"
+garantia = "M-3 resolver_ambigua acepta ejecuciones que no están ambiguas o interrumpidas"
+fichero = "aura_skeleton/core/delegacion_hc1.py"
+pruebas = ["tests/unit/test_delegacion_diario_hc1.py"]
+buscar = '''if ej.estado not in (Estado.AMBIGUO, Estado.INTERRUMPIDA):'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M69"
+garantia = "M-3 resolver_ambigua no valida el vínculo con la orden (hash_tarea/tarea/intento)"
+fichero = "aura_skeleton/core/delegacion_hc1.py"
+pruebas = ["tests/unit/test_delegacion_diario_hc1.py"]
+buscar = '''            self._vincular(c, ej.destinatario)
+'''
+sustituir = '''            pass
+'''
+
+[[mutante]]
+id = "M70"
+garantia = "M-3 resolver_ambigua acepta el resultado de OTRA ejecución del mismo nodo"
+fichero = "aura_skeleton/core/delegacion_hc1.py"
+pruebas = ["tests/unit/test_delegacion_diario_hc1.py"]
+buscar = '''if c["id_ejecucion"] != id_ejecucion:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M71"
+garantia = "B-1 los identificadores aceptan un salto de línea final (match en vez de fullmatch)"
+fichero = "aura_skeleton/core/delegacion.py"
+pruebas = ["tests/unit/test_delegacion_robustez.py"]
+buscar = '''patron.fullmatch(valor) is not None'''
+sustituir = '''patron.match(valor) is not None'''
+
+[[mutante]]
+id = "M72"
+garantia = "B-1 los pines SPKI aceptan un salto de línea final"
+fichero = "aura_skeleton/adapters/fijacion_spki.py"
+pruebas = ["tests/unit/test_delegacion_robustez.py"]
+buscar = '''_RE_PIN.fullmatch(p) is None'''
+sustituir = '''_RE_PIN.match(p) is None'''
+
+[[mutante]]
+id = "M73"
+garantia = "A1 se acepta un algoritmo distinto de ed25519"
+fichero = "aura_skeleton/core/delegacion.py"
+pruebas = ["tests/unit/test_delegacion_robustez.py"]
+buscar = '''if c["alg"] != ALG:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M74"
+garantia = "A1 una orden firmada con un kid revocado se acepta"
+fichero = "aura_skeleton/core/delegacion.py"
+pruebas = ["tests/unit/test_delegacion_robustez.py"]
+buscar = '''if abierto.kid in politica.revocados:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M75"
+garantia = "A1 HC-1 acepta firmas de una clave de nodo revocada"
+fichero = "aura_skeleton/adapters/firma_delegacion.py"
+pruebas = ["tests/unit/test_delegacion_robustez.py"]
+buscar = '''if clave is None or kid in retirados:'''
+sustituir = '''if clave is None:'''
+
+[[mutante]]
+id = "M76"
+garantia = "A1 se normaliza o tolera texto que no es NFC"
+fichero = "aura_skeleton/core/delegacion.py"
+pruebas = ["tests/unit/test_delegacion_robustez.py"]
+buscar = '''if not _es_nfc(campos):'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M77"
+garantia = "A3/B-6 la fijación acepta un contexto sin CERT_REQUIRED"
+fichero = "aura_skeleton/adapters/fijacion_spki.py"
+pruebas = ["tests/unit/test_fijacion_spki_endurecida.py"]
+buscar = '''if ctx.verify_mode != ssl.CERT_REQUIRED:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M78"
+garantia = "A3/B-6 la fijación acepta un contexto sin ninguna CA cargada"
+fichero = "aura_skeleton/adapters/fijacion_spki.py"
+pruebas = ["tests/unit/test_fijacion_spki_endurecida.py"]
+buscar = '''if not ctx.get_ca_certs():'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M79"
+garantia = "A3 la fijación no activa VERIFY_X509_STRICT"
+fichero = "aura_skeleton/adapters/fijacion_spki.py"
+pruebas = ["tests/unit/test_fijacion_spki_endurecida.py"]
+buscar = '''ctx.verify_flags |= ssl.VERIFY_X509_STRICT'''
+sustituir = '''pass'''
+
+[[mutante]]
+id = "M80"
+garantia = "B-2 un fallo de codificación (surrogates) no es un rechazo registrado"
+fichero = "aura_skeleton/adapters/firmador_hc1.py"
+pruebas = ["tests/unit/test_firmador_hc1_endurecido.py"]
+buscar = '''except (ValueError, TypeError, RecursionError) as e:  # surrogates'''
+sustituir = '''except KeyError as e:  # surrogates'''
+
+[[mutante]]
+id = "M81"
+garantia = "B-2 un fallo inesperado del manejador mata el hilo sin respuesta ni registro"
+fichero = "aura_skeleton/adapters/firmador_hc1.py"
+pruebas = ["tests/unit/test_firmador_hc1_endurecido.py"]
+buscar = '''except Exception as e:  # noqa: BLE001'''
+sustituir = '''except KeyError as e:  # noqa: BLE001'''
+
+[[mutante]]
+id = "M82"
+garantia = "B-3 el firmador no limita la tasa de firmas"
+fichero = "aura_skeleton/adapters/firmador_hc1.py"
+pruebas = ["tests/unit/test_firmador_hc1_endurecido.py"]
+buscar = '''if len(self._firmas) >= self._pol.tasa_max:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M83"
+garantia = "B-3 la ventana de tasa no se desliza"
+fichero = "aura_skeleton/adapters/firmador_hc1.py"
+pruebas = ["tests/unit/test_firmador_hc1_endurecido.py"]
+buscar = '''while self._firmas and self._firmas[0] <= limite:'''
+sustituir = '''while False:'''
+
+[[mutante]]
+id = "M84"
+garantia = "B-3 el firmador arranca con un epoch menor que el último persistido"
+fichero = "aura_skeleton/adapters/firmador_hc1.py"
+pruebas = ["tests/unit/test_firmador_hc1_endurecido.py"]
+buscar = '''elif self._pol.epoch < ultimo:'''
+sustituir = '''elif False:'''
+
+[[mutante]]
+id = "M85"
+garantia = "B-3 el epoch no sube en cada arranque"
+fichero = "aura_skeleton/adapters/firmador_hc1.py"
+pruebas = ["tests/unit/test_firmador_hc1_endurecido.py"]
+buscar = '''efectivo = max(self._pol.epoch, ultimo + 1)'''
+sustituir = '''efectivo = self._pol.epoch'''
+
+[[mutante]]
+id = "M86"
+garantia = "B-3 el epoch no se persiste"
+fichero = "aura_skeleton/adapters/firmador_hc1.py"
+pruebas = ["tests/unit/test_firmador_hc1_endurecido.py"]
+buscar = '''anexar(fd, {"epoch": efectivo})'''
+sustituir = '''pass'''
+
+[[mutante]]
+id = "M87"
+garantia = "B-5 crear_servidor no distingue un objeto ajeno (fichero/enlace) de un socket propio residual"
+fichero = "aura_skeleton/adapters/firmador_hc1.py"
+pruebas = ["tests/unit/test_firmador_hc1_endurecido.py"]
+buscar = '''if not stat.S_ISSOCK(existente.st_mode) or existente.st_uid != os.getuid():'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "M88"
+garantia = "B-5 un socket residual MUERTO se trata como si estuviera vivo (o viceversa)"
+fichero = "aura_skeleton/adapters/firmador_hc1.py"
+pruebas = ["tests/unit/test_firmador_hc1_endurecido.py"]
+buscar = '''raise ErrorClave("socket residual de un arranque anterior: retírelo manualmente") from None'''
+sustituir = '''pass'''
+
+[[mutante]]
+id = "M89"
+garantia = "B-5 el log del firmador no verifica el enlace con la entrada anterior"
+fichero = "aura_skeleton/adapters/firmador_hc1.py"
+pruebas = ["tests/unit/test_firmador_hc1_endurecido.py"]
+buscar = '''ok = isinstance(entrada, dict) and entrada.get("prev") == previo'''
+sustituir = '''ok = isinstance(entrada, dict)'''
+
+[[mutante]]
+id = "M90"
+garantia = "B-5 el log del firmador no encadena cada entrada con la anterior"
+fichero = "aura_skeleton/adapters/firmador_hc1.py"
+pruebas = ["tests/unit/test_firmador_hc1_endurecido.py"]
+buscar = '''{**entrada, "prev": self._ultimo}'''
+sustituir = '''{**entrada}'''
+
+[[mutante]]
+id = "M91"
+garantia = "B-5 tras un reinicio el firmador no continúa la cadena del log"
+fichero = "aura_skeleton/adapters/firmador_hc1.py"
+pruebas = ["tests/unit/test_firmador_hc1_endurecido.py"]
+buscar = '''_, self._ultimo = verificar_cadena_log(self._log)'''
+sustituir = '''self._ultimo = CADENA_INICIAL'''

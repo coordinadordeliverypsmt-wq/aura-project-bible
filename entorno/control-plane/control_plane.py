@@ -48,6 +48,8 @@ import json
 import os
 import pathlib
 import re
+import secrets
+import stat
 import subprocess
 
 VERSION = 1
@@ -1271,6 +1273,7 @@ NO_CONCEDEN_ESTADO = frozenset({
     "registrar_evento_si",  # la misma primitiva, condicionada y atomica: NIEGA los mismos eventos
     "pedir_revision",       # mueve a WAITING_FOR_REVIEW o DECISION_REQUIRED; nunca a COMPLETED
     "esperar_por_cuota",    # mueve a WAITING_FOR_QUOTA; nunca a COMPLETED
+    "adoptar_ancla",        # crea el ancla de la cabeza del log (ancla_adoptada); no es un estado de tarea
     "registrar_planificada",  # constancia de INTENCION (tarea_planificada); rechaza si no es elegible; nunca concede
     # La maquinaria de vigilancia. **Nombra** las señales porque su trabajo es encontrarlas, asi que
     # se delata sola en cuanto el barrido se amplio a las privadas. Inspecciona; no concede nada.
@@ -1863,7 +1866,168 @@ def _retirar_cola_truncada(directorio: pathlib.Path, eventos: list[dict]) -> Non
             os.fsync(fh.fileno())
 
 
-def _registrar_sin_lock(directorio: pathlib.Path, tipo: str, datos: dict | None) -> dict:
+# ------------------------------------------------------------ ancla externa de la cabeza (D-LOG-1) --
+#
+# La cadena de hashes detecta una linea alterada o suprimida EN MEDIO, pero no que se borren los
+# ultimos eventos completos: lo que queda es una cadena perfecta, solo que mas corta. El ancla es un
+# fichero FUERA del directorio del log que guarda el ultimo `seq` confirmado y su hash. Protocolo (un
+# unico mecanismo, dentro de `_registrar_sin_lock` y por tanto bajo `lock_estado`):
+#
+#   append + fsync del evento  ->  actualizar el ancla (tmp + fsync + rename + fsync del directorio)
+#
+# Una caida entre ambos deja el ancla ATRASADA (el evento esta en el log, el ancla aun no lo dice): la
+# verificacion lo reconoce (el evento en el `seq` del ancla tiene ese hash y la cola es una extension
+# valida) y `reparar_ancla` o el siguiente escritor la adelantan. Nunca queda ADELANTADA por una caida.
+#
+# LIMITES, declarados (CLAUDE.md §5: nada «declarado != real»):
+#  * Autenticidad del origen NO garantizada: el ancla y el log son del mismo uid. Quien puede borrar la
+#    cola puede reescribir el ancla. Esto cubre fallos, restauraciones parciales y borrados
+#    accidentales, no a un atacante con el mismo usuario.
+#  * Restaurar solo el log antiguo SE detecta (el ancla esta por delante). Restaurar log Y ancla
+#    juntos NO se detecta.
+#  * Un log no vacio SIN ancla no se inicializa nunca en silencio: es `ancla_ausente` (no integro) hasta
+#    que una persona ejecuta `adoptar_ancla`, que deja constancia en el propio log.
+
+ANCLA_VERSION = 1
+_ENV_ANCLA_DIR = "AURA_ANCLA_DIR"
+
+
+class AnclaInconsistente(RuntimeError):
+    """El ancla y el log no concuerdan (truncamiento, hash distinto, ancla corrupta o de otro historial):
+    escribir encima reutilizaria `seq` ya anclados y perderia la evidencia. No se escribe."""
+
+
+def _dir_anclas() -> pathlib.Path:
+    """Fuera del repo y del directorio del log. `AURA_ANCLA_DIR` lo sobreescribe (pruebas)."""
+    base = os.environ.get(_ENV_ANCLA_DIR)
+    if base:
+        return pathlib.Path(base)
+    xdg = os.environ.get("XDG_STATE_HOME") or str(pathlib.Path.home() / ".local" / "state")
+    return pathlib.Path(xdg) / "aura" / "anclas"
+
+
+def ruta_ancla(directorio: pathlib.Path) -> pathlib.Path:
+    clave = hashlib.sha256(str(pathlib.Path(directorio).resolve()).encode()).hexdigest()[:16]
+    return _dir_anclas() / f"{clave}.json"
+
+
+def _asegurar_dir_ancla(ruta: pathlib.Path) -> None:
+    """0700 y propio. Solo se hace `chmod` de lo que se creo aqui; uno existente debe ser un directorio
+    real (no enlace) y del mismo usuario."""
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        os.mkdir(ruta, 0o700)
+        with contextlib.suppress(PermissionError):    # el confinamiento estricto niega chmod; mkdir ya es 0700
+            os.chmod(ruta, 0o700)                     # (el umask solo puede quitar bits, nunca anadir)
+        return
+    except FileExistsError:
+        pass
+    st = os.lstat(ruta)
+    if not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid():
+        raise AnclaInconsistente(f"{ruta} no es un directorio real y propio: no se escribe el ancla")
+
+
+def _escribir_ancla(directorio: pathlib.Path, evento: dict, genesis: str) -> None:
+    """Escritura ATOMICA del ancla: temporal 0600 con nombre unico, fsync, rename y fsync del directorio.
+    Un fallo en cualquier punto deja el ancla anterior intacta."""
+    ruta = ruta_ancla(directorio)
+    _asegurar_dir_ancla(ruta.parent)
+    contenido = {"version": ANCLA_VERSION,
+                 "historial": {"ruta": str(pathlib.Path(directorio).resolve()), "genesis": genesis},
+                 "seq": evento["seq"], "hash": evento["hash"], "momento": _ahora()}
+    tmp = ruta.with_name(f".{ruta.name}.{secrets.token_hex(4)}.tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps(contenido, sort_keys=True))
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, ruta)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            tmp.unlink()
+        raise
+    dfd = os.open(ruta.parent, os.O_RDONLY)
+    try:
+        os.fsync(dfd)
+    finally:
+        os.close(dfd)
+
+
+def _leer_ancla(directorio: pathlib.Path) -> tuple[str, dict | None]:
+    """`("ok", ancla)`, o `(codigo, None)` con `ancla_ausente` | `ancla_corrupta` | `ancla_incompatible`."""
+    ruta = ruta_ancla(directorio)
+    try:
+        bruto = ruta.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return "ancla_ausente", None
+    except (OSError, UnicodeDecodeError):
+        return "ancla_corrupta", None
+    try:
+        ancla = json.loads(bruto)
+    except ValueError:
+        return "ancla_corrupta", None
+    if not isinstance(ancla, dict):
+        return "ancla_corrupta", None
+    if isinstance(ancla.get("version"), int) and ancla["version"] != ANCLA_VERSION:
+        return "ancla_incompatible", None
+    historial = ancla.get("historial")
+    if (ancla.get("version") != ANCLA_VERSION or not isinstance(historial, dict)
+            or not isinstance(historial.get("ruta"), str) or not isinstance(historial.get("genesis"), str)
+            or not isinstance(ancla.get("seq"), int) or isinstance(ancla.get("seq"), bool)
+            or ancla["seq"] < 1 or not isinstance(ancla.get("hash"), str)):
+        return "ancla_corrupta", None
+    return "ok", ancla
+
+
+def _cotejar_ancla(directorio: pathlib.Path, eventos: list[dict], ancla: dict) -> str | None:
+    """`None` si el log concuerda con el ancla (al dia o atrasada); si no, el codigo del desacuerdo."""
+    if ancla["historial"]["ruta"] != str(pathlib.Path(directorio).resolve()):
+        return "ancla_de_otro_historial"
+    if not eventos or ancla["seq"] > len(eventos):
+        return "cola_mas_corta_que_el_ancla"
+    if ancla["historial"]["genesis"] != eventos[0].get("hash"):
+        return "ancla_de_otro_historial"
+    if eventos[ancla["seq"] - 1].get("hash") != ancla["hash"]:
+        return "hash_distinto_en_el_ancla"
+    return None
+
+
+def _defecto_de_cadena(eventos: list[dict], desde: int = 0) -> dict | None:
+    """El primer punto de ruptura de la cadena a partir de la posicion `desde`, o `None`."""
+    anterior = eventos[desde - 1]["hash"] if desde else None
+    for i in range(desde, len(eventos)):
+        evento = eventos[i]
+        if evento.get("seq") != i + 1:
+            return {"seq": evento.get("seq"), "motivo": f"la secuencia salta: se esperaba {i + 1}"}
+        if evento.get("hash_anterior") != anterior:
+            return {"seq": evento.get("seq"), "motivo": "la cadena no enlaza con el evento anterior"}
+        if evento.get("hash") != _hash_de(evento):
+            return {"seq": evento.get("seq"), "motivo": "el contenido no coincide con su hash"}
+        anterior = evento["hash"]
+    return None
+
+
+def _ancla_antes_de_escribir(directorio: pathlib.Path, previos: list[dict]) -> str | None:
+    """Comprueba (bajo el cerrojo) que se puede escribir encima del log. Devuelve `"anclar"` si el ancla
+    debe actualizarse tras el evento y `None` si no hay ancla que mantener (log no vacio sin ancla: no se
+    inicializa en silencio). Lanza `AnclaInconsistente` si el log no concuerda con su ancla."""
+    estado, ancla = _leer_ancla(directorio)
+    if estado == "ancla_ausente":
+        return None if previos else "anclar"
+    if ancla is None:
+        raise AnclaInconsistente(f"{estado}: no se escribe sobre un log cuyo ancla no se puede creer")
+    codigo = _cotejar_ancla(directorio, previos, ancla)
+    if codigo is None:
+        defecto = _defecto_de_cadena(previos, desde=ancla["seq"])
+        codigo = "cola_no_valida_tras_el_ancla" if defecto else None
+    if codigo is not None:
+        raise AnclaInconsistente(f"{codigo}: el log no concuerda con su ancla externa; no se escribe")
+    return "anclar"
+
+
+def _registrar_sin_lock(directorio: pathlib.Path, tipo: str, datos: dict | None,
+                        adoptando: bool = False) -> dict:
     previos, cola_truncada = _leer_con_cola(directorio)
     if cola_truncada:
         # El descarte es un hecho del sistema y va al propio historial: un log que se repara solo y
@@ -1872,6 +2036,7 @@ def _registrar_sin_lock(directorio: pathlib.Path, tipo: str, datos: dict | None)
         previos = [_registrar_sin_lock(directorio, "linea_truncada_descartada",
                                        {"eventos_validos": len(previos)})]
         previos = leer_eventos(directorio)
+    anclar = "anclar" if adoptando else _ancla_antes_de_escribir(directorio, previos)
     evento = {
         "seq": previos[-1]["seq"] + 1 if previos else 1,
         "tipo": tipo,
@@ -1886,6 +2051,8 @@ def _registrar_sin_lock(directorio: pathlib.Path, tipo: str, datos: dict | None)
         fh.write(_canonico(evento) + "\n")
         fh.flush()
         os.fsync(fh.fileno())
+    if anclar:
+        _escribir_ancla(directorio, evento, previos[0]["hash"] if previos else evento["hash"])
     return evento
 
 
@@ -1938,42 +2105,120 @@ def registrar_evento(directorio: pathlib.Path, tipo: str, datos: dict | None = N
         return _registrar_sin_lock(directorio, tipo, datos)
 
 
-def registrar_evento_si(directorio: pathlib.Path, tipo: str, datos: dict | None, condicion) -> dict | None:
+def registrar_evento_si(directorio: pathlib.Path, tipo: str, datos: dict | None, condicion,
+                        derivar=None) -> dict | None:
     """**Comprobar y anadir, atomicamente.** `condicion()` se evalua **con el cerrojo del log tomado**, y el evento
     solo se anade si devuelve verdadero; si no, devuelve `None` y no escribe nada.
 
     Existe para que nadie fuera de este modulo necesite `_registrar_sin_lock`, que **no** aplica la guardia de
     `EVENTOS_GOBERNADOS` (DP-RECUPERACION-TRAS-CAIDAS: dos supervisores no pueden planificar la misma tarea).
     Niega los eventos gobernados igual que `registrar_evento`, **antes** de evaluar la condicion. `condicion` puede
-    leer el log (`leer_eventos` no toma el cerrojo) pero no debe escribir: el cerrojo no es reentrante."""
+    leer el log (`leer_eventos` no toma el cerrojo) pero no debe escribir: el cerrojo no es reentrante.
+
+    `derivar` (opcional, DP-AUTOCONSTRUCCION D3): si se da, se llama **con el cerrojo tomado y tras la
+    condicion** y su resultado (un dict) sustituye a `datos`. Permite calcular un dato que depende del log
+    (p. ej. el siguiente `P-NNN`) y anadirlo sin que otro escritor se interponga. Igual que `condicion`,
+    puede leer pero no escribir. Sin primitiva nueva: el mismo cerrojo y el mismo escritor."""
     if tipo in EVENTOS_GOBERNADOS:
         _negar_gobernado(tipo)
     with lock_estado(directorio):
         if not condicion():
             return None
+        if derivar is not None:
+            datos = derivar()
         return _registrar_sin_lock(directorio, tipo, datos)
 
 
 def verificar_integridad_log(directorio: pathlib.Path) -> dict:
-    """Recorre la cadena entera. Devuelve el primer punto de ruptura, no solo un booleano: saber
-    *que* linea rompio es la diferencia entre poder investigar y solo saber que algo pasa."""
+    """Recorre la cadena entera Y la coteja con el ancla externa de la cabeza (D-LOG-1). Devuelve el primer
+    punto de ruptura, no solo un booleano: saber *que* linea rompio es la diferencia entre poder
+    investigar y solo saber que algo pasa.
+
+    Se distinguen cuatro cosas, y `integro` es la conjuncion de las dos primeras:
+
+    * `integridad_eventos`: seq continuo, `hash_anterior` y hash de cada evento.
+    * `completitud`: la cola llega al ancla (y el hash coincide en el `seq` anclado). Un truncamiento
+      deja la cadena perfecta pero mas corta: solo el ancla lo delata.
+    * `autenticidad_origen`: **`no_garantizada`**. El ancla y el log son del mismo uid; quien puede
+      borrar la cola puede reescribir el ancla.
+    * `restauracion_conjunta_log_y_ancla`: **`no_detectable`**. Restaurar solo el log antiguo si se
+      detecta; restaurar log y ancla juntos, no.
+
+    Un log no vacio SIN ancla no es integro (`ancla_ausente`): jamas se inicializa en silencio. El ancla
+    se lee ANTES que los eventos: un escritor concurrente solo puede dejarla por detras de lo leido
+    (anade el evento y despues la mueve), nunca por delante, asi que no hay falsos truncamientos."""
+    directorio = pathlib.Path(directorio)
+    estado_ancla, ancla = _leer_ancla(directorio)
     eventos, cola_truncada = _leer_con_cola(directorio)
-    anterior = None
-    for i, evento in enumerate(eventos):
-        esperado = i + 1
-        if evento.get("seq") != esperado:
-            return {"integro": False, "cola_truncada": cola_truncada, "seq": evento.get("seq"),
-                    "motivo": f"la secuencia salta: se esperaba {esperado}"}
-        if evento.get("hash_anterior") != anterior:
-            return {"integro": False, "cola_truncada": cola_truncada, "seq": evento.get("seq"),
-                    "motivo": "la cadena no enlaza con el evento anterior"}
-        if evento.get("hash") != _hash_de(evento):
-            return {"integro": False, "cola_truncada": cola_truncada, "seq": evento.get("seq"),
-                    "motivo": "el contenido no coincide con su hash"}
-        anterior = evento["hash"]
-    return {"integro": True, "eventos": len(eventos), "cola_truncada": cola_truncada,
-            "motivo": "cadena completa" + (" (con una cola truncada por descartar)"
-                                           if cola_truncada else "")}
+    limites = {"autenticidad_origen": "no_garantizada",
+               "restauracion_conjunta_log_y_ancla": "no_detectable"}
+    defecto = _defecto_de_cadena(eventos)
+    if defecto is not None:
+        return {"integro": False, "cola_truncada": cola_truncada, "seq": defecto["seq"],
+                "motivo": defecto["motivo"], "motivo_codigo": "cadena_rota",
+                "integridad_eventos": False, "completitud": None, "eventos": len(eventos),
+                "ancla": {"presente": ancla is not None}, **limites}
+    base = {"cola_truncada": cola_truncada, "eventos": len(eventos), "integridad_eventos": True,
+            **limites}
+    sufijo = " (con una cola truncada por descartar)" if cola_truncada else ""
+    if ancla is None:
+        if estado_ancla == "ancla_ausente" and not eventos:
+            return {**base, "integro": True, "completitud": True, "ancla": {"presente": False},
+                    "motivo": "log vacio" + sufijo}
+        return {**base, "integro": False, "completitud": False, "motivo_codigo": estado_ancla,
+                "ancla": {"presente": estado_ancla != "ancla_ausente"},
+                "motivo": f"{estado_ancla}: la cabeza del log no esta anclada fuera de el"}
+    codigo = _cotejar_ancla(directorio, eventos, ancla)
+    if codigo is not None:
+        return {**base, "integro": False, "completitud": False, "motivo_codigo": codigo,
+                "seq_ancla": ancla["seq"], "ancla": {"presente": True, "seq": ancla["seq"]},
+                "motivo": f"{codigo}: el ancla dice seq {ancla['seq']} y el log tiene {len(eventos)} eventos"}
+    sin_anclar = len(eventos) - ancla["seq"]
+    return {**base, "integro": True, "completitud": True, "motivo": "cadena completa" + sufijo,
+            "ancla": {"presente": True, "seq": ancla["seq"], "atrasada": sin_anclar > 0,
+                      "eventos_sin_anclar": sin_anclar}}
+
+
+def reparar_ancla(directorio: pathlib.Path) -> dict:
+    """Adelanta un ancla ATRASADA (caida entre escribir el evento y anclarlo). **Idempotente**, **solo
+    avanza** y solo si la cadena es valida y concuerda con el ancla: jamas baja el ancla para tapar un
+    truncamiento, y no la crea si falta (eso es `adoptar_ancla`, decision de una persona)."""
+    directorio = pathlib.Path(directorio)
+    with lock_estado(directorio):
+        eventos, _ = _leer_con_cola(directorio)
+        if _defecto_de_cadena(eventos) is not None:
+            return {"reparada": False, "motivo_codigo": "cadena_rota"}
+        estado, ancla = _leer_ancla(directorio)
+        if ancla is None:
+            return {"reparada": False, "motivo_codigo": estado}
+        codigo = _cotejar_ancla(directorio, eventos, ancla)
+        if codigo is not None:
+            return {"reparada": False, "motivo_codigo": codigo}
+        if ancla["seq"] == len(eventos):
+            return {"reparada": False, "motivo_codigo": "ancla_al_dia"}
+        _escribir_ancla(directorio, eventos[-1], eventos[0]["hash"])
+        return {"reparada": True, "desde": ancla["seq"], "hasta": len(eventos)}
+
+
+def adoptar_ancla(directorio: pathlib.Path, por: str, motivo: str, reemplazar: bool = False) -> dict:
+    """Crea el ancla de un log que no la tiene (despliegue sobre un log existente): decision EXPLICITA de
+    `por`, con `motivo`, y queda constancia en el propio log (`ancla_adoptada`). Exige cadena valida. Si ya
+    hay un ancla (aunque este corrupta o en desacuerdo) solo se sustituye con `reemplazar=True`: de lo
+    contrario seria la forma de tapar un truncamiento."""
+    if not isinstance(por, str) or not por.strip() or not isinstance(motivo, str) or not motivo.strip():
+        raise ValueError("adoptar_ancla exige quien (`por`) y por que (`motivo`)")
+    directorio = pathlib.Path(directorio)
+    with lock_estado(directorio):
+        eventos, _ = _leer_con_cola(directorio)
+        if _defecto_de_cadena(eventos) is not None:
+            raise AnclaInconsistente("la cadena del log esta rota: no se ancla una cabeza que no se puede creer")
+        estado, _ancla = _leer_ancla(directorio)
+        if estado != "ancla_ausente" and not reemplazar:
+            raise AnclaInconsistente(f"ya existe un ancla ({estado}): sustituirla exige reemplazar=True")
+        evento = _registrar_sin_lock(directorio, "ancla_adoptada",
+                                     {"por": por, "motivo": motivo, "eventos_previos": len(eventos),
+                                      "ancla_previa": estado}, adoptando=True)
+        return {"adoptada": True, "seq": evento["seq"]}
 
 
 # ------------------------------------------------------------------ proyeccion (C2) --

@@ -67,3 +67,10 @@ def _sin_red_real_por_defecto(monkeypatch, tmp_path_factory):
     `AURA_RED` explicito (`test_cli_nodos.py`, `test_nodo_e2e_nats.py`).
     """
     monkeypatch.setattr("aura_skeleton.__main__._RED_POR_DEFECTO", str(tmp_path_factory.mktemp("aura-red-por-defecto")))
+
+
+@pytest.fixture(autouse=True)
+def _anclas_del_log_en_un_temporal(tmp_path_factory, monkeypatch):
+    """D-LOG-1 · Ninguna prueba escribe el ancla externa del log del control-plane en el estado real
+    (`~/.local/state/aura/anclas`). El ancla vive fuera del directorio del log."""
+    monkeypatch.setenv("AURA_ANCLA_DIR", str(tmp_path_factory.mktemp("anclas") / "anclas"))

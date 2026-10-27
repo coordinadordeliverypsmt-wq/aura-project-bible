@@ -69,3 +69,13 @@ def blindar_el_estado_de_produccion(request):
         pytest.fail(f"la prueba {request.node.name!r} modifico el estado de produccion "
                     f"({RUTA_PRODUCCION}) por una via que la intercepcion no cubre. "
                     f"El fichero se ha RESTAURADO desde el respaldo previo a la prueba.")
+
+
+@pytest.fixture(autouse=True)
+def anclas_del_log_en_un_temporal(tmp_path_factory, monkeypatch):
+    """D-LOG-1 · Ninguna prueba escribe anclas en `~/.local/state/aura/anclas`.
+
+    El ancla externa del log vive fuera del directorio del log; sin esto, cada prueba que registra un
+    evento dejaria un fichero en el estado real del usuario. El subdirectorio NO se crea aqui: lo crea
+    el codigo con 0700, que es lo que algunas pruebas comprueban."""
+    monkeypatch.setenv("AURA_ANCLA_DIR", str(tmp_path_factory.mktemp("anclas") / "anclas"))

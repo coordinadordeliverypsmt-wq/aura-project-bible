@@ -19,7 +19,7 @@ from aura_skeleton.core.delegacion import (
 )
 from aura_skeleton.core.delegacion_hc1 import Estado, SeguimientoHC1
 from aura_skeleton.core.delegacion_nodo import NodoDelegado
-from tests.delegacion_apoyo import NODO, OTRO_NODO, Mundo, campos_validos, firmante_orden, mundo
+from tests.delegacion_apoyo import NODO, OTRO_NODO, Mundo, RegistroSintetico, campos_validos, firmante_orden, mundo
 
 
 class Escena:
@@ -29,7 +29,7 @@ class Escena:
         self.nodo = NodoDelegado(
             self.m.politica(), self.m.verificador_hc1(), AlmacenConsumidas(tmp_path / "nodo"), self.m.nodo.firmar
         )
-        self.registro: list[dict[str, Any]] = []
+        self.registro = RegistroSintetico()
 
     def emitir(self, **cambios: Any) -> tuple[bytes, dict[str, Any]]:
         campos = campos_validos(**cambios)
@@ -86,7 +86,7 @@ def test_ciclo_completo_solo_el_ultimo_estado_cuenta_como_completada(esc: Escena
     assert ej.estado is Estado.RESULTADO_FIRMADO and not ej.completada
     assert esc.hc1.validar(ident) is True
     assert ej.estado is Estado.VALIDADO and not ej.completada
-    esc.hc1.incorporar(ident, esc.registro.append)
+    esc.hc1.incorporar(ident, esc.registro)
     assert ej.estado is Estado.INCORPORADO and ej.completada
     assert len(esc.registro) == 1 and esc.registro[0]["verificado"] is True
     assert esc.registro[0]["hash_tarea"] == ej.hash_tarea
@@ -211,14 +211,14 @@ def test_el_nodo_miente_hc1_lo_detecta_con_su_verificador_y_nunca_incorpora(esc:
     assert esc.hc1.validar(ident) is False
     ej = esc.hc1.ejecucion(ident)
     assert ej is not None and ej.estado is Estado.VERIFICACION_FALLIDA and not ej.completada
-    assert _rechazo(esc.hc1.incorporar, ident, esc.registro.append) is Motivo.EJECUCION_NO_EN_CURSO
+    assert _rechazo(esc.hc1.incorporar, ident, esc.registro) is Motivo.EJECUCION_NO_EN_CURSO
     assert esc.registro == []
 
 
 def test_no_se_incorpora_lo_no_validado(esc: Escena) -> None:
     ident, _, res = esc.ciclo_hasta_resultado()
     esc.hc1.recibir_resultado(res, NODO)
-    assert _rechazo(esc.hc1.incorporar, ident, esc.registro.append) is Motivo.EJECUCION_NO_EN_CURSO
+    assert _rechazo(esc.hc1.incorporar, ident, esc.registro) is Motivo.EJECUCION_NO_EN_CURSO
     assert esc.registro == []
 
 
@@ -227,14 +227,17 @@ def test_si_el_registro_falla_la_ejecucion_sigue_validada_y_se_repite_n6(esc: Es
     esc.hc1.recibir_resultado(res, NODO)
     esc.hc1.validar(ident)
 
-    def cae(_: dict[str, Any]) -> None:
-        raise OSError("disco lleno")
+    class Cae(RegistroSintetico):
+        def __call__(self, hecho: dict[str, Any]) -> None:
+            raise OSError("disco lleno")
+
+    cae = Cae()
 
     with pytest.raises(OSError):
         esc.hc1.incorporar(ident, cae)
     ej = esc.hc1.ejecucion(ident)
-    assert ej is not None and ej.estado is Estado.VALIDADO and not ej.completada
-    esc.hc1.incorporar(ident, esc.registro.append)  # reintento tras la recuperación
+    assert ej is not None and ej.estado is Estado.INCORPORANDO and not ej.completada  # C1: explícito, no «validado»
+    esc.hc1.incorporar(ident, esc.registro)  # reintento tras la recuperación
     assert ej.completada
 
 

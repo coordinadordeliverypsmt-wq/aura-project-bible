@@ -27,7 +27,18 @@ from aura_skeleton.core.delegacion import (
 )
 from aura_skeleton.core.delegacion_hc1 import Estado, SeguimientoHC1
 from aura_skeleton.core.delegacion_nodo import NodoDelegado
-from tests.delegacion_apoyo import NODO, OTRO_NODO, T0, AlmacenMemoria, Mundo, campos_validos, firmante_orden, mundo
+from tests.delegacion_apoyo import (
+    KID_AUTORIDAD,
+    NODO,
+    OTRO_NODO,
+    T0,
+    AlmacenMemoria,
+    Mundo,
+    RegistroSintetico,
+    campos_validos,
+    firmante_orden,
+    mundo,
+)
 
 
 class Escena:
@@ -43,8 +54,13 @@ class Escena:
         )
 
     def reiniciar_hc1(self, **kw: Any) -> SeguimientoHC1:
+        autoridad = {
+            "verificar_autoridad": self.m.verificador_autoridad(),
+            "kids_autoridad": frozenset({KID_AUTORIDAD}),
+            "kid_hc1": "hc1-k1",
+        }
         self.hc1 = SeguimientoHC1(
-            self.m.verificador_nodos(), self.m.reloj, diario=DiarioHC1(self.dir), **{**self.kw, **kw}
+            self.m.verificador_nodos(), self.m.reloj, diario=DiarioHC1(self.dir), **{**autoridad, **self.kw, **kw}
         )
         return self.hc1
 
@@ -151,7 +167,7 @@ def test_cada_estado_sobrevive_a_un_reinicio(tmp_path: Path) -> None:
     reiniciar_y_comprobar(Estado.RESULTADO_FIRMADO)
     assert esc.hc1.validar(ident) is True
     reiniciar_y_comprobar(Estado.VALIDADO)
-    esc.hc1.incorporar(ident, lambda _: None)
+    esc.hc1.incorporar(ident, RegistroSintetico())
     reiniciar_y_comprobar(Estado.INCORPORADO)
     assert esc.hc1.ejecucion(ident).completada  # type: ignore[union-attr]
     assert len(visto) == 5
@@ -165,8 +181,8 @@ def test_el_resultado_posterior_al_reinicio_se_procesa_contra_el_estado_recupera
     h.recibir_acuse(acuse, NODO)
     h.recibir_resultado(res, NODO)
     assert h.validar(ident) is True
-    registro: list[dict[str, Any]] = []
-    h.incorporar(ident, registro.append)
+    registro = RegistroSintetico()
+    h.incorporar(ident, registro)
     assert len(registro) == 1 and registro[0]["id_ejecucion"] == ident
     h2 = esc.reiniciar_hc1()
     with pytest.raises(RechazoOrden) as e:
@@ -270,7 +286,7 @@ def _ambigua(esc: Escena, tarea: str = "t-001") -> tuple[str, bytes, bytes]:
 
 
 def test_un_resultado_tardio_tras_ambiguo_no_se_acepta_solo(tmp_path: Path) -> None:
-    esc = Escena(tmp_path, autoridades=frozenset({"mauricio"}))
+    esc = Escena(tmp_path)
     ident, res, _ = _ambigua(esc)
     with pytest.raises(RechazoOrden) as e:
         esc.hc1.recibir_resultado(res, NODO)
@@ -278,31 +294,30 @@ def test_un_resultado_tardio_tras_ambiguo_no_se_acepta_solo(tmp_path: Path) -> N
     assert _estado(esc.hc1, ident) is Estado.AMBIGUO
 
 
-def test_resolver_ambigua_exige_autoridad_declarada(tmp_path: Path) -> None:
-    esc = Escena(tmp_path, autoridades=frozenset({"mauricio"}))
+def test_resolver_ambigua_exige_autorizacion_firmada_de_la_autoridad(tmp_path: Path) -> None:
+    esc = Escena(tmp_path)
     ident, res, _ = _ambigua(esc)
-    for intruso in ("intruso", "", "MAURICIO", None):
+    for no_autorizacion in ("mauricio", "", b"mauricio", b"{}"):  # una cadena (`por`) ya no basta
         with pytest.raises(RechazoOrden) as e:
-            esc.hc1.resolver_ambigua(ident, intruso, "lo apruebo", res)  # type: ignore[arg-type]
-        assert e.value.motivo is Motivo.SIN_AUTORIDAD
+            esc.hc1.resolver_ambigua(ident, no_autorizacion, res)  # type: ignore[arg-type]
+        assert e.value.motivo is Motivo.SOBRE_MALFORMADO
     assert _estado(esc.hc1, ident) is Estado.AMBIGUO  # nada cambió
-    ej = esc.hc1.resolver_ambigua(ident, "mauricio", "el nodo guardó el resultado firmado", res)  # control
-    assert ej.estado is Estado.RESULTADO_FIRMADO and ej.resuelta_por == "mauricio"
-    sin_autoridades = Escena(tmp_path / "otra")  # por defecto NADIE puede resolver
-    ident2, res2, _ = _ambigua(sin_autoridades)
+    ej = esc.hc1.resolver_ambigua(ident, esc.m.autorizacion(ident), res)  # control
+    assert ej.estado is Estado.RESULTADO_FIRMADO and ej.resuelta_por == KID_AUTORIDAD
+    sin_autoridades = Escena(tmp_path / "otra", kids_autoridad=frozenset(), verificar_autoridad=None)
+    ident2, res2, _ = _ambigua(sin_autoridades)  # sin autoridad configurada NADIE puede resolver
     with pytest.raises(RechazoOrden) as e2:
-        sin_autoridades.hc1.resolver_ambigua(ident2, "mauricio", "x", res2)
+        sin_autoridades.hc1.resolver_ambigua(ident2, sin_autoridades.m.autorizacion(ident2), res2)
     assert e2.value.motivo is Motivo.SIN_AUTORIDAD
 
 
-def test_resolver_ambigua_valida_firma_y_vinculo_y_exige_motivo(tmp_path: Path) -> None:
-    esc = Escena(tmp_path, autoridades=frozenset({"mauricio"}))
+def test_resolver_ambigua_valida_firma_y_vinculo_del_resultado(tmp_path: Path) -> None:
+    esc = Escena(tmp_path)
     ident, res, _ = _ambigua(esc)
-    resolver = lambda r, motivo="m": esc.hc1.resolver_ambigua(ident, "mauricio", motivo, r)  # noqa: E731
 
-    def motivo_de(r: bytes, motivo: str = "m") -> Motivo:
+    def motivo_de(r: bytes) -> Motivo:
         with pytest.raises(RechazoOrden) as e:
-            resolver(r, motivo)
+            esc.hc1.resolver_ambigua(ident, esc.m.autorizacion(ident), r)
         return e.value.motivo
 
     ab = abrir_sobre(res)
@@ -312,7 +327,6 @@ def test_resolver_ambigua_valida_firma_y_vinculo_y_exige_motivo(tmp_path: Path) 
         motivo_de(empaquetar_sobre(ab.kid, ab.payload.replace(b'"salida":"', b'"salida":"0'), ab.firma))
         is Motivo.FIRMA_INVALIDA
     )
-    assert motivo_de(res, "") is Motivo.CAMPO_INVALIDO and motivo_de(res, "  ") is Motivo.CAMPO_INVALIDO
     base = json.loads(ab.payload)
     otro_hash = esc.m.nodo.firmar(DOMINIO_RESULTADO, bytes_canonicos({**base, "hash_tarea": "e" * 64}))
     assert motivo_de(otro_hash) is Motivo.HASH_NO_CORRESPONDE
@@ -323,49 +337,51 @@ def test_resolver_ambigua_valida_firma_y_vinculo_y_exige_motivo(tmp_path: Path) 
     de_otro_nodo = esc.m.otro_nodo.firmar(DOMINIO_RESULTADO, bytes_canonicos({**base, "id_nodo": OTRO_NODO}))
     assert motivo_de(de_otro_nodo) in (Motivo.KID_DESCONOCIDO, Motivo.NODO_AJENO)
     assert _estado(esc.hc1, ident) is Estado.AMBIGUO
-    assert resolver(res).estado is Estado.RESULTADO_FIRMADO  # control: el resultado auténtico y vinculado sí
+    ej = esc.hc1.resolver_ambigua(ident, esc.m.autorizacion(ident), res)  # control: el auténtico y vinculado sí
+    assert ej.estado is Estado.RESULTADO_FIRMADO
 
 
 def test_resolver_ambigua_no_acepta_el_resultado_de_otra_ejecucion_del_mismo_nodo(tmp_path: Path) -> None:
-    esc = Escena(tmp_path, autoridades=frozenset({"mauricio"}))
+    esc = Escena(tmp_path)
     id_a, res_a, _ = _ambigua(esc, "t-a")
     id_b, res_b, _ = _ambigua(esc, "t-b")
     with pytest.raises(RechazoOrden) as e:
-        esc.hc1.resolver_ambigua(id_a, "mauricio", "m", res_b)  # firma válida del MISMO nodo, pero de OTRA orden
+        esc.hc1.resolver_ambigua(id_a, esc.m.autorizacion(id_a), res_b)  # firma válida del MISMO nodo, OTRA orden
     assert e.value.motivo is Motivo.VINCULO_ROTO
     assert _estado(esc.hc1, id_a) is Estado.AMBIGUO and _estado(esc.hc1, id_b) is Estado.AMBIGUO
-    assert esc.hc1.resolver_ambigua(id_a, "mauricio", "m", res_a).estado is Estado.RESULTADO_FIRMADO  # control
+    assert esc.hc1.resolver_ambigua(id_a, esc.m.autorizacion(id_a), res_a).estado is Estado.RESULTADO_FIRMADO
     assert _estado(esc.hc1, id_b) is Estado.AMBIGUO
 
 
 def test_resolver_ambigua_solo_vale_para_ambiguas_o_interrumpidas(tmp_path: Path) -> None:
-    esc = Escena(tmp_path, autoridades=frozenset({"mauricio"}))
+    esc = Escena(tmp_path)
     sobre, ident = esc.emitir()
     acuse, res = esc.nodo_responde(sobre)
     esc.hc1.recibir_acuse(acuse, NODO)  # ACEPTADA: está en curso, no ambigua
     with pytest.raises(RechazoOrden) as e:
-        esc.hc1.resolver_ambigua(ident, "mauricio", "m", res)
+        esc.hc1.resolver_ambigua(ident, esc.m.autorizacion(ident), res)
     assert e.value.motivo is Motivo.EJECUCION_NO_EN_CURSO
+    desconocida = "11111111-1111-4111-8111-111111111111"
     with pytest.raises(RechazoOrden) as e2:
-        esc.hc1.resolver_ambigua("11111111-1111-4111-8111-111111111111", "mauricio", "m", res)
+        esc.hc1.resolver_ambigua(desconocida, esc.m.autorizacion(desconocida), res)
     assert e2.value.motivo is Motivo.EJECUCION_DESCONOCIDA
 
 
 def test_la_resolucion_se_registra_persistentemente_y_sigue_el_camino_normal(tmp_path: Path) -> None:
-    esc = Escena(tmp_path, autoridades=frozenset({"mauricio"}))
+    esc = Escena(tmp_path)
     ident, res, _ = _ambigua(esc)
-    esc.hc1.resolver_ambigua(ident, "mauricio", "reenvío manual", res)
+    esc.hc1.resolver_ambigua(ident, esc.m.autorizacion(ident, motivo="reenvío manual"), res)
     h = esc.reiniciar_hc1()
     ej = h.ejecucion(ident)
     assert ej is not None and ej.estado is Estado.RESULTADO_FIRMADO
-    assert (ej.resuelta_por, ej.motivo_resolucion) == ("mauricio", "reenvío manual")
+    assert (ej.resuelta_por, ej.motivo_resolucion) == (KID_AUTORIDAD, "reenvío manual")
     lineas = [json.loads(x) for x in (tmp_path / "hc1" / NOMBRE).read_text().splitlines()]
     resol = [x for x in lineas if x["ev"] == "resolucion"]
-    assert len(resol) == 1 and resol[0]["por"] == "mauricio" and resol[0]["motivo"] == "reenvío manual"
-    assert base64.b64decode(resol[0]["sobre"]) == res
+    assert len(resol) == 1 and base64.b64decode(resol[0]["sobre"]) == res
+    assert abrir_sobre(base64.b64decode(resol[0]["autorizacion"])).kid == KID_AUTORIDAD
     assert h.validar(ident) is True  # y aún hay que validar con el verificador PROPIO antes de incorporar
     assert not ej.completada
-    h.incorporar(ident, lambda _: None)
+    h.incorporar(ident, RegistroSintetico())
     assert ej.completada
 
 

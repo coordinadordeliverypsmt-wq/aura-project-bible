@@ -53,7 +53,7 @@ class Contador:
 @pytest.fixture
 def contador(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Contador:
     cont = Contador(tmp_path / "ejecuciones.cuenta")
-    cap = Capacidad("calcular_resumen_sha256", lambda a: dict(a), cont.ejecutar, lambda a, s: True)
+    cap = Capacidad("calcular_resumen_sha256", lambda a: dict(a), cont.ejecutar, lambda a, s: True, idempotente=True)
     monkeypatch.setattr(delegacion_nodo, "CAPACIDADES", {"calcular_resumen_sha256": cap})
     return cont
 
@@ -147,7 +147,7 @@ def test_una_ejecucion_que_falla_queda_fallida_y_no_se_reintenta_sola(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     cont = Contador(tmp_path / "cuenta", falla=True)
-    cap = Capacidad("calcular_resumen_sha256", lambda a: dict(a), cont.ejecutar, lambda a, s: True)
+    cap = Capacidad("calcular_resumen_sha256", lambda a: dict(a), cont.ejecutar, lambda a, s: True, idempotente=True)
     monkeypatch.setattr(delegacion_nodo, "CAPACIDADES", {"calcular_resumen_sha256": cap})
     e = Escena(tmp_path)
     ac = e.nodo.aceptar(e.sobre)
@@ -226,7 +226,7 @@ def _ejecutar_en_proceso(args: tuple[str, str], q: Any, orden: Any, ruta_cuenta:
     cont = Contador(Path(ruta_cuenta))
     dn.CAPACIDADES = {  # type: ignore[assignment,misc]
         "calcular_resumen_sha256": Capacidad(
-            "calcular_resumen_sha256", lambda a: dict(a), cont.ejecutar, lambda a, s: True
+            "calcular_resumen_sha256", lambda a: dict(a), cont.ejecutar, lambda a, s: True, idempotente=True
         )
     }
     m = mundo()

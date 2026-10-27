@@ -141,13 +141,19 @@ def test_b3_limite_de_tasa_con_ventana_rechaza_y_registra(tmp_path: Path) -> Non
     assert [x["tipo"] for x in _log(log)].count("firma") == 4
 
 
-def test_b3_los_rechazos_de_politica_no_consumen_cupo_de_tasa(tmp_path: Path) -> None:
-    fm, _ = _firmador(tmp_path, tasa_max=2, tasa_ventana_s=60.0)
-    for _ in range(5):
+def test_bajo_c_los_rechazos_de_politica_consumen_cupo_de_tasa(tmp_path: Path) -> None:
+    """Antes (B-3) los rechazos NO gastaban cupo; la revisión 2 lo corrige: inundar con peticiones inválidas se frena."""
+    reloj = Reloj(1000.0)
+    fm, _ = _firmador(tmp_path, reloj, tasa_max=2, tasa_ventana_s=60.0)
+    for _ in range(2):  # los dos primeros rechazos de política gastan el cupo...
         with pytest.raises(RechazoOrden) as e:
             fm.firmar({**PET, "capacidad": "ejecutar_comando"})
         assert e.value.motivo is Motivo.CAPACIDAD_NO_REGISTRADA
-    assert fm.firmar(PET) and fm.firmar(PET)  # el cupo estaba intacto
+    with pytest.raises(RechazoOrden) as e2:
+        fm.firmar(PET)  # ...y una petición VÁLIDA ya no cabe
+    assert e2.value.motivo is Motivo.TASA_EXCEDIDA
+    reloj.t = 1060.0  # control: pasada la ventana, el cupo vuelve
+    assert fm.firmar(PET)
 
 
 def test_b3_tasa_invalida_se_rechaza_al_construir(tmp_path: Path) -> None:

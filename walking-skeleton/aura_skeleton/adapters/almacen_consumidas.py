@@ -62,22 +62,31 @@ class AlmacenConsumidas:
 
     # -- consumo de órdenes ---------------------------------------------------------------------------------
     def _leer_consumidas(self, fd: int) -> tuple[set[str], int]:
+        ids, epoch, _ = self._leer_consumidas_con_hash(fd)
+        return ids, epoch
+
+    def _leer_consumidas_con_hash(self, fd: int) -> tuple[set[str], int, dict[str, str | None]]:
         try:
             registros, descartados = leer_registros(fd)
         except ErrorDurable as e:
             raise _ilegible(str(e)) from e
         self.bytes_recuperados += descartados
         ids: set[str] = set()
+        hashes: dict[str, str | None] = {}
         epoch = -1
         for o in registros:
-            ident, ep = o.get("id"), o.get("epoch")
+            ident, ep, h = o.get("id"), o.get("epoch"), o.get("hash")
             if not isinstance(ident, str) or not isinstance(ep, int) or isinstance(ep, bool):
                 raise _ilegible("línea inválida")
+            if h is not None and not isinstance(h, str):
+                raise _ilegible("línea inválida")
             ids.add(ident)
+            hashes[ident] = h
             epoch = max(epoch, ep)
-        return ids, epoch
+        return ids, epoch, hashes
 
-    def consumir(self, id_ejecucion: str, epoch: int) -> None:
+    def consumir(self, id_ejecucion: str, epoch: int, hash_tarea: str | None = None) -> None:
+        """Consumo durable. El `hash_tarea` (sha256 de los bytes firmados) queda LIGADO al consumo (BAJO b)."""
         with self._hilo:
             try:
                 with abrir_bloqueado(self._ruta) as fd:
@@ -86,7 +95,19 @@ class AlmacenConsumidas:
                         raise RechazoOrden(Motivo.EPOCH_ANTIGUO, "epoch_hc1")
                     if id_ejecucion in ids:
                         raise RechazoOrden(Motivo.ORDEN_REPETIDA, "id_ejecucion")
-                    anexar(fd, {"id": id_ejecucion, "epoch": epoch})
+                    registro: dict[str, Any] = {"id": id_ejecucion, "epoch": epoch}
+                    if hash_tarea is not None:
+                        registro["hash"] = hash_tarea
+                    anexar(fd, registro)
+            except ErrorDurable as e:
+                raise _ilegible(str(e)) from e
+
+    def hash_consumido(self, id_ejecucion: str) -> str | None:
+        """El `hash_tarea` ligado al consumo de esa orden, o `None` si no se consumió (o se consumió sin hash)."""
+        with self._hilo:
+            try:
+                with abrir_bloqueado(self._ruta) as fd:
+                    return self._leer_consumidas_con_hash(fd)[2].get(id_ejecucion)
             except ErrorDurable as e:
                 raise _ilegible(str(e)) from e
 

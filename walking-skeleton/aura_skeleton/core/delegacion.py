@@ -48,7 +48,9 @@ PROFUNDIDAD_MAX = 32
 DOMINIO_ORDEN = b"aura.delegacion.orden/1\n"
 DOMINIO_RESULTADO = b"aura.delegacion.resultado/1\n"
 DOMINIO_ACUSE = b"aura.delegacion.acuse/1\n"
-DOMINIOS = frozenset({DOMINIO_ORDEN, DOMINIO_RESULTADO, DOMINIO_ACUSE})
+DOMINIO_RESOLUCION = b"aura.delegacion.resolucion/1\n"
+"""Dominio PROPIO de la autorización humana que resuelve una ejecución ambigua (C3): una firma de nodo o de HC-1 no vale."""
+DOMINIOS = frozenset({DOMINIO_ORDEN, DOMINIO_RESULTADO, DOMINIO_ACUSE, DOMINIO_RESOLUCION})
 
 SALIDA_MAX_BYTES = 64 * 1024
 SOBRE_MAX_BYTES = 192 * 1024
@@ -76,6 +78,11 @@ CAMPOS_ORDEN = frozenset(
 )
 CAMPOS_RESULTADO = frozenset({"v", "alg", "tarea", "intento", "id_nodo", "id_ejecucion", "hash_tarea", "salida"})
 CAMPOS_ACUSE = frozenset({"v", "alg", "tarea", "intento", "id_nodo", "id_ejecucion", "hash_tarea", "recibida_en"})
+CAMPOS_RESOLUCION = frozenset({"v", "alg", "id_ejecucion", "decision", "motivo", "emitida_en", "caduca_en", "nonce"})
+DECISIONES_RESOLUCION = frozenset({"admitir"})
+AUTORIZACION_VIDA_MAX_S = 600.0
+"""Techo de la vida de una autorización de resolución (`caduca_en - emitida_en`): corta a propósito."""
+MOTIVO_MAX = 256
 CAMPOS_SOBRE = frozenset({"p", "f", "kid"})
 
 _RE_ID_NODO = re.compile(r"[0-9a-f]{32}")
@@ -125,6 +132,11 @@ class Motivo(StrEnum):
     DIARIO_NO_DURABLE = "diario_no_durable"
     DIARIO_ILEGIBLE = "diario_ilegible"
     TASA_EXCEDIDA = "tasa_excedida"
+    REVOCACION_ILEGIBLE = "revocacion_ilegible"
+    """La lista de revocados existió y ya no se puede leer (borrada, ajena, corrupta): se rechaza TODO."""
+    AUTORIZACION_CADUCADA = "autorizacion_caducada"
+    NONCE_REUTILIZADO = "nonce_reutilizado"
+    TAREA_CON_INTENTO_AMBIGUO = "tarea_con_intento_ambiguo"
     # resultados / acuses (lado HC-1)
     NODO_AJENO = "nodo_ajeno"
     EJECUCION_DESCONOCIDA = "ejecucion_desconocida"
@@ -142,6 +154,7 @@ class RechazoOrden(Exception):
     def __init__(self, motivo: Motivo, detalle: str = "") -> None:
         super().__init__(f"{motivo.value}: {detalle}" if detalle else motivo.value)
         self.motivo = motivo
+        self.detalle = detalle
 
 
 class EstadoNodo(StrEnum):
@@ -161,8 +174,9 @@ class Reloj(Protocol):
 
 
 class AlmacenOrdenes(Protocol):
-    def consumir(self, id_ejecucion: str, epoch: int) -> None:
-        """Marca la orden como consumida de forma DURABLE o lanza `RechazoOrden` (repetida/epoch/ilegible)."""
+    def consumir(self, id_ejecucion: str, epoch: int, hash_tarea: str | None = None) -> None:
+        """Marca la orden como consumida de forma DURABLE o lanza `RechazoOrden` (repetida/epoch/ilegible). El
+        `hash_tarea` queda ligado al consumo: `ejecutar` comprueba después que ejecuta LO CONSUMIDO."""
         ...
 
 
@@ -402,6 +416,9 @@ class Capacidad:
     validar_argumentos: Callable[[Mapping[str, Any]], dict[str, Any]]
     ejecutar: Callable[[Mapping[str, Any]], str]
     verificar: Callable[[Mapping[str, Any], str], bool]
+    idempotente: bool
+    """¿Repetir la ejecución es inocuo? Si NO lo es (efectos), HC-1 no emite otro intento de la misma tarea mientras
+    exista uno ambiguo, interrumpido o con incorporación incierta (at-most-once POR TAREA, C3)."""
 
 
 TEXTO_MAX = 4096
@@ -429,7 +446,7 @@ def _verificar_resumen(args: Mapping[str, Any], salida: str) -> bool:
 CAPACIDADES: Mapping[str, Capacidad] = MappingProxyType(
     {
         "calcular_resumen_sha256": Capacidad(
-            "calcular_resumen_sha256", _validar_resumen, _ejecutar_resumen, _verificar_resumen
+            "calcular_resumen_sha256", _validar_resumen, _ejecutar_resumen, _verificar_resumen, idempotente=True
         )
     }
 )
@@ -459,8 +476,12 @@ class PoliticaNodo:
     vida_max_s: float = VIDA_MAX_S
     tolerancia_futuro_s: float = TOLERANCIA_FUTURO_S
     revocados: frozenset[str] = frozenset()
-    """kids REVOCADOS de HC-1 (lista persistente: `adapters.firma_delegacion.cargar_revocados`). Una orden firmada
-    con uno de ellos se rechaza aunque la firma sea matemáticamente válida y el kid siga en `emisores`."""
+    """kids REVOCADOS de HC-1 FIJOS (de arranque). Una orden firmada con uno de ellos se rechaza aunque la firma sea
+    matemáticamente válida y el kid siga en `emisores`."""
+    fuente_revocados: Callable[[], frozenset[str]] | None = None
+    """Lista VIVA de revocados (C2): se consulta en CADA validación y antes de CADA ejecución, así que una revocación
+    posterior al arranque surte efecto sin reiniciar. Si no se puede leer lanza `RechazoOrden(REVOCACION_ILEGIBLE)` y
+    se rechaza todo (`adapters.firma_delegacion.ListaRevocados`)."""
 
 
 @dataclass(frozen=True)
@@ -482,6 +503,31 @@ def _validar_frescura(c: Mapping[str, Any], pol: PoliticaNodo, ahora: float) -> 
         raise RechazoOrden(Motivo.EMITIDA_ANTES_DEL_ARRANQUE, "emitida_en")
 
 
+def exigir_no_revocado(politica: PoliticaNodo, kid: str) -> None:
+    """Consulta la lista de revocados VIGENTE (fija + viva). Lista ilegible => `REVOCACION_ILEGIBLE` (fallo cerrado)."""
+    vivos = politica.fuente_revocados() if politica.fuente_revocados is not None else frozenset()
+    if kid in politica.revocados or kid in vivos:
+        raise RechazoOrden(Motivo.KID_REVOCADO, "kid")
+
+
+def revalidar_para_ejecutar(politica: PoliticaNodo, orden: OrdenValida) -> None:
+    """Justo antes de EJECUTAR (BAJO b): la orden sigue sin caducar, su kid no se revocó entre aceptar y ejecutar y la
+    `OrdenValida` entregada es coherente consigo misma (bytes firmados, hash y campos son la misma orden)."""
+    if politica.reloj.sincronizado() is not True:
+        raise RechazoOrden(Motivo.RELOJ_NO_SINCRONIZADO)
+    if orden.hash_tarea != hash_de(orden.bytes_firmados):
+        raise RechazoOrden(Motivo.VINCULO_ROTO, "hash_tarea")
+    try:
+        firmados = leer_json_estricto(orden.bytes_firmados)
+    except ValueError as e:
+        raise RechazoOrden(Motivo.VINCULO_ROTO, "bytes firmados") from e
+    if firmados != dict(orden.campos):
+        raise RechazoOrden(Motivo.VINCULO_ROTO, "campos distintos de lo firmado")
+    exigir_no_revocado(politica, orden.campos["kid"])
+    if orden.campos["caduca_en"] <= politica.reloj.ahora():
+        raise RechazoOrden(Motivo.ORDEN_CADUCADA, "caduca_en")
+
+
 def validar_orden(
     sobre: bytes, *, politica: PoliticaNodo, verificar: Verificador, almacen: AlmacenOrdenes
 ) -> OrdenValida:
@@ -490,8 +536,7 @@ def validar_orden(
     if not politica.reloj.sincronizado():  # N1/N5: sin hora fiable se rechaza TODO, antes de mirar nada
         raise RechazoOrden(Motivo.RELOJ_NO_SINCRONIZADO)
     abierto = abrir_sobre(sobre)
-    if abierto.kid in politica.revocados:
-        raise RechazoOrden(Motivo.KID_REVOCADO, "kid")
+    exigir_no_revocado(politica, abierto.kid)  # lista VIVA: se relee en cada orden (C2)
     emisor = politica.emisores.get(abierto.kid)
     if emisor is None:
         raise RechazoOrden(Motivo.KID_DESCONOCIDO, "kid")
@@ -506,8 +551,9 @@ def validar_orden(
     cap = capacidad_registrada(c["capacidad"], politica.capacidades)
     cap.validar_argumentos(c["argumentos"])
     _validar_frescura(c, politica, politica.reloj.ahora())
-    almacen.consumir(c["id_ejecucion"], c["epoch_hc1"])
-    return OrdenValida(MappingProxyType(dict(c)), abierto.payload, hash_de(abierto.payload))
+    hash_tarea = hash_de(abierto.payload)
+    almacen.consumir(c["id_ejecucion"], c["epoch_hc1"], hash_tarea)
+    return OrdenValida(MappingProxyType(dict(c)), abierto.payload, hash_tarea)
 
 
 # --- construcción (lado HC-1 / firmador y lado nodo) ------------------------------------------------------
@@ -571,3 +617,33 @@ def validar_campos_acuse(c: Mapping[str, Any]) -> None:
     _exigir(coincide(_RE_ID_NODO, c["id_nodo"]), "id_nodo")
     _exigir(coincide(_RE_HASH, c["hash_tarea"]), "hash_tarea")
     _exigir(_es_tiempo(c["recibida_en"]), "recibida_en")
+
+
+def validar_campos_resolucion(c: Mapping[str, Any]) -> None:
+    """Esquema de la autorización de resolución (C3). El `kid` de la autoridad va en el sobre, no en el payload."""
+    _exigir_esquema_cerrado(c, CAMPOS_RESOLUCION)
+    exigir_version(c, V_ACTUAL)
+    _exigir(c["alg"] == ALG, "alg")
+    _exigir(_es_uuid4(c["id_ejecucion"]), "id_ejecucion")
+    _exigir(c["decision"] in DECISIONES_RESOLUCION, "decision")
+    _exigir(isinstance(c["motivo"], str) and bool(c["motivo"].strip()) and len(c["motivo"]) <= MOTIVO_MAX, "motivo")
+    _exigir(_es_tiempo(c["emitida_en"]) and _es_tiempo(c["caduca_en"]), "tiempos")
+    _exigir(_es_uuid4(c["nonce"]), "nonce")
+
+
+def payload_resolucion(
+    id_ejecucion: str, motivo: str, emitida_en: float, caduca_en: float, nonce: str, decision: str = "admitir"
+) -> bytes:
+    """Bytes canónicos de una autorización de resolución (lado de la autoridad humana). Valida el esquema."""
+    campos = {
+        "v": V_ACTUAL,
+        "alg": ALG,
+        "id_ejecucion": id_ejecucion,
+        "decision": decision,
+        "motivo": motivo,
+        "emitida_en": emitida_en,
+        "caduca_en": caduca_en,
+        "nonce": nonce,
+    }
+    validar_campos_resolucion(campos)
+    return bytes_canonicos(campos)

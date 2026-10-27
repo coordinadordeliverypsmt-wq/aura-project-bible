@@ -10,7 +10,11 @@
 * Cada firma (y cada rechazo) queda en su PROPIO log append-only (`firmador.log.jsonl`) con hash y momento, ENCADENADO:
   cada entrada lleva `prev` = sha256 de la línea anterior, y `verificar_cadena_log` detecta una línea editada, borrada
   o intercalada. NO detecta el recorte de las últimas líneas: eso exige un ancla externa (D-LOG-1).
-* Límite de TASA configurable (ventana deslizante): superado, rechaza con `tasa_excedida` y lo registra.
+* Límite de TASA configurable (ventana deslizante): superado, rechaza con `tasa_excedida` y lo registra. TODA petición
+  consume cupo, también las rechazadas (BAJO c: un par que inunde con peticiones inválidas se frena igual), y para no
+  inflar el log las escrituras de RECHAZO tienen un tope por ventana (`rechazos_log_max`): el resto se cuenta y la
+  siguiente entrada de rechazo escrita lo declara en `suprimidos`.
+* El log se abre con `flock` exclusivo y `O_NOFOLLOW`, y el `prev` de cada entrada se toma del FICHERO bajo el cerrojo.
 * `epoch_hc1` MONÓTONO y persistido: al arrancar el firmador lee `epoch.jsonl` (append-only, fsync); si el configurado es
   MENOR que el último usado, se NIEGA a arrancar; si no, usa `max(configurado, último + 1)` y lo anota ANTES de firmar
   nada. Cada reinicio sube el epoch, así que una orden vieja no se cuela.
@@ -66,6 +70,8 @@ EPOCH_NOMBRE = "epoch.jsonl"
 CADENA_INICIAL = "0" * 64
 TASA_MAX_DEFECTO = 60
 TASA_VENTANA_S_DEFECTO = 60.0
+RECHAZOS_LOG_MAX_DEFECTO = 20
+_COLA_LOG_MAX = 64 * 1024
 
 
 class ErrorFirmador(Exception):
@@ -109,6 +115,8 @@ class PoliticaFirmador:
     tasa_max: int = TASA_MAX_DEFECTO
     """Máximo de firmas dentro de `tasa_ventana_s`."""
     tasa_ventana_s: float = TASA_VENTANA_S_DEFECTO
+    rechazos_log_max: int = RECHAZOS_LOG_MAX_DEFECTO
+    """Máximo de entradas de RECHAZO escritas en el log dentro de `tasa_ventana_s` (el resto se cuenta)."""
 
 
 class Firmador:
@@ -124,7 +132,7 @@ class Firmador:
     ) -> None:
         if firmante.kid != politica.kid:
             raise ValueError("el kid de la clave no coincide con la política")
-        if politica.tasa_max < 1 or not politica.tasa_ventana_s > 0:
+        if politica.tasa_max < 1 or not politica.tasa_ventana_s > 0 or politica.rechazos_log_max < 1:
             raise ValueError("límite de tasa inválido")
         self._firmante = firmante
         self._pol = politica
@@ -133,7 +141,10 @@ class Firmador:
         self._hilo = threading.Lock()
         self._hilo_tasa = threading.Lock()
         self._firmas: deque[float] = deque()
-        _, self._ultimo = verificar_cadena_log(self._log)
+        self._rechazos_escritos: deque[float] = deque()
+        self.rechazos_suprimidos = 0
+        """Rechazos NO escritos en el log por el tope de la ventana (se declaran en la siguiente entrada escrita)."""
+        verificar_cadena_log(self._log)  # un firmador NO arranca sobre un log roto
         self._ruta_epoch = Path(ruta_epoch) if ruta_epoch else self._log.with_name(EPOCH_NOMBRE)
         self._epoch = self._arrancar_epoch()
 
@@ -165,23 +176,29 @@ class Firmador:
             raise ErrorFirmador("fichero de epoch ilegible") from e
         return efectivo
 
+    @staticmethod
+    def _hash_ultima_linea(fd: int) -> str:
+        """sha256 de la última línea COMPLETA del fichero (la cadena se continúa desde el disco, no desde la memoria)."""
+        tam = os.fstat(fd).st_size
+        if tam == 0:
+            return CADENA_INICIAL
+        inicio = max(0, tam - _COLA_LOG_MAX)
+        cola = os.pread(fd, tam - inicio, inicio)
+        if not cola.endswith(b"\n"):
+            raise ErrorFirmador("log del firmador truncado")
+        cuerpo = cola[:-1]
+        if inicio > 0 and b"\n" not in cuerpo:
+            raise ErrorFirmador("log del firmador con una línea desmesurada")
+        return hashlib.sha256(cuerpo.rsplit(b"\n", 1)[-1]).hexdigest()
+
     def _registrar(self, entrada: dict[str, Any]) -> None:
         with self._hilo:
-            linea = json.dumps({**entrada, "prev": self._ultimo}, sort_keys=True, separators=(",", ":")).encode("utf-8")
-            nuevo = not self._log.exists()
-            fd = os.open(self._log, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
             try:
-                os.write(fd, linea + b"\n")
-                os.fsync(fd)
-                if nuevo:
-                    dfd = os.open(self._log.parent, os.O_RDONLY | os.O_DIRECTORY)
-                    try:
-                        os.fsync(dfd)
-                    finally:
-                        os.close(dfd)
-            finally:
-                os.close(fd)
-            self._ultimo = hashlib.sha256(linea).hexdigest()
+                with abrir_bloqueado(self._log) as fd:  # flock exclusivo + O_NOFOLLOW + 0600 propio
+                    registro = {**entrada, "prev": self._hash_ultima_linea(fd)}
+                    anexar(fd, registro)
+            except ErrorDurable as e:
+                raise ErrorFirmador("el log del firmador no se puede escribir") from e
 
     def registrar_fallo(self, tipo: str, uid_par: int | None = None) -> None:
         """Deja constancia de un fallo inesperado en el procesamiento de una petición (el hilo sigue vivo)."""
@@ -195,6 +212,27 @@ class Firmador:
             if len(self._firmas) >= self._pol.tasa_max:
                 raise RechazoOrden(Motivo.TASA_EXCEDIDA, "demasiadas firmas en la ventana")
             self._firmas.append(ahora)
+
+    def _registrar_rechazo(self, ahora: float, rechazo: RechazoOrden, uid_par: int | None) -> None:
+        """Escribe el rechazo en el log salvo que se haya alcanzado el tope de la ventana (entonces solo se cuenta)."""
+        with self._hilo_tasa:
+            limite = ahora - self._pol.tasa_ventana_s
+            while self._rechazos_escritos and self._rechazos_escritos[0] <= limite:
+                self._rechazos_escritos.popleft()
+            if len(self._rechazos_escritos) >= self._pol.rechazos_log_max:
+                self.rechazos_suprimidos += 1
+                return
+            self._rechazos_escritos.append(ahora)
+            suprimidos, self.rechazos_suprimidos = self.rechazos_suprimidos, 0
+        entrada: dict[str, Any] = {
+            "tipo": "rechazo",
+            "momento": ahora,
+            "motivo": rechazo.motivo.value,
+            "uid_par": uid_par,
+        }
+        if suprimidos:
+            entrada["suprimidos"] = suprimidos
+        self._registrar(entrada)
 
     def _validar(self, p: Mapping[str, Any]) -> float:
         if not isinstance(p, dict) or set(p) != PETICION_CAMPOS:
@@ -217,8 +255,8 @@ class Firmador:
         ahora = self._ahora()
         rechazo: RechazoOrden | None = None
         try:
+            self._reservar_tasa(ahora)  # TODAS las peticiones consumen cupo, también las que luego se rechazan
             vida = self._validar(peticion)
-            self._reservar_tasa(ahora)
             id_ejecucion = str(uuid.uuid4())
             campos = {
                 "v": V_ACTUAL,
@@ -243,7 +281,7 @@ class Firmador:
             rechazo = RechazoOrden(Motivo.CAMPO_INVALIDO, "codificación")
             rechazo.__cause__ = e
         if rechazo is not None:
-            self._registrar({"tipo": "rechazo", "momento": ahora, "motivo": rechazo.motivo.value, "uid_par": uid_par})
+            self._registrar_rechazo(ahora, rechazo, uid_par)
             raise rechazo
         self._registrar(
             {
@@ -308,7 +346,7 @@ def _fabrica_manejador(firmador: Firmador, permitidos: frozenset[int]) -> type[s
                 try:
                     firmador.registrar_fallo(type(e).__name__)
                     _responder(self.wfile, {"ok": False, "motivo": "error_interno"})
-                except OSError:
+                except (OSError, ErrorFirmador):
                     pass
 
     return Manejador
@@ -321,8 +359,11 @@ class ServidorFirmador(socketserver.ThreadingMixIn, socketserver.UnixStreamServe
 def crear_servidor(firmador: Firmador, ruta_socket: Path, permitidos: frozenset[int]) -> ServidorFirmador:
     """Socket 0600 en directorio 0700. Fallo CERRADO si el directorio es más permisivo."""
     dir_ = ruta_socket.parent
-    st_dir = dir_.stat()
-    if st_dir.st_mode & 0o077 or st_dir.st_uid != os.getuid():
+    try:
+        st_dir = os.lstat(dir_)  # lstat: un enlace simbólico al directorio NO se sigue
+    except OSError as e:
+        raise ErrorClave("el directorio del socket no es accesible") from e
+    if not stat.S_ISDIR(st_dir.st_mode) or st_dir.st_mode & 0o077 or st_dir.st_uid != os.getuid():
         raise ErrorClave("el directorio del socket debe ser 0700 y propio")
     try:
         existente: os.stat_result | None = os.lstat(ruta_socket)
@@ -393,6 +434,7 @@ def main(argv: list[str] | None = None) -> int:
         float(conf.get("vida_max_s", VIDA_MAX_S)),
         int(conf.get("tasa_max", TASA_MAX_DEFECTO)),
         float(conf.get("tasa_ventana_s", TASA_VENTANA_S_DEFECTO)),
+        int(conf.get("rechazos_log_max", RECHAZOS_LOG_MAX_DEFECTO)),
     )
     try:
         firmador = Firmador(firmante, politica, Path(conf["log"]))

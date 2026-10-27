@@ -10,10 +10,12 @@ from typing import Any
 from aura_skeleton.adapters.firma_delegacion import Firmante, generar_firmante, verificador_de
 from aura_skeleton.core.delegacion import (
     DOMINIO_ORDEN,
+    DOMINIO_RESOLUCION,
     PoliticaNodo,
     bytes_canonicos,
     empaquetar_sobre,
     payload_orden,
+    payload_resolucion,
 )
 
 NODO = "a" * 32
@@ -36,6 +38,21 @@ class RelojFalso:
         self._sinc = valor
 
 
+KID_AUTORIDAD = "autoridad-k1"
+
+
+class RegistroSintetico(list):  # type: ignore[type-arg]
+    """Destino SINTÉTICO del hecho auditable: IDEMPOTENTE por `id_ejecucion` (contrato de `Registrar`). Es una lista
+    (los hechos) y es invocable: `hc1.incorporar(ident, registro)`."""
+
+    def __call__(self, hecho: dict[str, Any]) -> None:
+        if not self.ya_registrado(hecho["id_ejecucion"]):
+            self.append(hecho)
+
+    def ya_registrado(self, id_ejecucion: str) -> bool:
+        return any(h["id_ejecucion"] == id_ejecucion for h in self)
+
+
 class AlmacenMemoria:
     """Doble de prueba SOLO para pruebas que no ejercitan la persistencia (misma semántica de estados que el real)."""
 
@@ -43,13 +60,18 @@ class AlmacenMemoria:
         self.vistas: set[str] = set()
         self.estados: dict[str, str] = {}
         self.resultados: dict[str, bytes] = {}
+        self.hashes: dict[str, str | None] = {}
 
-    def consumir(self, id_ejecucion: str, epoch: int) -> None:
+    def hash_consumido(self, id_ejecucion: str) -> str | None:
+        return self.hashes.get(id_ejecucion)
+
+    def consumir(self, id_ejecucion: str, epoch: int, hash_tarea: str | None = None) -> None:
         from aura_skeleton.core.delegacion import Motivo, RechazoOrden
 
         if id_ejecucion in self.vistas:
             raise RechazoOrden(Motivo.ORDEN_REPETIDA)
         self.vistas.add(id_ejecucion)
+        self.hashes[id_ejecucion] = hash_tarea
 
     def iniciar_ejecucion(self, id_ejecucion: str) -> None:
         from aura_skeleton.core.delegacion import Motivo, RechazoOrden
@@ -82,12 +104,31 @@ class Mundo:
     nodo: Firmante
     otro_nodo: Firmante
     reloj: RelojFalso
+    autoridad: Firmante
+    """Clave de la AUTORIDAD HUMANA: distinta de la de HC-1 y de las de los nodos."""
 
     def verificador_hc1(self):  # type: ignore[no-untyped-def]
         return verificador_de({"hc1-k1": self.hc1.publica()})
 
     def verificador_nodos(self):  # type: ignore[no-untyped-def]
         return verificador_de({NODO: self.nodo.publica(), OTRO_NODO: self.otro_nodo.publica()})
+
+    def verificador_autoridad(self):  # type: ignore[no-untyped-def]
+        return verificador_de({KID_AUTORIDAD: self.autoridad.publica()})
+
+    def autorizacion(self, id_ejecucion: str, motivo: str = "el nodo guardó el resultado firmado", **kw: Any) -> bytes:
+        """Autorización de resolución FIRMADA por la autoridad, vigente respecto al reloj de la escena."""
+        ahora = self.reloj.ahora()
+        campos: dict[str, Any] = {
+            "id_ejecucion": id_ejecucion,
+            "motivo": motivo,
+            "emitida_en": ahora,
+            "caduca_en": ahora + 120,
+            "nonce": str(uuid.uuid4()),
+        }
+        campos.update(kw)
+        firmante = campos.pop("firmante", self.autoridad)
+        return firmante.firmar(DOMINIO_RESOLUCION, payload_resolucion(**campos))
 
     def politica(self, **kw: Any) -> PoliticaNodo:
         base: dict[str, Any] = {
@@ -102,7 +143,13 @@ class Mundo:
 
 
 def mundo() -> Mundo:
-    return Mundo(generar_firmante("hc1-k1"), generar_firmante(NODO), generar_firmante(OTRO_NODO), RelojFalso())
+    return Mundo(
+        generar_firmante("hc1-k1"),
+        generar_firmante(NODO),
+        generar_firmante(OTRO_NODO),
+        RelojFalso(),
+        generar_firmante(KID_AUTORIDAD),
+    )
 
 
 def campos_validos(**cambios: Any) -> dict[str, Any]:

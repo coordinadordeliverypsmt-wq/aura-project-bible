@@ -154,3 +154,52 @@ Desde `walking-skeleton/` del worktree `pista-nodos`:
 * DECISION_REQUIRED (CEO): exclusión G-1 `opera=["unlink"]` para `firmador_hc1.py` si se quiere retirada automática del
   socket residual (hoy falla cerrado).
 * Antes de cablear: reloj fiable, usuario/almacenamiento distinto para clave y estados, ancla D-LOG-1 para `registrar`.
+
+---
+
+## 8. Segunda revisión de seguridad independiente y batería oficial de mutación (2026-10-27)
+
+Cierra los hallazgos de la 2.ª revisión y el superviviente M19 de la batería oficial. Las secciones 1-7 describen el
+estado tras el commit anterior; **donde difieran (diario «confiado al releerlo», `autoridades` como cadena, revocados
+fijos, 91 mutantes), manda esta sección.** Pruebas nuevas: `tests/unit/test_delegacion_revision2.py` (60 casos, cada uno
+con control); adaptadas: `test_delegacion_diario_hc1.py`, `test_delegacion_resultado_firmado.py`,
+`test_delegacion_nodo_estados.py`, `test_firmador_hc1_endurecido.py`, `test_delegacion_e2e_nats.py`, `delegacion_apoyo.py`.
+
+| Hallazgo | Causa | Corrección | Pruebas (todas con control) |
+|---|---|---|---|
+| **M19** sobrevivía | Único camino que lo ejercía: la comprobación `kid == subject` (antes) ya rechazaba al nodo B; nadie probaba un resultado firmado por A cuyo `id_nodo` dijera B, así que el `if c["id_nodo"] != id_nodo_subject` era inalcanzable por las pruebas. | Sin cambio de código en la comprobación; se separan `_leer_sin_contabilizar` (firma + esquema + `id_nodo`) y `_leer` (revocación + contabilidad). | `test_m19_*`: B firma correctamente `id_nodo=B` y se entrega como de A -> `KID_DESCONOCIDO`; entregado como de B -> `NODO_AJENO`; A firma `id_nodo=B` -> `NODO_AJENO`; idem acuses. Control: el suyo por su subject se acepta. Verificado a mano: con M19 aplicado las pruebas viejas (`test_delegacion_resultado_firmado.py`) PASAN (por eso sobrevivía) y las nuevas FALLAN (2). |
+| **C1** duplicado de `resultado_remoto` | `incorporar` registraba el hecho y DESPUÉS anotaba en el diario: un fallo del diario o una caída entre ambos lo duplicaba al reintentar. | `incorporando` (durable) ANTES de `registrar`; `Registrar` pasa a ser un protocolo con `ya_registrado(id_ejecucion)` OBLIGATORIO (`TypeError` si falta) e idempotente; estados nuevos `INCORPORANDO` e `INCORPORACION_INCIERTA` (el diario con «incorporando» sin «incorporado» se lee así al reiniciar). `incorporar` consulta `ya_registrado` antes de registrar. | Orden observado desde dentro de `registrar`; fallo del diario al anotar `incorporando` (no registra), tras registrar (reintento: 1 registro, 1 llamada), caída entre `incorporando` y `registrar` (reinicio -> `INCORPORACION_INCIERTA` -> 1 registro), caída entre `registrar` e `incorporado` (reinicio -> no vuelve a llamar a `registrar`). |
+| **C2** revocación no viva / ausente = permitir | `PoliticaNodo.revocados` y `verificador_de(revocados)` eran fijos de arranque; `cargar_revocados` devolvía vacío ante fichero ausente. | `adapters.firma_delegacion.ListaRevocados(ruta, ancla)`: se relee en CADA llamada (`flock` compartido, `O_NOFOLLOW`); al ver el fichero por primera vez deja un ANCLA (0600, fsync) en el estado propio; si después falta, está corrupto, truncado, ajeno/escribible o es un enlace -> `REVOCACION_ILEGIBLE` y se rechaza TODO. `PoliticaNodo.fuente_revocados` (nodo, en cada orden) y `SeguimientoHC1.fuente_revocados` (HC-1, en cada acuse/resultado/resolución). | Revocar en caliente surte efecto sin recrear nada (nodo y HC-1); borrar el fichero tras crearlo rechaza órdenes, acuses y resultados; lista corrupta/truncada/ajena/enlace; lectura bajo flock (el lector espera a una escritura en curso). Control: un nodo que nunca tuvo lista funciona y no deja ancla. |
+| **C3** autoridad = cadena | `resolver_ambigua(…, por: str, …)` aceptaba cualquier cadena de una lista. Nada impedía reemitir una tarea con efectos. | La resolución exige una AUTORIZACIÓN FIRMADA (dominio propio `aura.delegacion.resolucion/1`, campos `id_ejecucion, decision, motivo, emitida_en, caduca_en, nonce`, vida <= 600 s) por un `kid` de `kids_autoridad` con un `verificar_autoridad` APARTE; el constructor rechaza que la autoridad sea la clave de HC-1 o un id de nodo. Nonce de un solo uso persistido en el diario (se reconstruye al reiniciar). `Capacidad.idempotente: bool` (obligatorio; `calcular_resumen_sha256` = `True`): para una capacidad NO idempotente o desconocida, `registrar_emision` rechaza un nuevo intento si hay uno AMBIGUO/INTERRUMPIDA/INCORPORANDO/INCORPORACION_INCIERTA de la misma tarea (`tarea_con_intento_ambiguo`). | Firma inválida, kid de HC-1/nodo/desconocido, dominio equivocado, caducada, vida excesiva, del futuro, de otra ejecución, nonce reutilizado (también tras reiniciar), esquema cerrado, autoridad mal configurada; reemisión bloqueada (ambiguo, interrumpida, incorporación incierta, capacidad desconocida) con controles: idempotente sí se reemite y otra tarea no está bloqueada. |
+| **BAJO a** diario de HC-1 | `_aplicar` confiaba en lo releído. | Al releer se re-verifican firmas de resultado y de resolución (y la autorización), el vínculo con la ejecución, las TRANSICIONES (`incorporado` sin `incorporando`, `validacion` sin resultado, emisión repetida…) y las interrupciones se limitan a `{INTERRUMPIDA, AMBIGUO}` coherentes con el estado previo. Diario manipulado -> `DIARIO_ILEGIBLE` con motivo. | Resultado con firma rota, resultados intercambiados, autorización de intruso, nonce repetido, interrupción a estados imposibles, saltos de estado. Control: el diario íntegro se recupera. |
+| **BAJO b** `ejecutar` | Aceptar y ejecutar eran independientes. | `revalidar_para_ejecutar`: reloj sincronizado, coherencia de `OrdenValida` (hash de los bytes y campos == lo firmado), revocación vigente y caducidad, ANTES de marcar `EJECUTANDO`; `consumir(id, epoch, hash_tarea)` liga el hash al consumo (`hash_consumido`) y `ejecutar` exige que sea el de la orden entregada. | Caduca entre aceptar y ejecutar; revocada entre ambos; campos o hash adulterados en memoria; otra orden con el mismo `id_ejecucion`; persistencia del hash. En todos, el estado queda `consumida` (no se inició nada). |
+| **BAJO c** firmador | Log abierto con `open` propio; los rechazos no gastaban cupo; `Path.stat()` seguía enlaces. | Log vía `abrir_bloqueado` (flock exclusivo + `O_NOFOLLOW` + 0600) y `prev` leído del FICHERO bajo el cerrojo (dos instancias no rompen la cadena); TODA petición gasta cupo; tope `rechazos_log_max` (20) de rechazos ESCRITOS por ventana, el resto se cuenta y la siguiente entrada declara `suprimidos`; `crear_servidor` usa `lstat`. | Enlace simbólico como log (no se escribe a su destino), flock, cadena entre instancias, cupo consumido por rechazos, tope y declaración de suprimidos, `lstat`. (La prueba B-3 «los rechazos no gastan cupo» se invirtió a propósito.) |
+
+### Mutantes (91 -> 139; 48 nuevos M92-M139) y verificación a mano
+
+`mutaciones/delegacion-segura.toml`: comprobación con `tomllib` de que cada `buscar` aparece exactamente UNA vez en su
+`fichero` y difiere de `sustituir` (139 mutantes, 0 anomalías). Se reescribieron los `buscar` obsoletos de M5, M24, M43,
+M44, M67, M68, M74, M90, M91 (el código cambió; M7 y M18 conservan el texto) y M19 añade la prueba nueva. **No se ejecutó `herramientas.mutar`**:
+verificación manual en una COPIA bajo el tmp del trabajo (copiar el árbol, aplicar el `buscar`->`sustituir`, correr las
+`pruebas` del mutante, exigir fallo, restaurar): 60 mutantes (los 48 nuevos, M19 y los 11 preexistentes afectados) -> los 60
+DETECTADOS (rc=1 = fallo de pruebas, nunca error de sintaxis). En la primera pasada sobrevivieron 4 (M67 equivalente por
+una comprobación redundante, M104 y M134 porque el destino del enlace era inseguro y se rechazaba por otro motivo, M131
+porque el diario falso se rechazaba antes por otro vínculo): se añadieron/ajustaron pruebas y los 4 mueren.
+
+### Comandos `[EJEC]`
+
+| Comando | Exit | Resumen |
+|---|---|---|
+| `pytest tests/unit/test_delegacion_revision2.py` | 0 | todas pasan |
+| `pytest -k "delegac or firma or spki or nodo_agente or consumid or firmador"` (2 ejecuciones seguidas) | 0, 0 | verde, E2E 14/14 estables 2 de 2 |
+| verificación manual de mutantes (copia en tmp del trabajo) | 0 | 60/60 detectados tras el ajuste |
+| `./quality-gate.sh` | 0 | formato OK (327 ficheros) · lint OK · mypy OK (101 ficheros) · pruebas OK: 4134 passed, 3 skipped, 17 xfailed (760 s) · contratos 8 passed · **QUALITY GATE: PASS** (incluye G-1 sin añadir excepciones al manifiesto: el ancla se crea con `os.open`, sin `unlink`/`replace`) |
+
+### Límites declarados que siguen vigentes
+
+* Mismo uid: quien borre la lista de revocados Y su ancla (o el diario) reabre el hueco; la integridad física exige otro
+  usuario/almacenamiento. El ancla detecta el borrado accidental o parcial, no a un atacante con el mismo uid.
+* La rotación/gestión de la clave de autoridad humana y su custodia (distinta de las de HC-1 y nodos) no está
+  implementada: hoy el verificador y los `kids_autoridad` se inyectan.
+* El destino real de `registrar` (log de HC-1 con ancla D-LOG-1) debe cumplir `ya_registrado`; sigue sin cablear.
+* Un nodo revocado no invalida el HISTORIAL ya incorporado: al releer el diario se verifica la firma, no la revocación.

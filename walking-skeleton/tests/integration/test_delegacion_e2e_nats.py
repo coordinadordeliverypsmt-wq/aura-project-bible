@@ -16,6 +16,7 @@ import socket
 import subprocess
 import sys
 import time
+import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
 from typing import Any
@@ -96,6 +97,7 @@ class Entorno:
         self.puerto = self._nats(self.legitimo, "legitimo")
         self.puerto_impostor = self._nats(self.impostor, "impostor")
         self.hc1_firmante = generar_firmante("hc1-k1")
+        self.autoridad_firmante = generar_firmante("autoridad-k1")
         self.nodo_firmante = generar_firmante(NODO)
         self.otro_firmante = generar_firmante(OTRO_NODO)
         self.pin = [huella_spki(self.legitimo.der)]
@@ -175,6 +177,22 @@ class Firmador:
         return await asyncio.to_thread(pedir_firma, self.sock, pet)
 
 
+class RegistroArchivo:
+    """Registro SINTÉTICO en fichero, idempotente por `id_ejecucion` (contrato de `Registrar`)."""
+
+    def __init__(self, ruta: Path) -> None:
+        self.ruta = ruta
+
+    def ya_registrado(self, id_ejecucion: str) -> bool:
+        if not self.ruta.exists():
+            return False
+        return any(json.loads(x)["id_ejecucion"] == id_ejecucion for x in self.ruta.read_text().splitlines())
+
+    def __call__(self, entrada: dict[str, Any]) -> None:
+        with open(self.ruta, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entrada, sort_keys=True) + "\n")
+
+
 class Hc1Sim:
     """HC-1 simulado: sigue las ejecuciones, valida resultados y los incorpora a un log SINTÉTICO."""
 
@@ -183,7 +201,7 @@ class Hc1Sim:
         self.registro = env.raiz / "registro_sintetico.jsonl"
         self.dir_diario = env.raiz / "hc1-diario"
         self.reloj = RelojReal()
-        self.autoridades = frozenset({"mauricio"})
+        self.destino = RegistroArchivo(self.registro)
         self.rechazos: list[Motivo] = []
         self.nc: Any = None
         self.seg = self._arrancar_seguimiento()
@@ -195,7 +213,9 @@ class Hc1Sim:
             verificador_de({NODO: env.nodo_firmante.publica(), OTRO_NODO: env.otro_firmante.publica()}),
             self.reloj,
             diario=DiarioHC1(self.dir_diario),
-            autoridades=self.autoridades,
+            verificar_autoridad=verificador_de({"autoridad-k1": env.autoridad_firmante.publica()}),
+            kids_autoridad=frozenset({"autoridad-k1"}),
+            kid_hc1="hc1-k1",
         )
 
     async def iniciar(self) -> None:
@@ -214,10 +234,6 @@ class Hc1Sim:
         self.seg = self._arrancar_seguimiento()
         await self.iniciar()
 
-    def _anotar(self, entrada: dict[str, Any]) -> None:
-        with open(self.registro, "a", encoding="utf-8") as f:
-            f.write(json.dumps(entrada, sort_keys=True) + "\n")
-
     async def _al_recibir(self, msg: Any) -> None:
         id_nodo = msg.subject.rsplit(".", 1)[1]
         tipo = (msg.headers or {}).get("tipo")
@@ -227,7 +243,7 @@ class Hc1Sim:
             else:
                 ej = self.seg.recibir_resultado(msg.data, id_nodo)
                 if self.seg.validar(ej.id_ejecucion):
-                    self.seg.incorporar(ej.id_ejecucion, self._anotar)
+                    self.seg.incorporar(ej.id_ejecucion, self.destino)
         except RechazoOrden as e:
             self.rechazos.append(e.motivo)
 
@@ -579,18 +595,27 @@ async def test_11_una_ejecucion_ambigua_no_se_repite_y_solo_se_resuelve_por_la_v
     await esperar(lambda: Motivo.EJECUCION_NO_EN_CURSO in hc1.rechazos, "HC-1 no lo acepta solo")
     assert hc1.seg.ejecucion(ident).estado is Estado.AMBIGUO  # type: ignore[union-attr]
     # 3) la vía EXPLÍCITA: sin autoridad no; con autoridad declarada, firma y vínculo válidos, sí, y queda registrado
+    from aura_skeleton.core.delegacion import DOMINIO_RESOLUCION, payload_resolucion
+
+    def autorizar(firmante: Any) -> bytes:
+        t = hc1.reloj.ahora()  # el reloj de HC-1 (puede llevar desfase)
+        return firmante.firmar(
+            DOMINIO_RESOLUCION,
+            payload_resolucion(ident, "resultado firmado recuperado del nodo", t, t + 60, str(uuid.uuid4())),
+        )
+
     with pytest.raises(RechazoOrden) as e:
-        hc1.seg.resolver_ambigua(ident, "intruso", "me da igual", guardado)
-    assert e.value.motivo is Motivo.SIN_AUTORIDAD
-    ej = hc1.seg.resolver_ambigua(ident, "mauricio", "resultado firmado recuperado del nodo", guardado)
-    assert ej.estado is Estado.RESULTADO_FIRMADO and ej.resuelta_por == "mauricio"
+        hc1.seg.resolver_ambigua(ident, autorizar(generar_firmante("intruso-k9")), guardado)
+    assert e.value.motivo is Motivo.SIN_AUTORIDAD  # una clave que no es la de autoridad no resuelve nada
+    ej = hc1.seg.resolver_ambigua(ident, autorizar(env.autoridad_firmante), guardado)
+    assert ej.estado is Estado.RESULTADO_FIRMADO and ej.resuelta_por == "autoridad-k1"
     assert hc1.seg.validar(ident) is True
-    hc1.seg.incorporar(ident, hc1._anotar)
+    hc1.seg.incorporar(ident, hc1.destino)
     assert hc1.seg.ejecucion(ident).completada  # type: ignore[union-attr]
     await hc1.caer()
     await hc1.reiniciar()
     ej2 = hc1.seg.ejecucion(ident)
-    assert ej2 is not None and ej2.completada and ej2.resuelta_por == "mauricio"  # persistente
+    assert ej2 is not None and ej2.completada and ej2.resuelta_por == "autoridad-k1"  # persistente
     assert nodo.ejecutadas == [ident]  # y la capacidad corrió UNA sola vez en todo el relato
 
 
@@ -613,8 +638,8 @@ async def test_12_resultado_aceptado_vinculado_a_su_orden_y_persistido_con_fsync
     monkeypatch.setattr(os, "fsync", espia)
     _, ident = await hc1.delegar()
     await esperar(lambda: hc1.seg.ejecucion(ident).estado is Estado.INCORPORADO, "incorporada")  # type: ignore[union-attr]
-    # emision, acuse, resultado, validacion, incorporado: cinco registros del diario, cada uno con fsync del fichero
-    assert sincronizados.count(False) >= 5
+    # emision, acuse, resultado, validacion, incorporando, incorporado: seis registros, cada uno con fsync del fichero
+    assert sincronizados.count(False) >= 6
     monkeypatch.undo()
     await hc1.caer()  # HC-1 muere; lo único que queda es el disco
     registros, truncados = DiarioHC1(hc1.dir_diario).recuperar()
@@ -623,6 +648,7 @@ async def test_12_resultado_aceptado_vinculado_a_su_orden_y_persistido_con_fsync
         "acuse",
         "resultado",
         "validacion",
+        "incorporando",
         "incorporado",
     ]
     # re-verificación OFFLINE: solo bytes del diario + claves públicas, sin HC-1 ni red

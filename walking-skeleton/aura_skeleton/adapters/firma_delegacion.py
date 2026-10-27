@@ -7,8 +7,10 @@ en el repositorio.
 
 from __future__ import annotations
 
+import fcntl
 import json
 import os
+import stat
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 
@@ -16,8 +18,8 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 
-from ..core.delegacion import Verificador, empaquetar_sobre, es_texto_id, mensaje_con_dominio
-from .jsonl_durable import ErrorDurable, abrir_bloqueado, anexar
+from ..core.delegacion import Motivo, RechazoOrden, Verificador, empaquetar_sobre, es_texto_id, mensaje_con_dominio
+from .jsonl_durable import ErrorDurable, abrir_bloqueado, anexar, fsync_directorio
 
 
 class ErrorClave(Exception):
@@ -130,6 +132,10 @@ def cargar_revocados(ruta: Path) -> frozenset[str]:
         crudo = ruta.read_bytes()
     except OSError as e:
         raise ErrorClave("lista de revocación ilegible") from e
+    return _kids_de(crudo)
+
+
+def _kids_de(crudo: bytes) -> frozenset[str]:
     if crudo and not crudo.endswith(b"\n"):
         raise ErrorClave("lista de revocación truncada")
     kids: set[str] = set()
@@ -153,3 +159,80 @@ def revocar(ruta: Path, kid: str) -> None:
             anexar(fd, {"kid": kid})
     except ErrorDurable as e:
         raise ErrorClave("no se puede registrar la revocación") from e
+
+
+class ListaRevocados:
+    """Lista de revocados VIVA con ANCLA DE EXISTENCIA (C2). Se llama como `Callable[[], frozenset[str]]`.
+
+    * Se RELEE en cada llamada (bajo `flock` compartido, con `O_NOFOLLOW`): una revocación posterior al arranque surte
+      efecto en la siguiente verificación, sin reiniciar nada.
+    * La primera vez que el fichero EXISTE se deja un marcador `ancla` en el estado propio (durable). Si después el
+      fichero desaparece, queda ilegible, ajeno o corrupto => `RechazoOrden(REVOCACION_ILEGIBLE)`: FALLO CERRADO, no
+      «sin revocados». Un nodo que nunca tuvo lista (ni ancla) sigue funcionando con la lista vacía.
+
+    LÍMITE declarado: con el mismo uid, quien borre el fichero Y el ancla reabre el hueco; la integridad física exige
+    otro usuario o almacenamiento protegido.
+    """
+
+    def __init__(self, ruta: Path, ancla: Path) -> None:
+        self._ruta = Path(ruta)
+        self._ancla = Path(ancla)
+
+    @staticmethod
+    def _ilegible(detalle: str) -> RechazoOrden:
+        return RechazoOrden(Motivo.REVOCACION_ILEGIBLE, detalle)
+
+    def _hay_ancla(self) -> bool:
+        try:
+            os.lstat(self._ancla)
+        except FileNotFoundError:
+            return False
+        except OSError as e:
+            raise self._ilegible("ancla ilegible") from e
+        return True
+
+    def _anclar(self) -> None:
+        try:
+            fd = os.open(self._ancla, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+        except FileExistsError:
+            return
+        except OSError as e:
+            raise self._ilegible("no se puede anclar la existencia de la lista") from e
+        try:
+            os.write(fd, b"revocados\n")
+            os.fsync(fd)
+            fsync_directorio(self._ancla.parent)
+        except OSError as e:
+            raise self._ilegible("no se puede anclar la existencia de la lista") from e
+        finally:
+            os.close(fd)
+
+    def __call__(self) -> frozenset[str]:
+        try:
+            fd = os.open(self._ruta, os.O_RDONLY | os.O_NOFOLLOW)
+        except FileNotFoundError:
+            if self._hay_ancla():
+                raise self._ilegible("la lista de revocados existía y ya no está") from None
+            return frozenset()
+        except OSError as e:
+            raise self._ilegible("lista ilegible") from e
+        try:
+            st = os.fstat(fd)
+            if not stat.S_ISREG(st.st_mode) or st.st_uid != os.getuid() or st.st_mode & 0o022:
+                raise self._ilegible("lista con permisos inseguros o ajena")
+            fcntl.flock(fd, fcntl.LOCK_SH)
+            trozos = []
+            while True:
+                b = os.read(fd, 1 << 16)
+                if not b:
+                    break
+                trozos.append(b)
+            kids = _kids_de(b"".join(trozos))
+        except ErrorClave as e:
+            raise self._ilegible(str(e)) from e
+        except OSError as e:
+            raise self._ilegible("lista ilegible") from e
+        finally:
+            os.close(fd)
+        self._anclar()
+        return kids

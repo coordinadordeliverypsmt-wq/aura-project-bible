@@ -7,9 +7,10 @@ reconstruye con `recuperar()`.
 
 CABLEADO FUTURO (hoy NO cableado): el callback `registrar` de `SeguimientoHC1.incorporar` (el hecho auditable
 `resultado_remoto`) irá al log de HC-1 con ANCLA (D-LOG-1), no a este diario. Este diario solo sostiene el estado
-operativo para sobrevivir a un reinicio; no es la fuente de verdad auditable. Ventana conocida: si HC-1 cae entre
-`registrar` y la anotación `incorporado`, tras reiniciar la ejecución sigue VALIDADA y se incorporaría de nuevo: el
-destino de `registrar` debe ser idempotente por `id_ejecucion`.
+operativo para sobrevivir a un reinicio; no es la fuente de verdad auditable. Ventana de incorporación (cerrada en
+la 2.ª revisión, C1): `incorporando` se anota ANTES de `registrar` y, tras una caída, «incorporando sin incorporado» es el
+estado explícito INCORPORACION_INCIERTA, que se resuelve con `ya_registrado(id_ejecucion)` del destino (idempotente).
+Al releer, `SeguimientoHC1` re-verifica las firmas y las transiciones: un diario manipulado falla cerrado.
 """
 
 from __future__ import annotations

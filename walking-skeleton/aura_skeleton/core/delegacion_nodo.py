@@ -26,11 +26,14 @@ from .delegacion import (
     DOMINIO_RESULTADO,
     AlmacenOrdenes,
     EstadoNodo,
+    Motivo,
     OrdenValida,
     PoliticaNodo,
+    RechazoOrden,
     Verificador,
     payload_acuse,
     payload_resultado,
+    revalidar_para_ejecutar,
     validar_orden,
 )
 
@@ -46,6 +49,7 @@ class AlmacenNodo(AlmacenOrdenes, Protocol):
     def fallar(self, id_ejecucion: str) -> None: ...
     def estado(self, id_ejecucion: str) -> EstadoNodo | None: ...
     def resultado_guardado(self, id_ejecucion: str) -> bytes | None: ...
+    def hash_consumido(self, id_ejecucion: str) -> str | None: ...
 
 
 @dataclass(frozen=True)
@@ -74,6 +78,9 @@ class NodoDelegado:
         Marca EJECUTANDO de forma durable antes de correr nada: una segunda llamada (misma instancia, otra instancia u
         otro proceso) lanza `RechazoOrden(EJECUCION_REPETIDA|EJECUCION_AMBIGUA)` y no ejecuta."""
         ident = orden.campos["id_ejecucion"]
+        revalidar_para_ejecutar(self._politica, orden)  # caducidad, revocación y coherencia, ANTES de marcar nada
+        if self._almacen.hash_consumido(ident) != orden.hash_tarea:
+            raise RechazoOrden(Motivo.VINCULO_ROTO, "la orden no es la consumida")
         self._almacen.iniciar_ejecucion(ident)
         try:
             cap = CAPACIDADES[orden.campos["capacidad"]]

@@ -1,7 +1,7 @@
 incremento = "Integridad del log (D-LOG-1: ancla externa) y autoconstruccion (D1 correlacion, D2 verificacion real recuperada, D3 id sin carrera) - 2026-10-26"
 # Defectos: (1) borrar la cola del log no se detectaba; (2) atribucion por orden; (3) la recuperacion no publicaba la verificacion; (4) carrera en P-NNN.
 # NADA en paralelo con este arnes (CLAUDE.md §2). Cadenas LITERALES '''...''' (nunca """).
-pruebas = ["test_red_ancla_log.py", "test_red_correlacion_autoconstruccion.py", "test_red_reanudacion_tras_caida.py", "test_red_review.py", "test_red_f1_orquestador.py"]
+pruebas = ["test_red_ancla_log.py", "test_red_ancla_escritor.py", "test_red_correlacion_autoconstruccion.py", "test_red_reanudacion_tras_caida.py", "test_red_review.py", "test_red_f1_orquestador.py"]
 timeout_s = 900
 
 [[mutante]]
@@ -29,10 +29,11 @@ sustituir = '''        if estado_ancla == "ancla_ausente":'''
 
 [[mutante]]
 id = "IL4"
-garantia = "un escritor inicializa el ancla en silencio sobre un log existente"
+garantia = "el escritor crea el ancla en un log heredado con eventos y sin ancla (caso 2)"
 fichero = "control_plane.py"
-buscar = '''        return None if previos else "anclar"'''
-sustituir = '''        return "anclar"'''
+buscar = '''                "motivo_codigo": estado_ancla, "defecto": None, "plan": None}'''
+sustituir = '''                "motivo_codigo": estado_ancla, "defecto": None,
+                "plan": "genesis" if estado_ancla == "ancla_ausente" else None}'''
 
 [[mutante]]
 id = "IL5"
@@ -64,12 +65,12 @@ sustituir = '''        if False:
 
 [[mutante]]
 id = "IL8"
-garantia = "un escritor sigue anadiendo sobre un log truncado respecto de su ancla"
+garantia = "el escritor adelanta el ancla tras un truncamiento (la deteccion deja de ser permanente, caso 5)"
 fichero = "control_plane.py"
-buscar = '''    if codigo is not None:
-        raise AnclaInconsistente(f"{codigo}: el log no concuerda con su ancla externa; no se escribe")'''
-sustituir = '''    if False:
-        raise AnclaInconsistente(f"{codigo}: el log no concuerda con su ancla externa; no se escribe")'''
+buscar = '''        return {"integro": False, "completitud": COMPLETITUD_TRUNCADA, "motivo_codigo": codigo,
+                "defecto": None, "plan": None}'''
+sustituir = '''        return {"integro": False, "completitud": COMPLETITUD_TRUNCADA, "motivo_codigo": codigo,
+                "defecto": None, "plan": "adelantar"}'''
 
 [[mutante]]
 id = "IL9"
@@ -105,17 +106,17 @@ sustituir = '''    if False:
 id = "IL13"
 garantia = "los escritores no actualizan el ancla (la cabeza anclada se queda atras)"
 fichero = "control_plane.py"
-buscar = '''    if anclar:
-        _escribir_ancla('''
-sustituir = '''    if False:
-        _escribir_ancla('''
+buscar = '''    elif plan is not None:
+        _anclar_sin_bloquear('''
+sustituir = '''    elif False:
+        _anclar_sin_bloquear('''
 
 [[mutante]]
 id = "IL14"
-garantia = "los escritores no consultan el ancla antes de escribir"
+garantia = "el escritor no escribe la ancla genesis ANTES del primer evento (caso 7)"
 fichero = "control_plane.py"
-buscar = '''    anclar = "anclar" if adoptando else _ancla_antes_de_escribir(directorio, previos)'''
-sustituir = '''    anclar = "anclar"'''
+buscar = '''        if plan == "genesis":    # caso 1/7'''
+sustituir = '''        if False:    # caso 1/7'''
 
 [[mutante]]
 id = "IL15"
@@ -284,7 +285,7 @@ sustituir = '''    if intento is None:
 id = "RV2"
 garantia = "la propuesta del review no lleva la correlacion"
 fichero = "review.py"
-buscar = '''                           tarea=tarea["id"], intento=intento)'''
+buscar = '''                           tarea=tarea_correlacion, intento=intento)'''
 sustituir = ''')'''
 
 [[mutante]]
@@ -295,3 +296,86 @@ buscar = '''        if derivar is not None:
             datos = derivar()'''
 sustituir = '''        if derivar is not None:
             pass'''
+
+[[mutante]]
+id = "IL17"
+garantia = "el escritor SOBRESCRIBE un ancla corrupta o incompatible (caso 4)"
+fichero = "control_plane.py"
+buscar = '''                "motivo_codigo": estado_ancla, "defecto": None, "plan": None}'''
+sustituir = '''                "motivo_codigo": estado_ancla, "defecto": None,
+                "plan": "adelantar" if estado_ancla != "ancla_ausente" else None}'''
+
+[[mutante]]
+id = "IL18"
+garantia = "el escritor pierde `completitud_desde` al adelantar el ancla de una adopcion"
+fichero = "control_plane.py"
+buscar = '''        desde = ancla["desde"] if ancla else 1'''
+sustituir = '''        desde = 1'''
+
+[[mutante]]
+id = "IL19"
+garantia = "reparar_ancla pierde `completitud_desde` al adelantar un ancla adoptada"
+fichero = "control_plane.py"
+buscar = '''eventos[0]["hash"], desde=ancla["desde"])'''
+sustituir = '''eventos[0]["hash"], desde=1)'''
+
+[[mutante]]
+id = "IL20"
+garantia = "adoptar_ancla acepta `por`/`motivo` en blanco"
+fichero = "control_plane.py"
+buscar = '''    if not isinstance(por, str) or not por.strip() or not isinstance(motivo, str) or not motivo.strip():
+        raise ValueError("adoptar_ancla exige'''
+sustituir = '''    if not isinstance(por, str) or not isinstance(motivo, str):
+        raise ValueError("adoptar_ancla exige'''
+
+[[mutante]]
+id = "IL21"
+garantia = "reemplazar=True BORRA el ancla anterior en vez de conservarla como evidencia"
+fichero = "control_plane.py"
+buscar = '''    os.replace(ruta, destino)
+    return destino.name'''
+sustituir = '''    ruta.unlink()
+    return destino.name'''
+
+[[mutante]]
+id = "IL22"
+garantia = "adoptar_ancla no registra la completitud previa real (siempre dice no_demostrable)"
+fichero = "control_plane.py"
+buscar = '''"seq_adoptado": len(eventos) + 1, "completitud_previa": previa,'''
+sustituir = '''"seq_adoptado": len(eventos) + 1, "completitud_previa": COMPLETITUD_NO_DEMOSTRABLE,'''
+
+[[mutante]]
+id = "IL23"
+garantia = "la ancla genesis (seq 0) con cola inexplicable se da por buena"
+fichero = "control_plane.py"
+buscar = '''        return None if len(eventos) <= 1 else "ancla_genesis_con_cola_inexplicable"'''
+sustituir = '''        return None'''
+
+[[mutante]]
+id = "MH1"
+garantia = "el motor trabaja con un historial no verificable"
+fichero = "motor_autonomia.py"
+buscar = '''        if not integridad["integro"]:'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "MH2"
+garantia = "el motor planifica ANTES de comprobar el historial (la parada llega tarde)"
+fichero = "motor_autonomia.py"
+buscar = '''            return _detener(directorio, informe, f"historial no verificable: {integridad['motivo']}",
+                            desde=arranque)'''
+sustituir = '''            informe["motivo_de_parada"] = "historial no verificable (tarde)"'''
+
+[[mutante]]
+id = "RV3"
+garantia = "la clave de correlacion del review manual es el id posicional del llamante (colision AUT-001)"
+fichero = "review.py"
+buscar = '''    return f"{tarea['id']}@{huella}"'''
+sustituir = '''    return f"{tarea['id']}"'''
+
+[[mutante]]
+id = "RV4"
+garantia = "la clave de correlacion ignora el hallazgo concreto dentro del fichero"
+fichero = "review.py"
+buscar = '''    objeto = str(tarea.get("simbolo") or tarea.get("buscar") or "")'''
+sustituir = '''    objeto = ""'''

@@ -427,8 +427,8 @@ garantia = "verificar_integridad_log INFORMA de la cola truncada en vez de explo
 fichero = "control_plane.py"
 pruebas = ["test_red_recuperacion_12.py::test_verificar_integridad_INFORMA_de_la_cola_truncada_en_vez_de_explotar",
            "test_red_recuperacion_12.py::test_un_log_SANO_no_dispara_ningun_descarte"]
-buscar = '''    base = {"cola_truncada": cola_truncada, "eventos": len(eventos), "integridad_eventos": True,'''
-sustituir = '''    base = {"cola_truncada": False, "eventos": len(eventos), "integridad_eventos": True,'''
+buscar = '''    base = {"cola_truncada": cola_truncada, "eventos": len(eventos), "integridad_eventos": diag["defecto"] is None,'''
+sustituir = '''    base = {"cola_truncada": False, "eventos": len(eventos), "integridad_eventos": diag["defecto"] is None,'''
 
 [[mutante]]
 id = "C12-M6"

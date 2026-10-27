@@ -237,8 +237,10 @@ def test_C3_un_review_manual_registra_su_propia_tarea_planificada_y_correlaciona
     planificadas = [e for e in cp.leer_eventos(d) if e["tipo"] == "tarea_planificada"]
     assert len(planificadas) == 1 and "ejecutor" in planificadas[0]["datos"]
     (cambio,) = _cambios(d)
-    assert (cambio["tarea"], cambio["intento"]) == ("T-M1", planificadas[0]["seq"])
-    assert pl.estado_de(d, "T-M1") == "completada"
+    clave = rv.clave_de_tarea_manual(_tarea_manual(objetivo))
+    assert (cambio["tarea"], cambio["intento"]) == (clave, planificadas[0]["seq"])
+    assert planificadas[0]["datos"]["id"] == clave and clave.startswith("T-M1@")
+    assert pl.estado_de(d, clave) == "completada"
 
 
 def test_C3_una_tarea_NO_elegible_se_rechaza_sin_propuesta_ni_efecto(tmp_path):
@@ -248,7 +250,8 @@ def test_C3_una_tarea_NO_elegible_se_rechaza_sin_propuesta_ni_efecto(tmp_path):
     objetivo.write_text(fuente, encoding="utf-8")
     _habilitar_review(d)
     _planificada_sintetica_viva = pl.registrar_planificada(
-        d, {"id": "T-M1", "origen": "t", "accion": "eliminar_codigo_muerto", "fichero": str(objetivo),
+        d, {"id": rv.clave_de_tarea_manual(_tarea_manual(objetivo)), "origen": "t",
+            "accion": "eliminar_codigo_muerto", "fichero": str(objetivo),
             "riesgo": "bajo"})
     assert _planificada_sintetica_viva["seq"]
     with pytest.raises(pl.TareaNoElegible):
@@ -256,6 +259,55 @@ def test_C3_una_tarea_NO_elegible_se_rechaza_sin_propuesta_ni_efecto(tmp_path):
                                 verificacion=lambda raiz: True)
     assert objetivo.read_text(encoding="utf-8") == fuente
     assert not [e for e in cp.leer_eventos(d) if e["tipo"] in ("propuesta_registrada", "veredicto_emitido")]
+
+
+def _dos_muertas(d, nombre):
+    f = d / nombre
+    f.write_text("def _muerta():\n    return 2\n", encoding="utf-8")
+    return f
+
+
+def test_C3_dos_hallazgos_DISTINTOS_con_el_mismo_id_posicional_no_colisionan(tmp_path):
+    """RED con `ciclo_autonomo` intocable (bf13a47): su id posicional `AUT-001` se repite en cada vuelta."""
+    d = pathlib.Path(tmp_path)
+    _habilitar_review(d)
+    a, b = _dos_muertas(d, "a.py"), _dos_muertas(d, "b.py")
+    ra = rv.ejecutar_bajo_review(d, _tarea_manual(a, "AUT-001"), propuesto_por="aura",
+                                 autoridad="orquestador", verificacion=lambda raiz: True)
+    rb = rv.ejecutar_bajo_review(d, _tarea_manual(b, "AUT-001"), propuesto_por="aura",
+                                 autoridad="orquestador", verificacion=lambda raiz: True)
+    assert ra["ejecutado"] is True and rb["ejecutado"] is True
+    claves = [c["tarea"] for c in _cambios(d)]
+    assert len(claves) == 2 and len(set(claves)) == 2 and all(c.startswith("AUT-001@") for c in claves)
+    assert len([e for e in cp.leer_eventos(d) if e["tipo"] == "tarea_planificada"]) == 2
+
+
+def test_C3_CONTROL_el_MISMO_hallazgo_reintentado_se_reconoce_y_no_se_duplica(tmp_path):
+    d = pathlib.Path(tmp_path)
+    _habilitar_review(d)
+    a = _dos_muertas(d, "a.py")
+    rv.ejecutar_bajo_review(d, _tarea_manual(a, "AUT-001"), propuesto_por="aura", autoridad="orquestador",
+                            verificacion=lambda raiz: True)
+    with pytest.raises(pl.TareaNoElegible):
+        rv.ejecutar_bajo_review(d, _tarea_manual(a, "AUT-001"), propuesto_por="aura",
+                                autoridad="orquestador", verificacion=lambda raiz: True)
+    assert len([e for e in cp.leer_eventos(d) if e["tipo"] == "tarea_planificada"]) == 1
+    assert len(_cambios(d)) == 1
+    assert rv.clave_de_tarea_manual(_tarea_manual(a, "AUT-001")) == rv.clave_de_tarea_manual(
+        _tarea_manual(a, "AUT-001"))
+
+
+def test_C3_dos_simbolos_del_MISMO_fichero_con_el_mismo_id_posicional_tampoco_colisionan(tmp_path):
+    d = pathlib.Path(tmp_path)
+    _habilitar_review(d)
+    f = d / "dos.py"
+    f.write_text("def _muerta_a():\n    return 1\n\n\ndef _muerta_b():\n    return 2\n", encoding="utf-8")
+    for simbolo in ("_muerta_a", "_muerta_b"):
+        tarea = {**_tarea_manual(f, "AUT-001"), "simbolo": simbolo}
+        r = rv.ejecutar_bajo_review(d, tarea, propuesto_por="aura", autoridad="orquestador",
+                                    verificacion=lambda raiz: True)
+        assert r["ejecutado"] is True, simbolo
+    assert len({c["tarea"] for c in _cambios(d)}) == 2
 
 
 @pytest.mark.parametrize("quitar", ["id", "fichero"])

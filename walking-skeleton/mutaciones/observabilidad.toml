@@ -283,8 +283,8 @@ id = "OB-M20"
 garantia = "una COLA TRUNCADA consta: el ultimo evento puede faltar y el lector debe saberlo"
 fichero = "control_plane.py"
 pruebas = ["test_red_observatorio.py::test_una_COLA_TRUNCADA_consta"]
-buscar = '''    base = {"cola_truncada": cola_truncada, "eventos": len(eventos), "integridad_eventos": True,'''
-sustituir = '''    base = {"cola_truncada": False, "eventos": len(eventos), "integridad_eventos": True,'''
+buscar = '''    base = {"cola_truncada": cola_truncada, "eventos": len(eventos), "integridad_eventos": diag["defecto"] is None,'''
+sustituir = '''    base = {"cola_truncada": False, "eventos": len(eventos), "integridad_eventos": diag["defecto"] is None,'''
 
 # --------- EL ULTIMO ES EL ULTIMO ---------
 

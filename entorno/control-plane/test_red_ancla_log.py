@@ -54,7 +54,8 @@ def test_control_el_log_intacto_es_integro_y_completo(tmp_path):
     d = _log(tmp_path, 6)
     r = cp.verificar_integridad_log(d)
     assert r["integro"] is True
-    assert r["integridad_eventos"] is True and r["completitud"] is True
+    assert r["integridad_eventos"] is True and r["completitud"] == "demostrada"
+    assert r["completitud_desde"] == 1
     assert r["eventos"] == 6
     assert r["ancla"]["seq"] == 6 and r["ancla"]["atrasada"] is False
 
@@ -76,7 +77,7 @@ def test_borrar_los_ultimos_k_eventos_YA_NO_pasa_por_integro(tmp_path, k):
     r = cp.verificar_integridad_log(d)
     assert r["integro"] is False
     assert r["integridad_eventos"] is True, "la cadena restante sigue siendo consistente"
-    assert r["completitud"] is False
+    assert r["completitud"] == "truncada_o_alterada"
     assert r["motivo_codigo"] == "cola_mas_corta_que_el_ancla"
     assert r["eventos"] == 6 - k and r["seq_ancla"] == 6
 
@@ -234,7 +235,8 @@ def test_la_bateria_NUNCA_escribe_anclas_en_el_estado_real(tmp_path):
 
 
 def test_la_escritura_del_ancla_es_atomica(tmp_path, monkeypatch):
-    """Si el `rename` falla, el ancla anterior queda INTACTA (no medio escrita)."""
+    """Si el `rename` falla, el ancla anterior queda INTACTA (no medio escrita) y -decision del escritor
+    sin ancla- el EVENTO se escribe igualmente: el ancla queda atrasada y reconocida, no hay error."""
     d = _log(tmp_path, 3)
     antes = cp.ruta_ancla(d).read_bytes()
 
@@ -243,10 +245,11 @@ def test_la_escritura_del_ancla_es_atomica(tmp_path, monkeypatch):
 
     with monkeypatch.context() as m:
         m.setattr(cp.os, "replace", falla)
-        with pytest.raises(OSError):
-            cp.registrar_evento(d, "hecho", {"i": 50})
+        cp.registrar_evento(d, "hecho", {"i": 50})            # no lanza: el ancla no bloquea la escritura
     assert cp.ruta_ancla(d).read_bytes() == antes
     assert not list(cp.ruta_ancla(d).parent.glob("*.tmp")), "sin temporales huerfanos"
+    r = cp.verificar_integridad_log(d)
+    assert len(cp.leer_eventos(d)) == 4 and r["integro"] is True and r["ancla"]["atrasada"] is True
 
 
 # ===================================================== CAIDA ENTRE EVENTO Y ANCLA ==
@@ -332,14 +335,22 @@ def test_reparar_ancla_no_avanza_sobre_una_cadena_rota(tmp_path, monkeypatch):
     assert _ancla_json(d)["seq"] == 3
 
 
-def test_un_escritor_se_NIEGA_a_seguir_sobre_un_log_truncado(tmp_path):
-    """Seguir anadiendo reutilizaria `seq` ya anclados: la verdad se perderia para siempre."""
+def test_un_escritor_sobre_un_log_truncado_ESCRIBE_pero_no_adelanta_el_ancla_y_la_deteccion_persiste(tmp_path):
+    """Contrato nuevo (reemplaza a `AnclaInconsistente` en el escritor): la escritura no se bloquea, pero el
+    ancla no se mueve, asi que el truncamiento sigue detectado por mas eventos que se anadan. Control: sin
+    truncar, el mismo escritor SI adelanta el ancla."""
     d = _log(tmp_path, 5)
     _quitar_ultimos(d, 2)
-    antes = cp.ruta_eventos(d).read_bytes()
-    with pytest.raises(cp.AnclaInconsistente):
-        cp.registrar_evento(d, "hecho", {"i": 1})
-    assert cp.ruta_eventos(d).read_bytes() == antes
+    ancla = cp.ruta_ancla(d).read_bytes()
+    for i in range(5):                                     # hasta superar el seq anclado
+        cp.registrar_evento(d, "hecho", {"i": 100 + i})
+    assert len(cp.leer_eventos(d)) == 8 and cp.ruta_ancla(d).read_bytes() == ancla
+    r = cp.verificar_integridad_log(d)
+    assert r["integro"] is False and r["completitud"] == "truncada_o_alterada"
+    assert r["motivo_codigo"] == "hash_distinto_en_el_ancla", "el seq 5 ya no tiene el hash anclado"
+    sano = _log(tmp_path / "control", 5)
+    cp.registrar_evento(sano, "hecho", {"i": 1})
+    assert _ancla_json(sano)["seq"] == 6 and cp.verificar_integridad_log(sano)["integro"] is True
 
 
 def test_registrar_evento_si_pasa_por_el_mismo_mecanismo(tmp_path):

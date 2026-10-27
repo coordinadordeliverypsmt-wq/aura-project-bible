@@ -523,15 +523,29 @@ def _verificador_de_review(contrato: dict, directorio):
     return verificar
 
 
+def clave_de_tarea_manual(tarea: dict) -> str:
+    """Clave de planificacion/correlacion de un `review` manual: **estable por hallazgo**, no por posicion.
+
+    `f"{id}@{sha256(fichero::simbolo)[:12]}"`. Un llamante que reutiliza un id posicional (`AUT-001` en cada
+    vuelta de `ciclo_autonomo`, que es intocable) para hallazgos DISTINTOS ya no colisiona (la segunda vuelta
+    seria `TareaNoElegible`); el MISMO hallazgo reintentado produce la misma clave y el planificador lo
+    reconoce (completada/ya planificada). Sin `simbolo` (operaciones de texto) el hallazgo es fichero+buscar."""
+    import hashlib    # local: las pruebas citan lineas de este fichero (arriba) y un import nuevo las desplazaria
+    objeto = str(tarea.get("simbolo") or tarea.get("buscar") or "")
+    huella = hashlib.sha256(f"{tarea['fichero']}::{objeto}".encode("utf-8")).hexdigest()[:12]
+    return f"{tarea['id']}@{huella}"
+
+
 def _planificar_intento_manual(directorio, tarea: dict, accion: str) -> int:
-    """C3: el `review` manual deja su propia `tarea_planificada` (mismo mecanismo que el motor) y devuelve su
-    `seq`. Sin `id` o `fichero`, error explicito y sin efecto; una tarea no elegible lanza `TareaNoElegible`."""
+    """C3: el `review` manual deja su propia `tarea_planificada` (mismo mecanismo que el motor) bajo la
+    `clave_de_tarea_manual` y devuelve su `seq`. Sin `id` o `fichero`, error explicito y sin efecto; una tarea no
+    elegible lanza `TareaNoElegible`."""
     import planificador as plan
     faltan = [k for k in ("id", "fichero") if not str(tarea.get(k) or "").strip()]
     if faltan:
         raise ValueError(f"un review manual sin intento necesita {faltan} para registrar su tarea_planificada")
     evento = plan.registrar_planificada(directorio, {
-        "id": tarea["id"], "origen": tarea.get("origen") or "manual", "accion": accion,
+        "id": clave_de_tarea_manual(tarea), "origen": tarea.get("origen") or "manual", "accion": accion,
         "fichero": tarea["fichero"], "riesgo": tarea.get("riesgo") or "manual"})
     return evento["seq"]
 
@@ -593,8 +607,12 @@ def ejecutar_bajo_review(directorio, tarea: dict, propuesto_por: str, autoridad:
             f"{revisor!r} no es un revisor capaz: los que hoy pueden revisar son {capaces}. "
             f"Un veredicto en nombre de quien no existe es un sello, no una revision")
     revisor = revisor or next(r for r in capaces)
+    # Con `intento` (motor) el id de la tarea es el del planificador; sin el, la correlacion usa la clave
+    # estable por hallazgo (no el id posicional del llamante).
+    tarea_correlacion = tarea.get("id")
     if intento is None:
         intento = _planificar_intento_manual(directorio, tarea, accion)
+        tarea_correlacion = clave_de_tarea_manual(tarea)
     veredicto = pedir_veredicto(directorio, tarea, propuesto_por=propuesto_por, revisor=revisor)
     if not permite_seguir(veredicto):
         return {"ejecutado": False, "revisor": revisor, "objeciones": list(veredicto.objeciones),
@@ -612,7 +630,7 @@ def ejecutar_bajo_review(directorio, tarea: dict, propuesto_por: str, autoridad:
                                          "buscar": tarea.get("buscar"),
                                          "sustituir": tarea.get("sustituir"),
                                          "motivo": f"{accion} bajo REVIEW"},
-                           tarea=tarea["id"], intento=intento)
+                           tarea=tarea_correlacion, intento=intento)
     cp.registrar_propuesta_autorizada(
         directorio, propuesta["id"], autorizada_por=f"{cp.PREFIJO_REVIEW}{revisor}",
         acta=f"alcance habilitado por acta del CEO; veredicto de {revisor}")

@@ -29,7 +29,6 @@ otro ejecutor autorizado pueda retomarla leyendo el Control Plane.
 
 from __future__ import annotations
 
-import hashlib
 import pathlib
 
 import control_plane as cp
@@ -89,11 +88,7 @@ def ciclo_autonomo(directorio, ficheros, verificacion=None, max_tareas: int = 5,
             informe["motivo_de_parada"] = "limite de seguridad"
             break
 
-        # Id ESTABLE por hallazgo (no por posicion): el `review` manual registra su `tarea_planificada` (DP-
-        # AUTOCONSTRUCCION C3) y un id posicional `AUT-001` colisionaria en la siguiente vuelta con el de OTRO hallazgo.
-        tarea = {"id": "AUT-" + hashlib.sha256(
-                     f"{hallazgo['fichero']}::{hallazgo['simbolo']}".encode("utf-8")).hexdigest()[:12],
-                 "accion": "eliminar_codigo_muerto",
+        tarea = {"id": f"AUT-{indice + 1:03d}", "accion": "eliminar_codigo_muerto",
                  "fichero": hallazgo["fichero"], "simbolo": hallazgo["simbolo"],
                  "cambia_alcance": False, "respeta_decisiones": True,
                  "d21_afirmativas": True, "materia_reservada": False}

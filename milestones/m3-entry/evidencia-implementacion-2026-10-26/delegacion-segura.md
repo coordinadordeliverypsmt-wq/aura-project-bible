@@ -385,3 +385,91 @@ Además:
 2. **G-1.** Clasificar en `architecture_manifest.toml` los adaptadores que escriben estado de seguridad, y decidir sobre
    `opera=["unlink"]` para `firmador_hc1.py` o mantener la retirada manual.
 3. **`nodo_agente.py` (A3).** Aceptarlo en esta integración o separarlo.
+
+## 11. Integración local en `integracion/m3-entry` (merge `d9c34de`, 2026-10-27)
+
+**Autorización:** orden del CEO del 2026-10-27, en `decisiones/2026-10-27-acta-integracion-local-delegacion.md`.
+Condiciones:
+
+- A3 aceptado, con su comportamiento comprobado;
+- DECISION_REQUIRED 1-2 abiertas;
+- DP PROPUESTO;
+- sin cableado;
+- sin main, push ni PR;
+- intocables preservados.
+
+### 11.1 Herramientas (estado real)
+
+| Herramienta | Estado | Evidencia |
+|---|---|---|
+| Graphify 0.9.65 | **Operativa** | `explain mutar.py` RC=0. `graphify update .` en el worktree integrado reconstruyó el grafo AST (19793 nodos, 43391 aristas; `graphify-out/` sin commitear). La delegación pasa de 0 a 3612 referencias. `path componer() → SeguimientoHC1/AlmacenConsumidas/Firmador`: sin camino |
+| ECC | **Operativo** | Reglas `~/.claude/rules/ecc/` y 69 agentes globales más 4 del proyecto; versión no declarada. Ejecutados: `security-reviewer`, `arquitecto-evaluador`, `code-reviewer` (diff) y `auditor-consistencia` (gobernanza) |
+| AgentShield | **No instalado** | `command -v` ausente y `npx --no-install` falla. No se instaló |
+| Codex / OpenCode | **No instalados** | `command -v` ausente. No hubo bloqueo que los requiriera |
+| `cryptography` | Instalada (41.0.7), **no declarada** | No figura en `pyproject.toml` ni en `requirements*.txt`. Bloqueo separado para el cableado; no se modificaron dependencias |
+
+### 11.2 Merge
+
+- **Commit:** `git merge --no-ff pista/delegacion-segura` da `d9c34de`, con padres `90545f4` y `5d78887`.
+- **Árbol:** `e20ffc4`, idéntico al simulado con `git merge-tree`. Sin conflictos.
+- **Alcance:** exactamente los 28 ficheros de la pista.
+- **Intocables:** `ciclo_autonomo.py`, `orquestador.py` y `politica-orquestador.toml` sin cambios respecto a `bf13a47`.
+- **Revisor del diff:** CONFORME.
+- **A3 comprobado:**
+  - 30/30 pruebas (`nodo_agente_spki`, `fijacion_spki` y su versión endurecida);
+  - `spki_fijada` vale `()` por defecto (`nodo_agente.py:83`) y solo se aplica bajo `if config.spki_fijada:` (L419);
+  - ningún `nodo.conf` real contiene esa clave: **inerte**.
+
+### 11.3 Validaciones en serie
+
+Ejecutadas en serie sobre `d9c34de` con `TMPDIR=/tmp`; `AURA_ANCLA_DIR` y `AURA_AUTOCONSTRUCCION_ESTADO` apuntan a
+temporales. Logs en `~/.claude/jobs/d6cb894c/tmp/val-int/`.
+
+| # | Comando | RC | Resultado |
+|---|---|---|---|
+| 1 | `herramientas.mutar mutaciones/delegacion-segura.toml` | 0 | base verde · **194/194** |
+| 2 | `herramientas.mutar ../entorno/control-plane/mutaciones/integridad-y-autoconstruccion.toml --raiz ../entorno/control-plane` | 0 | **56/56** |
+| 3 | idem `reanudacion-tras-caida.toml` | 0 | **29/29** |
+| 4 | `herramientas.mutar mutaciones/motor-autonomia.toml --raiz ../entorno/control-plane` | 0 | **29/29** |
+| 5 | `quality-gate.sh` sobre `git archive HEAD` | 0 | **PASS** · 4234 passed / 3 skipped / 17 xfailed · contratos 8 |
+| 6 | `pytest -rs` en `entorno/control-plane` (exportación) | 1 | 1580 passed, **4 failed**, 3 skipped. Los 4 fallos son **idénticos a la base** `90545f4` (dependen de datos y del entorno) |
+| 7 | `pytest -rs tests/integration/test_delegacion_e2e_nats.py` | 0 | 14/14, 0 omitidas |
+| 8 | `entorno/scripts/preflight-check.sh` | 0 | **APTO** |
+
+Los 4 fallos preexistentes del paso 6:
+
+- `test_red_capacidad_completada.py` (2);
+- `test_red_frente_autonomo.py::…OB3_Y_OB2…`;
+- `test_red_fuera_de_alcance_exigible.py::…etiqueta_observatorio…`.
+
+No hay regresiones nuevas. No se creó ninguna ancla real (`~/.local/state/aura/anclas` no existe). El QG escribe, como
+siempre, su registro `~/.local/state/aura/quality-gate-ultimo.json`.
+
+### 11.4 Residuales tras la integración
+
+Según `security-reviewer`, N1, N2, R4-M1, R4-M2 y R4-M3 quedan **sin cambio de riesgo**:
+
+- el ancla D-LOG-1 no cubre el diario de HC-1 ni el almacén del nodo;
+- ningún módulo de producción importa la delegación y ninguna variable la activa;
+- la fixture autouse `AURA_ANCLA_DIR` no debilita los controles de permisos.
+
+Veredicto: **APTO** para la integración no cableada.
+
+### 11.5 Deuda nueva (`arquitecto-evaluador`: ENCAJA CON CONDICIONES)
+
+- **DN-1:** los 6 adaptadores escriben y truncan disco (`os.open`, `os.write`, `os.ftruncate` en `jsonl_durable.py:108`)
+  sin clasificación G-1. El verificador no detecta esas llamadas. Se paga antes del cableado, con una decisión del CEO.
+- **DN-2:** falta el análisis de no-equivalencia de `jsonl_durable.py` frente al escritor append+fsync de
+  `observability.py`. `firma_delegacion.py:224` duplica el append.
+- **DN-3:** corregido en este commit. Se versiona el acta y se añade el campo `implementacion:` al DP y a
+  `DEUDA-LOG-COLA-SIN-ANCLA.md`. Ningún estado cambia: el DP sigue PROPUESTO y la deuda sigue abierta en producción.
+
+### 11.6 Veredicto de integración
+
+**APROBADA CON CONDICIONES**, como biblioteca local no cableada. Condiciones:
+
+- DECISION_REQUIRED 1-2 abiertas;
+- DN-1 y DN-2 registradas;
+- `cryptography` sin declarar.
+
+**Cableado a producción: RECHAZADO.** Siguen vigentes los 8 requisitos de §10.6.

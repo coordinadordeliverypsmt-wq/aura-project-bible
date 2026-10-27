@@ -2,6 +2,7 @@
 documento: "Decision Package — Delegación de tareas a nodos secundarios (NODO-01)"
 fecha: 2026-10-26
 estado: "PROPUESTO, con texto de enmienda de DP-NODO-01 preparado (§6). NADA implementado. DP-NODO-01 sigue VIGENTE sin cambios: requiere decisión y acta del CEO (D23)"
+implementacion: "Actualización 2026-10-27: el «NADA implementado» del estado quedó desfasado en integracion/m3-entry. La biblioteca de delegación está integrada como biblioteca NO cableada (merge d9c34de, acta decisiones/2026-10-27-acta-integracion-local-delegacion.md). El DP sigue PROPUESTO; esta línea no lo aprueba. Producción (worktree-m3-entry) sin cambios"
 evidencia: "[LECT] y [EJEC] de solo lectura (--nodos); ver CHECKPOINT (z) y (aa)"
 ---
 

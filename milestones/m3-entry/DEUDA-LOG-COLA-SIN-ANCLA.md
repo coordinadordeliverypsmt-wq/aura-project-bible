@@ -4,6 +4,7 @@ fecha: 2026-10-26
 autor: "CTO"
 origen: "Investigación externa IE-040 (HAL-040-2), confirmada ejecutando en AURA sobre una copia del log real"
 estado: "REGISTRADA. Requiere Decision Package: toca control_plane.py, que figura en _INTOCABLES. Nada implementado"
+implementacion: "Actualización 2026-10-27: corrección implementada en la rama local integracion/m3-entry (pista control-plane, merge 90545f4; ancla externa en control_plane.py). NO desplegada en producción (worktree-m3-entry): la deuda sigue abierta allí y adoptar_ancla no se ha ejecutado sobre el log real"
 base: "worktree-m3-entry @ bf13a47"
 ---
 

@@ -15,6 +15,7 @@ from typing import Any
 import pytest
 
 from aura_skeleton.adapters.almacen_consumidas import AlmacenConsumidas
+from aura_skeleton.adapters.diario_hc1 import DiarioHC1
 from aura_skeleton.adapters.fijacion_spki import ErrorFijacion, normalizar_pines
 from aura_skeleton.adapters.firma_delegacion import (
     ErrorClave,
@@ -104,15 +105,15 @@ def test_m1_payload_firmado_pero_profundo_se_rechaza_tras_la_firma() -> None:
     assert verificar_y_leer(ok, DOMINIO_ORDEN, m.verificador_hc1())[1] == {"a": [1]}
 
 
-def test_m1_registrar_emision_acuses_y_resultados_profundos_son_rechazos_no_excepciones() -> None:
+def test_m1_registrar_emision_acuses_y_resultados_profundos_son_rechazos_no_excepciones(tmp_path: Path) -> None:
     m = mundo()
-    hc1 = SeguimientoHC1(m.verificador_nodos(), m.reloj)
+    hc1 = SeguimientoHC1(m.verificador_nodos(), m.reloj, diario=DiarioHC1(tmp_path / "hc1"), **m.config_hc1())
     hostil = b'{"p":' + b"[" * 90_000 + b"]" * 90_000 + b"}"
     assert _motivo(hc1.registrar_emision, hostil, 60) is Motivo.SOBRE_MALFORMADO
     assert _motivo(hc1.recibir_acuse, hostil, NODO) is Motivo.SOBRE_MALFORMADO
     assert _motivo(hc1.recibir_resultado, hostil, NODO) is Motivo.SOBRE_MALFORMADO
     # emisión con payload (firmado por nosotros) que no es un objeto: rechazo, no AttributeError/TypeError
-    no_objeto = empaquetar_sobre("hc1-k1", b"[1,2]", b"x")
+    no_objeto = m.hc1.firmar(DOMINIO_ORDEN, b"[1,2]")
     assert _motivo(hc1.registrar_emision, no_objeto, 60) is Motivo.SOBRE_MALFORMADO
     hc1.registrar_emision(firmante_orden(m.hc1, campos_validos()), 60)  # control
 
@@ -197,11 +198,11 @@ def test_a1_orden_firmada_con_un_kid_revocado_se_rechaza_y_con_uno_vigente_se_ac
 
 
 def test_a1_la_lista_de_revocados_persiste_y_falla_cerrada(tmp_path: Path) -> None:
-    ruta = tmp_path / "revocados.jsonl"
+    ruta, ancla = tmp_path / "revocados.jsonl", tmp_path / "revocados.ancla"
     assert cargar_revocados(ruta) == frozenset()  # aún no se revocó nada
-    revocar(ruta, "hc1-k1")
-    revocar(ruta, "hc1-k0")
-    revocar(ruta, "hc1-k1")  # idempotente
+    revocar(ruta, "hc1-k1", ancla)
+    revocar(ruta, "hc1-k0", ancla)
+    revocar(ruta, "hc1-k1", ancla)  # idempotente
     assert cargar_revocados(ruta) == {"hc1-k1", "hc1-k0"}  # "reinicio": lectura nueva
     assert stat.S_IMODE(os.stat(ruta).st_mode) == 0o600
     m = mundo()
@@ -226,7 +227,7 @@ def test_a1_la_lista_de_revocados_persiste_y_falla_cerrada(tmp_path: Path) -> No
     os.chmod(ruta, 0o600)
     assert cargar_revocados(ruta) == {"hc1-k1", "hc1-k0"}  # control
     with pytest.raises(ErrorClave):
-        revocar(ruta, "mal\n")
+        revocar(ruta, "mal\n", ancla)
 
 
 def test_a1_hc1_no_acepta_firmas_de_una_clave_de_nodo_revocada() -> None:

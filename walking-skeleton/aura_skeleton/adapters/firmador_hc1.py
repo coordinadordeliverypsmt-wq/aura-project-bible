@@ -13,7 +13,8 @@
 * Límite de TASA configurable (ventana deslizante): superado, rechaza con `tasa_excedida` y lo registra. TODA petición
   consume cupo, también las rechazadas (BAJO c: un par que inunde con peticiones inválidas se frena igual), y para no
   inflar el log las escrituras de RECHAZO tienen un tope por ventana (`rechazos_log_max`): el resto se cuenta y la
-  siguiente entrada de rechazo escrita lo declara en `suprimidos`.
+  siguiente entrada de rechazo o de fallo escrita lo declara en `suprimidos`. Los FALLOS inesperados (`registrar_fallo`:
+  petición ilegible, error interno) comparten ese mismo tope (3.ª revisión, MEDIO-6).
 * El log se abre con `flock` exclusivo y `O_NOFOLLOW`, y el `prev` de cada entrada se toma del FICHERO bajo el cerrojo.
 * `epoch_hc1` MONÓTONO y persistido: al arrancar el firmador lee `epoch.jsonl` (append-only, fsync); si el configurado es
   MENOR que el último usado, se NIEGA a arrancar; si no, usa `max(configurado, último + 1)` y lo anota ANTES de firmar
@@ -200,9 +201,31 @@ class Firmador:
             except ErrorDurable as e:
                 raise ErrorFirmador("el log del firmador no se puede escribir") from e
 
+    def _cupo_de_log(self, ahora: float) -> int | None:
+        """Cupo COMPARTIDO de escrituras no-firma (rechazos y fallos) por ventana. `None` = tope alcanzado: la escritura se
+        suprime y se cuenta; si no, devuelve los suprimidos acumulados (y los pone a cero) para declararlos en la entrada."""
+        with self._hilo_tasa:
+            limite = ahora - self._pol.tasa_ventana_s
+            while self._rechazos_escritos and self._rechazos_escritos[0] <= limite:
+                self._rechazos_escritos.popleft()
+            if len(self._rechazos_escritos) >= self._pol.rechazos_log_max:
+                self.rechazos_suprimidos += 1
+                return None
+            self._rechazos_escritos.append(ahora)
+            suprimidos, self.rechazos_suprimidos = self.rechazos_suprimidos, 0
+            return suprimidos
+
     def registrar_fallo(self, tipo: str, uid_par: int | None = None) -> None:
-        """Deja constancia de un fallo inesperado en el procesamiento de una petición (el hilo sigue vivo)."""
-        self._registrar({"tipo": "fallo", "momento": self._ahora(), "causa": tipo, "uid_par": uid_par})
+        """Deja constancia de un fallo inesperado en el procesamiento de una petición (el hilo sigue vivo). Comparte el
+        TOPE de escrituras por ventana con los rechazos (MEDIO-6): un par que provoque fallos no infla el log."""
+        ahora = self._ahora()
+        suprimidos = self._cupo_de_log(ahora)
+        if suprimidos is None:
+            return
+        entrada: dict[str, Any] = {"tipo": "fallo", "momento": ahora, "causa": tipo, "uid_par": uid_par}
+        if suprimidos:
+            entrada["suprimidos"] = suprimidos
+        self._registrar(entrada)
 
     def _reservar_tasa(self, ahora: float) -> None:
         with self._hilo_tasa:
@@ -215,15 +238,9 @@ class Firmador:
 
     def _registrar_rechazo(self, ahora: float, rechazo: RechazoOrden, uid_par: int | None) -> None:
         """Escribe el rechazo en el log salvo que se haya alcanzado el tope de la ventana (entonces solo se cuenta)."""
-        with self._hilo_tasa:
-            limite = ahora - self._pol.tasa_ventana_s
-            while self._rechazos_escritos and self._rechazos_escritos[0] <= limite:
-                self._rechazos_escritos.popleft()
-            if len(self._rechazos_escritos) >= self._pol.rechazos_log_max:
-                self.rechazos_suprimidos += 1
-                return
-            self._rechazos_escritos.append(ahora)
-            suprimidos, self.rechazos_suprimidos = self.rechazos_suprimidos, 0
+        suprimidos = self._cupo_de_log(ahora)
+        if suprimidos is None:
+            return
         entrada: dict[str, Any] = {
             "tipo": "rechazo",
             "momento": ahora,

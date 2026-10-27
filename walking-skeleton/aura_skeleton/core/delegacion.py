@@ -78,7 +78,9 @@ CAMPOS_ORDEN = frozenset(
 )
 CAMPOS_RESULTADO = frozenset({"v", "alg", "tarea", "intento", "id_nodo", "id_ejecucion", "hash_tarea", "salida"})
 CAMPOS_ACUSE = frozenset({"v", "alg", "tarea", "intento", "id_nodo", "id_ejecucion", "hash_tarea", "recibida_en"})
-CAMPOS_RESOLUCION = frozenset({"v", "alg", "id_ejecucion", "decision", "motivo", "emitida_en", "caduca_en", "nonce"})
+CAMPOS_RESOLUCION = frozenset(
+    {"v", "alg", "id_ejecucion", "hash_resultado", "decision", "motivo", "emitida_en", "caduca_en", "nonce"}
+)
 DECISIONES_RESOLUCION = frozenset({"admitir"})
 AUTORIZACION_VIDA_MAX_S = 600.0
 """Techo de la vida de una autorización de resolución (`caduca_en - emitida_en`): corta a propósito."""
@@ -137,6 +139,8 @@ class Motivo(StrEnum):
     AUTORIZACION_CADUCADA = "autorizacion_caducada"
     NONCE_REUTILIZADO = "nonce_reutilizado"
     TAREA_CON_INTENTO_AMBIGUO = "tarea_con_intento_ambiguo"
+    INSTANCIA_DUPLICADA = "instancia_duplicada"
+    """Ya hay otra instancia de seguimiento de HC-1 sobre ese diario (o esta ya se cerró): instancia ÚNICA por diario."""
     # resultados / acuses (lado HC-1)
     NODO_AJENO = "nodo_ajeno"
     EJECUCION_DESCONOCIDA = "ejecucion_desconocida"
@@ -463,6 +467,23 @@ def capacidad_registrada(nombre: str, permitidas: frozenset[str] | None = None) 
 # --- política y validación de la orden en el nodo ---------------------------------------------------------
 
 
+class SinRevocacion:
+    """Fuente de revocados que DECLARA explícitamente «no se revoca nada» (siempre vacía). Es la única forma admitida de
+    no tener lista de revocación: omitir la fuente no es una opción (MEDIO-3: nunca `None` implícito)."""
+
+    def __call__(self) -> frozenset[str]:
+        return frozenset()
+
+    def __repr__(self) -> str:
+        return "SinRevocacion()"
+
+
+def exigir_fuente_revocados(fuente: object) -> None:
+    """Una fuente de revocados es OBLIGATORIA y debe ser invocable (una `ListaRevocados` o `SinRevocacion()`)."""
+    if fuente is None or not callable(fuente):
+        raise ValueError("fuente_revocados es obligatoria: use una ListaRevocados o declare SinRevocacion()")
+
+
 @dataclass(frozen=True)
 class PoliticaNodo:
     id_nodo: str
@@ -472,16 +493,20 @@ class PoliticaNodo:
     """Lista LOCAL de capacidades que este nodo acepta (M5): nunca la del sobre ni la de HC-1."""
     reloj: Reloj
     arranque: float
+    fuente_revocados: Callable[[], frozenset[str]]
+    """Lista VIVA de revocados (C2), OBLIGATORIA: se consulta en CADA validación y antes de CADA ejecución, así que una
+    revocación posterior al arranque surte efecto sin reiniciar. Si no se puede leer lanza
+    `RechazoOrden(REVOCACION_ILEGIBLE)` y se rechaza todo (`adapters.firma_delegacion.ListaRevocados`). Quien no quiera
+    revocación lo declara con `SinRevocacion()`."""
     v_minima: int = V_ACTUAL
     vida_max_s: float = VIDA_MAX_S
     tolerancia_futuro_s: float = TOLERANCIA_FUTURO_S
     revocados: frozenset[str] = frozenset()
     """kids REVOCADOS de HC-1 FIJOS (de arranque). Una orden firmada con uno de ellos se rechaza aunque la firma sea
     matemáticamente válida y el kid siga en `emisores`."""
-    fuente_revocados: Callable[[], frozenset[str]] | None = None
-    """Lista VIVA de revocados (C2): se consulta en CADA validación y antes de CADA ejecución, así que una revocación
-    posterior al arranque surte efecto sin reiniciar. Si no se puede leer lanza `RechazoOrden(REVOCACION_ILEGIBLE)` y
-    se rechaza todo (`adapters.firma_delegacion.ListaRevocados`)."""
+
+    def __post_init__(self) -> None:
+        exigir_fuente_revocados(self.fuente_revocados)
 
 
 @dataclass(frozen=True)
@@ -505,7 +530,7 @@ def _validar_frescura(c: Mapping[str, Any], pol: PoliticaNodo, ahora: float) -> 
 
 def exigir_no_revocado(politica: PoliticaNodo, kid: str) -> None:
     """Consulta la lista de revocados VIGENTE (fija + viva). Lista ilegible => `REVOCACION_ILEGIBLE` (fallo cerrado)."""
-    vivos = politica.fuente_revocados() if politica.fuente_revocados is not None else frozenset()
+    vivos = politica.fuente_revocados()
     if kid in politica.revocados or kid in vivos:
         raise RechazoOrden(Motivo.KID_REVOCADO, "kid")
 
@@ -625,6 +650,7 @@ def validar_campos_resolucion(c: Mapping[str, Any]) -> None:
     exigir_version(c, V_ACTUAL)
     _exigir(c["alg"] == ALG, "alg")
     _exigir(_es_uuid4(c["id_ejecucion"]), "id_ejecucion")
+    _exigir(coincide(_RE_HASH, c["hash_resultado"]), "hash_resultado")
     _exigir(c["decision"] in DECISIONES_RESOLUCION, "decision")
     _exigir(isinstance(c["motivo"], str) and bool(c["motivo"].strip()) and len(c["motivo"]) <= MOTIVO_MAX, "motivo")
     _exigir(_es_tiempo(c["emitida_en"]) and _es_tiempo(c["caduca_en"]), "tiempos")
@@ -632,13 +658,23 @@ def validar_campos_resolucion(c: Mapping[str, Any]) -> None:
 
 
 def payload_resolucion(
-    id_ejecucion: str, motivo: str, emitida_en: float, caduca_en: float, nonce: str, decision: str = "admitir"
+    id_ejecucion: str,
+    hash_resultado: str,
+    motivo: str,
+    emitida_en: float,
+    caduca_en: float,
+    nonce: str,
+    decision: str = "admitir",
 ) -> bytes:
-    """Bytes canónicos de una autorización de resolución (lado de la autoridad humana). Valida el esquema."""
+    """Bytes canónicos de una autorización de resolución (lado de la autoridad humana). Valida el esquema.
+
+    `hash_resultado` = sha256 del SOBRE del resultado firmado concreto que se admite: la autorización no vale para
+    ningún otro resultado, aunque sea del mismo nodo y de la misma ejecución."""
     campos = {
         "v": V_ACTUAL,
         "alg": ALG,
         "id_ejecucion": id_ejecucion,
+        "hash_resultado": hash_resultado,
         "decision": decision,
         "motivo": motivo,
         "emitida_en": emitida_en,

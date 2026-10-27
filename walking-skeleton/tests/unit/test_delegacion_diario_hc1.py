@@ -54,13 +54,14 @@ class Escena:
         )
 
     def reiniciar_hc1(self, **kw: Any) -> SeguimientoHC1:
-        autoridad = {
-            "verificar_autoridad": self.m.verificador_autoridad(),
-            "kids_autoridad": frozenset({KID_AUTORIDAD}),
-            "kid_hc1": "hc1-k1",
-        }
+        anterior = self.__dict__.get("hc1")
+        if anterior is not None:
+            anterior.cerrar()  # un proceso nuevo: la instancia anterior ya no existe y suelta la instancia única
         self.hc1 = SeguimientoHC1(
-            self.m.verificador_nodos(), self.m.reloj, diario=DiarioHC1(self.dir), **{**autoridad, **self.kw, **kw}
+            self.m.verificador_nodos(),
+            self.m.reloj,
+            diario=DiarioHC1(self.dir),
+            **self.m.config_hc1(**{**self.kw, **kw}),
         )
         return self.hc1
 
@@ -137,12 +138,14 @@ def test_n1_el_diario_hace_fsync_del_fichero_en_cada_registro_y_del_directorio_a
 # --- reconstrucción tras reinicio --------------------------------------------------------------------------
 
 
-def test_control_sin_diario_un_reinicio_pierde_el_seguimiento(tmp_path: Path) -> None:
+def test_control_un_diario_distinto_no_conoce_la_ejecucion_y_el_mismo_diario_si(tmp_path: Path) -> None:
     esc = Escena(tmp_path)
     _, ident = esc.emitir()
-    sin_diario = SeguimientoHC1(esc.m.verificador_nodos(), esc.m.reloj)
-    assert sin_diario.ejecucion(ident) is None  # la carencia que M-2 cierra
-    assert esc.reiniciar_hc1().ejecucion(ident) is not None  # con diario, se reconstruye
+    otro = SeguimientoHC1(
+        esc.m.verificador_nodos(), esc.m.reloj, diario=DiarioHC1(tmp_path / "otro"), **esc.m.config_hc1()
+    )
+    assert otro.ejecucion(ident) is None  # un seguimiento sobre OTRO diario no ve nada
+    assert esc.reiniciar_hc1().ejecucion(ident) is not None  # sobre el mismo diario, se reconstruye
 
 
 def test_cada_estado_sobrevive_a_un_reinicio(tmp_path: Path) -> None:
@@ -250,11 +253,16 @@ class DiarioQueFalla:
     def recuperar(self) -> tuple[list[dict[str, Any]], int]:
         return [], 0
 
+    abierto = True
+
+    def cerrar(self) -> None:
+        self.abierto = False
+
 
 def test_sin_durabilidad_no_hay_transicion_el_diario_se_escribe_antes_que_la_memoria() -> None:
     m = mundo()
     diario = DiarioQueFalla()
-    hc1 = SeguimientoHC1(m.verificador_nodos(), m.reloj, diario=diario)
+    hc1 = SeguimientoHC1(m.verificador_nodos(), m.reloj, diario=diario, **m.config_hc1())
     diario.fallar = True
     campos = campos_validos()
     sobre = firmante_orden(m.hc1, campos)
@@ -302,12 +310,14 @@ def test_resolver_ambigua_exige_autorizacion_firmada_de_la_autoridad(tmp_path: P
             esc.hc1.resolver_ambigua(ident, no_autorizacion, res)  # type: ignore[arg-type]
         assert e.value.motivo is Motivo.SOBRE_MALFORMADO
     assert _estado(esc.hc1, ident) is Estado.AMBIGUO  # nada cambió
-    ej = esc.hc1.resolver_ambigua(ident, esc.m.autorizacion(ident), res)  # control
+    ej = esc.hc1.resolver_ambigua(ident, esc.m.autorizacion(ident, res), res)  # control
     assert ej.estado is Estado.RESULTADO_FIRMADO and ej.resuelta_por == KID_AUTORIDAD
-    sin_autoridades = Escena(tmp_path / "otra", kids_autoridad=frozenset(), verificar_autoridad=None)
+    sin_autoridades = Escena(
+        tmp_path / "otra", kids_autoridad=frozenset(), verificar_autoridad=None, sin_autoridad_humana=True
+    )
     ident2, res2, _ = _ambigua(sin_autoridades)  # sin autoridad configurada NADIE puede resolver
     with pytest.raises(RechazoOrden) as e2:
-        sin_autoridades.hc1.resolver_ambigua(ident2, sin_autoridades.m.autorizacion(ident2), res2)
+        sin_autoridades.hc1.resolver_ambigua(ident2, sin_autoridades.m.autorizacion(ident2, res2), res2)
     assert e2.value.motivo is Motivo.SIN_AUTORIDAD
 
 
@@ -317,7 +327,7 @@ def test_resolver_ambigua_valida_firma_y_vinculo_del_resultado(tmp_path: Path) -
 
     def motivo_de(r: bytes) -> Motivo:
         with pytest.raises(RechazoOrden) as e:
-            esc.hc1.resolver_ambigua(ident, esc.m.autorizacion(ident), r)
+            esc.hc1.resolver_ambigua(ident, esc.m.autorizacion(ident, r), r)
         return e.value.motivo
 
     ab = abrir_sobre(res)
@@ -337,7 +347,7 @@ def test_resolver_ambigua_valida_firma_y_vinculo_del_resultado(tmp_path: Path) -
     de_otro_nodo = esc.m.otro_nodo.firmar(DOMINIO_RESULTADO, bytes_canonicos({**base, "id_nodo": OTRO_NODO}))
     assert motivo_de(de_otro_nodo) in (Motivo.KID_DESCONOCIDO, Motivo.NODO_AJENO)
     assert _estado(esc.hc1, ident) is Estado.AMBIGUO
-    ej = esc.hc1.resolver_ambigua(ident, esc.m.autorizacion(ident), res)  # control: el auténtico y vinculado sí
+    ej = esc.hc1.resolver_ambigua(ident, esc.m.autorizacion(ident, res), res)  # control: el auténtico y vinculado sí
     assert ej.estado is Estado.RESULTADO_FIRMADO
 
 
@@ -346,10 +356,12 @@ def test_resolver_ambigua_no_acepta_el_resultado_de_otra_ejecucion_del_mismo_nod
     id_a, res_a, _ = _ambigua(esc, "t-a")
     id_b, res_b, _ = _ambigua(esc, "t-b")
     with pytest.raises(RechazoOrden) as e:
-        esc.hc1.resolver_ambigua(id_a, esc.m.autorizacion(id_a), res_b)  # firma válida del MISMO nodo, OTRA orden
+        esc.hc1.resolver_ambigua(
+            id_a, esc.m.autorizacion(id_a, res_b), res_b
+        )  # firma válida del MISMO nodo, OTRA orden
     assert e.value.motivo is Motivo.VINCULO_ROTO
     assert _estado(esc.hc1, id_a) is Estado.AMBIGUO and _estado(esc.hc1, id_b) is Estado.AMBIGUO
-    assert esc.hc1.resolver_ambigua(id_a, esc.m.autorizacion(id_a), res_a).estado is Estado.RESULTADO_FIRMADO
+    assert esc.hc1.resolver_ambigua(id_a, esc.m.autorizacion(id_a, res_a), res_a).estado is Estado.RESULTADO_FIRMADO
     assert _estado(esc.hc1, id_b) is Estado.AMBIGUO
 
 
@@ -359,18 +371,18 @@ def test_resolver_ambigua_solo_vale_para_ambiguas_o_interrumpidas(tmp_path: Path
     acuse, res = esc.nodo_responde(sobre)
     esc.hc1.recibir_acuse(acuse, NODO)  # ACEPTADA: está en curso, no ambigua
     with pytest.raises(RechazoOrden) as e:
-        esc.hc1.resolver_ambigua(ident, esc.m.autorizacion(ident), res)
+        esc.hc1.resolver_ambigua(ident, esc.m.autorizacion(ident, res), res)
     assert e.value.motivo is Motivo.EJECUCION_NO_EN_CURSO
     desconocida = "11111111-1111-4111-8111-111111111111"
     with pytest.raises(RechazoOrden) as e2:
-        esc.hc1.resolver_ambigua(desconocida, esc.m.autorizacion(desconocida), res)
+        esc.hc1.resolver_ambigua(desconocida, esc.m.autorizacion(desconocida, res), res)
     assert e2.value.motivo is Motivo.EJECUCION_DESCONOCIDA
 
 
 def test_la_resolucion_se_registra_persistentemente_y_sigue_el_camino_normal(tmp_path: Path) -> None:
     esc = Escena(tmp_path)
     ident, res, _ = _ambigua(esc)
-    esc.hc1.resolver_ambigua(ident, esc.m.autorizacion(ident, motivo="reenvío manual"), res)
+    esc.hc1.resolver_ambigua(ident, esc.m.autorizacion(ident, res, motivo="reenvío manual"), res)
     h = esc.reiniciar_hc1()
     ej = h.ejecucion(ident)
     assert ej is not None and ej.estado is Estado.RESULTADO_FIRMADO
@@ -401,11 +413,16 @@ class DiarioLento:
     def recuperar(self) -> tuple[list[dict[str, Any]], int]:
         return [], 0
 
+    abierto = True
+
+    def cerrar(self) -> None:
+        self.abierto = False
+
 
 def test_n1_el_mismo_resultado_desde_muchos_hilos_se_incorpora_una_sola_vez() -> None:
     m = mundo()
     diario = DiarioLento()
-    hc1 = SeguimientoHC1(m.verificador_nodos(), m.reloj, diario=diario)
+    hc1 = SeguimientoHC1(m.verificador_nodos(), m.reloj, diario=diario, **m.config_hc1())
     sobre = firmante_orden(m.hc1, campos_validos())
     ident = hc1.registrar_emision(sobre, 60).id_ejecucion
     nodo = NodoDelegado(m.politica(), m.verificador_hc1(), AlmacenMemoria(), m.nodo.firmar)
@@ -434,7 +451,7 @@ def test_n1_el_mismo_resultado_desde_muchos_hilos_se_incorpora_una_sola_vez() ->
 def test_n1_la_misma_emision_desde_muchos_hilos_se_registra_una_sola_vez() -> None:
     m = mundo()
     diario = DiarioLento()
-    hc1 = SeguimientoHC1(m.verificador_nodos(), m.reloj, diario=diario)
+    hc1 = SeguimientoHC1(m.verificador_nodos(), m.reloj, diario=diario, **m.config_hc1())
     sobre = firmante_orden(m.hc1, campos_validos())
     resultados: list[object] = []
 

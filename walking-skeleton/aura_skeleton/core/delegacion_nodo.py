@@ -6,7 +6,8 @@ consume de forma durable; devuelve el acuse FIRMADO. `ejecutar` corre la capacid
 `hash_tarea` a los bytes de la orden. El nodo NO tiene autoridad: lo que declara lo valida después HC-1.
 
 Estados persistentes por `id_ejecucion` (M-3): CONSUMIDA -> EJECUTANDO -> COMPLETADA (resultado firmado guardado) |
-FALLIDA. `ejecutar` solo corre UNA vez por orden (aunque se llame dos veces sobre la misma instancia, o desde dos
+FALLIDA (excepción ordinaria) | AMBIGUA (interrupción no-Exception: KeyboardInterrupt/SystemExit tras iniciar el efecto).
+`ejecutar` solo corre UNA vez por orden (aunque se llame dos veces sobre la misma instancia, o desde dos
 procesos): la segunda llamada se rechaza. Tras un reinicio, una ejecución EJECUTANDO sin COMPLETADA es AMBIGUA y no se
 re-ejecuta sola; si estaba COMPLETADA, `reenviar_resultado` devuelve el MISMO resultado firmado (idempotente).
 
@@ -47,6 +48,7 @@ class AlmacenNodo(AlmacenOrdenes, Protocol):
     def iniciar_ejecucion(self, id_ejecucion: str) -> None: ...
     def completar(self, id_ejecucion: str, resultado_firmado: bytes) -> None: ...
     def fallar(self, id_ejecucion: str) -> None: ...
+    def dejar_ambigua(self, id_ejecucion: str) -> None: ...
     def estado(self, id_ejecucion: str) -> EstadoNodo | None: ...
     def resultado_guardado(self, id_ejecucion: str) -> bytes | None: ...
     def hash_consumido(self, id_ejecucion: str) -> str | None: ...
@@ -86,8 +88,13 @@ class NodoDelegado:
             cap = CAPACIDADES[orden.campos["capacidad"]]
             salida = cap.ejecutar(cap.validar_argumentos(orden.campos["argumentos"]))
             resultado = self._firmar(DOMINIO_RESULTADO, payload_resultado(orden, self._politica.id_nodo, salida))
-        except BaseException:
+        except Exception:
             self._almacen.fallar(ident)
+            raise
+        except BaseException:
+            # KeyboardInterrupt/SystemExit/GeneratorExit con el efecto ya iniciado: NO se sabe si ocurrió. AMBIGUA, no
+            # FALLIDA (que sugeriría que no tuvo efecto y permitiría reintentar): nunca se re-ejecuta sola.
+            self._almacen.dejar_ambigua(ident)
             raise
         self._almacen.completar(ident, resultado)
         return resultado

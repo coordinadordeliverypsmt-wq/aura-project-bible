@@ -45,6 +45,7 @@ from aura_skeleton.core.delegacion import (
     Motivo,
     RechazoOrden,
     bytes_canonicos,
+    hash_de,
     payload_resolucion,
     validar_orden,
 )
@@ -73,25 +74,23 @@ def _motivo(fn: Any, *a: Any, **kw: Any) -> Motivo:
 class Escena:
     """HC-1 (con o sin diario real) + nodo real con almacén real, sobre un único `Mundo`."""
 
-    def __init__(self, tmp_path: Path, diario: bool = True, **kw: Any) -> None:
+    def __init__(self, tmp_path: Path, **kw: Any) -> None:
         self.tmp = tmp_path
         self.m: Mundo = mundo()
         self.kw = kw
-        self.con_diario = diario
         self.hc1 = self.reiniciar_hc1()
         self.nodo = NodoDelegado(
             self.m.politica(), self.m.verificador_hc1(), AlmacenConsumidas(tmp_path / "nodo"), self.m.nodo.firmar
         )
 
     def reiniciar_hc1(self, **kw: Any) -> SeguimientoHC1:
-        base: dict[str, Any] = {
-            "verificar_autoridad": self.m.verificador_autoridad(),
-            "kids_autoridad": frozenset({KID_AUTORIDAD}),
-            "kid_hc1": "hc1-k1",
-        }
-        if self.con_diario:
-            base["diario"] = DiarioHC1(self.tmp / "hc1")
-        self.hc1 = SeguimientoHC1(self.m.verificador_nodos(), self.m.reloj, **{**base, **self.kw, **kw})
+        anterior = self.__dict__.get("hc1")
+        if anterior is not None:
+            anterior.cerrar()  # proceso nuevo: la instancia anterior suelta la instancia única del diario
+        conf = self.m.config_hc1(**{**self.kw, **kw})
+        if "diario" not in conf:
+            conf["diario"] = DiarioHC1(self.tmp / "hc1")
+        self.hc1 = SeguimientoHC1(self.m.verificador_nodos(), self.m.reloj, **conf)
         return self.hc1
 
     def emitir(self, techo: float = 60, **cambios: Any) -> tuple[bytes, str]:
@@ -152,7 +151,7 @@ def _payload_acuse(esc: Escena, ident: str, **cambios: Any) -> dict[str, Any]:
 def test_m19_resultado_firmado_por_el_nodo_b_entregado_como_del_nodo_a_se_rechaza_explicitamente(
     tmp_path: Path,
 ) -> None:
-    esc = Escena(tmp_path, diario=False)
+    esc = Escena(tmp_path)
     _, ident = esc.emitir()
     de_b = esc.m.otro_nodo.firmar(DOMINIO_RESULTADO, bytes_canonicos(_payload_resultado(esc, ident, id_nodo=OTRO_NODO)))
     # firmado CORRECTAMENTE por B (id_nodo=B, su clave) pero entregado por el subject de A: el kid no es el del subject
@@ -165,7 +164,7 @@ def test_m19_resultado_firmado_por_el_nodo_b_entregado_como_del_nodo_a_se_rechaz
 
 
 def test_m19_resultado_de_a_que_dice_ser_de_b_se_rechaza_aunque_la_firma_sea_valida(tmp_path: Path) -> None:
-    esc = Escena(tmp_path, diario=False)
+    esc = Escena(tmp_path)
     _, ident = esc.emitir()
     miente = esc.m.nodo.firmar(DOMINIO_RESULTADO, bytes_canonicos(_payload_resultado(esc, ident, id_nodo=OTRO_NODO)))
     assert _motivo(esc.hc1.recibir_resultado, miente, NODO) is Motivo.NODO_AJENO  # firma de A, id_nodo de B
@@ -175,7 +174,7 @@ def test_m19_resultado_de_a_que_dice_ser_de_b_se_rechaza_aunque_la_firma_sea_val
 
 
 def test_m19_lo_mismo_para_los_acuses(tmp_path: Path) -> None:
-    esc = Escena(tmp_path, diario=False)
+    esc = Escena(tmp_path)
     _, ident = esc.emitir()
     de_b = esc.m.otro_nodo.firmar(DOMINIO_ACUSE, bytes_canonicos(_payload_acuse(esc, ident, id_nodo=OTRO_NODO)))
     assert _motivo(esc.hc1.recibir_acuse, de_b, NODO) is Motivo.KID_DESCONOCIDO
@@ -228,6 +227,7 @@ class RegistroEspia(RegistroSintetico):
 
 def _con_diario_falible(tmp_path: Path) -> tuple[Escena, DiarioFalible]:
     esc = Escena(tmp_path)
+    esc.hc1.cerrar()  # la instancia única sobre tmp/hc1 pasa al diario falible
     diario = DiarioFalible(tmp_path / "hc1")
     esc.hc1 = esc.reiniciar_hc1(diario=diario)
     return esc, diario
@@ -314,6 +314,10 @@ def test_c1_un_registrar_sin_ya_registrado_se_rechaza_antes_de_tocar_nada(tmp_pa
 # =====================================================================================================================
 
 
+def _revocar(ruta: Path, kid: str) -> None:
+    revocar(ruta, kid, ruta.with_name("revocados.ancla"))  # el ancla vive junto a la lista (ver `_lista`)
+
+
 def _lista(tmp_path: Path) -> tuple[ListaRevocados, Path, Path]:
     estado = tmp_path / "estado"
     estado.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -333,9 +337,9 @@ def test_c2_una_revocacion_posterior_surte_efecto_sin_reiniciar(tmp_path: Path) 
     lista, ruta, _ = _lista(tmp_path)
     m, nodo = _nodo_con_lista(tmp_path, lista)  # la lista NO existe todavía: funciona
     assert nodo.aceptar(firmante_orden(m.hc1, campos_validos())).orden  # control: antes de revocar, se acepta
-    revocar(ruta, "hc1-k1")  # revocación EN CALIENTE: ni el nodo ni su política se recrean
+    _revocar(ruta, "hc1-k1")  # revocación EN CALIENTE: ni el nodo ni su política se recrean
     assert _motivo(nodo.aceptar, firmante_orden(m.hc1, campos_validos())) is Motivo.KID_REVOCADO
-    revocar(ruta, "otro")  # control: un kid ajeno no afecta a otros emisores
+    _revocar(ruta, "otro")  # control: un kid ajeno no afecta a otros emisores
     assert lista() == {"hc1-k1", "otro"}
 
 
@@ -349,20 +353,20 @@ def test_c2_un_nodo_que_nunca_tuvo_lista_funciona_y_no_deja_ancla(tmp_path: Path
 def test_c2_borrar_la_lista_tras_crearla_rechaza_todo_con_motivo_explicito(tmp_path: Path) -> None:
     lista, ruta, ancla = _lista(tmp_path)
     m, nodo = _nodo_con_lista(tmp_path, lista)
-    revocar(ruta, "kid-ajeno")
+    _revocar(ruta, "kid-ajeno")
     assert nodo.aceptar(firmante_orden(m.hc1, campos_validos())).orden  # existe y se anota el ancla
     assert ancla.exists() and oct(ancla.stat().st_mode & 0o777) == "0o600"
     os.unlink(ruta)  # alguien borra la lista para «levantar» las revocaciones
     assert _motivo(nodo.aceptar, firmante_orden(m.hc1, campos_validos())) is Motivo.REVOCACION_ILEGIBLE
     assert _motivo(lista) is Motivo.REVOCACION_ILEGIBLE
-    revocar(ruta, "kid-ajeno")  # la lista vuelve a existir (el ancla sigue): fallo cerrado SOLO mientras falte
+    _revocar(ruta, "kid-ajeno")  # la lista vuelve a existir (el ancla sigue): fallo cerrado SOLO mientras falte
     assert nodo.aceptar(firmante_orden(m.hc1, campos_validos())).orden
 
 
 @pytest.mark.parametrize("dano", ["corrupta", "truncada", "ajena_escribible", "enlace"])
 def test_c2_una_lista_ilegible_o_insegura_es_fallo_cerrado(tmp_path: Path, dano: str) -> None:
     lista, ruta, _ = _lista(tmp_path)
-    revocar(ruta, "k")
+    _revocar(ruta, "k")
     assert lista() == {"k"}  # control
     if dano == "corrupta":
         ruta.write_bytes(b"basura\n")
@@ -380,7 +384,7 @@ def test_c2_una_lista_ilegible_o_insegura_es_fallo_cerrado(tmp_path: Path, dano:
 
 def test_c2_la_lista_se_lee_bajo_flock_compartido(tmp_path: Path) -> None:
     lista, ruta, _ = _lista(tmp_path)
-    revocar(ruta, "k")
+    _revocar(ruta, "k")
     fd = os.open(ruta, os.O_RDWR)
     fcntl.flock(fd, fcntl.LOCK_EX)  # una escritura en curso
     hecho = threading.Event()
@@ -394,7 +398,7 @@ def test_c2_la_lista_se_lee_bajo_flock_compartido(tmp_path: Path) -> None:
 
 def _hc1_con_lista(tmp_path: Path) -> tuple[Escena, Path]:
     lista, ruta, _ = _lista(tmp_path)
-    return Escena(tmp_path, diario=False, fuente_revocados=lista), ruta
+    return Escena(tmp_path, fuente_revocados=lista), ruta
 
 
 def test_c2_hc1_revocacion_en_caliente_de_un_nodo_afecta_a_acuses_y_resultados(tmp_path: Path) -> None:
@@ -403,7 +407,7 @@ def test_c2_hc1_revocacion_en_caliente_de_un_nodo_afecta_a_acuses_y_resultados(t
     ac = esc.nodo.aceptar(sobre)
     res = esc.nodo.ejecutar(ac.orden)
     esc.hc1.recibir_acuse(ac.acuse, NODO)  # control: antes de revocar se acepta
-    revocar(ruta, NODO)  # el nodo se revoca con HC-1 ya en marcha
+    _revocar(ruta, NODO)  # el nodo se revoca con HC-1 ya en marcha
     assert _motivo(esc.hc1.recibir_resultado, res, NODO) is Motivo.KID_REVOCADO
     assert _estado(esc.hc1, ident) is Estado.ACEPTADA
     _, ident2 = esc.emitir(tarea="t-2")
@@ -413,7 +417,7 @@ def test_c2_hc1_revocacion_en_caliente_de_un_nodo_afecta_a_acuses_y_resultados(t
 
 def test_c2_hc1_lista_borrada_tras_crearla_rechaza_resultados_y_acuses(tmp_path: Path) -> None:
     esc, ruta = _hc1_con_lista(tmp_path)
-    revocar(ruta, "kid-ajeno")
+    _revocar(ruta, "kid-ajeno")
     sobre, ident = esc.emitir()
     ac = esc.nodo.aceptar(sobre)
     res = esc.nodo.ejecutar(ac.orden)
@@ -435,12 +439,12 @@ def _resolver_motivo(esc: Escena, ident: str, autorizacion: bytes, res: bytes) -
 def test_c3_autorizacion_con_firma_invalida_se_rechaza(tmp_path: Path) -> None:
     esc = Escena(tmp_path)
     ident, res = esc.ambigua()
-    aut = json.loads(esc.m.autorizacion(ident))
+    aut = json.loads(esc.m.autorizacion(ident, res))
     payload = base64.b64decode(aut["p"]).replace(b"nodo guard", b"nodo guaRd")
     adulterada = json.dumps({**aut, "p": base64.b64encode(payload).decode()}).encode()
     assert _resolver_motivo(esc, ident, adulterada, res) is Motivo.FIRMA_INVALIDA
     assert _estado(esc.hc1, ident) is Estado.AMBIGUO
-    assert esc.hc1.resolver_ambigua(ident, esc.m.autorizacion(ident), res).estado is Estado.RESULTADO_FIRMADO
+    assert esc.hc1.resolver_ambigua(ident, esc.m.autorizacion(ident, res), res).estado is Estado.RESULTADO_FIRMADO
 
 
 @pytest.mark.parametrize("quien", ["hc1", "nodo", "desconocido"])
@@ -448,26 +452,29 @@ def test_c3_autorizacion_de_un_kid_que_no_es_de_autoridad_se_rechaza(tmp_path: P
     esc = Escena(tmp_path)
     ident, res = esc.ambigua()
     firmante = {"hc1": esc.m.hc1, "nodo": esc.m.nodo, "desconocido": generar_firmante("intruso-k9")}[quien]
-    assert _resolver_motivo(esc, ident, esc.m.autorizacion(ident, firmante=firmante), res) is Motivo.SIN_AUTORIDAD
+    assert _resolver_motivo(esc, ident, esc.m.autorizacion(ident, res, firmante=firmante), res) is Motivo.SIN_AUTORIDAD
     assert _estado(esc.hc1, ident) is Estado.AMBIGUO
 
 
-@pytest.mark.parametrize("config", [{"verificar_autoridad": None}, {"kids_autoridad": frozenset()}])
+@pytest.mark.parametrize(
+    "config",
+    [{"verificar_autoridad": None}, {"kids_autoridad": frozenset(), "sin_autoridad_humana": True}],
+)
 def test_c3_sin_verificador_o_sin_kids_de_autoridad_nadie_resuelve(tmp_path: Path, config: dict[str, Any]) -> None:
     esc = Escena(tmp_path, **config)
     ident, res = esc.ambigua()
-    assert _resolver_motivo(esc, ident, esc.m.autorizacion(ident), res) is Motivo.SIN_AUTORIDAD
+    assert _resolver_motivo(esc, ident, esc.m.autorizacion(ident, res), res) is Motivo.SIN_AUTORIDAD
     assert _estado(esc.hc1, ident) is Estado.AMBIGUO
     ok = Escena(tmp_path / "ok")  # control: con autoridad completa, la misma autorización sí vale
     ident2, res2 = ok.ambigua()
-    assert ok.hc1.resolver_ambigua(ident2, ok.m.autorizacion(ident2), res2)
+    assert ok.hc1.resolver_ambigua(ident2, ok.m.autorizacion(ident2, res2), res2)
 
 
 def test_c3_la_firma_de_autoridad_con_otro_dominio_no_vale(tmp_path: Path) -> None:
     esc = Escena(tmp_path)
     ident, res = esc.ambigua()
     ahora = esc.m.reloj.t
-    payload = payload_resolucion(ident, "m", ahora, ahora + 60, "12345678-1234-4234-8234-123456789012")
+    payload = payload_resolucion(ident, hash_de(res), "m", ahora, ahora + 60, "12345678-1234-4234-8234-123456789012")
     como_orden = esc.m.autoridad.firmar(DOMINIO_ORDEN, payload)  # misma clave, dominio equivocado
     assert _resolver_motivo(esc, ident, como_orden, res) is Motivo.FIRMA_INVALIDA
     assert esc.hc1.resolver_ambigua(ident, esc.m.autoridad.firmar(DOMINIO_RESOLUCION, payload), res)  # control
@@ -477,14 +484,14 @@ def test_c3_autorizacion_caducada_demasiado_larga_o_del_futuro_se_rechaza(tmp_pa
     esc = Escena(tmp_path)
     ident, res = esc.ambigua()
     ahora = esc.m.reloj.t
-    assert _resolver_motivo(esc, ident, esc.m.autorizacion(ident, emitida_en=ahora - 100, caduca_en=ahora - 1), res) \
+    assert _resolver_motivo(esc, ident, esc.m.autorizacion(ident, res, emitida_en=ahora - 100, caduca_en=ahora - 1), res) \
         is Motivo.AUTORIZACION_CADUCADA  # fmt: skip
-    assert _resolver_motivo(esc, ident, esc.m.autorizacion(ident, caduca_en=ahora + 100_000), res) \
+    assert _resolver_motivo(esc, ident, esc.m.autorizacion(ident, res, caduca_en=ahora + 100_000), res) \
         is Motivo.CADUCIDAD_EXCESIVA  # fmt: skip
-    assert _resolver_motivo(esc, ident, esc.m.autorizacion(ident, emitida_en=ahora + 60, caduca_en=ahora + 120), res) \
+    assert _resolver_motivo(esc, ident, esc.m.autorizacion(ident, res, emitida_en=ahora + 60, caduca_en=ahora + 120), res) \
         is Motivo.EMITIDA_EN_EL_FUTURO  # fmt: skip
     assert _estado(esc.hc1, ident) is Estado.AMBIGUO
-    assert esc.hc1.resolver_ambigua(ident, esc.m.autorizacion(ident), res)  # control: vigente
+    assert esc.hc1.resolver_ambigua(ident, esc.m.autorizacion(ident, res), res)  # control: vigente
 
 
 def test_c3_el_nonce_es_de_un_solo_uso_y_sobrevive_al_reinicio(tmp_path: Path) -> None:
@@ -492,19 +499,22 @@ def test_c3_el_nonce_es_de_un_solo_uso_y_sobrevive_al_reinicio(tmp_path: Path) -
     id_a, res_a = esc.ambigua("t-a")
     id_b, res_b = esc.ambigua("t-b")
     nonce = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
-    esc.hc1.resolver_ambigua(id_a, esc.m.autorizacion(id_a, nonce=nonce), res_a)
-    assert _resolver_motivo(esc, id_b, esc.m.autorizacion(id_b, nonce=nonce), res_b) is Motivo.NONCE_REUTILIZADO
+    esc.hc1.resolver_ambigua(id_a, esc.m.autorizacion(id_a, res_a, nonce=nonce), res_a)
+    assert _resolver_motivo(esc, id_b, esc.m.autorizacion(id_b, res_b, nonce=nonce), res_b) is Motivo.NONCE_REUTILIZADO
     h = esc.reiniciar_hc1()  # proceso nuevo: el nonce usado se reconstruye del diario
-    assert _motivo(h.resolver_ambigua, id_b, esc.m.autorizacion(id_b, nonce=nonce), res_b) is Motivo.NONCE_REUTILIZADO
-    assert h.resolver_ambigua(id_b, esc.m.autorizacion(id_b), res_b)  # control: nonce nuevo
+    assert (
+        _motivo(h.resolver_ambigua, id_b, esc.m.autorizacion(id_b, res_b, nonce=nonce), res_b)
+        is Motivo.NONCE_REUTILIZADO
+    )
+    assert h.resolver_ambigua(id_b, esc.m.autorizacion(id_b, res_b), res_b)  # control: nonce nuevo
 
 
 def test_c3_la_autorizacion_es_de_una_ejecucion_concreta(tmp_path: Path) -> None:
     esc = Escena(tmp_path)
     id_a, res_a = esc.ambigua("t-a")
     id_b, _ = esc.ambigua("t-b")
-    assert _resolver_motivo(esc, id_a, esc.m.autorizacion(id_b), res_a) is Motivo.VINCULO_ROTO
-    assert esc.hc1.resolver_ambigua(id_a, esc.m.autorizacion(id_a), res_a)  # control
+    assert _resolver_motivo(esc, id_a, esc.m.autorizacion(id_b, res_a), res_a) is Motivo.VINCULO_ROTO
+    assert esc.hc1.resolver_ambigua(id_a, esc.m.autorizacion(id_a, res_a), res_a)  # control
 
 
 @pytest.mark.parametrize("cambio", [{"decision": "rechazar"}, {"motivo": "  "}, {"motivo": "x" * 300}])
@@ -512,7 +522,7 @@ def test_c3_decision_y_motivo_del_esquema_cerrado(tmp_path: Path, cambio: dict[s
     esc = Escena(tmp_path)
     ident, res = esc.ambigua()
     campos = {
-        "v": 1, "alg": "ed25519", "id_ejecucion": ident, "decision": "admitir", "motivo": "m",
+        "v": 1, "alg": "ed25519", "id_ejecucion": ident, "hash_resultado": hash_de(res), "decision": "admitir", "motivo": "m",
         "emitida_en": esc.m.reloj.t, "caduca_en": esc.m.reloj.t + 60, "nonce": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
     }  # fmt: skip
     firmada = esc.m.autoridad.firmar(DOMINIO_RESOLUCION, bytes_canonicos({**campos, **cambio}))
@@ -524,11 +534,15 @@ def test_c3_decision_y_motivo_del_esquema_cerrado(tmp_path: Path, cambio: dict[s
 
 def test_c3_la_autoridad_no_puede_ser_la_clave_de_hc1_ni_la_de_un_nodo(tmp_path: Path) -> None:
     m = mundo()
-    base: dict[str, Any] = {"verificar_autoridad": m.verificador_autoridad(), "kid_hc1": "hc1-k1"}
-    for malo in ("hc1-k1", NODO, OTRO_NODO):
+    for i, malo in enumerate(("hc1-k1", NODO, OTRO_NODO)):
         with pytest.raises(ValueError):
-            SeguimientoHC1(m.verificador_nodos(), m.reloj, kids_autoridad=frozenset({malo}), **base)
-    SeguimientoHC1(m.verificador_nodos(), m.reloj, kids_autoridad=frozenset({KID_AUTORIDAD}), **base)  # control
+            SeguimientoHC1(
+                m.verificador_nodos(), m.reloj, diario=DiarioHC1(tmp_path / f"d{i}"),
+                **m.config_hc1(kids_autoridad=frozenset({malo})),
+            )  # fmt: skip
+    SeguimientoHC1(
+        m.verificador_nodos(), m.reloj, diario=DiarioHC1(tmp_path / "ok"), **m.config_hc1()
+    )  # control: la autoridad legítima
 
 
 # --- at-most-once POR TAREA -----------------------------------------------------------------------------------------
@@ -555,7 +569,7 @@ def _emitir_directo(esc: Escena, **cambios: Any) -> Any:
 def test_c3_capacidad_no_idempotente_con_intento_incierto_no_se_reemite(
     tmp_path: Path, con_capacidad_con_efectos: None, como: str
 ) -> None:
-    esc = Escena(tmp_path, diario=False)
+    esc = Escena(tmp_path)
     cap = {"capacidad": "escribir_nota_externa", "tarea": "t-9"}
     ej = _emitir_directo(esc, **cap, intento=1)
     if como == "ambiguo":
@@ -577,7 +591,7 @@ def test_c3_capacidad_no_idempotente_con_intento_incierto_no_se_reemite(
 
 @pytest.mark.parametrize("como", ["ambiguo", "interrumpida"])
 def test_c3_control_capacidad_idempotente_si_se_reemite(tmp_path: Path, como: str) -> None:
-    esc = Escena(tmp_path, diario=False)
+    esc = Escena(tmp_path)
     ej = _emitir_directo(esc, tarea="t-9", intento=1)
     if como == "ambiguo":
         esc.hc1.recibir_acuse(
@@ -592,7 +606,7 @@ def test_c3_control_capacidad_idempotente_si_se_reemite(tmp_path: Path, como: st
 
 
 def test_c3_una_capacidad_desconocida_para_el_registro_se_trata_como_no_idempotente(tmp_path: Path) -> None:
-    esc = Escena(tmp_path, diario=False)
+    esc = Escena(tmp_path)
     ej = _emitir_directo(esc, capacidad="capacidad_inventada", tarea="t-9", intento=1)
     esc.hc1.marcar_desconexion(NODO)
     assert ej.estado is Estado.INTERRUMPIDA
@@ -656,12 +670,12 @@ def test_bajo_a_una_resolucion_con_autorizacion_falsa_o_nonce_repetido_en_el_dia
     esc = Escena(tmp_path)
     id_a, res_a = esc.ambigua("t-a")
     id_b, res_b = esc.ambigua("t-b")
-    esc.hc1.resolver_ambigua(id_a, esc.m.autorizacion(id_a, nonce="cccccccc-cccc-4ccc-8ccc-cccccccccccc"), res_a)
-    esc.hc1.resolver_ambigua(id_b, esc.m.autorizacion(id_b), res_b)
+    esc.hc1.resolver_ambigua(id_a, esc.m.autorizacion(id_a, res_a, nonce="cccccccc-cccc-4ccc-8ccc-cccccccccccc"), res_a)
+    esc.hc1.resolver_ambigua(id_b, esc.m.autorizacion(id_b, res_b), res_b)
     esc.reiniciar_hc1()  # control
 
     def autorizacion_de_intruso(rs: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        falsa = esc.m.autorizacion(id_a, firmante=generar_firmante(KID_AUTORIDAD))  # mismo kid, OTRA clave
+        falsa = esc.m.autorizacion(id_a, res_a, firmante=generar_firmante(KID_AUTORIDAD))  # mismo kid, OTRA clave
         for r in rs:
             if r["ev"] == "resolucion" and r["id"] == id_a:
                 r["autorizacion"] = base64.b64encode(falsa).decode()
@@ -674,7 +688,7 @@ def test_bajo_a_una_resolucion_con_autorizacion_falsa_o_nonce_repetido_en_el_dia
 
     def nonce_repetido(rs: list[dict[str, Any]]) -> list[dict[str, Any]]:
         # la autorización de B es auténtica y de B, pero reutiliza el nonce de la de A
-        reutiliza = esc.m.autorizacion(id_b, nonce="cccccccc-cccc-4ccc-8ccc-cccccccccccc")
+        reutiliza = esc.m.autorizacion(id_b, res_b, nonce="cccccccc-cccc-4ccc-8ccc-cccccccccccc")
         for r in rs:
             if r["ev"] == "resolucion" and r["id"] == id_b:
                 r["autorizacion"] = base64.b64encode(reutiliza).decode()
@@ -747,7 +761,7 @@ def test_bajo_b_un_kid_revocado_entre_aceptar_y_ejecutar_no_se_ejecuta(tmp_path:
     lista, ruta, _ = _lista(tmp_path)
     m, nodo = _nodo_con_lista(tmp_path, lista)
     ac = nodo.aceptar(firmante_orden(m.hc1, campos_validos()))
-    revocar(ruta, "hc1-k1")
+    _revocar(ruta, "hc1-k1")
     assert _motivo(nodo.ejecutar, ac.orden) is Motivo.KID_REVOCADO
     assert nodo.estado(ac.orden.campos["id_ejecucion"]).value == "consumida"  # type: ignore[union-attr]
     m2, nodo2 = _nodo_con_lista(tmp_path / "otro", _lista(tmp_path / "otro")[0])

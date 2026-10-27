@@ -203,3 +203,68 @@ porque el diario falso se rechazaba antes por otro vínculo): se añadieron/ajus
   implementada: hoy el verificador y los `kids_autoridad` se inyectan.
 * El destino real de `registrar` (log de HC-1 con ancla D-LOG-1) debe cumplir `ya_registrado`; sigue sin cablear.
 * Un nodo revocado no invalida el HISTORIAL ya incorporado: al releer el diario se verifica la firma, no la revocación.
+
+---
+
+## 9. Tercera revisión de seguridad independiente (2026-10-27)
+
+Cierra ALTO-1, MEDIO-2..6 y los BAJOS 1-6 de la 3.ª revisión (líneas del blob `f496206`, bajo `walking-skeleton/aura_skeleton/`).
+Las secciones 1-8 describen el estado previo; **donde difieran (diario opcional, defaults abiertos, un único `RLock` como
+exclusión, `rechazos` ilimitado, 139 mutantes, `revocar(ruta, kid)`), manda esta sección.** Pruebas nuevas:
+`tests/unit/test_delegacion_revision3.py` (100 casos, cada uno con control). Adaptadas: `delegacion_apoyo.py`
+(`Mundo.config_hc1`, `autorizacion(id, resultado, ...)` ligada al hash, `dejar_ambigua`), `test_delegacion_diario_hc1.py`,
+`test_delegacion_revision2.py`, `test_delegacion_resultado_firmado.py`, `test_delegacion_robustez.py`,
+`test_delegacion_e2e_nats.py`.
+
+| Hallazgo | Causa | Corrección | Pruebas (todas con control) |
+|---|---|---|---|
+| **ALTO-1** instancia única | Solo había `RLock` en proceso: dos `SeguimientoHC1` (mismo proceso u otro) sobre el mismo diario escribían a la vez y `incorporar` (`ya_registrado` -> `registrar`) no era atómico entre ellas. | `DiarioHC1` toma al construirse un `flock` EXCLUSIVO NO bloqueante sobre su centinela `seguimiento.instancia` (0600, `O_NOFOLLOW`, sin `unlink`) y lo mantiene toda su vida (`weakref.finalize` + `cerrar()`; el kernel lo suelta si el proceso muere). Un segundo diario/seguimiento falla cerrado con `Motivo.INSTANCIA_DUPLICADA`. Un diario cerrado ya no anota ni recupera. `SeguimientoHC1.cerrar()`; una construcción fallida cierra el diario (no deja la exclusión a medias). `_incorporar` exige la instancia vigente ANTES de `ya_registrado`/`registrar`. | Dos diarios y dos seguimientos en un proceso; dos PROCESOS (un hijo mantiene el diario, el padre no arranca; `SIGKILL` al hijo y el padre arranca); centinela enlace/permisos abiertos; diario cerrado no anota; `incorporar` tras `cerrar()` no consulta ni registra y con la instancia vigente registra UNA vez; 6 hilos incorporando = 1 registro; nonce ya gastado visto por la instancia sucesiva. |
+| **MEDIO-2** no idempotente | `_SIN_RESOLVER` solo bloqueaba AMBIGUO/INTERRUMPIDA/INCORPORANDO/INCORPORACION_INCIERTA. | `_BLOQUEA_NO_IDEMPOTENTE = frozenset(Estado)`: cualquier intento previo de la misma tarea (EMITIDA, ACEPTADA, RESULTADO_FIRMADO, VALIDADO, VERIFICACION_FALLIDA, INCORPORANDO, INCORPORACION_INCIERTA, INCORPORADO, AMBIGUO, INTERRUMPIDA) bloquea otro intento de una capacidad NO idempotente o desconocida (`tarea_con_intento_ambiguo`). Los idempotentes conservan la regla de siempre. | Los 10 estados parametrizados con una capacidad de prueba no idempotente registrada solo en tests (monkeypatch); control: la misma tabla con la idempotente (EMITIDA/ACEPTADA -> `ejecucion_no_en_curso`, el resto se reemite); otra tarea no queda bloqueada. |
+| **MEDIO-3** defaults abiertos | `kid_hc1=""`, `fuente_revocados=None`, `kids_autoridad=frozenset()` por defecto; `PoliticaNodo.fuente_revocados=None`. | Obligatorios y validados: `kid_hc1` kid válido; `fuente_revocados` invocable (`SinRevocacion()` declara «sin revocación»; `None` no vale, ni en `PoliticaNodo`); `kids_autoridad` vacío solo con `sin_autoridad_humana=True` (y entonces `resolver_ambigua` rechaza siempre; `True` + kids = contradicción). Se añade `verificar_hc1` (obligatorio). | Omitir cada campo (`TypeError`), valores vacíos/`None`/no invocables (`ValueError`), contradicciones; `sin_autoridad_humana` rechaza aunque el verificador dé por buena la firma. |
+| **MEDIO-4** diario opcional | `diario: Diario \| None = None`. | `diario` obligatorio (sin él `TypeError`; `None` -> `ValueError`). Las pruebas que lo omitían inyectan un `DiarioHC1` en `tmp_path`. | Omitido, `None`, construcción fallida que cierra el diario. |
+| **MEDIO-5** relectura del diario | Se confiaba en `{"ok": true}`, no se verificaba la firma de HC-1 de la `emision` y `float(r["vence_en"])` aceptaba `inf`/`nan`. | Al releer: `validacion` se RECALCULA con `cap.verificar` y debe coincidir con la anotada (si no, `DIARIO_ILEGIBLE`); la `emision` se verifica con `verificar_hc1` + `kid_hc1` + forma canónica (también en `registrar_emision`) y el `kid` del payload debe ser el del sobre; `vence_en` y `recibida_en` deben ser números finitos (`inf`, `-inf`, `nan`, `1e999`); `registrar_emision` rechaza un `techo_total_s` no finito. `Ejecucion.validacion` queda registrada también en vivo. | `ok` falseado en ambos sentidos; emisión firmada con otra clave (mismo kid) o por otro kid; kid del payload distinto; tiempos no finitos en el diario; techo `inf/nan/bool/str`. |
+| **MEDIO-6** `registrar_fallo` | Sin tope, a diferencia de los rechazos. | `_cupo_de_log` COMPARTIDO: fallos y rechazos gastan el mismo cupo `rechazos_log_max` por ventana; el resto se cuenta (`rechazos_suprimidos`) y la siguiente entrada escrita (rechazo o fallo) declara `suprimidos`. | 10 fallos -> 3 entradas + 7 suprimidos, declarados en la ventana siguiente; rechazo + fallos comparten cupo; control: una firma legítima nunca se suprime. |
+| **BAJO 1** FIFO | `os.open(..., O_RDONLY\|O_NOFOLLOW)` se bloqueaba en un FIFO. | `O_NONBLOCK` + rechazo de no-regulares (`REVOCACION_ILEGIBLE`); el ancla se abre igual. | FIFO sin bloquearse (hilo con `join(3)`); control: fichero regular. |
+| **BAJO 2** ancla | El ancla solo la creaba la primera lectura y era un marcador sin contenido: vaciar la lista tras anclar pasaba por «lista vacía». | `revocar(ruta, kid, ancla)` también ancla. El ancla es append-only: `{tam, sha256}` del contenido, crece con la lista. Lista MÁS CORTA que lo anclado o con el prefijo anclado alterado (vaciada, truncada, reescrita) -> `REVOCACION_ILEGIBLE`. Ancla enlace/ajena/escribible/contradictoria/truncada/mal formada -> `REVOCACION_ILEGIBLE`. | Vaciada, truncada, reescrita mismo tamaño, prefijo cambiado; lista que crece; lista vacía anclada que crece; ancla dañada (5 variantes); `revocar` sobre una lista alterada falla en vez de anclar lo alterado. |
+| **BAJO 3** rotación | Retirar un kid de autoridad rompía el arranque sobre un diario que ya lo usaba. | `kids_autoridad_retirados`: aceptados SOLO al releer resoluciones ya registradas (`historica=True`), nunca en `resolver_ambigua`; no pueden solaparse con los vigentes ni ser HC-1/nodos; funcionan también con `sin_autoridad_humana`. | Arranca con el kid retirado; sin declararlo, `DIARIO_ILEGIBLE`; un retirado no resuelve nada nuevo (`SIN_AUTORIDAD`) y el vigente sí. |
+| **BAJO 4** `rechazos` | Lista sin límite. | Anillo de `RECHAZOS_MEMORIA_MAX` (256) + `rechazos_total`. | Tope, total, se descarta el más antiguo. |
+| **BAJO 5** autorización | Ligada a la ejecución, no al resultado concreto. | Campo firmado `hash_resultado` (sha256 del sobre del resultado) en la autorización; `resolver_ambigua` y la relectura del diario lo comprueban (`hash_no_corresponde` / `DIARIO_ILEGIBLE`). | Dos resultados válidos de la misma ejecución: el autorizado sí, el otro no (y el nonce no se gasta); campo obligatorio y con formato sha256; relectura con el resultado cambiado. |
+| **BAJO 6** `ejecutar` | `except BaseException` -> `fallar`: un `KeyboardInterrupt`/`SystemExit` tras iniciar el efecto dejaba FALLIDA (reintentable). | `except Exception` -> `fallar`; cualquier otra interrupción -> `dejar_ambigua` (AMBIGUA, no se re-ejecuta sola, también tras reiniciar). | `KeyboardInterrupt` y `SystemExit(3)` -> AMBIGUA y `EJECUCION_AMBIGUA`; control: `RuntimeError` -> FALLIDA. |
+
+### Mutantes (139 -> 194; 55 nuevos M140-M194; 9 reescritos) y verificación a mano
+
+`mutaciones/delegacion-segura.toml`: `tomllib` confirma que cada `buscar` aparece EXACTAMENTE una vez en su `fichero` y difiere
+de `sustituir` (194 mutantes, 0 anomalías). Reescritos por haber cambiado el código: M67, M99, M100, M102 (además suma
+`test_delegacion_revision3.py`), M104, M112, M125, M130, M138. Verificación manual (SIN `herramientas.mutar`): copia del árbol en el
+tmp del trabajo, aplicar `buscar`->`sustituir`, correr las `pruebas` del mutante, exigir fallo (rc=1) y restaurar. Resultado: los
+194 DETECTADOS (los 64 nuevos o reescritos y los 130 que no cambiaron). En la primera pasada sobrevivieron 2: M102 (las
+pruebas de revision2 ya no leían una lista no creada por `revocar`; se añadió una prueba de «primera lectura ancla una lista creada
+a mano») y M146 (la construcción fallida dependía de cuándo se recolectara la basura; la prueba conserva ahora el diario y exige `abierto == False`).
+Redundancias declaradas, SIN mutante por equivalentes: en `_leer_autorizacion` la comprobación de `sin_autoridad_humana`, la de
+`verificar_autoridad is None` y la de `not aceptados` desembocan en el mismo `SIN_AUTORIDAD`; el mutante que quita solo
+`sin_autoridad_humana` es equivalente.
+
+### Comandos `[EJEC]`
+
+| Comando | Exit | Resumen |
+|---|---|---|
+| `pytest tests/unit/test_delegacion_revision3.py` | 0 | 100 passed |
+| `pytest -q -p no:cacheprovider tests/unit tests/integration -k "delegac or firma or spki or nodo_agente or consumid or firmador"` (2 ejecuciones, sin `TMPDIR` largo) | 0, 0 | 560 passed + 1 xfailed en cada una; los E2E sobre NATS estables 2 de 2 |
+| verificación manual de mutantes (copia en el tmp del trabajo) | 0 | 194/194 detectados |
+| `./quality-gate.sh` | 0 | formato OK (328 ficheros) · lint OK · mypy OK (101 ficheros) · pruebas OK: 4234 passed, 3 skipped, 17 xfailed (1320 s) · contratos 8 passed · **QUALITY GATE: PASS** (G-1 vigente: sin excepciones nuevas en `architecture_manifest.toml`; el centinela y el ancla se crean con `os.open`, sin `unlink`/`replace`) |
+
+### Límites declarados que siguen vigentes (o nuevos)
+
+* **«Salvo resolución explícita autorizada» (MEDIO-2) NO está implementado.** Una tarea con efectos que ya tuvo un intento nunca se
+  reemite con el mismo identificador de tarea; rehacerla exige una tarea NUEVA decidida por un humano. Un reintento autorizado
+  necesitaría una decisión `reintentar` en el dominio de resolución, su nonce y su relectura: no se hace sin acta del CEO.
+* `flock` es consultivo y por inodo: con el mismo uid, quien abra el diario sin pasar por `DiarioHC1` lo ignora; en sistemas de
+  ficheros de red su semántica puede no cumplirse. La instancia única cubre a las instancias de `SeguimientoHC1`, no a otros
+  escritores del destino de `registrar` (el log de HC-1 con ancla D-LOG-1 sigue sin cablear).
+* La exclusión se libera también al recolectar el diario (`weakref.finalize`); en producción debe llamarse a `cerrar()`.
+* El formato del ancla cambió: un ancla antigua `revocados\n` es ilegible (`REVOCACION_ILEGIBLE`); nada de esto está cableado a
+  producción, así que no hay migración.
+* Relectura: se re-ejecuta el verificador de la capacidad. Un verificador no determinista haría ilegible el diario (fallo cerrado).
+  No se comprueba la revocación del kid de HC-1 al releer, solo su firma.
+* El ancla de revocados crece una línea por revocación o lectura con cambios (append-only, sin rotación).
+* La gestión/custodia de las claves de autoridad (y la lista de retirados) sigue siendo configuración inyectada.

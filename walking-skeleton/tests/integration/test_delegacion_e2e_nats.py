@@ -38,8 +38,10 @@ from aura_skeleton.core.delegacion import (
     Motivo,
     PoliticaNodo,
     RechazoOrden,
+    SinRevocacion,
     abrir_sobre,
     empaquetar_sobre,
+    hash_de,
     verificar_y_leer,
 )
 from aura_skeleton.core.delegacion_hc1 import Estado, SeguimientoHC1
@@ -213,9 +215,11 @@ class Hc1Sim:
             verificador_de({NODO: env.nodo_firmante.publica(), OTRO_NODO: env.otro_firmante.publica()}),
             self.reloj,
             diario=DiarioHC1(self.dir_diario),
+            verificar_hc1=verificador_de({"hc1-k1": env.hc1_firmante.publica()}),
             verificar_autoridad=verificador_de({"autoridad-k1": env.autoridad_firmante.publica()}),
             kids_autoridad=frozenset({"autoridad-k1"}),
             kid_hc1="hc1-k1",
+            fuente_revocados=SinRevocacion(),
         )
 
     async def iniciar(self) -> None:
@@ -227,10 +231,14 @@ class Hc1Sim:
         """HC-1 muere: se pierde la conexión y TODO el estado en memoria."""
         if self.nc is not None and not self.nc.is_closed:
             await self.nc.close()
+        if self.seg is not None:
+            self.seg.cerrar()  # el proceso muere: suelta la instancia única del diario (el kernel lo haría solo)
         self.seg = None  # type: ignore[assignment]
 
     async def reiniciar(self, desfase_s: float = 0.0) -> None:
         self.reloj.desfase += desfase_s
+        if self.seg is not None:
+            self.seg.cerrar()
         self.seg = self._arrancar_seguimiento()
         await self.iniciar()
 
@@ -267,7 +275,7 @@ class NodoSim:
         self.env, self.id = env, id_nodo
         pol = PoliticaNodo(
             id_nodo, {"hc1-k1": "hc1"}, frozenset({"calcular_resumen_sha256"}), RelojReal(),
-            time.time() - 5 if arranque is None else arranque,
+            time.time() - 5 if arranque is None else arranque, SinRevocacion(),
         )  # fmt: skip
         self.almacen = AlmacenConsumidas(directorio)
         self.nodo = NodoDelegado(pol, verificador_de({"hc1-k1": env.hc1_firmante.publica()}),
@@ -601,7 +609,9 @@ async def test_11_una_ejecucion_ambigua_no_se_repite_y_solo_se_resuelve_por_la_v
         t = hc1.reloj.ahora()  # el reloj de HC-1 (puede llevar desfase)
         return firmante.firmar(
             DOMINIO_RESOLUCION,
-            payload_resolucion(ident, "resultado firmado recuperado del nodo", t, t + 60, str(uuid.uuid4())),
+            payload_resolucion(
+                ident, hash_de(guardado), "resultado firmado recuperado del nodo", t, t + 60, str(uuid.uuid4())
+            ),
         )
 
     with pytest.raises(RechazoOrden) as e:

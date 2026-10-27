@@ -175,6 +175,12 @@ class AlmacenConsumidas:
     def fallar(self, id_ejecucion: str) -> None:
         self._cerrar(id_ejecucion, {"id": id_ejecucion, "estado": _FALLIDA})
 
+    def dejar_ambigua(self, id_ejecucion: str) -> None:
+        """Interrupción no-Exception con el efecto iniciado: el estado persistido sigue EJECUTANDO (no se escribe nada) y
+        la ejecución deja de ser «mía»: se lee como AMBIGUA incluso en esta instancia, y no se re-ejecuta sola."""
+        with self._hilo:
+            self._mias.discard(id_ejecucion)
+
     def _estado_de(self, id_ejecucion: str) -> tuple[EstadoNodo | None, bytes | None]:
         with self._hilo:
             try:

@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from aura_skeleton.adapters.almacen_consumidas import AlmacenConsumidas
+from aura_skeleton.adapters.diario_hc1 import DiarioHC1
 from aura_skeleton.adapters.firma_delegacion import Firmante
 from aura_skeleton.core.delegacion import (
     DOMINIO_ACUSE,
@@ -25,7 +26,9 @@ from tests.delegacion_apoyo import NODO, OTRO_NODO, Mundo, RegistroSintetico, ca
 class Escena:
     def __init__(self, tmp_path: Any) -> None:
         self.m: Mundo = mundo()
-        self.hc1 = SeguimientoHC1(self.m.verificador_nodos(), self.m.reloj)
+        self.hc1 = SeguimientoHC1(
+            self.m.verificador_nodos(), self.m.reloj, diario=DiarioHC1(tmp_path / "hc1"), **self.m.config_hc1()
+        )
         self.nodo = NodoDelegado(
             self.m.politica(), self.m.verificador_hc1(), AlmacenConsumidas(tmp_path / "nodo"), self.m.nodo.firmar
         )

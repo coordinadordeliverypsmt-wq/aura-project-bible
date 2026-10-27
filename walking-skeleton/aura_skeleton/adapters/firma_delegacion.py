@@ -8,8 +8,10 @@ en el repositorio.
 from __future__ import annotations
 
 import fcntl
+import hashlib
 import json
 import os
+import re
 import stat
 from collections.abc import Iterable, Mapping
 from pathlib import Path
@@ -150,25 +152,123 @@ def _kids_de(crudo: bytes) -> frozenset[str]:
     return frozenset(kids)
 
 
-def revocar(ruta: Path, kid: str) -> None:
-    """Añade un kid a la lista de forma durable (append + fsync, y fsync del directorio si se crea el fichero)."""
+_RE_SHA256 = re.compile(r"[0-9a-f]{64}")
+
+
+def _ilegible_ancla(detalle: str) -> RechazoOrden:
+    return RechazoOrden(Motivo.REVOCACION_ILEGIBLE, detalle)
+
+
+def _leer_ancla(ancla: Path) -> tuple[int, str] | None:
+    """`(tam, sha256)` del ancla MÁS ALTA anotada, o `None` si el ancla no existe. Ancla vacía (caída tras crearla y antes
+    de escribir) = existencia sin tamaño. Cualquier anomalía (enlace, ajena, escribible, línea mal formada) => ilegible."""
+    try:
+        fd = os.open(ancla, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except FileNotFoundError:
+        return None
+    except OSError as e:
+        raise _ilegible_ancla("ancla ilegible") from e
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode) or st.st_uid != os.getuid() or st.st_mode & 0o022:
+            raise _ilegible_ancla("ancla con permisos inseguros, ajena o no regular")
+        trozos = []
+        while True:
+            b = os.read(fd, 1 << 16)
+            if not b:
+                break
+            trozos.append(b)
+    except OSError as e:
+        raise _ilegible_ancla("ancla ilegible") from e
+    finally:
+        os.close(fd)
+    crudo = b"".join(trozos)
+    if crudo and not crudo.endswith(b"\n"):
+        raise _ilegible_ancla("ancla truncada")
+    mejor: tuple[int, str] = (0, hashlib.sha256(b"").hexdigest())
+    for linea in crudo.splitlines():
+        try:
+            o = json.loads(linea)
+        except (ValueError, RecursionError) as e:
+            raise _ilegible_ancla("ancla no válida") from e
+        if not isinstance(o, dict) or set(o) != {"tam", "sha256"}:
+            raise _ilegible_ancla("ancla mal formada")
+        tam, h = o["tam"], o["sha256"]
+        if not isinstance(tam, int) or isinstance(tam, bool) or tam < 0 or not isinstance(h, str):
+            raise _ilegible_ancla("ancla mal formada")
+        if not _RE_SHA256.fullmatch(h):
+            raise _ilegible_ancla("ancla mal formada")
+        if tam == mejor[0] and h != mejor[1] and tam > 0:
+            raise _ilegible_ancla("ancla contradictoria")
+        if tam > mejor[0]:
+            mejor = (tam, h)
+    return mejor
+
+
+def _anotar_ancla(ancla: Path, contenido: bytes) -> None:
+    """Comprueba la lista contra el ancla y, si CRECIÓ, añade al ancla (append-only, sin borrar ni renombrar nada) el
+    tamaño y el hash ACTUALES. Lista más corta que lo anclado, o con el prefijo anclado cambiado (truncada, vaciada,
+    reescrita) => `REVOCACION_ILEGIBLE`."""
+    previo = _leer_ancla(ancla)
+    if previo is not None:
+        tam, h = previo
+        if len(contenido) < tam or hashlib.sha256(contenido[:tam]).hexdigest() != h:
+            raise _ilegible_ancla("la lista de revocados se truncó o se alteró tras anclarla")
+        if len(contenido) == tam and os.lstat(ancla).st_size > 0:
+            return  # nada nuevo que anclar
+    linea = (
+        json.dumps({"tam": len(contenido), "sha256": hashlib.sha256(contenido).hexdigest()}, sort_keys=True) + "\n"
+    ).encode()
+    try:
+        creada = not os.path.lexists(ancla)
+        fd = os.open(ancla, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW, 0o600)
+    except OSError as e:
+        raise _ilegible_ancla("no se puede anclar la existencia de la lista") from e
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode) or st.st_uid != os.getuid() or st.st_mode & 0o022:
+            raise _ilegible_ancla("ancla con permisos inseguros, ajena o no regular")
+        os.write(fd, linea)
+        os.fsync(fd)
+        if creada:
+            fsync_directorio(ancla.parent)
+    except OSError as e:
+        raise _ilegible_ancla("no se puede anclar la existencia de la lista") from e
+    finally:
+        os.close(fd)
+
+
+def revocar(ruta: Path, kid: str, ancla: Path) -> None:
+    """Añade un kid a la lista de forma durable (append + fsync, y fsync del directorio si se crea el fichero) y anota el
+    ANCLA (existencia + tamaño + hash) bajo el mismo cerrojo: revocar también crea el ancla (3.ª revisión, BAJO 2)."""
     if not es_texto_id(kid):
         raise ErrorClave("kid de revocación mal formado")
     try:
         with abrir_bloqueado(ruta) as fd:
             anexar(fd, {"kid": kid})
+            os.lseek(fd, 0, os.SEEK_SET)
+            trozos = []
+            while True:
+                b = os.read(fd, 1 << 16)
+                if not b:
+                    break
+                trozos.append(b)
+            _anotar_ancla(ancla, b"".join(trozos))
     except ErrorDurable as e:
         raise ErrorClave("no se puede registrar la revocación") from e
+    except RechazoOrden as e:
+        raise ErrorClave("no se puede anclar la revocación (lista o ancla ilegibles)") from e
 
 
 class ListaRevocados:
-    """Lista de revocados VIVA con ANCLA DE EXISTENCIA (C2). Se llama como `Callable[[], frozenset[str]]`.
+    """Lista de revocados VIVA con ANCLA DE EXISTENCIA Y TAMAÑO (C2, 3.ª revisión). Se llama como `Callable[[], frozenset[str]]`.
 
-    * Se RELEE en cada llamada (bajo `flock` compartido, con `O_NOFOLLOW`): una revocación posterior al arranque surte
-      efecto en la siguiente verificación, sin reiniciar nada.
-    * La primera vez que el fichero EXISTE se deja un marcador `ancla` en el estado propio (durable). Si después el
-      fichero desaparece, queda ilegible, ajeno o corrupto => `RechazoOrden(REVOCACION_ILEGIBLE)`: FALLO CERRADO, no
-      «sin revocados». Un nodo que nunca tuvo lista (ni ancla) sigue funcionando con la lista vacía.
+    * Se RELEE en cada llamada (bajo `flock` compartido, con `O_NOFOLLOW|O_NONBLOCK`; un FIFO o dispositivo se rechaza):
+      una revocación posterior al arranque surte efecto en la siguiente verificación, sin reiniciar nada.
+    * La primera vez que el fichero EXISTE (o al `revocar`) se anota el ANCLA: existencia, tamaño y sha256 del contenido
+      (append-only, durable). Si después el fichero desaparece, queda ilegible, ajeno o corrupto, o se TRUNCA/VACÍA/
+      reescribe por debajo de lo anclado => `RechazoOrden(REVOCACION_ILEGIBLE)`: FALLO CERRADO, no «sin revocados». Un nodo
+      que nunca tuvo lista (ni ancla) sigue funcionando con la lista vacía.
 
     LÍMITE declarado: con el mismo uid, quien borre el fichero Y el ancla reabre el hueco; la integridad física exige
     otro usuario o almacenamiento protegido.
@@ -191,25 +291,9 @@ class ListaRevocados:
             raise self._ilegible("ancla ilegible") from e
         return True
 
-    def _anclar(self) -> None:
-        try:
-            fd = os.open(self._ancla, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-        except FileExistsError:
-            return
-        except OSError as e:
-            raise self._ilegible("no se puede anclar la existencia de la lista") from e
-        try:
-            os.write(fd, b"revocados\n")
-            os.fsync(fd)
-            fsync_directorio(self._ancla.parent)
-        except OSError as e:
-            raise self._ilegible("no se puede anclar la existencia de la lista") from e
-        finally:
-            os.close(fd)
-
     def __call__(self) -> frozenset[str]:
         try:
-            fd = os.open(self._ruta, os.O_RDONLY | os.O_NOFOLLOW)
+            fd = os.open(self._ruta, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
         except FileNotFoundError:
             if self._hay_ancla():
                 raise self._ilegible("la lista de revocados existía y ya no está") from None
@@ -219,7 +303,7 @@ class ListaRevocados:
         try:
             st = os.fstat(fd)
             if not stat.S_ISREG(st.st_mode) or st.st_uid != os.getuid() or st.st_mode & 0o022:
-                raise self._ilegible("lista con permisos inseguros o ajena")
+                raise self._ilegible("lista con permisos inseguros, ajena o no regular")
             fcntl.flock(fd, fcntl.LOCK_SH)
             trozos = []
             while True:
@@ -227,12 +311,13 @@ class ListaRevocados:
                 if not b:
                     break
                 trozos.append(b)
-            kids = _kids_de(b"".join(trozos))
+            crudo = b"".join(trozos)
+            kids = _kids_de(crudo)
+            _anotar_ancla(self._ancla, crudo)
         except ErrorClave as e:
             raise self._ilegible(str(e)) from e
         except OSError as e:
             raise self._ilegible("lista ilegible") from e
         finally:
             os.close(fd)
-        self._anclar()
         return kids

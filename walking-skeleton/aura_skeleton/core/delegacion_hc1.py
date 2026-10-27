@@ -25,11 +25,19 @@ AMBIGUO/INTERRUMPIDA NO se acepta solo: solo `resolver_ambigua` lo admite, y exi
 de autoridad humana distinta de la de HC-1 y de las de los nodos (dominio propio, caducidad corta, nonce de un solo uso
 persistido), además de la firma y el vínculo del resultado. Al releer el diario se RE-VERIFICAN las firmas y las
 transiciones: un diario manipulado falla cerrado con motivo. Todas las operaciones son atómicas entre hilos (`RLock`).
+
+3.ª revisión (ALTO-1, MEDIO-2..5, BAJOS): INSTANCIA ÚNICA por diario (`flock` del centinela, ver `adapters/diario_hc1.py`;
+la secuencia `ya_registrado -> registrar` de `incorporar` va bajo ella); configuración EXPLÍCITA y obligatoria (diario,
+`kid_hc1`, `verificar_hc1`, `fuente_revocados`, `kids_autoridad` o `sin_autoridad_humana`); lo no idempotente no se
+reemite con CUALQUIER intento previo; al releer se RECALCULA la validación, se re-verifica la firma de HC-1 de cada
+emisión y se rechazan tiempos no finitos; la autorización de resolución se liga al `hash` del resultado concreto; los
+kids de autoridad retirados solo sirven para releer el historial; `rechazos` es un anillo con contador.
 """
 
 from __future__ import annotations
 
 import base64
+import math
 import re
 import threading
 from collections.abc import Callable, Mapping
@@ -41,16 +49,19 @@ from .delegacion import (
     AUTORIZACION_VIDA_MAX_S,
     CAPACIDADES,
     DOMINIO_ACUSE,
+    DOMINIO_ORDEN,
     DOMINIO_RESOLUCION,
     DOMINIO_RESULTADO,
     TOLERANCIA_FUTURO_S,
     Motivo,
     RechazoOrden,
     Reloj,
+    SobreAbierto,
     Verificador,
     abrir_sobre,
+    es_texto_id,
+    exigir_fuente_revocados,
     hash_de,
-    leer_json_estricto,
     validar_campos_acuse,
     validar_campos_orden,
     validar_campos_resolucion,
@@ -75,8 +86,13 @@ class Estado(StrEnum):
 _EN_CURSO = frozenset({Estado.EMITIDA, Estado.ACEPTADA})
 _INTERRUPCIONES = frozenset({Estado.INTERRUMPIDA, Estado.AMBIGUO})
 """Únicos estados a los que puede llevar un registro `interrupcion` del diario (cualquier otro => diario manipulado)."""
-_SIN_RESOLVER = frozenset({Estado.AMBIGUO, Estado.INTERRUMPIDA, Estado.INCORPORANDO, Estado.INCORPORACION_INCIERTA})
-"""Estados de una tarea que impiden emitir otro intento de una capacidad NO idempotente (at-most-once por tarea)."""
+_BLOQUEA_NO_IDEMPOTENTE = frozenset(Estado)
+"""Estados de un intento previo que impiden emitir otro de la misma tarea si la capacidad NO es idempotente (at-most-once
+por tarea, MEDIO-2): CUALQUIERA posterior a la emisión (EMITIDA, ACEPTADA, RESULTADO_FIRMADO, VALIDADO,
+VERIFICACION_FALLIDA, INCORPORANDO, INCORPORACION_INCIERTA, INCORPORADO, AMBIGUO, INTERRUMPIDA): la orden pudo tener
+efecto aunque el resultado no se haya validado o incorporado. Rehacer una tarea con efectos exige una tarea NUEVA."""
+RECHAZOS_MEMORIA_MAX = 256
+"""Tope del anillo `rechazos` en memoria (BAJO 4): el total real va en `rechazos_total`."""
 _RE_ID_NODO = re.compile(r"[0-9a-f]{32}")
 
 
@@ -92,6 +108,8 @@ class Ejecucion:
     sobre_orden: bytes
     vence_en: float
     estado: Estado = Estado.EMITIDA
+    validacion: bool | None = None
+    """Resultado del verificador PROPIO de la capacidad (`None` = aún no validada). Al releer el diario se RECALCULA."""
     recibida_en: float | None = None
     sobre_resultado: bytes | None = None
     salida: str | None = None
@@ -117,26 +135,46 @@ class Registrar(Protocol):
 class Diario(Protocol):
     """Diario durable propio de HC-1. `anotar` lanza `RechazoOrden(DIARIO_NO_DURABLE)` si no logra durabilidad."""
 
+    @property
+    def abierto(self) -> bool:
+        """¿Sigue siendo la INSTANCIA ÚNICA sobre su almacenamiento? (`False` tras `cerrar`)."""
+        ...
+
     def anotar(self, registro: dict[str, Any]) -> None: ...
     def recuperar(self) -> tuple[list[dict[str, Any]], int]: ...
+    def cerrar(self) -> None: ...
 
 
 @dataclass
 class SeguimientoHC1:
+    """Seguimiento de HC-1. Configuración EXPLÍCITA y obligatoria (MEDIO-3/4): no hay defaults abiertos."""
+
     verificar: Verificador
     """Verificador de firmas de NODO: kid == id_nodo."""
     reloj: Reloj
-    _por_id: dict[str, Ejecucion] = field(default_factory=dict)
-    rechazos: list[Motivo] = field(default_factory=list)
-    diario: Diario | None = None
+    diario: Diario
+    """Diario durable OBLIGATORIO (MEDIO-4): sin él no hay seguimiento. Debe ser la INSTANCIA ÚNICA sobre su directorio."""
+    verificar_hc1: Verificador
+    """Verificador de la firma de HC-1: se re-verifica la `emision` al registrarla y al releer el diario (MEDIO-5)."""
+    kid_hc1: str
+    """kid de la clave de HC-1, obligatorio y no vacío. La autoridad humana no puede ser ese kid."""
+    fuente_revocados: Callable[[], frozenset[str]]
+    """Lista VIVA de nodos revocados (C2), OBLIGATORIA: se consulta en CADA acuse/resultado/resolución. Quien no quiera
+    revocación pasa `SinRevocacion()`, que lo declara."""
+    kids_autoridad: frozenset[str]
+    """kids de autoridad aceptados para resolver una ejecución ambigua (configuración, nunca el mensaje). No pueden ser
+    el de HC-1 (`kid_hc1`) ni parecerse a un id de nodo: la autoridad es OTRA clave. Vacío SOLO con `sin_autoridad_humana`."""
     verificar_autoridad: Verificador | None = None
     """Verificador de las claves de AUTORIDAD HUMANA (aparte de `verificar`, que es de nodos): sin él nadie resuelve."""
-    kids_autoridad: frozenset[str] = frozenset()
-    """kids de autoridad aceptados para resolver una ejecución ambigua (configuración, nunca el mensaje). No pueden ser
-    el de HC-1 (`kid_hc1`) ni parecerse a un id de nodo: la autoridad es OTRA clave."""
-    kid_hc1: str = ""
-    fuente_revocados: Callable[[], frozenset[str]] | None = None
-    """Lista VIVA de nodos revocados (C2): se consulta en CADA acuse/resultado/resolución."""
+    sin_autoridad_humana: bool = False
+    """Declaración EXPLÍCITA de que no hay autoridad humana: `resolver_ambigua` rechaza siempre."""
+    kids_autoridad_retirados: frozenset[str] = frozenset()
+    """kids de autoridad RETIRADOS (rotación): se aceptan SOLO para re-verificar resoluciones ya registradas en el
+    diario, JAMÁS para resolver nada nuevo. Retirar un kid no impide arrancar sobre un diario que ya lo usó."""
+    _por_id: dict[str, Ejecucion] = field(default_factory=dict)
+    rechazos: list[Motivo] = field(default_factory=list)
+    """Últimos `RECHAZOS_MEMORIA_MAX` rechazos (anillo); `rechazos_total` cuenta TODOS."""
+    rechazos_total: int = 0
     _nonces: set[str] = field(default_factory=set, repr=False)
     bytes_truncados: int = 0
     """Bytes de línea final truncada que el diario descartó al recuperar (DETECCIÓN de una caída a mitad de escritura)."""
@@ -144,19 +182,51 @@ class SeguimientoHC1:
     _cerrojo: threading.RLock = field(default_factory=threading.RLock, repr=False)  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
-        for kid in self.kids_autoridad:
+        try:
+            self._validar_configuracion()
+            self._recuperar()
+        except BaseException:
+            self.cerrar()  # una construcción fallida NO deja la instancia única retenida (ni a medias)
+            raise
+
+    def _validar_configuracion(self) -> None:
+        if self.diario is None:
+            raise ValueError("el diario es obligatorio: sin diario durable no hay seguimiento")
+        if not callable(getattr(self.diario, "anotar", None)) or not callable(getattr(self.diario, "recuperar", None)):
+            raise ValueError("el diario debe exponer anotar() y recuperar()")
+        if not hasattr(self.diario, "abierto"):
+            raise ValueError("el diario debe exponer abierto (instancia única)")
+        if not callable(self.verificar_hc1):
+            raise ValueError("verificar_hc1 es obligatorio")
+        if not es_texto_id(self.kid_hc1):
+            raise ValueError("kid_hc1 es obligatorio y debe ser un kid válido")
+        exigir_fuente_revocados(self.fuente_revocados)
+        if not self.kids_autoridad and not self.sin_autoridad_humana:
+            raise ValueError("kids_autoridad vacío exige declarar sin_autoridad_humana=True")
+        if self.kids_autoridad and self.sin_autoridad_humana:
+            raise ValueError("sin_autoridad_humana contradice kids_autoridad")
+        if self.kids_autoridad & self.kids_autoridad_retirados:
+            raise ValueError("un kid de autoridad no puede estar vigente y retirado a la vez")
+        for kid in self.kids_autoridad | self.kids_autoridad_retirados:
             if kid == self.kid_hc1 or _RE_ID_NODO.fullmatch(kid):
                 raise ValueError("la autoridad humana debe tener una clave distinta de la de HC-1 y de la de los nodos")
-        if self.diario is not None:
-            self._recuperar()
+
+    def cerrar(self) -> None:
+        """Suelta la instancia única del diario (idempotente): otra instancia podrá arrancar; esta deja de operar."""
+        close = getattr(self.diario, "cerrar", None)  # un diario ausente (None) ya falló la validación
+        if callable(close):
+            close()
+
+    def _exigir_instancia(self) -> None:
+        if not self.diario.abierto:
+            raise RechazoOrden(Motivo.INSTANCIA_DUPLICADA, "la instancia única del diario ya no está vigente")
 
     # -- diario ----------------------------------------------------------------------------------------------
     def _anotar(self, registro: dict[str, Any]) -> None:
-        if self.diario is not None:
-            self.diario.anotar(registro)
+        self._exigir_instancia()
+        self.diario.anotar(registro)
 
     def _recuperar(self) -> None:
-        assert self.diario is not None
         registros, self.bytes_truncados = self.diario.recuperar()
         for r in registros:
             self._aplicar(r)
@@ -183,7 +253,7 @@ class SeguimientoHC1:
             ej = self._por_id[r["id"]]
             if ev == "acuse":
                 self._exigir_previo(ej, {Estado.EMITIDA})
-                ej.estado, ej.recibida_en = Estado.ACEPTADA, r["recibida_en"]
+                ej.estado, ej.recibida_en = Estado.ACEPTADA, self._tiempo_finito(r["recibida_en"])
             elif ev == "resultado":
                 self._exigir_previo(ej, _EN_CURSO)
                 self._aplicar_resultado(ej, base64.b64decode(r["sobre"], validate=True))
@@ -194,7 +264,10 @@ class SeguimientoHC1:
                 self._exigir_previo(ej, {Estado.RESULTADO_FIRMADO})
                 if not isinstance(r["ok"], bool):
                     raise self._manipulado("validación")
-                ej.estado = Estado.VALIDADO if r["ok"] else Estado.VERIFICACION_FALLIDA
+                ej.validacion = self._reverificar(ej)  # NO se confía en el «ok» anotado: se recalcula (MEDIO-5)
+                if ej.validacion is not r["ok"]:
+                    raise self._manipulado("validación distinta de la recalculada")
+                ej.estado = Estado.VALIDADO if ej.validacion else Estado.VERIFICACION_FALLIDA
             elif ev == "incorporando":
                 self._exigir_previo(ej, {Estado.VALIDADO})
                 ej.estado = Estado.INCORPORANDO
@@ -218,16 +291,40 @@ class SeguimientoHC1:
         if ej.estado not in permitidos:
             raise self._manipulado("transición imposible")
 
+    @staticmethod
+    def _tiempo_finito(valor: object) -> float:
+        """Un tiempo releído del diario debe ser un número FINITO (`inf` haría que una ejecución no venciera nunca)."""
+        if isinstance(valor, bool) or not isinstance(valor, (int, float)) or not math.isfinite(valor):
+            raise RechazoOrden(Motivo.DIARIO_ILEGIBLE, "diario manipulado: tiempo no finito")
+        return float(valor)
+
+    def _leer_orden(self, sobre: bytes) -> tuple[SobreAbierto, dict[str, Any]]:
+        """Verifica la FIRMA DE HC-1 de una orden (kid configurado, dominio de orden, forma canónica) y su esquema."""
+        abierto, campos = verificar_y_leer(sobre, DOMINIO_ORDEN, self.verificar_hc1, kid_esperado=self.kid_hc1)
+        validar_campos_orden(campos)
+        if campos["kid"] != abierto.kid:
+            raise RechazoOrden(Motivo.KID_DESCONOCIDO, "kid del sobre distinto del firmado")
+        return abierto, campos
+
+    def _reverificar(self, ej: Ejecucion) -> bool:
+        """Re-ejecuta el verificador PROPIO de la capacidad sobre el resultado firmado releído."""
+        cap = CAPACIDADES.get(ej.capacidad)
+        if cap is None or ej.salida is None:
+            raise self._manipulado("validación sin capacidad o sin salida")
+        try:
+            return bool(cap.verificar(ej.argumentos, ej.salida))
+        except Exception as e:  # noqa: BLE001 - un verificador que falla al releer es un diario no confiable
+            raise self._manipulado("el verificador de la capacidad falla") from e
+
     def _aplicar_emision(self, r: Mapping[str, Any]) -> None:
         sobre = base64.b64decode(r["sobre"], validate=True)
-        abierto = abrir_sobre(sobre)
-        campos = leer_json_estricto(abierto.payload)
-        validar_campos_orden(campos)
+        abierto, campos = self._leer_orden(sobre)
         if campos["id_ejecucion"] in self._por_id:
             raise self._manipulado("emisión repetida")
         ej = Ejecucion(
             campos["id_ejecucion"], campos["tarea"], campos["intento"], campos["destinatario"],
-            campos["capacidad"], campos["argumentos"], hash_de(abierto.payload), sobre, float(r["vence_en"]),
+            campos["capacidad"], campos["argumentos"], hash_de(abierto.payload), sobre,
+            self._tiempo_finito(r["vence_en"]),
         )  # fmt: skip
         self._por_id[ej.id_ejecucion] = ej
 
@@ -243,11 +340,14 @@ class SeguimientoHC1:
     def _aplicar_resolucion(self, ej: Ejecucion, r: Mapping[str, Any]) -> None:
         """Re-verifica la autorización humana Y el resultado; reconstruye los nonces ya usados."""
         autorizacion = base64.b64decode(r["autorizacion"], validate=True)
-        kid, campos = self._leer_autorizacion(autorizacion)
+        kid, campos = self._leer_autorizacion(autorizacion, historica=True)  # un kid RETIRADO sirve aquí (y solo aquí)
         if campos["id_ejecucion"] != ej.id_ejecucion or campos["nonce"] in self._nonces:
             raise self._manipulado("autorización de otra ejecución o nonce repetido")
+        sobre = base64.b64decode(r["sobre"], validate=True)
+        if campos["hash_resultado"] != hash_de(sobre):
+            raise self._manipulado("la autorización es de otro resultado")
         self._nonces.add(campos["nonce"])
-        self._aplicar_resultado(ej, base64.b64decode(r["sobre"], validate=True))
+        self._aplicar_resultado(ej, sobre)
         ej.resuelta_por, ej.motivo_resolucion = kid, campos["motivo"]
 
     # -- emisión --------------------------------------------------------------------------------------------
@@ -257,21 +357,20 @@ class SeguimientoHC1:
             return self._registrar_emision(sobre_orden, techo_total_s)
 
     def _registrar_emision(self, sobre_orden: bytes, techo_total_s: float) -> Ejecucion:
-        abierto = abrir_sobre(sobre_orden)
-        try:
-            campos = leer_json_estricto(abierto.payload)
-        except ValueError as e:  # profundidad, UTF-8, duplicados: nunca RecursionError
-            raise RechazoOrden(Motivo.SOBRE_MALFORMADO, "payload") from e
-        if not isinstance(campos, dict):
-            raise RechazoOrden(Motivo.SOBRE_MALFORMADO, "payload")
-        validar_campos_orden(campos)
+        if (
+            isinstance(techo_total_s, bool)
+            or not isinstance(techo_total_s, (int, float))
+            or not math.isfinite(techo_total_s)
+        ):
+            raise RechazoOrden(Motivo.CAMPO_INVALIDO, "techo_total_s")  # un techo infinito/NaN nunca vencería
+        abierto, campos = self._leer_orden(sobre_orden)  # firma de HC-1 + esquema (no se registra lo que HC-1 no firmó)
         if campos["id_ejecucion"] in self._por_id:
             raise RechazoOrden(Motivo.ORDEN_REPETIDA, "id_ejecucion")
         cap = CAPACIDADES.get(campos["capacidad"])
         if (cap is None or not cap.idempotente) and any(
-            o.tarea == campos["tarea"] and o.estado in _SIN_RESOLVER for o in self._por_id.values()
-        ):  # at-most-once POR TAREA: lo no idempotente con un intento incierto NO se reemite (C3)
-            raise RechazoOrden(Motivo.TAREA_CON_INTENTO_AMBIGUO, "intento previo ambiguo de una capacidad con efectos")
+            o.tarea == campos["tarea"] and o.estado in _BLOQUEA_NO_IDEMPOTENTE for o in self._por_id.values()
+        ):  # at-most-once POR TAREA: lo no idempotente con CUALQUIER intento previo NO se reemite (C3, MEDIO-2)
+            raise RechazoOrden(Motivo.TAREA_CON_INTENTO_AMBIGUO, "intento previo de una capacidad con efectos")
         for otra in self._por_id.values():
             if otra.tarea == campos["tarea"] and (otra.estado in _EN_CURSO or otra.intento >= campos["intento"]):
                 raise RechazoOrden(Motivo.EJECUCION_NO_EN_CURSO, "intento previo vivo o no creciente")
@@ -296,7 +395,10 @@ class SeguimientoHC1:
 
     # -- entrada de mensajes del nodo ---------------------------------------------------------------------------
     def _rechazar(self, motivo: Motivo, detalle: str = "") -> RechazoOrden:
+        self.rechazos_total += 1
         self.rechazos.append(motivo)
+        if len(self.rechazos) > RECHAZOS_MEMORIA_MAX:
+            del self.rechazos[0]  # anillo: la memoria no crece con un par que inunde de basura
         return RechazoOrden(motivo, detalle)
 
     def _leer_sin_contabilizar(self, sobre: bytes, dominio: bytes, id_nodo_subject: str) -> dict[str, Any]:
@@ -312,7 +414,7 @@ class SeguimientoHC1:
 
     def _leer(self, sobre: bytes, dominio: bytes, id_nodo_subject: str) -> dict[str, Any]:
         try:
-            if self.fuente_revocados is not None and id_nodo_subject in self.fuente_revocados():  # lista VIVA (C2)
+            if id_nodo_subject in self.fuente_revocados():  # lista VIVA (C2)
                 raise RechazoOrden(Motivo.KID_REVOCADO, "nodo revocado")
             return self._leer_sin_contabilizar(sobre, dominio, id_nodo_subject)
         except RechazoOrden as e:
@@ -366,13 +468,16 @@ class SeguimientoHC1:
         ej.salida = c["salida"]
         return ej
 
-    def _leer_autorizacion(self, sobre: bytes) -> tuple[str, dict[str, Any]]:
+    def _leer_autorizacion(self, sobre: bytes, historica: bool = False) -> tuple[str, dict[str, Any]]:
         """Verifica una autorización de resolución: kid de AUTORIDAD configurado, firma con el verificador de
-        autoridades y dominio propio, esquema cerrado. NO mira la vigencia (la releída del diario ya caducó)."""
-        if self.verificar_autoridad is None or not self.kids_autoridad:
+        autoridades y dominio propio, esquema cerrado. NO mira la vigencia (la releída del diario ya caducó).
+
+        `historica=True` (solo al RELEER el diario) acepta además los kids RETIRADOS; una resolución nueva nunca."""
+        aceptados = self.kids_autoridad | self.kids_autoridad_retirados if historica else self.kids_autoridad
+        if (self.sin_autoridad_humana and not historica) or self.verificar_autoridad is None or not aceptados:
             raise RechazoOrden(Motivo.SIN_AUTORIDAD, "no hay autoridad configurada")
         abierto = abrir_sobre(sobre)
-        if abierto.kid not in self.kids_autoridad:
+        if abierto.kid not in aceptados:
             raise RechazoOrden(Motivo.SIN_AUTORIDAD, "kid sin autoridad")
         _, c = verificar_y_leer(sobre, DOMINIO_RESOLUCION, self.verificar_autoridad)
         validar_campos_resolucion(c)
@@ -409,6 +514,9 @@ class SeguimientoHC1:
                 raise self._rechazar(Motivo.EJECUCION_DESCONOCIDA, "id_ejecucion")
             if ej.estado not in _INTERRUPCIONES:
                 raise self._rechazar(Motivo.EJECUCION_NO_EN_CURSO, "solo se resuelve lo ambiguo o interrumpido")
+            # la autorización es de UN resultado concreto (BAJO 5)
+            if a["hash_resultado"] != hash_de(resultado_firmado):
+                raise self._rechazar(Motivo.HASH_NO_CORRESPONDE, "la autorización es de otro resultado")
             c = self._leer(resultado_firmado, DOMINIO_RESULTADO, ej.destinatario)
             if c["id_ejecucion"] != id_ejecucion:
                 raise self._rechazar(Motivo.VINCULO_ROTO, "id_ejecucion")
@@ -440,6 +548,7 @@ class SeguimientoHC1:
         cap = CAPACIDADES[ej.capacidad]
         ok = cap.verificar(ej.argumentos, ej.salida)
         self._anotar({"ev": "validacion", "id": id_ejecucion, "ok": ok})
+        ej.validacion = ok
         ej.estado = Estado.VALIDADO if ok else Estado.VERIFICACION_FALLIDA
         return ok
 
@@ -452,6 +561,7 @@ class SeguimientoHC1:
     def _incorporar(self, id_ejecucion: str, registrar: Registrar) -> None:
         if not callable(getattr(registrar, "ya_registrado", None)):
             raise TypeError("el Registrar debe exponer ya_registrado(id_ejecucion): el contrato exige idempotencia")
+        self._exigir_instancia()  # la secuencia ya_registrado -> registrar va BAJO la instancia única (ALTO-1)
         ej = self._por_id[id_ejecucion]
         incorporable = (Estado.VALIDADO, Estado.INCORPORANDO, Estado.INCORPORACION_INCIERTA)
         if ej.estado not in incorporable or ej.sobre_resultado is None:

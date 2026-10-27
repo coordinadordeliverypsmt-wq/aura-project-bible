@@ -12,8 +12,10 @@ from aura_skeleton.core.delegacion import (
     DOMINIO_ORDEN,
     DOMINIO_RESOLUCION,
     PoliticaNodo,
+    SinRevocacion,
     bytes_canonicos,
     empaquetar_sobre,
+    hash_de,
     payload_orden,
     payload_resolucion,
 )
@@ -87,6 +89,9 @@ class AlmacenMemoria:
     def fallar(self, id_ejecucion: str) -> None:
         self.estados[id_ejecucion] = "fallida"
 
+    def dejar_ambigua(self, id_ejecucion: str) -> None:
+        self.estados[id_ejecucion] = "ambigua"
+
     def estado(self, id_ejecucion: str):  # type: ignore[no-untyped-def]
         from aura_skeleton.core.delegacion import EstadoNodo
 
@@ -116,11 +121,31 @@ class Mundo:
     def verificador_autoridad(self):  # type: ignore[no-untyped-def]
         return verificador_de({KID_AUTORIDAD: self.autoridad.publica()})
 
-    def autorizacion(self, id_ejecucion: str, motivo: str = "el nodo guardó el resultado firmado", **kw: Any) -> bytes:
-        """Autorización de resolución FIRMADA por la autoridad, vigente respecto al reloj de la escena."""
+    def config_hc1(self, **kw: Any) -> dict[str, Any]:
+        """Configuración EXPLÍCITA y completa de `SeguimientoHC1` (sin defaults abiertos); `kw` la sobrescribe."""
+        base: dict[str, Any] = {
+            "verificar_hc1": self.verificador_hc1(),
+            "kid_hc1": "hc1-k1",
+            "fuente_revocados": SinRevocacion(),
+            "kids_autoridad": frozenset({KID_AUTORIDAD}),
+            "verificar_autoridad": self.verificador_autoridad(),
+        }
+        base.update(kw)
+        return base
+
+    def autorizacion(
+        self,
+        id_ejecucion: str,
+        resultado_firmado: bytes,
+        motivo: str = "el nodo guardó el resultado firmado",
+        **kw: Any,
+    ) -> bytes:
+        """Autorización de resolución FIRMADA por la autoridad, ligada al `hash` de ESE resultado firmado y vigente
+        respecto al reloj de la escena."""
         ahora = self.reloj.ahora()
         campos: dict[str, Any] = {
             "id_ejecucion": id_ejecucion,
+            "hash_resultado": hash_de(resultado_firmado),
             "motivo": motivo,
             "emitida_en": ahora,
             "caduca_en": ahora + 120,
@@ -137,6 +162,7 @@ class Mundo:
             "capacidades": frozenset({"calcular_resumen_sha256"}),
             "reloj": self.reloj,
             "arranque": T0 - 10,
+            "fuente_revocados": SinRevocacion(),
         }
         base.update(kw)
         return PoliticaNodo(**base)

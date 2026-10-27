@@ -268,3 +268,120 @@ Redundancias declaradas, SIN mutante por equivalentes: en `_leer_autorizacion` l
   No se comprueba la revocación del kid de HC-1 al releer, solo su firma.
 * El ancla de revocados crece una línea por revocación o lectura con cambios (append-only, sin rotación).
 * La gestión/custodia de las claves de autoridad (y la lista de retirados) sigue siendo configuración inyectada.
+
+## 10. Validación independiente de la 4.ª ronda (`5db1d1c`, 2026-10-27)
+
+Revisión hecha por agentes distintos del implementador: `security-reviewer`, `arquitecto-evaluador` y `pr-test-analyzer`.
+La ejecución corrió en serie a cargo del orquestador. AgentShield, Codex y OpenCode no están instalados
+(`command -v` → 1). El grafo de Graphify no contiene los módulos de delegación (0 coincidencias en `graph.json`),
+así que el alcance se acotó a los 28 ficheros de `git diff bf13a47..5db1d1c`.
+
+### 10.1 Ejecución `[EJEC]`
+
+| Comando | Resultado |
+|---|---|
+| `TMPDIR=/tmp python3 -m herramientas.mutar mutaciones/delegacion-segura.toml` (arnés oficial, copia aislada, nada en paralelo) | **RC=0** · base en verde · **194 detectados, 0 sobreviven, 0 no aplicados, 0 ambiguos, 0 timeout** |
+| `./quality-gate.sh` sobre `git archive 5db1d1c` (exportación limpia, `TMPDIR=/tmp`) | **RC=0** · QUALITY GATE: PASS · 4234 passed, 3 skipped, 17 xfailed (855 s) · contratos 8 passed |
+| `pytest -rs tests/integration/test_delegacion_e2e_nats.py` (con `nats-server` presente) | RC=0 · 14 passed, 0 skipped |
+| `git diff --quiet bf13a47..5db1d1c -- ciclo_autonomo.py orquestador.py` | sin cambios |
+
+### 10.2 Hallazgos de la 4.ª ronda (contraste con el código)
+
+- **Confirmados en código y prueba con control:** ALTO-1, MEDIO-2, MEDIO-3/4, MEDIO-6 y BAJOS 1-6.
+- **MEDIO-5:** confirmado con límites:
+  - `vence_en` y `recibida_en` no están firmados, así que un valor finito enorme pasa;
+  - al releer no se reaplican MEDIO-2 ni la regla de intento creciente.
+- **ALTO-1 (flock):** confirmado para el alcance declarado. **No cubre:**
+  - otros escritores ni el mismo uid fuera de `DiarioHC1`;
+  - borrar y recrear el centinela;
+  - restaurar desde un backup;
+  - NFS;
+  - el destino de `registrar`;
+  - la liberación por GC (en producción hay que llamar a `cerrar()`).
+- **Débil, no bloqueante:**
+  - `test_alto1_dos_hilos_incorporando` no fuerza una ventana de carrera (la garantía la sostiene M143);
+  - el anillo de BAJO-4 solo comprueba `[-1]`.
+
+### 10.3 N1: reutilización de una orden tras un reinicio
+
+**Cerrado sin manipulación del almacén.**
+
+- El nodo consume la orden de forma durable (append con `fsync` bajo `flock`) **antes** de ejecutarla.
+- Si cae entre el consumo y la ejecución, el efecto se pierde pero no se duplica.
+- `EJECUTANDO` tras un reinicio pasa a AMBIGUA y nunca se re-ejecuta.
+- El epoch es monótono.
+
+**Abierto para un atacante con el mismo uid:** si borra o restaura **a la vez** `consumidas.jsonl` y `ejecuciones.jsonl`,
+la orden vuelve a ser válida durante ≤300 s. Hay dos motivos:
+
+- no hay ancla ni cadena en esos ficheros, ni en `seguimiento.jsonl`;
+- `arranque` es un parámetro libre: no se impone `arranque = ahora()` y no existe un `Reloj` real.
+
+### 10.4 N2: custodia de la clave de HC-1
+
+**Cubre:**
+
+- proceso aparte, socket 0600 en un directorio 0700, `SO_PEERCRED` por uid;
+- petición cerrada, con capacidad y destinatario en lista blanca;
+- tasa limitada, log encadenado y epoch monótono;
+- ningún material de clave en `repr` ni en los errores.
+
+**No cubre:**
+
+- el mismo uid: PEM sin cifrar y `/proc/pid/mem` sin `PR_SET_DUMPABLE`, `RLIMIT_CORE` ni `mlock`;
+- cualquier proceso del mismo uid es un oráculo de firma;
+- herramienta de rotación y distribución de la clave;
+- ancla del log del firmador;
+- `guardar_clave_privada` no exige un directorio 0700;
+- el socket residual se retira a mano (excepción G-1 pendiente).
+
+**N2 sigue ALTO para el cableado.**
+
+### 10.5 Residuales nuevos
+
+| Id | Nivel | Escenario |
+|---|---|---|
+| R4-M1 | MEDIO | Sin ancla en `seguimiento.jsonl` ni en el almacén del nodo. Un `rm` o restore con el mismo uid borra intentos y nonces: MEDIO-2 desaparece y una autorización de resolución se reutiliza (≤600 s) |
+| R4-M2 | MEDIO | El firmador no comparte estado con el diario. Dos firmas para la misma tarea enviadas sin `registrar_emision` se ejecutan dos veces (ids distintos) |
+| R4-M3 | MEDIO | Con una capacidad con efectos, cualquier proceso del mismo uid obtiene firmas válidas (hoy solo existe `calcular_resumen_sha256`, idempotente) |
+| R4-B | BAJO | Epoch sin tope superior (DoS) · `consumidas.jsonl` sin límite · `read_bytes()` ante un FIFO en `cargar_revocados` y `verificar_cadena_log` · un `completar` fallido deja EJECUTANDO |
+
+Además:
+
+- **Dependencia no declarada:** `cryptography`, presente en el sistema (41.0.7) y sin constancia de que esté en NODO-01.
+- **Punto ciego de G-1:** `os.open`, `os.write` y `os.ftruncate` en los adaptadores nuevos sin clasificar en el manifiesto.
+- **`nodo_agente.py`:** cambio de producción condicionado por `spki_fijada` (inerte sin esa clave en `nodo.conf`).
+- **Redacción engañosa:** «INTERRUMPIDA reintentable» vale solo para lo idempotente.
+
+### 10.6 Veredicto
+
+- **Integración local como biblioteca no cableada: APROBADO CON CONDICIONES.**
+  - Criterios cumplidos:
+    - los cierres declarados están confirmados;
+    - mutación oficial 194/194;
+    - QG PASS reproducido;
+    - E2E sin omisiones;
+    - intocables sin cambios;
+    - ningún import desde producción.
+  - Condiciones:
+    1. Esta sección registra los residuales R4-M1..M3.
+    2. Las DECISION_REQUIRED siguientes quedan abiertas y no se cablea nada.
+    3. Se repiten la mutación y el QG sobre el HEAD integrado.
+- **Cableado a producción: RECHAZADO.** Requiere antes:
+  1. clave y almacenes bajo otro uid o en almacenamiento protegido (N2, R4-M3);
+  2. ancla o cadena externa del diario y del almacén (R4-M1, D-LOG-1 en producción);
+  3. un `Reloj` real con `arranque` impuesto (N1);
+  4. rotación y revocación de la clave de HC-1;
+  5. que el firmador exija registro previo en el diario (R4-M2);
+  6. el catálogo limitado a capacidades idempotentes;
+  7. `cryptography` declarada;
+  8. el acta del DP.
+
+**DECISION_REQUIRED (CEO):**
+
+1. **Contrato de reintento.** Recomendado: confirmar el M4 del DP (solo capacidades idempotentes, con rechazo al
+   registrar las que no lo sean). Un reintento no idempotente solo cabría como decisión firmada por la autoridad humana,
+   con acta.
+2. **G-1.** Clasificar en `architecture_manifest.toml` los adaptadores que escriben estado de seguridad, y decidir sobre
+   `opera=["unlink"]` para `firmador_hc1.py` o mantener la retirada manual.
+3. **`nodo_agente.py` (A3).** Aceptarlo en esta integración o separarlo.

@@ -22,7 +22,7 @@ sustituir = '''        if apariciones == 0:
 id = "M3"
 garantia = "el cambio puede escapar del arbol de trabajo declarado"
 fichero = "aura_skeleton/adapters/programador.py"
-buscar = '''        return ruta, not str(ruta).startswith(str(self._raiz.resolve()))'''
+buscar = '''        return ruta, not ruta.is_relative_to(self._raiz.resolve())'''
 sustituir = '''        return ruta, False'''
 
 [[mutante]]
@@ -50,5 +50,5 @@ sustituir = '''    async def _simular_desactivado(self, command: str, args: dict
 id = "M7"
 garantia = "el dry-run y la ejecucion dejan de leer los mismos argumentos: aprobaria un cambio y aplicaria otro"
 fichero = "aura_skeleton/adapters/programador.py"
-buscar = '''    return str(args.get("fichero", "")), str(args.get("buscar", "")), str(args.get("sustituir", ""))'''
-sustituir = '''    return str(args.get("fichero", "")), str(args.get("patron", "")), str(args.get("sustituir", ""))'''
+buscar = '''    return args.get("fichero", ""), args.get("buscar", ""), args.get("sustituir", "")'''
+sustituir = '''    return args.get("fichero", ""), args.get("patron", ""), args.get("sustituir", "")'''

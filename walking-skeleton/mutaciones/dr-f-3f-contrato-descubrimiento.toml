@@ -1,0 +1,45 @@
+incremento = "DR-F-3f · el descubrimiento registra su acto (2026-09-06)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/control-plane"
+# La garantia no es «descubrir devuelve oportunidades»: es que **deje constancia**. El observatorio y
+# la fuente de estancamiento leen ese evento; si el productor deja de emitirlo, AURA sigue
+# descubriendo y nadie puede verlo. Las pruebas de los consumidores fabrican el evento a mano, asi
+# que ninguna se enteraria: por eso hacen falta estos mutantes.
+pruebas = ["test_red_contrato_descubrimiento.py"]
+timeout_s = 120
+
+[[mutante]]
+id = "CD-M1"
+descripcion = "descubrir() deja de registrar: el observatorio se queda ciego en silencio"
+fichero = "descubrimiento.py"
+buscar = '''    cp.registrar_evento(pathlib.Path(directorio), "descubrimiento_realizado", {'''
+sustituir = '''    _ = lambda *a, **k: None; _(pathlib.Path(directorio), "descubrimiento_realizado", {'''
+
+[[mutante]]
+id = "CD-M2"
+descripcion = "cambia el nombre del campo que el observatorio lee"
+fichero = "descubrimiento.py"
+buscar = '''        "raiz": str(raiz), "encontradas": len(encontradas), "fuentes": sorted(FUENTES),'''
+sustituir = '''        "raiz": str(raiz), "total": len(encontradas), "fuentes": sorted(FUENTES),'''
+
+[[mutante]]
+id = "CD-M3"
+descripcion = "la raiz deja de viajar: FINDING-1 habria sido indemostrable"
+fichero = "descubrimiento.py"
+buscar = '''        "raiz": str(raiz), "encontradas": len(encontradas),'''
+sustituir = '''        "encontradas": len(encontradas),'''
+
+[[mutante]]
+id = "CD-M4"
+descripcion = "por_clase deja de desglosarse: la cola pierde su composicion"
+fichero = "descubrimiento.py"
+buscar = '''        "por_clase": {c: sum(1 for o in encontradas if o.estado == c) for c in CLASES},'''
+sustituir = '''        "por_clase": {},'''
+
+[[mutante]]
+id = "CD-M5"
+descripcion = "una fuente rota deja de constar: se pierde la senal de que algo va mal"
+fichero = "descubrimiento.py"
+buscar = '''            fallos.append({"fuente": nombre, "error": f"{type(exc).__name__}: {exc}"[:200]})'''
+sustituir = '''            pass'''

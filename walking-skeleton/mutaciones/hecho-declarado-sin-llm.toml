@@ -1,0 +1,61 @@
+incremento = "Un hecho declarado lo responde el Core, con su valor exacto y sin modelo (CEO, 2026-09-10)"
+# La garantia tiene DOS mitades y ninguna sirve sola: si el enunciado deja de clasificarse, no hay hecho
+# que leer; si la fila de la tabla desaparece, no hay con que responder. Y la tercera cosa que debe
+# seguir muriendo: que el valor salga EXACTO, porque el defecto medido fue un hecho DEFORMADO.
+pruebas = ["tests/unit/test_hecho_declarado_sin_llm.py",
+           "tests/unit/test_frontera_cognitiva.py"]
+timeout_s = 180
+
+# HD-M1 SE RETIRO el 2026-09-10. Mutaba el patron especifico `mi color favorito es` de `_HECHO`, que
+# ya no existe: la apertura posesiva generica lo absorbio. El mutante sobrevivia -romper un patron que
+# nadie usa no rompe nada-, y un mutante que sobrevive sin garantia detras es ruido, no una red. La
+# garantia equivalente la cubre `HP-M1` en `mutaciones/hechos-posesivos-generales.toml`.
+
+[[mutante]]
+id = "HD-M2"
+garantia = "la fila de la tabla desaparece: la pregunta vuelve a caer al modelo"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        ("cual es mi color favorito", "cual es mi color preferido"),'''
+sustituir = '''        ("cual es mi color JAMAS PREGUNTADO",),'''
+
+[[mutante]]
+id = "HD-M3"
+garantia = "el valor se deja de extraer del enunciado: se responderia con la frase entera"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        r"mi color (?:favorito|preferido) es\s+(?:el\s+)?(.+)",'''
+sustituir = '''        r"(mi color (?:favorito|preferido) es.+)",'''
+
+[[mutante]]
+id = "HD-M4"
+garantia = "la plantilla deja de repetir el valor: el usuario no recibe su dato"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        "Tu color favorito es {}.",'''
+sustituir = '''        "Tu color favorito lo tengo anotado.{}",'''
+
+[[mutante]]
+id = "HD-M5"
+garantia = "la ausencia deja de decirse: sin declaracion se devolveria algo que el usuario no dijo"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        "Todavía no me has dicho cuál es tu color favorito.",'''
+sustituir = '''        "Tu color favorito es azul.",'''
+
+[[mutante]]
+id = "HD-M6"
+garantia = "se aceptarian entradas que NO son hechos declarados (preferencias, patrones observados)"
+fichero = "aura_skeleton/core/orchestrator.py"
+# PATRON ACTUALIZADO (2026-09-10): la linea crecio con el filtro de vigencia de AMP-AURA.
+buscar = '''        hechos = [e for e in vivas
+                  if e.get("clase") == ClaseSenal.HECHO_DECLARADO.value and e.get("valid_until") is None]'''
+sustituir = '''        hechos = list(vivas)'''
+
+[[mutante]]
+id = "HD-M7"
+garantia = "gana la PRIMERA declaracion: corregirse dejaria de funcionar"
+fichero = "aura_skeleton/core/orchestrator.py"
+# PATRON AMPLIADO (2026-09-10): la ruta posesiva general anadio un segundo `reversed(hechos)` y este
+# mutante quedo AMBIGUO -aparece 2 veces-, es decir, dejo de proteger nada. Se desambigua con la linea
+# siguiente, que es la que distingue la resolucion por TABLA de la resolucion por atributo.
+buscar = '''            for entrada in reversed(hechos):
+                valor = _valor_declarado(str(entrada.get("contenido", "")), patron)'''
+sustituir = '''            for entrada in hechos:
+                valor = _valor_declarado(str(entrada.get("contenido", "")), patron)'''

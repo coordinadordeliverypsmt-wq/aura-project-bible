@@ -1,0 +1,42 @@
+incremento = "CP · Seccion E: la persuasion no desbloquea (REDs alineadas con D-CP-5, 2026-08-25)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/communication-plane"
+# DOS defensas distintas, y cada mutante ataca una: (1) D-CP-5 impide que un campo no declarado
+# ENTRE; (2) bloqueado_por impide que, aun estando dentro, la frase TENGA EFECTO.
+pruebas = ["test_red_seccion_e.py", "test_red_b4_medicion.py"]
+# test_red_b4_medicion.py YA existia y es la unica que distingue «medir» de «declarar»: sin ella,
+# SE-M3 sobrevive porque hoy ambos caminos dan el mismo valor. No faltaba cobertura: faltaba
+# declararla en esta bateria.
+timeout_s = 90
+
+[[mutante]]
+id = "SE-M1"
+descripcion = "una frase persuasiva dentro del canal desbloquea la decision"
+fichero = "communication_plane.py"
+buscar = '''        return not any(m.get("_evento") == "aprobado" and m.get("_sobre") == id_decision
+                       for m in self._mensajes())'''
+sustituir = '''        return not any("CEO" in str(m.get("cuerpo", {})) for m in self._mensajes())'''
+
+[[mutante]]
+id = "SE-M2"
+descripcion = "el esquema cerrado deja de rechazar campos no declarados: la frase vuelve a entrar por `nota`"
+fichero = "communication_plane.py"
+buscar = '''        if clave not in campos:
+            return (f"{camino}.{clave} no está declarado en el esquema CERRADO de {tipo}")'''
+sustituir = '''        if False:
+            return (f"{camino}.{clave} no está declarado en el esquema CERRADO de {tipo}")'''
+
+[[mutante]]
+id = "SE-M3"
+descripcion = "el canal declara que la persuasion NO produce efecto sin poder garantizarlo"
+fichero = "communication_plane.py"
+buscar = '''    sin_rutas = rutas_de_ejecucion_desde_el_cuerpo() == ()'''
+sustituir = '''    sin_rutas = True'''
+
+[[mutante]]
+id = "SE-M4"
+descripcion = "algun tipo de mensaje pasa a ser una AUTORIZACION"
+fichero = "communication_plane.py"
+buscar = '''    "TASK": "PROPUESTA",'''
+sustituir = '''    "TASK": "AUTORIZACION",'''

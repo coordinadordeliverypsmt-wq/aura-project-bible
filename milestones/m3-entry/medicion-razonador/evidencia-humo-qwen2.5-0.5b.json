@@ -1,0 +1,99 @@
+{
+  "modelo": "qwen2.5:0.5b",
+  "laboratorio": "/tmp/aura-lab-86p2tbl7",
+  "aura_datos": "/tmp/aura-datos-s6cmhymh",
+  "verdad_de_referencia": {
+    "fichero_objetivo": "laboratorio_objetivo.py",
+    "patron_obsoleto_declarado": "    if not tiene_permiso(x):",
+    "patron_correcto_esperado": "    if not autorizado(x):",
+    "apariciones_del_correcto_en_el_objetivo": 1
+  },
+  "codigo_salida": 0,
+  "stderr_ultimas_lineas": [
+    "[BOOT ] composicion    trace=- capacidades (estado EFECTIVO): activas=[] degradadas=['memoria'] latentes=[]; memoria -> N1 (almacen minimo) audit=True",
+    "  [BOOT ] composicion    trace=- AURA lista: 17 capacidades, 3 fuentes de contexto, stack=real audit=True",
+    "  [EST  ] estado-operativo trace=- t-auditar -> abierta audit=True",
+    "  [AUDIT] permissions    trace=- lista verde auditar_garantias -> auto-ejecucion audit=True",
+    "  [AUDIT] ejecutor-auditor trace=- garantias: 272/273 vigentes audit=True",
+    "  [AUTO ] ejecutor       trace=- [director:auditor] ejecuto auditar_garantias audit=True",
+    "  [EST  ] estado-operativo trace=- t-auditar -> bloqueada audit=True",
+    "  [EST  ] estado-operativo trace=- auto-337e66d2d20a -> abierta audit=True",
+    "  [CICLO] motor-ciclo    trace=- corrida terminada: 1 tarea(s) atendidas audit=True",
+    "  [VOICE] whisper-stt    trace=tr-humo transcripcion: 'Una garantia declarada del proyecto ha dejado de a'",
+    "  [EVENT] event-bus      trace=tr-humo publish perception.turn_end event_id=7897a7b286ea",
+    "  [MEM  ] memory         trace=- recall 'Una garantia declarada del pro' -> 0 hit(s)",
+    "  [WARN ] router         trace=tr-humo fallback: ollama fallo (RuntimeError: TimeoutError: timed out)"
+  ],
+  "evidencia": {
+    "modelo": "qwen2.5:0.5b",
+    "timeout_ollama_s": 300,
+    "timeout_wait_s": 330,
+    "prompt_congelado": "Una garantia declarada del proyecto ha dejado de aplicar y hay que corregir su declaracion. Este es TODO el contexto disponible:\n- motivo: {motivo}\n- fichero que hay que corregir: {fichero}\n- patron declarado que ya no aparece: {patron}\n- referencia de la garantia: {referencia}\nCorrige la declaracion sustituyendo en ese fichero el patron que ya no aparece por el patron correcto.",
+    "laboratorio": "/tmp/aura-lab-86p2tbl7",
+    "paquete_importado": "/tmp/aura-lab-86p2tbl7/walking-skeleton/aura_skeleton",
+    "raiz_que_usaran_los_ejecutores": "/tmp/aura-lab-86p2tbl7/walking-skeleton",
+    "raices_efectivas_de_los_ejecutores": {
+      "auditor": "/tmp/aura-lab-86p2tbl7/walking-skeleton",
+      "programador": "/tmp/aura-lab-86p2tbl7/walking-skeleton",
+      "qa": "/tmp/aura-lab-86p2tbl7/walking-skeleton"
+    },
+    "ciclo_real": {
+      "latidos": 1,
+      "tareas_totales": 2,
+      "causa_estado": "bloqueada",
+      "causa_bloqueos": [
+        "veredicto negativo: 1 garantia(s) declaradas que NO protegen nada: laboratorio-humo.toml:H1 (AUSENTE)"
+      ],
+      "derivadas": 1
+    },
+    "args_literales_de_la_derivada": {
+      "motivo": "veredicto negativo: 1 garantia(s) declaradas que NO protegen nada: laboratorio-humo.toml:H1 (AUSENTE)",
+      "fichero_declarado": "mutaciones/laboratorio-humo.toml",
+      "buscar_declarado": "    if not tiene_permiso(x):",
+      "referencia": "laboratorio-humo.toml:H1"
+    },
+    "texto_entregado_al_razonador": "Una garantia declarada del proyecto ha dejado de aplicar y hay que corregir su declaracion. Este es TODO el contexto disponible:\n- motivo: veredicto negativo: 1 garantia(s) declaradas que NO protegen nada: laboratorio-humo.toml:H1 (AUSENTE)\n- fichero que hay que corregir: mutaciones/laboratorio-humo.toml\n- patron declarado que ya no aparece:     if not tiene_permiso(x):\n- referencia de la garantia: laboratorio-humo.toml:H1\nCorrige la declaracion sustituyendo en ese fichero el patron que ya no aparece por el patron correcto.",
+    "recursos_antes": {
+      "MemFree": 320,
+      "MemAvailable": 952,
+      "SwapTotal": 4103,
+      "SwapFree": 1492,
+      "load1": 1.58642578125
+    },
+    "latencia_total_s": 300.18,
+    "recursos_despues": {
+      "MemFree": 212,
+      "MemAvailable": 670,
+      "SwapTotal": 4103,
+      "SwapFree": 1420,
+      "load1": 9.2529296875
+    },
+    "respuesta_del_producto": null,
+    "fallo_en_el_turno": "RuntimeError: todos los proveedores fallaron (sin fallback disponible)",
+    "llamadas_al_modelo": [
+      {
+        "prompt_enviado": "[contexto memoria: (sin recuerdos relevantes)]\n[conversacion reciente:\n(inicio de la conversacion)]\nUsuario: Una garantia declarada del proyecto ha dejado de aplicar y hay que corregir su declaracion. Este es TODO el contexto disponible:\n- motivo: veredicto negativo: 1 garantia(s) declaradas que NO protegen nada: laboratorio-humo.toml:H1 (AUSENTE)\n- fichero que hay que corregir: mutaciones/laboratorio-humo.toml\n- patron declarado que ya no aparece:     if not tiene_permiso(x):\n- referencia de la garantia: laboratorio-humo.toml:H1\nCorrige la declaracion sustituyendo en ese fichero el patron que ya no aparece por el patron correcto.",
+        "respuesta_cruda": "",
+        "error": "TimeoutError: timed out",
+        "latencia_s": 300.18
+      }
+    ],
+    "confirmaciones_solicitadas": [],
+    "se_denegaron_todas": true
+  },
+  "sha256": {
+    "laboratorio": {
+      "ficheros": 512,
+      "modificados": [],
+      "aparecidos": [],
+      "desaparecidos": []
+    },
+    "worktree_real": {
+      "ficheros": 94,
+      "modificados": [],
+      "aparecidos": [],
+      "desaparecidos": []
+    }
+  },
+  "nada_se_modifico": true
+}

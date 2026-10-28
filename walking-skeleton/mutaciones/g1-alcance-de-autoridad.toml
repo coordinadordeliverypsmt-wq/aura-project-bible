@@ -1,0 +1,50 @@
+incremento = "G-1 · R-A por alcance de autoridad, no por nombre (D-A006-3, 2026-09-09)"
+# La garantia nueva no es «R-A ya no acusa a crear/desactivar»: es que la exencion sea **estrecha**.
+# Una exencion que se ensancha en silencio convierte R-A en decorativa, y R-A es la unica red de la
+# Ruta Unica de Mutacion. Cada mutante ensancha la exencion de una forma distinta.
+# Nodos concretos, no el fichero entero: `test_g1_rb_...` esta en rojo por D-A006-4 —la lista
+# `persistencia_autorizada` es aprobacion reservada al CEO— y una base en rojo invalida el arnes.
+# Se declaran las pruebas que de verdad cubren esta garantia; declarar de mas ocultaria supervivientes.
+pruebas = [
+  "tests/unit/test_g1_ruta_unica.py::test_g1_ra_ninguna_operacion_de_almacen_fuera_de_los_modulos_autorizados",
+  "tests/unit/test_g1_ruta_unica.py::test_las_cuatro_rutas_de_alerta_006_ALCANZAN_el_motor",
+  "tests/unit/test_g1_ruta_unica.py::test_la_exencion_por_alcance_de_autoridad_es_ESTRECHA",
+  "tests/unit/test_g1_ruta_unica.py::test_control_el_verificador_detecta_una_llamada_ilegitima",
+  "tests/unit/test_g1_ruta_unica.py::test_capa5_un_tipo_sin_el_metodo_mutante_no_vuelve_gobernada_la_llamada",
+  "tests/unit/test_g1_ruta_unica.py::test_solo_EL_MOTOR_concede_la_exencion_no_cualquier_cosa_con_ejecutar",
+]
+timeout_s = 180
+
+[[mutante]]
+id = "G1-M1"
+garantia = "la exencion se vuelve amnistia general: R-A deja de acusar cualquier operacion mutante"
+fichero = "tests/unit/verificador_g1.py"
+buscar = '''            if operaciones_que_alcanzan_el_motor().get(fn.attr):
+                continue'''
+sustituir = '''            if True:
+                continue'''
+
+[[mutante]]
+id = "G1-M2"
+garantia = "todo metodo de almacen se declara enrutado por el motor: olvidar y marcar quedarian exentos"
+fichero = "tests/unit/verificador_g1.py"
+buscar = '''    for nodo in ast.walk(fn):
+        if not (isinstance(nodo, ast.Call) and isinstance(nodo.func, ast.Attribute)):
+            continue
+        if nodo.func.attr != "ejecutar":
+            continue'''
+sustituir = '''    for nodo in ast.walk(fn):
+        if False:
+            continue
+        return True
+        if nodo.func.attr != "ejecutar":
+            continue'''
+
+[[mutante]]
+id = "G1-M3"
+garantia = "cualquier `.ejecutar(...)` cuenta como el Motor Unico, aunque el receptor no sea el motor"
+fichero = "tests/unit/verificador_g1.py"
+buscar = '''        if isinstance(receptor, ast.Attribute) and receptor.attr.lstrip("_") == "motor":
+            return True'''
+sustituir = '''        if True:
+            return True'''

@@ -1,0 +1,72 @@
+incremento = "Control Plane · DEC-ZONA-POR-FICHERO-DE-TRABAJO (2026-08-25)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/control-plane"
+# La garantia es de CONTENCION: la zona protege el TRABAJO, no el fichero que lo comprueba. Cada
+# mutante devuelve el mecanismo a mirar donde estaba mirando cuando los 11 rojos salian AUTO.
+pruebas = ["test_red_zona_de_trabajo.py"]
+timeout_s = 90
+
+[[mutante]]
+id = "ZTR-M1"
+descripcion = "vuelve a decidir la zona por el fichero de la PRUEBA, ignorando el del trabajo"
+fichero = "control_plane.py"
+buscar = '''    trabajo = hallazgo.get(_CAMPO_TRABAJO)
+    if trabajo:'''
+sustituir = '''    trabajo = None
+    if trabajo:'''
+
+[[mutante]]
+id = "ZTR-M2"
+descripcion = "el fichero de la prueba CONTAMINA la evaluacion del trabajo"
+fichero = "control_plane.py"
+buscar = '''    if trabajo:
+        texto = str(trabajo)
+    else:'''
+sustituir = '''    if trabajo:
+        texto = str(trabajo) + " " + str(hallazgo.get("fichero", ""))
+    else:'''
+
+[[mutante]]
+id = "ZTR-M3"
+descripcion = "el trabajo declarado deja de evaluarse: ninguna zona coincide nunca"
+fichero = "control_plane.py"
+buscar = '''    if trabajo:
+        texto = str(trabajo)'''
+sustituir = '''    if trabajo:
+        texto = ""'''
+
+[[mutante]]
+id = "ZTR-M4"
+descripcion = "la ausencia de fichero de trabajo vuelve a valer como permiso"
+fichero = "control_plane.py"
+buscar = '''    if not hallazgo.get(_CAMPO_TRABAJO):
+        return "PROPOSAL_ONLY"'''
+sustituir = '''    if False:
+        return "PROPOSAL_ONLY"'''
+
+[[mutante]]
+id = "ZTR-M5"
+descripcion = "la barrera de zona desaparece: el trabajo en zona vetada pasa a AUTO"
+fichero = "control_plane.py"
+buscar = '''    if _toca_zona_bloqueada(hallazgo, estado):
+        return "DECISION_REQUIRED"'''
+sustituir = '''    if False:
+        return "DECISION_REQUIRED"'''
+
+[[mutante]]
+id = "ZTR-M6"
+descripcion = "coincidencia por SUBSTRING: un identificador ajeno pero parecido queda bloqueado"
+fichero = "control_plane.py"
+buscar = '''    piezas = _fragmentos(texto)
+    return any(_normalizar(z) in piezas for z in zonas)'''
+sustituir = '''    return any(_normalizar(z) in _normalizar(texto) for z in zonas)'''
+
+[[mutante]]
+id = "ZTR-M7"
+descripcion = "descubrir() deja de propagar el fichero de trabajo declarado por quien mide"
+fichero = "control_plane.py"
+buscar = '''                          "descripcion": r.get("motivo"),
+                          _CAMPO_TRABAJO: r.get(_CAMPO_TRABAJO),'''
+sustituir = '''                          "descripcion": r.get("motivo"),
+                          _CAMPO_TRABAJO: None,'''

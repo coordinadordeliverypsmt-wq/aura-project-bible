@@ -81,8 +81,11 @@ def resolver_args(args: dict, evento: dict) -> dict:
 class AlmacenReglas:
     """Persiste las reglas del usuario en JSONL append-only. Sobrevive al reinicio."""
 
-    def __init__(self, ruta: str) -> None:
+    def __init__(self, ruta: str, motor=None) -> None:
         self._ruta = ruta
+        # F4 tramo 2 · el motor unico. Sin el, `crear` y `desactivar` NO mutan (fail-closed): una
+        # ruta directa de reserva seria la segunda via que ALERTA-005 prohibe.
+        self._motor = motor
         os.makedirs(os.path.dirname(ruta) or ".", exist_ok=True)
         self._reglas: list[ReglaUsuario] = self._cargar()
 
@@ -120,10 +123,25 @@ class AlmacenReglas:
         self._reglas = [r for r in self._reglas if not (r.user_id == regla.user_id and r.rule_id == regla.rule_id)]
         self._reglas.append(regla)
 
-    def crear(self, regla: ReglaUsuario) -> None:
+    async def crear(self, regla: ReglaUsuario) -> None:
+        """MIGRADA en F4: catalogo -> authorize -> kill switch -> motor -> ejecutor -> persistencia."""
+        from .ejecutor_reglas import como_argumentos
+
+        if self._motor is None:
+            return
+        await self._motor.ejecutar(
+            "automatizacion", como_argumentos(regla), regla.user_id or "-",
+            f"regla-crear-{regla.rule_id}", origen="reglas",
+        )
+
+    def _crear_en_disco(self, regla: ReglaUsuario) -> None:
+        """La escritura real. **Solo la invoca el ejecutor**, ya pasados todos los controles."""
         self._proyectar(regla)
         with open(self._ruta, "a", encoding="utf-8") as f:
             f.write(json.dumps(asdict(regla), ensure_ascii=False) + "\n")
+
+    def _vigente(self, user_id: str, rule_id: str):
+        return next((r for r in self._reglas if r.user_id == user_id and r.rule_id == rule_id), None)
 
     def listar(self, user_id: str) -> list[ReglaUsuario]:
         """Reglas ACTIVAS del usuario (aislamiento por usuario, P-ARQ-5)."""
@@ -133,7 +151,19 @@ class AlmacenReglas:
         """Reglas activas del usuario cuyo `evento` coincide con el tipo dado."""
         return [r for r in self.listar(user_id) if tipo_evento.startswith(r.evento)]
 
-    def desactivar(self, user_id: str, rule_id: str) -> bool:
+    async def desactivar(self, user_id: str, rule_id: str) -> bool:
+        """MIGRADA en F4, mismo camino que `crear`."""
+        if self._motor is None:
+            return False
+        r = await self._motor.ejecutar(
+            "automatizacion", {"operacion": "desactivar", "user_id": user_id, "rule_id": rule_id},
+            user_id or "-", f"regla-desactivar-{rule_id}", origen="reglas",
+        )
+        if r.get("estado") != "ejecutada":
+            return False
+        return bool((r.get("resultado") or {}).get("desactivada", False))
+
+    def _desactivar_en_disco(self, user_id: str, rule_id: str) -> bool:
         """Desactiva una regla del usuario. True si estaba activa y se desactivo; False si no existia
         o ya estaba inactiva.
         """

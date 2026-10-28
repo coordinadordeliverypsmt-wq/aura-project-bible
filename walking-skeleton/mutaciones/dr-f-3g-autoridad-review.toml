@@ -1,0 +1,69 @@
+incremento = "DR-F-3g · la autoridad REVIEW real: la constante no es el estado (2026-09-06)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/control-plane"
+# La garantia no es «REVIEW esta encendido»: es que **nadie vuelva a confundir la constante con el
+# estado**. `REVIEW_HABILITADO` es una puerta global; el estado lo fija el acta registrada en el log.
+# Cada mutante colapsa las dos vias en una, que es justo el error que costo un informe equivocado.
+pruebas = ["test_red_autoridad_review_real.py", "test_red_review.py"]
+timeout_s = 180
+
+[[mutante]]
+id = "AR-M1"
+descripcion = "la constante manda: el acta del log deja de consultarse"
+fichero = "review.py"
+buscar = '''    return any(e["tipo"] == "review_habilitado"
+               for e in cp.leer_eventos(pathlib.Path(directorio)))'''
+sustituir = '''    return REVIEW_HABILITADO'''
+
+[[mutante]]
+id = "AR-M2"
+descripcion = "preguntar sin directorio concede en vez de negar"
+fichero = "review.py"
+buscar = '''    if directorio is None:
+        return False
+    return any(e["tipo"] == "review_habilitado"'''
+sustituir = '''    if directorio is None:
+        return True
+    return any(e["tipo"] == "review_habilitado"'''
+
+[[mutante]]
+id = "AR-M3"
+descripcion = "el alcance del acta se ignora: cualquier accion entraria en REVIEW"
+fichero = "review.py"
+buscar = '''    return accion in _alcance(directorio) and not es_materia_reservada(accion)'''
+sustituir = '''    return not es_materia_reservada(accion)'''
+
+[[mutante]]
+id = "AR-M4"
+descripcion = "el acta abre la materia reservada"
+fichero = "review.py"
+buscar = '''def es_materia_reservada(accion: str) -> bool:
+    return accion in _MATERIA_RESERVADA'''
+sustituir = '''def es_materia_reservada(accion: str) -> bool:
+    return False'''
+
+[[mutante]]
+id = "AR-M5"
+descripcion = "el clasificador deja de leer el acta y se queda con la politica estatica"
+fichero = "ciclo_autonomo.py"
+buscar = '''    if rv.habilitado(pathlib.Path(directorio)) and rv.en_alcance(pathlib.Path(directorio), accion):
+        return "REVIEW"'''
+sustituir = '''    if False:
+        return "REVIEW"'''
+
+[[mutante]]
+id = "AR-M6"
+descripcion = "el acta abre la zona de gobernanza"
+fichero = "ciclo_autonomo.py"
+buscar = '''    if not ac.zona_permitida(tarea.get("fichero", ""), raiz=directorio):
+        return "HUMAN"'''
+sustituir = '''    if False:
+        return "HUMAN"'''
+
+[[mutante]]
+id = "AR-M7"
+descripcion = "_alcance devuelve todo lo delegable en vez de lo que el acta dijo"
+fichero = "review.py"
+buscar = '''            return tuple(evento["datos"].get("alcance", ()))'''
+sustituir = '''            return TODO_LO_DELEGABLE'''

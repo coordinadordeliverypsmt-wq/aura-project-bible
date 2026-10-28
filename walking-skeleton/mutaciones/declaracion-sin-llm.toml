@@ -1,0 +1,61 @@
+incremento = "Declaracion de hecho propio se acusa sin llamada al LLM (2026-09-13): «me llamo Mauricio» lo cierra el Core"
+pruebas = ["tests/integration/test_declaracion_sin_llm.py",
+           "tests/unit/test_es_declaracion_de_hecho_propio.py"]
+timeout_s = 120
+
+# La garantia central: una declaracion de hecho propio («me llamo Mauricio») no toca el modelo -se
+# acusa en el Core con "Entendido." y el hecho lo captura la ruta de siempre-. Cada mutante degrada
+# UNA sola pieza de esa cadena: la compuerta, su guarda de accion, el cableado en composicion.py, el
+# criterio compartido con la captura, o el cierre (proveedor/estatus) que declara el acuse.
+
+[[mutante]]
+id = "DS-M1"
+garantia = "la compuerta de declaracion se neutraliza (queda en False): una declaracion de hecho propio vuelve a caer en el modelo, como antes del incremento"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_declaracion_sin_llm.py::test_A_me_llamo_se_acusa_en_el_core_sin_modelo_y_el_hecho_se_captura",
+           "tests/integration/test_declaracion_sin_llm.py::test_C_cumpleanos_se_acusa_sin_modelo_se_responde_y_se_versiona",
+           "tests/integration/test_declaracion_sin_llm.py::test_G_color_favorito_se_acusa_sin_modelo_y_se_responde_literal"]
+buscar = '''        if (self.reconocer_declaracion is not None and self.reconocer_declaracion(text)
+                and not _pide_accion(text)):'''
+sustituir = '''        if (False and self.reconocer_declaracion(text)
+                and not _pide_accion(text)):'''
+
+[[mutante]]
+id = "DS-M2"
+garantia = "se elimina la guarda 'not _pide_accion(text)': una declaracion que ademas pide una accion ('me llamo Mauricio y enciende la luz') perderia la accion, tragada por el acuse del Core"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_declaracion_sin_llm.py::test_E_declaracion_que_ademas_pide_una_accion_llega_al_router"]
+buscar = '''        if (self.reconocer_declaracion is not None and self.reconocer_declaracion(text)
+                and not _pide_accion(text)):'''
+sustituir = '''        if (self.reconocer_declaracion is not None and self.reconocer_declaracion(text)):'''
+
+[[mutante]]
+id = "DS-M3"
+garantia = "composicion.py deja de inyectar 'reconocer_declaracion' al Orchestrator: en produccion la garantia desaparece por completo, aunque el Orchestrator y la funcion pura sigan intactos por separado"
+fichero = "aura_skeleton/composicion.py"
+pruebas = ["tests/integration/test_declaracion_sin_llm.py::test_A_me_llamo_se_acusa_en_el_core_sin_modelo_y_el_hecho_se_captura",
+           "tests/integration/test_declaracion_sin_llm.py::test_C_cumpleanos_se_acusa_sin_modelo_se_responde_y_se_versiona",
+           "tests/integration/test_declaracion_sin_llm.py::test_G_color_favorito_se_acusa_sin_modelo_y_se_responde_literal"]
+buscar = '''        reconocer_declaracion=es_declaracion_de_hecho_propio,'''
+sustituir = '''        reconocer_declaracion=None,'''
+
+[[mutante]]
+id = "DS-M4"
+garantia = "es_declaracion_de_hecho_propio se ensancha a 'is not None': una PREFERENCIA_DECLARADA ('me gusta el jazz') u otra clase distinta de HECHO_DECLARADO se acusaria sin llamar al modelo, robandole su camino"
+fichero = "aura_skeleton/conectores/conversacion.py"
+pruebas = ["tests/unit/test_es_declaracion_de_hecho_propio.py::test_no_reconoce_lo_que_no_es_hecho_propio",
+           "tests/integration/test_declaracion_sin_llm.py::test_E_lo_que_no_es_hecho_propio_conserva_su_camino"]
+buscar = '''    return _clasificar(_normalizar(texto)) is ClaseSenal.HECHO_DECLARADO'''
+sustituir = '''    return _clasificar(_normalizar(texto)) is not None'''
+
+[[mutante]]
+id = "DS-M5"
+garantia = "el cierre de la compuerta deja de declarar estatus=Estatus.HECHO: el acuse se leeria como una PROPUESTA del modelo (marca visible, epistemologia equivocada) en vez de un hecho afirmado por el Core"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_declaracion_sin_llm.py::test_A_me_llamo_se_acusa_en_el_core_sin_modelo_y_el_hecho_se_captura",
+           "tests/integration/test_declaracion_sin_llm.py::test_C_cumpleanos_se_acusa_sin_modelo_se_responde_y_se_versiona",
+           "tests/integration/test_declaracion_sin_llm.py::test_G_color_favorito_se_acusa_sin_modelo_y_se_responde_literal"]
+buscar = '''            await self._finalizar_turno(uid, tid, text, _ACUSE_DECLARACION, "core", t, dominio="declaracion",
+                                        estatus=Estatus.HECHO)'''
+sustituir = '''            await self._finalizar_turno(uid, tid, text, _ACUSE_DECLARACION, "core", t, dominio="declaracion",
+                                        estatus=Estatus.PROPUESTA)'''

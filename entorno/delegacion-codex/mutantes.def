@@ -1,0 +1,127 @@
+# BATERIA DE MUTACION DEL CODEX MVP — declaracion reproducible
+#
+# Formato por bloque:  ID | RED(s) que lo ejercen | garantia atacada | transformacion (sed -E)
+# Las lineas GAR:/TRA:/RED:/PRE:/CRI: describen cada mutante. Un bloque empieza en «== ID».
+#
+# REGLAS APLICADAS (CEO 2026-08-24):
+#  · Nunca [ true ] / [ false ]: en bash `[ false ]` es VERDADERO y produjo veredictos falsos.
+#    Todas las transformaciones son ELIMINACIONES o SUSTITUCIONES SEMANTICAS reales.
+#  · El mutante se aplica a una COPIA del wrapper. La produccion NUNCA se modifica.
+#  · VALIDEZ DEL MUTANTE (obligatorio desde 2026-08-24, auditoria GRAVE-1/GRAVE-2): tras aplicar la
+#    transformacion se ejecuta `bash -n` sobre la copia y se acota el tamaño del diff. Un mutante que
+#    ROMPE LA SINTAXIS no degrada: destruye, y cualquier RED falla contra el por averia. Eso NO es
+#    DETECTADO sino MUTANTE_INVALIDO. Asi entraron M8, M9 y M15 como falsos DETECTADO.
+#  · `DIF: n` declara cuantas lineas de diff debe producir el mutante (tope por defecto: 12).
+#  · Si el sed no cambia el fichero -> NO_APLICADO (no DETECTADO). Es la trampa ya pagada.
+#  · Criterio DETECTADO = la RED PASA con la copia intacta (control) Y FALLA con la copia mutada.
+#    El control es obligatorio: sin el, una RED rota daria «detectado» por avería.
+
+== M1
+GAR: la evidencia de cada delegacion vive en su propio directorio
+GAR: RED REEMPLAZADA 2026-08-24 (FASE 6.1): test_red_evidencia.sh NO podia ejercer esta garantia bajo
+GAR: el mutante — al colapsar SALIDA sin el id, la SEGUNDA invocacion choca con la guarda de M2 y la
+GAR: RED moria en el setup (1 de 9 aserciones). test_red_ruta_de_evidencia.sh usa un fixture por
+GAR: asercion, asi que ninguna es «la segunda» y las 6 se evaluan siempre.
+TRA: s|^SALIDA="\$WT_REAL/\.delegacion/\$DELEG_ID"|SALIDA="$WT_REAL/.delegacion"|
+RED: test_red_ruta_de_evidencia.sh test_red_evidencia.sh
+
+== M2
+GAR: un delegation_id no se reutiliza ni sobrescribe evidencia anterior
+TRA: /^\[ -e "\$SALIDA" \] && abortar/d
+RED: test_red_evidencia.sh
+
+== M3
+GAR: el JSONL de eventos se escribe DENTRO de la delegacion
+TRA: s|^JSONL="\$SALIDA/events\.jsonl"|JSONL="$WT_REAL/.delegacion/events.jsonl"|
+RED: test_red_evidencia.sh
+
+== M4
+GAR: el stderr de `review` se conserva DENTRO de la delegacion
+TRA: s|\( cd "\$WT_REAL" && "\$CODEX" review --uncommitted \) > "\$JSONL" 2>"\$SALIDA/stderr\.txt"|( cd "$WT_REAL" \&\& "$CODEX" review --uncommitted ) > "$JSONL" 2>/dev/null|
+RED: test_red_evidencia.sh test_red_sandbox.sh
+
+== M5
+GAR: un resume declara de que delegacion procede
+TRA: s|"parent_delegation_id": __import__\("os"\)\.environ\.get\("PARENT_ID"\) or None|"parent_delegation_id": None|
+RED: test_red_continuidad.sh
+
+== M6
+GAR: el wrapper acepta --parent y REGISTRA el vinculo entre delegaciones
+GAR: RED REEMPLAZADA 2026-08-24 (FASE 6.2): test_red_continuidad.sh moria en el setup (1 de 7) porque
+GAR: el flag caia en «argumento desconocido». test_red_vinculo_parent.sh invoca por asercion e
+GAR: incluye un CONTROL INTERNO —el caso sin --parent— que sigue pasando con el mutante aplicado.
+TRA: /^  --parent\) PARENT_ID=/d
+RED: test_red_vinculo_parent.sh test_red_continuidad.sh
+
+== M7
+GAR: un resume conserva el thread anterior
+TRA: s|"previous_thread_id": __import__\("os"\)\.environ\.get\("SESION_PREV"\) or None|"previous_thread_id": None|
+RED: test_red_continuidad.sh
+
+== M8
+GAR: sandbox_effective es MEDIDO, nunca declarado
+TRA: s#^\[ -n "\$SB_OBS" \] \|\| SB_OBS="UNKNOWN"$#SB_OBS="workspace-write"#
+DIF: 2
+RED: test_red_sandbox.sh
+
+== M9
+GAR: la ausencia de la señal `sandbox:` no puede matar al wrapper. El `if` AISLA el fallo del
+GAR: pipeline; sin el, bajo `set -euo pipefail` (delegar.sh:10) un grep sin coincidencia devuelve 1
+GAR: y mata el proceso, perdiendo el manifest aunque Codex haya terminado bien.
+GAR: RECONSTRUIDO 2026-08-24: la transformacion anterior borraba el `if` dejando `; then` huerfano
+GAR: -> sintaxis rota -> MUTANTE_INVALIDO. Cualquier RED fallaba por averia, no por la garantia.
+GAR: La nueva saca la asignacion del `if` conservando la estructura: valida y de una linea.
+TRA: s#^if (SB_LINEA=\$\(sed .*); then$#\1\nif [ -n "${SB_LINEA:-}" ]; then#
+TER: el wrapper NO muere
+DIF: 3
+RED: test_red_señales_reales.sh
+
+== M10
+GAR: el manifest no reintroduce un literal en sandbox_effective
+TRA: s|"sandbox_effective": __import__\("os"\)\.environ\.get\("SB_OBS","UNKNOWN"\)|"sandbox_effective": "workspace-write"|
+RED: test_red_sandbox.sh test_red_sin_literal.sh
+
+== M11
+GAR: AURA se identifica por su commit raiz
+TRA: /^    if \[ "\$raiz_obj" = "\$AURA_ROOT_COMMIT" \]; then$/,+2d
+RED: test_red_identidad_aura.sh
+
+== M12
+GAR: la identidad es la del repositorio OBJETIVO, no la del repo que aloja al wrapper
+TRA: s#^AURA_ROOT_COMMIT=.*#AURA_ROOT_COMMIT="$(git -C "$(dirname "$0")" rev-list --max-parents=0 HEAD 2>/dev/null | head -1)"#
+RED: test_red_grave2.sh
+
+== M13
+GAR: ninguna operacion invoca Codex antes de verificar el objetivo
+TRA: /^verificar_objetivo "\$WT_REAL" \|\| exit \$\?$/d
+RED: test_red_m12_m13.sh
+
+== M14
+GAR: una señal ausente se CLASIFICA como UNKNOWN, no aborta ni se inventa
+TRA: s|^  SB_OBS=""$|  abortar "sin señal sandbox: se vuelve fatal"|
+RED: test_red_sandbox_casos.sh
+
+== M15
+GAR: sandbox_status distingue OBSERVED de UNKNOWN
+TRA: s#^\[ "\$SB_OBS" = "UNKNOWN" \] && SB_ST="UNKNOWN" \|\| SB_ST="OBSERVED"$#SB_ST="OBSERVED"#
+DIF: 2
+RED: test_red_sandbox_casos.sh
+
+== M16
+GAR: un error de Codex es un error (fail-safe). CONSOLIDA al antiguo M17: la transformacion era
+GAR: IDENTICA (copias byte a byte iguales, demostrado por ejecucion 2026-08-24). No son dos
+GAR: degradaciones: es UNA, ejercida por DOS vias — con doble (caso B) y con CODEX REAL (thread_id).
+GAR: Ninguna cobertura se retira: ambas RED siguen declaradas aqui.
+TRA: /^\[ "\$CODIGO" -eq 0 \]  *\|\| abortar "codex termino con exit/d
+RED: test_red_sandbox_casos.sh test_red_m17_exit_con_thread.sh
+
+
+== M19
+GAR: la evidencia de un fallo real se conserva, no se descarta (Codex REAL)
+TRA: s#^abortar\(\) \{ echo "FAILURE: \$1" >&2; exit 91; \}#abortar() { rm -rf "${SALIDA:-/nonexistent}"; echo "FAILURE: $1" >\&2; exit 91; }#
+RED: test_red_fallo_real.sh
+
+== M20
+GAR: el exit_code real de Codex se registra sin maquillar (Codex REAL)
+TRA: s|"exit_code": int\(codigo\)|"exit_code": 0|
+RED: test_red_fallo_real.sh

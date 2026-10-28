@@ -539,7 +539,12 @@ async def test_una_parte_desconocida_dentro_de_la_conjuncion_anula_el_turno(sist
     reconoce la frase entera). Se usa "qué tienes pendiente", que ninguna superficie posterior
     reclama, para que lo que falle aquí sea sólo lo de este incremento.
     """
-    r = await _di(sistema.orquestador, "Hola, ¿qué tienes pendiente y cuál es la capital de Francia?")
+    # SONDA CORREGIDA (2026-09-09). Antes se usaba «¿Cuál es la capital de Francia?» como
+    # pregunta «genérica»: pero eso es CONOCIMIENTO GENERAL, y desde la frontera cognitiva de M3
+    # llega al modelo -es el comportamiento que el CEO pidió-. La garantía de esta prueba no ha
+    # cambiado; lo que estaba mal elegido era el sujeto. Se usa una pregunta que SÍ interroga la
+    # memoria personal, que es el camino que esta aserción existe para proteger.
+    r = await _di(sistema.orquestador, "Hola, ¿qué tienes pendiente y cuál es el nombre de mi abuela?")
     assert r["provider"] == "core"
     assert _ausencia(r), f"descartó la parte desconocida y respondió igual: {r['say']!r}"
 
@@ -605,7 +610,12 @@ async def test_saludo_mas_pregunta_desconocida_sigue_el_flujo_previo(sistema):
     """Kill del mutante "las partes no reconocidas se ignoran". Si el saludo se respondiera y la
     pregunta se descartara en silencio, el usuario recibiría "Hola." a una pregunta real: peor que
     la ausencia de memoria, porque parece una respuesta."""
-    r = await _di(sistema.orquestador, "Hola, ¿cuál es la capital de Francia?")
+    # SONDA CORREGIDA (2026-09-09). Antes se usaba «¿Cuál es la capital de Francia?» como
+    # pregunta «genérica»: pero eso es CONOCIMIENTO GENERAL, y desde la frontera cognitiva de M3
+    # llega al modelo -es el comportamiento que el CEO pidió-. La garantía de esta prueba no ha
+    # cambiado; lo que estaba mal elegido era el sujeto. Se usa una pregunta que SÍ interroga la
+    # memoria personal, que es el camino que esta aserción existe para proteger.
+    r = await _di(sistema.orquestador, "Hola, ¿cuál es el nombre de mi abuela?")
     assert r["provider"] == "core"
     assert _ausencia(r), f"perdió la pregunta y respondió sólo al saludo: {r['say']!r}"
 

@@ -10,6 +10,20 @@ import time
 
 _records: list[dict] = []
 
+# --- Donde se IMPRIME la telemetria (CEO, 2026-09-01). -------------------------------------------
+# El defecto que esto corrige: `log()` hacia un `print` incondicional, asi que la conversacion humana
+# aparecia sepultada bajo [VOICE]/[MEM]/[EVENT]/[LAT] en la misma pantalla. La separacion por flujo ya
+# existia —la telemetria va a `stderr` y la conversacion a `stdout`—, pero en una terminal los dos
+# flujos caen en el mismo sitio, asi que en la practica no separaba nada.
+#
+# Lo que se separa aqui es SOLO la PRESENTACION. El registro en `_records` y la persistencia en el
+# audit log ocurren ANTES de imprimir y no dependen de esto: apagar la pantalla no pierde ni un
+# registro, no reduce la auditoria y no toca ningun contrato del nucleo. Es un sumidero, no un filtro.
+#
+# Por defecto `sys.stderr`, que es exactamente el comportamiento de hoy: ningun llamador existente
+# —scripts, arneses, `--servir`— cambia de conducta. Solo la conversacion interactiva lo apaga.
+_salida = sys.stderr
+
 # --- Metricas basicas del contrato P-ARQ-7 (Bible 7.4, "metricas basicas"). ---
 # Cableado en A2 (2026-07-26): el subsistema existia sin llamadores (clasificado por D42 el
 # 2026-07-22 como implementacion pendiente, NO codigo muerto). A2 lo realiza en sus puntos de emision
@@ -32,13 +46,33 @@ def metrics() -> dict:
     return dict(_metrics)
 
 
+def configurar_salida(destino) -> None:
+    """Cambia DONDE se imprime la telemetria. `None` la deja fuera de la pantalla.
+
+    No es un filtro ni un nivel de log: el registro y la auditoria ya ocurrieron cuando esto decide.
+    Existe para que la interfaz conversacional pueda ser legible sin que el sistema deje de observarse
+    a si mismo."""
+    global _salida
+    _salida = destino
+
+
+def salida_actual():
+    """Sumidero vigente. Devolverlo permite restaurarlo, que es lo que necesita una prueba para no
+    dejar el modulo tocado para las siguientes."""
+    return _salida
+
+
 def log(level: str, module: str, msg: str, trace_id: str = "-", **kv) -> None:
     rec = {"level": level, "module": module, "msg": msg, "trace_id": trace_id, **kv}
     _records.append(rec)
     if rec.get("audit") and _audit is not None:
         _audit.append(rec)  # H2: las acciones con efecto se persisten, no solo se imprimen
+    if _salida is None:
+        # La pantalla esta apagada. El registro y la auditoria de arriba YA ocurrieron: aqui no se
+        # pierde observabilidad, solo se deja de estorbar a quien esta conversando.
+        return
     extra = " ".join(f"{k}={v}" for k, v in kv.items())
-    print(f"  [{level:<5}] {module:<14} trace={trace_id[:8]} {msg} {extra}".rstrip(), file=sys.stderr)
+    print(f"  [{level:<5}] {module:<14} trace={trace_id[:8]} {msg} {extra}".rstrip(), file=_salida)
 
 
 class Timer:

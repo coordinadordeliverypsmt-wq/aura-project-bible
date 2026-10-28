@@ -1,0 +1,62 @@
+incremento = "D-CP-6 = (a) · esquema de argumentos en la ruta del criterio (2026-08-23)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/communication-plane"
+# Cierra R-1 para las 4 capacidades que D-CP-4 admite como criterio. Las otras 29 no se tocan.
+pruebas = ["test_red_dcp6_argumentos.py", "test_red_dcp4_criterio.py"]
+timeout_s = 60
+
+[[mutante]]
+id = "M1"
+garantia = "R-1: un criterio con argumentos NO es automatizable. Sin esta comprobacion vuelve el hueco entero"
+fichero = "communication_plane.py"
+pruebas = ["test_red_dcp6_argumentos.py::test_R1_un_criterio_con_argumentos_no_es_automatizable"]
+buscar = '''    if tarea.get("args") and not esquema_de_argumentos(criterio)["acepta_argumentos"]:'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "M2"
+garantia = "lo NO declarado no acepta argumentos (ante la duda, roja). Invertirlo convierte el silencio en permiso"
+fichero = "communication_plane.py"
+pruebas = ["test_red_dcp6_argumentos.py::test_las_cuatro_capacidades_del_criterio_no_aceptan_argumentos",
+           "test_red_dcp6_argumentos.py::test_R1_un_criterio_con_argumentos_no_es_automatizable"]
+buscar = '''    sin_esquema = {"acepta_argumentos": False, "parametros": (),'''
+sustituir = '''    sin_esquema = {"acepta_argumentos": True, "parametros": (),'''
+
+[[mutante]]
+id = "M3"
+garantia = "el esquema se LEE del registro real: con la ruta rota, una capacidad que si declara argumentos dejaria de distinguirse"
+fichero = "communication_plane.py"
+pruebas = ["test_red_dcp6_argumentos.py::test_caso_de_control_una_capacidad_que_SI_declara_esquema_se_distingue"]
+buscar = '''_RUTA_ESPECIFICACIONES = ("walking-skeleton", "aura_skeleton", "core", "operaciones.py")'''
+sustituir = '''_RUTA_ESPECIFICACIONES = ("walking-skeleton", "aura_skeleton", "core", "NO_EXISTE.py")'''
+
+[[mutante]]
+id = "M4"
+garantia = "`acepta_argumentos` se deriva de si hay parametros declarados, no es una constante"
+fichero = "communication_plane.py"
+pruebas = ["test_red_dcp6_argumentos.py::test_caso_de_control_una_capacidad_que_SI_declara_esquema_se_distingue"]
+buscar = '''                return {"acepta_argumentos": bool(nombres), "parametros": nombres,'''
+sustituir = '''                return {"acepta_argumentos": False, "parametros": nombres,'''
+
+[[mutante]]
+id = "M5"
+garantia = "FAIL-SAFE: si el registro no se puede leer, no se aceptan argumentos. Un fallo de lectura no puede convertirse en permiso"
+fichero = "communication_plane.py"
+pruebas = ["test_red_dcp6_argumentos.py::test_si_el_registro_no_se_puede_leer_no_se_aceptan_argumentos"]
+buscar = '''    if dicc is None:
+        return sin_esquema'''
+sustituir = '''    if dicc is None:
+        return {"acepta_argumentos": True, "parametros": ()}'''
+
+[[mutante]]
+id = "M6"
+garantia = "FAIL-SAFE del catalogo: sin registro legible no hay capacidad valida, luego nada es automatizable"
+fichero = "communication_plane.py"
+pruebas = ["test_red_dcp6_argumentos.py::test_si_el_registro_no_se_puede_leer_no_se_aceptan_argumentos"]
+buscar = '''    dicc = _dict_de_produccion(_RUTA_CATALOGO, _NOMBRE_CATALOGO)
+    if dicc is None:
+        return frozenset()'''
+sustituir = '''    dicc = _dict_de_produccion(_RUTA_CATALOGO, _NOMBRE_CATALOGO)
+    if dicc is None:
+        return frozenset({"ejecutar_pruebas"})'''

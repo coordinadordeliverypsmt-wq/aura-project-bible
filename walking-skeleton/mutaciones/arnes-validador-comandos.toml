@@ -1,0 +1,50 @@
+incremento = "Arnes OpenCode · validador de comandos (2026-08-25)"
+# Cada mutante reabre una via de evasion concreta. La garantia: un comando compuesto NUNCA pasa.
+pruebas = ["test_red_bypass.sh"]
+nota = "se ejecuta con V=validador.py desde el propio directorio del arnes"
+timeout_s = 60
+
+[[mutante]]
+id = "VAL-M1"
+descripcion = "los metacaracteres dejan de bloquear: vuelve el bypass por encadenamiento"
+fichero = "validador.py"
+buscar = '''    if METACARACTERES.search(comando):
+        return "DENEGADO"'''
+sustituir = '''    if False:
+        return "DENEGADO"'''
+
+[[mutante]]
+id = "VAL-M2"
+descripcion = "la lista blanca de ejecutables deja de aplicarse"
+fichero = "validador.py"
+buscar = '''    if ejecutable not in EJECUTABLES:
+        return "DENEGADO"'''
+sustituir = '''    if False:
+        return "DENEGADO"'''
+
+[[mutante]]
+id = "VAL-M3"
+descripcion = "se permite salir del directorio de trabajo"
+fichero = "validador.py"
+buscar = '''        if a.startswith("/") or a.startswith("~") or ".." in a.split("/"):
+            return "DENEGADO"'''
+sustituir = '''        if False:
+            return "DENEGADO"'''
+
+[[mutante]]
+id = "VAL-M4"
+descripcion = "git commit/push vuelven a pasar"
+fichero = "validador.py"
+buscar = '''    if ejecutable == "git" and len(partes) > 1 and partes[1] in GIT_VETADO:
+        return "DENEGADO"'''
+sustituir = '''    if False:
+        return "DENEGADO"'''
+
+[[mutante]]
+id = "VAL-M5"
+descripcion = "sed -i (edicion en el sitio) vuelve a pasar"
+fichero = "validador.py"
+buscar = '''    if ejecutable == "sed" and any(a.startswith("-i") for a in partes[1:]):
+        return "DENEGADO"'''
+sustituir = '''    if False:
+        return "DENEGADO"'''

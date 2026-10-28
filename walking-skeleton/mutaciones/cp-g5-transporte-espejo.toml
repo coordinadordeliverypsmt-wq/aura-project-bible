@@ -1,0 +1,51 @@
+incremento = "CP · G5 transporte y espejo GitHub (2026-08-24)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/communication-plane"
+# Las garantias de G5 son dos: el espejo NUNCA es fuente (su fallo no rompe el canal) y el
+# transporte es un ADAPTADOR sustituible con superficie exactamente de dos metodos.
+# Nodeids verificados contra `grep def test_` antes de declarar esta bateria.
+pruebas = ["test_red_communication_plane.py::test_el_canal_funciona_entero_sin_red",
+           "test_red_communication_plane.py::test_la_sincronizacion_con_github_es_opcional_y_su_fallo_no_rompe_el_canal",
+           "test_red_communication_plane.py::test_el_transporte_es_un_adaptador_sustituible",
+           "test_red_transporte.py::test_el_transporte_expone_exactamente_entregar_y_recoger"]
+timeout_s = 120
+
+[[mutante]]
+id = "G5-M1"
+descripcion = "un fallo del espejo deja el canal como NO operativo: el espejo pasa a ser fuente"
+fichero = "communication_plane.py"
+buscar = '''        return {"sincronizado": False, "canal_operativo": True, "motivo": motivo}'''
+sustituir = '''        return {"sincronizado": False, "canal_operativo": not simular_fallo_de_red, "motivo": motivo}'''
+
+[[mutante]]
+id = "G5-M2"
+descripcion = "se FINGE que la sincronizacion tuvo exito: capacidad no construida declarada como real (INV-9)"
+# REFORMULADO 2026-08-24: la version anterior (`if simular_fallo` -> `if False`) SOBREVIVIO, y la
+# medicion mostro por que: solo cambiaba el `motivo`. `sincronizado` seguia False porque esta fijado
+# aparte, asi que el mutante NO degradaba la garantia que decia atacar. No era un hueco de cobertura:
+# era un mutante mal construido. Este si finge el exito.
+fichero = "communication_plane.py"
+buscar = '''        return {"sincronizado": False, "canal_operativo": True, "motivo": motivo}'''
+sustituir = '''        return {"sincronizado": True, "canal_operativo": True, "motivo": motivo}'''
+
+[[mutante]]
+id = "G5-M3"
+descripcion = "el adaptador pierde `recoger`: la superficie deja de ser la declarada"
+fichero = "communication_plane.py"
+buscar = '''    def recoger(self) -> list[dict]:'''
+sustituir = '''    def _recoger_renombrado(self) -> list[dict]:'''
+
+[[mutante]]
+id = "G5-M4"
+descripcion = "el adaptador pierde `entregar`"
+fichero = "communication_plane.py"
+buscar = '''    def entregar(self, mensaje: dict) -> None:'''
+sustituir = '''    def _entregar_renombrado(self, mensaje: dict) -> None:'''
+
+[[mutante]]
+id = "G5-M5"
+descripcion = "abrir() deja de aceptar sincronizacion_github: el canal no es local-first configurable"
+fichero = "communication_plane.py"
+buscar = '''def abrir(directorio: str | Path, sincronizacion_github: bool = False) -> Canal:'''
+sustituir = '''def abrir(directorio: str | Path) -> Canal:'''

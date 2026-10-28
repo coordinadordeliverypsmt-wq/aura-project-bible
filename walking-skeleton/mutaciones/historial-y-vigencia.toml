@@ -1,0 +1,111 @@
+incremento = "Historial y vigencia de hechos declarados — AMP-AURA etapas 1-2 (CEO, D-AMP-1 = B, 2026-09-10)"
+# Cuatro campos autorizados y una sola pregunta detras de todos: ¿cual de las cosas que el usuario dijo
+# es la que vale AHORA? Los mutantes atacan las cuatro formas de contestarla mal: no versionar, no
+# cerrar la anterior, versionar lo que no toca, y responder por orden de llegada en vez de por vigencia.
+pruebas = ["tests/unit/test_historial_y_vigencia.py",
+           "tests/unit/test_hecho_declarado_sin_llm.py",
+           "tests/unit/test_hechos_posesivos_generales.py"]
+timeout_s = 300
+
+[[mutante]]
+id = "HV-M1"
+garantia = "nada se versiona: la identidad del hecho deja de reconocerse y vuelven las dos verdades vivas"
+fichero = "aura_skeleton/core/identidad_memoria.py"
+buscar = '''    return normalizar(par[0]) if par else None'''
+sustituir = '''    return None'''
+
+[[mutante]]
+id = "HV-M2"
+garantia = "el contador no avanza: toda declaracion nace como v1 y `supersedes` no puede apuntar a nada"
+fichero = "aura_skeleton/core/ejecutor_modelo_usuario.py"
+buscar = '''            "version": ultima + 1,'''
+sustituir = '''            "version": 1,'''
+
+[[mutante]]
+id = "HV-M3"
+garantia = "la cadena se rompe: el historial pasa a ser una lista de entradas sin relacion entre si"
+fichero = "aura_skeleton/core/ejecutor_modelo_usuario.py"
+buscar = '''            "supersedes": ultima or None,'''
+sustituir = '''            "supersedes": None,'''
+
+[[mutante]]
+id = "HV-M4"
+garantia = "la version anterior NO se cierra: el defecto original vuelve, dos hechos vigentes a la vez"
+fichero = "aura_skeleton/core/ejecutor_modelo_usuario.py"
+buscar = '''        if vigentes:
+            cerradas = self._memoria.marcar(_predicado_identidad(user_id, identidad), {"valid_until": ts})'''
+sustituir = '''        if False:
+            cerradas = self._memoria.marcar(_predicado_identidad(user_id, identidad), {"valid_until": ts})'''
+
+[[mutante]]
+id = "HV-M5"
+garantia = "la entrada nueva nace superseded: el hecho recien declarado no se afirmaria en el presente"
+fichero = "aura_skeleton/core/ejecutor_modelo_usuario.py"
+buscar = '''            "valid_until": None,  # explicito: «vigente» se afirma, no se deduce de una ausencia.'''
+sustituir = '''            "valid_until": ts,'''
+
+[[mutante]]
+id = "HV-M6"
+garantia = "AISLAMIENTO (P-ARQ-5): lo que declara otra persona supersederia el hecho del usuario"
+fichero = "aura_skeleton/core/ejecutor_modelo_usuario.py"
+buscar = '''        if i["user_id"] != user_id or i["kind"] not in _TIPOS:'''
+sustituir = '''        if i["kind"] not in _TIPOS:'''
+
+[[mutante]]
+id = "HV-M7"
+garantia = "todo supersede a todo: declarar el coche cerraria la vigencia del cumpleanos"
+fichero = "aura_skeleton/core/ejecutor_modelo_usuario.py"
+buscar = '''        if identidad_de(i["content"]) != identidad:
+            return False'''
+sustituir = '''        if False:
+            return False'''
+
+[[mutante]]
+id = "HV-M8"
+garantia = "el contador se calcula solo sobre las vigentes y se REINICIA en cada cierre: dos entradas distintas compartirian version"
+fichero = "aura_skeleton/core/ejecutor_modelo_usuario.py"
+buscar = '''        previas = [i for i in self._memoria._items if _predicado_identidad(user_id, identidad, False)(i)]'''
+sustituir = '''        previas = [i for i in self._memoria._items if _predicado_identidad(user_id, identidad)(i)]'''
+
+[[mutante]]
+id = "HV-M9"
+garantia = "dos relojes para el mismo hecho: `valid_from` deja de coincidir con el momento que la procedencia declara"
+fichero = "aura_skeleton/core/ejecutor_modelo_usuario.py"
+buscar = '''            ts = procedencia.get("ts") or time.time()'''
+sustituir = '''            ts = time.time()'''
+
+[[mutante]]
+id = "HV-M10"
+garantia = "la lectura ignora la vigencia: la respuesta vuelve a depender del ORDEN de llegada"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        hechos = [e for e in vivas
+                  if e.get("clase") == ClaseSenal.HECHO_DECLARADO.value and e.get("valid_until") is None]'''
+sustituir = '''        hechos = [e for e in vivas if e.get("clase") == ClaseSenal.HECHO_DECLARADO.value]'''
+
+[[mutante]]
+id = "HV-M11"
+garantia = "el historial existe en el disco pero el usuario no puede verlo, que es no tenerlo (ADR-0017 §3)"
+fichero = "aura_skeleton/core/modelo_usuario.py"
+buscar = '''                "version": i.get("provenance", {}).get("version"),'''
+sustituir = '''                "version": None,'''
+
+[[mutante]]
+id = "HV-M12"
+garantia = "la vigencia heredada se pisa: una entrada ya cerrada volveria a contar como vigente al numerar"
+fichero = "aura_skeleton/core/ejecutor_modelo_usuario.py"
+buscar = '''        return prov.get("valid_until") is None and not prov.get("refutada")'''
+sustituir = '''        return not prov.get("refutada")'''
+
+[[mutante]]
+id = "HV-M13"
+garantia = "el dry-run miente por omision: anuncia un registro y calla que cierra la version anterior"
+fichero = "aura_skeleton/core/ejecutor_modelo_usuario.py"
+buscar = '''            efecto = f"registraria '{identidad}' como v{ultima + 1}"'''
+sustituir = '''            efecto = "registraria una entrada"'''
+
+[[mutante]]
+id = "HV-M14"
+garantia = "el DRY-RUN MUTA: cerraria la vigencia sin haber pasado por la aprobacion del plan"
+fichero = "aura_skeleton/core/ejecutor_modelo_usuario.py"
+buscar = '''        vigentes = sum(1 for i in previas if _predicado_identidad(user_id, identidad)(i))'''
+sustituir = '''        vigentes = self._memoria.marcar(_predicado_identidad(user_id, identidad), {"valid_until": 0.0})'''

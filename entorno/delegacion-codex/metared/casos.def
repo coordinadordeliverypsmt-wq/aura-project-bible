@@ -1,0 +1,55 @@
+# CASOS DE LA META-RED — prueban la LOGICA DE CLASIFICACION, no el wrapper.
+# Sujeto: metared/sujeto.sh (determinista). RED: metared/red_juguete.sh (determinista).
+# Ninguno toca red, Codex, AURA ni el estado del repositorio.
+#
+# NOTA SOBRE `PUNTO:` — se declara COMO APARECE EN LA TRAZA `bash -x`, no como esta en el fuente.
+# bash traza las instrucciones YA EXPANDIDAS: la linea fuente `VAL=$(printf ... | grep ...)` aparece
+# en la traza como `+ VAL=`. Declarar el texto del fuente hace que E2 nunca case.
+
+== A_TERMINAL_LEGITIMO
+GAR: la guarda aisla el fallo del pipeline; sin ella el sujeto muere ahi mismo
+TRA: s#^if (VAL=\$\(printf .*); then$#\1\nif [ -n "${VAL:-}" ]; then#
+TER: el sujeto NO muere
+PUNTO: VAL=
+FIRMA: 1
+DIF: 3
+RED: metared/red_juguete.sh
+
+== B_MUERTE_PREMATURA
+GAR: control adversarial — mata el sujeto ANTES del punto terminal, por causa distinta
+TRA: s#^echo "PASO_1_OK"$#exit 7#
+TER: el sujeto NO muere
+PUNTO: VAL=
+FIRMA: 1
+DIF: 2
+RED: metared/red_juguete.sh
+
+== C_TER_EQUIVOCADO
+GAR: TER apunta a una asercion que no es la que falla primero
+TRA: s#^if (VAL=\$\(printf .*); then$#\1\nif [ -n "${VAL:-}" ]; then#
+TER: emite FIN
+PUNTO: VAL=
+FIRMA: 1
+DIF: 3
+RED: metared/red_juguete.sh
+
+== D_INOCUO
+GAR: cambio semanticamente inocuo — la RED pasa, luego el mutante SOBREVIVE
+TRA: s|^echo "PASO_2_OK"$|echo "PASO_2_OK" ; : inocuo|
+DIF: 2
+RED: metared/red_juguete.sh
+
+== E_SINTAXIS_ROTA
+GAR: transformacion que rompe la sintaxis — no degrada, destruye
+TRA: s#^if (VAL=\$\(printf .*); then$#\1#
+DIF: 2
+RED: metared/red_juguete.sh
+
+== F_TERMINAL_SIN_CAUSALIDAD
+GAR: ataca el constructo terminal PERO el proceso muere antes por otra causa
+TRA: s#^echo "PASO_2_OK"$#exit 9#
+TER: el sujeto NO muere
+PUNTO: VAL=
+FIRMA: 1
+DIF: 2
+RED: metared/red_juguete.sh

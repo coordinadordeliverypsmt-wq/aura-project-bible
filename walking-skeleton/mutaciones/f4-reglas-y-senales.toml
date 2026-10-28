@@ -1,0 +1,67 @@
+incremento = "F4 tramos 2 y 3 · reglas y senales por el camino unico (2026-08-25)"
+# Autorizado por DEC-F4-TOCAR-ORCHESTRATOR. Cada mutante reabre una via para escribir sin control.
+pruebas = ["tests/unit/test_f4_reglas_y_senales.py"]
+timeout_s = 240
+
+[[mutante]]
+id = "RSN-M1"
+descripcion = "las reglas vuelven a escribirse sin motor (ruta directa restaurada)"
+fichero = "aura_skeleton/core/reglas.py"
+buscar = '''        if self._motor is None:
+            return
+        await self._motor.ejecutar('''
+sustituir = '''        if self._motor is None:
+            return self._crear_en_disco(regla)
+        await self._motor.ejecutar('''
+
+[[mutante]]
+id = "RSN-M2"
+descripcion = "desactivar informa exito aunque el motor la haya detenido"
+fichero = "aura_skeleton/core/reglas.py"
+buscar = '''        if r.get("estado") != "ejecutada":
+            return False'''
+sustituir = '''        if False:
+            return False'''
+
+[[mutante]]
+id = "RSN-M3"
+descripcion = "el ejecutor de reglas atiende capacidades ajenas"
+fichero = "aura_skeleton/core/ejecutor_reglas.py"
+buscar = '''        return self if accion in ACCIONES else None'''
+sustituir = '''        return self'''
+
+[[mutante]]
+id = "RSN-M4"
+descripcion = "crear y desactivar se confunden: toda operacion acaba creando"
+fichero = "aura_skeleton/core/ejecutor_reglas.py"
+buscar = '''        if args.get("operacion") == "crear":'''
+sustituir = '''        if True:'''
+
+[[mutante]]
+id = "RSN-M5"
+descripcion = "las senales vuelven a escribirse sin motor"
+fichero = "aura_skeleton/core/almacen_senales.py"
+buscar = '''        if self._motor is None:
+            return 0'''
+sustituir = '''        if self._motor is None:
+            for s in senales:
+                await self._memoria.write(user_id, tipo_de_memoria(s.clase), s.contenido, {})
+            return len(senales)'''
+
+[[mutante]]
+id = "RSN-M6"
+descripcion = "la captura narra exito por senal aunque el motor la haya detenido (INV-9)"
+fichero = "aura_skeleton/core/almacen_senales.py"
+buscar = '''            if r.get("estado") == "ejecutada":
+                guardadas += 1'''
+sustituir = '''            guardadas += 1'''
+
+[[mutante]]
+id = "RSN-M7"
+descripcion = "el registro de la senal pierde su tipo: lo procedimental se guarda como semantico"
+fichero = "aura_skeleton/core/ejecutor_modelo_usuario.py"
+# PATRON ACTUALIZADO (2026-09-10, AMP-AURA etapas 1-2): la llamada cabe en una linea desde que el
+# contenido y la procedencia se preparan antes (la procedencia recibe los campos de vigencia). La
+# garantia es la misma: el `tipo` de la senal no se pierde.
+buscar = '''            await self._memoria.write(user_id, args.get("tipo", "semantica"), contenido, procedencia)'''
+sustituir = '''            await self._memoria.write(user_id, "semantica", contenido, procedencia)'''

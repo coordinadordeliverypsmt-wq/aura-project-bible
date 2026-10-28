@@ -1,0 +1,100 @@
+incremento = "D-CP-4 = C · el criterio nombra una capacidad registrada y procede del Control Plane (2026-08-23)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/communication-plane"
+# Degrada las garantias de las dos partes de la decision del CEO: A (catalogo cerrado) y B (origen).
+# Se ejecuta con --raiz sobre entorno/communication-plane.
+pruebas = [
+    "test_red_dcp4_criterio.py",
+    "test_red_seccion_e.py::test_v1_el_criterio_de_finalizacion_no_puede_venir_del_cuerpo",
+    "test_red_transporte.py::test_una_tarea_sin_orden_verificable_no_es_automatizable",
+]
+timeout_s = 60
+
+[[mutante]]
+id = "M1"
+garantia = "PARTE A: el criterio se contrasta contra el catalogo. Sin eso, una orden de shell pasa como criterio valido"
+fichero = "communication_plane.py"
+pruebas = ["test_red_dcp4_criterio.py::test_A1_una_orden_libre_del_sistema_operativo_no_es_un_criterio_valido",
+           "test_red_dcp4_criterio.py::test_A2_una_capacidad_que_no_esta_en_el_catalogo_se_rechaza"]
+# Reformulado dos veces, y las dos por evolucion del codigo:
+#  1. `D-CP-6` amplio `es_automatizable` y el patron original dejo de existir -> NO_APLICADO.
+#  2. La restriccion a lista verde (ADR-0003) hizo que mutar SOLO la pertenencia al catalogo fuera un
+#     mutante EQUIVALENTE: ambas comprobaciones leen el mismo dict CATALOGO, luego «no esta en el
+#     catalogo» IMPLICA «su clasificacion no es verde». La implicacion es UNIDIRECCIONAL, no una
+#     equivalencia —`pago` esta en el catalogo y no es verde—, precision que aporto la auditoria
+#     independiente; basta para que la comprobacion de pertenencia sea prescindible dada la de
+#     clasificacion. Demostrado por ejecucion, y el auditor lo reprodujo sobre el catalogo entero.
+# La garantia REAL es «el criterio se contrasta contra el registro», y negarla exige quitar LAS DOS.
+# La redundancia se conserva a proposito: defensa en profundidad (criterio de DP-D-M-8 §4.1).
+buscar = '''    if criterio not in catalogo_de_capacidades():
+        return False
+    if clasificacion_de_capacidad(criterio) != "verde":
+        return False  # ADR-0003: la lista roja exige confirmación humana SIEMPRE'''
+sustituir = '''    if False:
+        return False'''
+
+[[mutante]]
+id = "M2"
+garantia = "PARTE A: el catalogo se lee del registro REAL. Con una ruta rota el canal se queda sin catalogo y deberia rechazarlo todo, no fingir"
+fichero = "communication_plane.py"
+pruebas = ["test_red_dcp4_criterio.py::test_A3_una_capacidad_registrada_del_catalogo_si_es_un_criterio_valido",
+           "test_red_dcp4_criterio.py::test_A4_el_catalogo_procede_del_registro_real_y_no_de_una_copia_del_canal"]
+buscar = '''_RUTA_CATALOGO = ("walking-skeleton", "aura_skeleton", "core", "permissions.py")'''
+sustituir = '''_RUTA_CATALOGO = ("walking-skeleton", "aura_skeleton", "core", "NO_EXISTE.py")'''
+
+[[mutante]]
+id = "M3"
+garantia = "PARTE A: se leen los NOMBRES registrados (claves), no los metadatos (valores)"
+fichero = "communication_plane.py"
+pruebas = ["test_red_dcp4_criterio.py::test_A4_el_catalogo_procede_del_registro_real_y_no_de_una_copia_del_canal"]
+# Reajustado tras factorizar la lectura del AST en `_dict_de_produccion()`.
+buscar = '''    return frozenset(k.value for k in dicc.keys'''
+sustituir = '''    return frozenset(k.value for k in dicc.values'''
+
+[[mutante]]
+id = "M4"
+garantia = "§14.bis regla 4 (INTACTA): sin criterio expresable la tarea NO es AUTO"
+fichero = "communication_plane.py"
+pruebas = ["test_red_dcp4_criterio.py::test_A5_sin_criterio_no_hay_automatizacion"]
+buscar = '''        return False  # regla 4: si no es expresable, no es AUTO'''
+sustituir = '''        return True  # regla 4: si no es expresable, no es AUTO'''
+
+[[mutante]]
+id = "M5"
+garantia = "PARTE B + D-CP-5: el cuerpo no transporta ejecucion NI campos no declarados. Se ataca la garantia CONJUNTA porque hoy la protegen DOS barreras y quitar solo una no cambia nada"
+fichero = "communication_plane.py"
+pruebas = ["test_red_dcp4_criterio.py::test_B1_un_criterio_dentro_del_cuerpo_se_rechaza_al_publicar",
+           "test_red_dcp4_criterio.py::test_B2_ni_siquiera_anidado_a_profundidad",
+           "test_red_seccion_e.py::test_v1_el_criterio_de_finalizacion_no_puede_venir_del_cuerpo"]
+buscar = '''    ejecucion = _claves_prohibidas(mensaje.get("cuerpo") or {}, vetadas=CAMPOS_DE_EJECUCION)
+    if ejecucion:
+        raise MensajeInvalido(
+            f"{ejecucion} fija qué cuenta como terminado, y eso no viaja por el canal. El criterio "
+            f"procede del Control Plane y nombra una capacidad registrada (D-CP-4 = C)")
+    incumple = _incumple_el_esquema(tipo, mensaje.get("cuerpo") or {})
+    if incumple:
+        raise MensajeInvalido(
+            f"{incumple}. El cuerpo se valida contra una lista BLANCA (D-CP-5): lo que no está "
+            f"declarado se rechaza, sin importar cómo se llame")
+    return mensaje'''
+sustituir = '''    return mensaje'''
+
+# ---------------------------------------------------------------------------------------------
+# M6 y M7 RETIRADOS el 2026-08-23, con demostracion, no por conveniencia.
+#
+# Ambos sobrevivieron tras implementar `D-CP-5`, y se comprobo POR EJECUCION en copia aislada que
+# son mutantes EQUIVALENTES, no garantias sin red:
+#
+#   M6 (rechazo superficial en vez de recursivo)  -> `{"datos": {"meta": {"criterio": ...}}}` SIGUE
+#      rechazado, porque `datos` no esta declarado en el esquema CERRADO.
+#   M7 (`CAMPOS_DE_EJECUCION` vacio)              -> `criterio` SIGUE rechazado, por lo mismo.
+#
+# El hallazgo de fondo: **el esquema cerrado de `D-CP-5` SUBSUME el veto de `D-CP-4` parte B**, y de
+# hecho tambien la lista negra del `DP §4.2`. Ninguna de las dos es alcanzable ya como unica barrera.
+# El codigo NO se simplifica —la redundancia se conserva como defensa en profundidad, criterio de
+# `DP-D-M-8 §4.1`— pero declarar tres mutantes para una garantia que solo es observable quitando
+# ambas barreras seria teatro: tres supervivientes permanentes que enmascaran a los de verdad.
+#
+# Su garantia queda cubierta por: M5 de este fichero (ataca las dos barreras a la vez) y M5 de
+# `dcp5-esquema-cerrado.toml` (declarar `criterio` como campo legitimo del esquema).

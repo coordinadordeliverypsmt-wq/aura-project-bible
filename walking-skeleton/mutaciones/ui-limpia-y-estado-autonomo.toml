@@ -1,0 +1,202 @@
+incremento = "UI limpia + grounding del estado autonomo (CEO, 2026-09-01)"
+pruebas = ["tests/integration/test_ui_limpia_y_estado_autonomo.py"]
+timeout_s = 300
+
+# --------- 1 · SEPARAR PRESENTACION SIN PERDER OBSERVABILIDAD ---------
+# La forma facil de "arreglar" la pantalla es dejar de registrar. Estos mutantes existen para que esa
+# via quede cerrada: apagar la pantalla no puede costar ni un registro ni una linea de auditoria.
+
+[[mutante]]
+id = "UI-M1"
+garantia = "la pantalla apagada NO imprime: si no, la conversacion sigue sepultada bajo su instrumentacion"
+fichero = "aura_skeleton/observability.py"
+pruebas = ["tests/integration/test_ui_limpia_y_estado_autonomo.py::test_hola_produce_UNICAMENTE_la_respuesta_conversacional_visible",
+           "tests/integration/test_ui_limpia_y_estado_autonomo.py::test_la_pantalla_apagada_es_un_SUMIDERO_y_no_un_filtro"]
+buscar = '''    if _salida is None:'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "UI-M2"
+garantia = "el REGISTRO ocurre antes de decidir si se pinta: apagar la pantalla no puede perder datos"
+fichero = "aura_skeleton/observability.py"
+pruebas = ["tests/integration/test_ui_limpia_y_estado_autonomo.py::test_la_pantalla_apagada_es_un_SUMIDERO_y_no_un_filtro",
+           "tests/integration/test_ui_limpia_y_estado_autonomo.py::test_los_eventos_internos_SIGUEN_existiendo_aunque_no_se_vean"]
+buscar = '''    rec = {"level": level, "module": module, "msg": msg, "trace_id": trace_id, **kv}
+    _records.append(rec)'''
+sustituir = '''    rec = {"level": level, "module": module, "msg": msg, "trace_id": trace_id, **kv}
+    if _salida is not None:
+        _records.append(rec)'''
+
+[[mutante]]
+id = "UI-M3"
+garantia = "la AUDITORIA (H2) sobrevive a apagar la pantalla: es prueba forense, no observabilidad"
+fichero = "aura_skeleton/observability.py"
+pruebas = ["tests/integration/test_ui_limpia_y_estado_autonomo.py::test_la_separacion_NO_rompe_la_AUDITORIA"]
+buscar = '''    if rec.get("audit") and _audit is not None:'''
+sustituir = '''    if rec.get("audit") and _audit is not None and _salida is not None:'''
+
+[[mutante]]
+id = "UI-M4"
+garantia = "la conversacion interactiva SI apaga la pantalla por defecto, y --telemetria la respeta"
+fichero = "aura_skeleton/__main__.py"
+pruebas = ["tests/integration/test_ui_limpia_y_estado_autonomo.py::test_la_CONVERSACION_INTERACTIVA_apaga_la_pantalla_ella_sola"]
+buscar = '''    if not telemetria:
+        obs.configurar_salida(None)'''
+sustituir = '''    if telemetria:
+        obs.configurar_salida(None)'''
+
+# --------- 2 · RECONOCER LA PREGUNTA ---------
+# El defecto original no fue no responder: fue responder MAL, porque el ultimo recurso del recorrido
+# pertenece a otro dominio (la memoria del usuario).
+
+[[mutante]]
+id = "GR-M1"
+garantia = "se reconoce por RAIZ: exigir la inflexion exacta devuelve el defecto del CEO ('trabajado')"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_ui_limpia_y_estado_autonomo.py::test_preguntar_por_su_ACTIVIDAD_consulta_el_ciclo_y_NO_la_memoria"]
+buscar = '''    "en que estas trabaj",      # trabajando · trabajado · trabajas'''
+sustituir = '''    "en que estas trabajando",'''
+
+[[mutante]]
+id = "GR-M2"
+garantia = "las variantes nuevas del CEO se reconocen ('en que andas', 'cual es tu estado', ...)"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_ui_limpia_y_estado_autonomo.py::test_preguntar_por_su_ACTIVIDAD_consulta_el_ciclo_y_NO_la_memoria"]
+buscar = '''    "en que andas",
+    "cual es tu estado",'''
+sustituir = '''    "en que andas nunca jamas",
+    "cual es tu estado nunca jamas",'''
+
+[[mutante]]
+id = "GR-M3"
+garantia = "la GUARDA DE DOMINIO sigue puesta: '¿que hiciste con mis archivos?' es del usuario"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_ui_limpia_y_estado_autonomo.py::test_una_pregunta_sobre_algo_AJENO_no_la_intercepta_el_ciclo"]
+buscar = '''    return any(p in t for p in _PAT_ULTIMA_TAREA) and not _tiene_objeto_ajeno(t)'''
+sustituir = '''    return any(p in t for p in _PAT_ULTIMA_TAREA)'''
+
+[[mutante]]
+id = "GR-M4"
+garantia = "la consulta de tareas se atiende tambien SIN estado_operativo, con solo el ciclo autonomo"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_ui_limpia_y_estado_autonomo.py::test_preguntar_por_su_ACTIVIDAD_consulta_el_ciclo_y_NO_la_memoria"]
+buscar = '''        if (self.estado_operativo is not None or self.estado_autonomo is not None) and _es_consulta_de_tareas(text):'''
+sustituir = '''        if False and _es_consulta_de_tareas(text):'''
+
+[[mutante]]
+id = "GR-M5"
+garantia = "'¿que hiciste?' se contesta con el HISTORIAL, no con la conversacion reciente"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_ui_limpia_y_estado_autonomo.py::test_la_ULTIMA_TAREA_sale_del_historial_y_no_de_la_conversacion"]
+buscar = '''        if self.estado_autonomo is not None and _es_consulta_de_ultima_tarea(text):'''
+sustituir = '''        if False:'''
+
+# --------- 3 · LA FUENTE ---------
+
+[[mutante]]
+id = "GR-M6"
+garantia = "la respuesta LEE el ciclo autonomo: acertar el texto sin leerlo seria el mismo defecto"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_ui_limpia_y_estado_autonomo.py::test_preguntar_por_su_ACTIVIDAD_consulta_el_ciclo_y_NO_la_memoria",
+           "tests/integration/test_ui_limpia_y_estado_autonomo.py::test_el_estado_autonomo_se_lee_UNA_SOLA_VEZ_por_turno"]
+buscar = '''        return redactar_actividad(self.estado_autonomo.instantanea())'''
+sustituir = '''        return "Ahora mismo no tengo ninguna tarea autorizada disponible para ejecutar."'''
+
+[[mutante]]
+id = "GR-M7"
+garantia = "SIN fuente se cae al camino de antes: el producto se instala sin el plano de desarrollo"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_ui_limpia_y_estado_autonomo.py::test_SIN_plano_de_control_la_conversacion_se_comporta_como_antes"]
+buscar = '''        if self.estado_autonomo is None:
+            return None
+        return redactar_actividad(self.estado_autonomo.instantanea())'''
+sustituir = '''        if self.estado_autonomo is None:
+            return "Estoy trabajando en varias cosas."
+        return redactar_actividad(self.estado_autonomo.instantanea())'''
+
+[[mutante]]
+id = "GR-M8"
+garantia = "el estado autonomo se lee UNA vez por turno: leerlo dos duplicaria ~76 ms de latencia"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_ui_limpia_y_estado_autonomo.py::test_el_estado_autonomo_se_lee_UNA_SOLA_VEZ_por_turno"]
+buscar = '''        del_ciclo = self._actividad_autonoma()'''
+sustituir = '''        self._actividad_autonoma()
+        del_ciclo = self._actividad_autonoma()'''
+
+# --------- 4 · NO FABRICAR ---------
+# Cada frase necesita un dato que la sostenga. Un cero "razonable" en lugar de un hueco es como se
+# escriben los informes que tranquilizan.
+
+[[mutante]]
+id = "NF-M1"
+garantia = "sin fuente NO se redacta nada: devolver texto plausible seria fingir capacidad (INV-9)"
+fichero = "aura_skeleton/core/estado_autonomo.py"
+pruebas = ["tests/integration/test_ui_limpia_y_estado_autonomo.py::test_el_redactor_NO_inventa_cuando_no_hay_fuente"]
+buscar = '''    if not inst:
+        return None
+    estado = inst.get("estado", NO_DISPONIBLE)'''
+sustituir = '''    estado = inst.get("estado", NO_DISPONIBLE)'''
+
+[[mutante]]
+id = "NF-M2"
+garantia = "cola vacia SE DECLARA: 'no hay trabajo autorizado' es la respuesta correcta, no un fallo"
+fichero = "aura_skeleton/core/estado_autonomo.py"
+pruebas = ["tests/integration/test_ui_limpia_y_estado_autonomo.py::test_con_la_COLA_AGOTADA_declara_que_no_hay_trabajo_autorizado"]
+buscar = '''        partes.append("Ahora mismo no tengo ninguna tarea autorizada disponible para ejecutar.")'''
+sustituir = '''        partes.append("Estoy trabajando en ello.")'''
+
+[[mutante]]
+id = "NF-M3"
+garantia = "un hueco NO se rellena: 'no me consta' en vez de un cero razonable"
+fichero = "aura_skeleton/core/estado_autonomo.py"
+pruebas = ["tests/integration/test_ui_limpia_y_estado_autonomo.py::test_sin_datos_NO_se_fabrica_ninguna_tarea_ni_progreso"]
+buscar = '''        partes.append("No me consta qué tengo en cola ahora mismo.")'''
+sustituir = '''        partes.append("Ahora mismo no tengo ninguna tarea autorizada disponible para ejecutar.")'''
+
+[[mutante]]
+id = "NF-M4"
+garantia = "lo BLOQUEADO se declara: callarlo esconderia que existe una autorizacion que lo abriria"
+fichero = "aura_skeleton/core/estado_autonomo.py"
+pruebas = ["tests/integration/test_ui_limpia_y_estado_autonomo.py::test_con_trabajo_BLOQUEADO_lo_declara_y_no_lo_confunde_con_hecho"]
+buscar = '''    bloqueado = _numero(inst.get("trabajo_bloqueado"))
+    if bloqueado:'''
+sustituir = '''    bloqueado = _numero(inst.get("trabajo_bloqueado"))
+    if False:'''
+
+[[mutante]]
+id = "NF-M5"
+garantia = "lo ELEVADO se declara Y SE NOMBRA: una decision sin identificador no se puede ir a firmar"
+fichero = "aura_skeleton/core/estado_autonomo.py"
+pruebas = ["tests/integration/test_ui_limpia_y_estado_autonomo.py::test_con_DECISIONES_PENDIENTES_dice_que_requieren_a_un_humano"]
+buscar = '''        if identificadores:
+            frase += f" ({', '.join(identificadores)})"'''
+sustituir = '''        if False:
+            frase += f" ({', '.join(identificadores)})"'''
+
+[[mutante]]
+id = "NF-M6"
+garantia = "el ciclo EN CURSO se distingue del resto y trae su numero real"
+fichero = "aura_skeleton/core/estado_autonomo.py"
+pruebas = ["tests/integration/test_ui_limpia_y_estado_autonomo.py::test_con_un_CICLO_EN_CURSO_refleja_la_tarea_real"]
+buscar = '''    if estado == "TRABAJANDO":
+        frase = "Ahora mismo tengo un ciclo autónomo en curso"'''
+sustituir = '''    if False:
+        frase = "Ahora mismo tengo un ciclo autónomo en curso"'''
+
+[[mutante]]
+id = "NF-M7"
+garantia = "`_hay` NO acepta NO DISPONIBLE: si lo aceptara, el hueco se imprimiria como si fuera dato"
+fichero = "aura_skeleton/core/estado_autonomo.py"
+pruebas = ["tests/integration/test_ui_limpia_y_estado_autonomo.py::test_sin_datos_NO_se_fabrica_ninguna_tarea_ni_progreso"]
+buscar = '''    return valor is not None and valor != NO_DISPONIBLE and valor != ""'''
+sustituir = '''    return valor is not None and valor != ""'''
+
+[[mutante]]
+id = "NF-M8"
+garantia = "sin ultima tarea se dice que no consta, no se fabrica una"
+fichero = "aura_skeleton/core/estado_autonomo.py"
+pruebas = ["tests/integration/test_ui_limpia_y_estado_autonomo.py::test_sin_datos_NO_se_fabrica_ninguna_tarea_ni_progreso"]
+buscar = '''    if not isinstance(ultima, dict):
+        return "No me consta ninguna tarea ejecutada en mi historial."'''
+sustituir = '''    if not isinstance(ultima, dict):
+        return "Mi última tarea fue revisar el estado del sistema."'''

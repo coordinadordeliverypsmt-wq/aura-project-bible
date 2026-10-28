@@ -1,0 +1,614 @@
+incremento = "§14 (kill switch · huella · exclusion mutua · A12) + §22 (A6-A11) + deuda del §21 (2026-08-30)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/control-plane"
+pruebas = ["test_red_controles_14.py", "test_red_criterios_22.py",
+           "test_red_idempotencia_13.py", "test_red_recuperacion_12.py",
+           "test_red_auditoria_a12.py", "test_red_auditoria_2.py"]
+timeout_s = 300
+
+# ============================================================ KILL SWITCH --
+
+[[mutante]]
+id = "C14-M1"
+garantia = "el kill switch es la PRESENCIA de un fichero: mecanismo fuera de banda (Bible 5.3)"
+fichero = "orquestador.py"
+pruebas = ["test_red_controles_14.py::test_el_kill_switch_es_la_PRESENCIA_de_un_fichero_fuera_de_banda",
+           "test_red_controles_14.py::test_el_kill_switch_es_REVERSIBLE"]
+buscar = '''    return ruta_parada(directorio).exists()'''
+sustituir = '''    return False'''
+
+[[mutante]]
+id = "C14-M2"
+garantia = "el bucle consulta el kill switch en CADA iteracion, no solo al entrar"
+fichero = "orquestador.py"
+pruebas = ["test_red_controles_14.py::test_el_bucle_consulta_el_kill_switch_en_CADA_iteracion_no_solo_al_entrar",
+           "test_red_criterios_22.py::test_A11_el_kill_switch_detiene_el_bucle_MEDIDO_no_leido"]
+buscar = '''            if parada_solicitada(self.directorio):
+                motivo = "kill switch activado"'''
+sustituir = '''            if parada_solicitada(self.directorio) and iteraciones > 999:
+                motivo = "kill switch activado"'''
+
+[[mutante]]
+id = "C14-M3"
+garantia = "la parada de emergencia queda REGISTRADA: sin rastro es indistinguible de no haber trabajo"
+fichero = "orquestador.py"
+pruebas = ["test_red_controles_14.py::test_el_kill_switch_deja_rastro_en_el_log"]
+buscar = '''                cp.registrar_evento(self.directorio, "parada_de_emergencia",
+                                    {"iteracion": iteraciones, "ejecutadas": ejecutadas})'''
+sustituir = '''                pass'''
+
+[[mutante]]
+id = "C14-M4"
+garantia = "el kill switch NO es el centinela del flock: confundirlos pararia el bucle para siempre"
+fichero = "orquestador.py"
+pruebas = ["test_red_controles_14.py::test_el_kill_switch_es_la_PRESENCIA_de_un_fichero_fuera_de_banda",
+           "test_red_controles_14.py::test_el_kill_switch_es_REVERSIBLE"]
+buscar = '''    return pathlib.Path(directorio) / NOMBRE_PARADA'''
+sustituir = '''    return cp.ruta_centinela(pathlib.Path(directorio))'''
+
+# ============================================== TAREA EQUIVALENTE REPETIDA --
+
+[[mutante]]
+id = "C14-M5"
+garantia = "la huella es del TRABAJO, no del id: dos altas del mismo trabajo son la misma tarea"
+fichero = "orquestador.py"
+pruebas = ["test_red_controles_14.py::test_dos_tareas_con_distinto_id_pero_mismo_trabajo_tienen_la_MISMA_huella",
+           "test_red_controles_14.py::test_el_bucle_no_ejecuta_dos_veces_la_misma_huella_en_el_mismo_ciclo"]
+buscar = '''        "accion": tarea.get("accion", ""),
+        "objetivo": tarea.get("objetivo", ""),'''
+sustituir = '''        "id": tarea.get("id", ""),
+        "accion": tarea.get("accion", ""),
+        "objetivo": tarea.get("objetivo", ""),'''
+
+[[mutante]]
+id = "C14-M6"
+garantia = "el orden de los ficheros no cambia la huella: si contase, barajar la lista reejecutaria"
+fichero = "orquestador.py"
+pruebas = ["test_red_controles_14.py::test_el_orden_de_los_ficheros_no_cambia_la_huella"]
+buscar = '''        "ficheros_relevantes": sorted(tarea.get("ficheros_relevantes", ())),'''
+sustituir = '''        "ficheros_relevantes": list(tarea.get("ficheros_relevantes", ())),'''
+
+[[mutante]]
+id = "C14-M7"
+garantia = "el bucle NO ejecuta dos veces trabajo equivalente en el mismo ciclo"
+fichero = "orquestador.py"
+pruebas = ["test_red_controles_14.py::test_el_bucle_no_ejecuta_dos_veces_la_misma_huella_en_el_mismo_ciclo"]
+buscar = '''            frescas = [t for t in candidatas if huella_de_tarea(t) not in vistas]'''
+sustituir = '''            frescas = list(candidatas)'''
+
+[[mutante]]
+id = "C14-M8"
+garantia = "la huella se ANOTA tras elegir: sin anotarla, el filtro no filtra nada"
+fichero = "orquestador.py"
+pruebas = ["test_red_controles_14.py::test_el_bucle_no_ejecuta_dos_veces_la_misma_huella_en_el_mismo_ciclo"]
+buscar = '''            vistas.add(huella_de_tarea(tarea))'''
+sustituir = '''            pass'''
+
+# ================================= EXCLUSION MUTUA CON EL ARNES DE MUTACION --
+
+[[mutante]]
+id = "C14-M9"
+garantia = "el ciclo se NIEGA a correr mientras el arbol esta mutado (CEO 2026-08-09)"
+fichero = "orquestador.py"
+pruebas = ["test_red_controles_14.py::test_el_ciclo_se_NIEGA_a_correr_mientras_el_arbol_esta_mutado"]
+buscar = '''        if mutacion_en_curso():'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "C14-M10"
+garantia = "el rechazo por mutacion deja RASTRO"
+fichero = "orquestador.py"
+pruebas = ["test_red_controles_14.py::test_la_exclusion_mutua_deja_rastro"]
+buscar = '''            cp.registrar_evento(self.directorio, "medicion_rechazada_por_mutacion", {"tope": tope})'''
+sustituir = '''            pass'''
+
+[[mutante]]
+id = "C14-M11"
+garantia = "la deteccion mira los procesos DE VERDAD: un detector constante no distingue"
+fichero = "orquestador.py"
+pruebas = ["test_red_criterios_22.py::test_el_detector_de_mutacion_MIRA_los_procesos_de_verdad"]
+buscar = '''        if marca.encode("utf-8") in orden:
+            return True'''
+sustituir = '''        if False:
+            return True'''
+
+# =============================== A12 · EL CRITERIO DE FINALIZACION ES MECANICO --
+
+[[mutante]]
+id = "C14-M12"
+garantia = "§14.bis regla 2: el criterio debe nombrar una CAPACIDAD REGISTRADA, no una orden libre"
+fichero = "orquestador.py"
+pruebas = ["test_red_controles_14.py::test_un_criterio_que_no_nombra_una_CAPACIDAD_REGISTRADA_es_invalido",
+           "test_red_criterios_22.py::test_A11_el_criterio_mecanico_no_admite_una_orden_libre_del_sistema"]
+buscar = '''    return isinstance(criterio, dict) and criterio.get("capacidad") in capacidades_verificables()'''
+sustituir = '''    return isinstance(criterio, dict) and bool(criterio.get("capacidad"))'''
+
+[[mutante]]
+id = "C14-M13"
+garantia = "las capacidades salen de la POLITICA: en el codigo, ampliarlas no exigiria acta"
+fichero = "orquestador.py"
+pruebas = ["test_red_controles_14.py::test_las_capacidades_verificables_SALEN_de_la_politica_no_del_codigo"]
+buscar = '''    return acciones_de_nivel("AUTO")
+
+
+def criterio_valido'''
+sustituir = '''    return ("ejecutar_pruebas", "verificar_calidad", "auditar_garantias", "diagnosticar_estado",
+            "lo_que_haga_falta")
+
+
+def criterio_valido'''
+
+[[mutante]]
+id = "C14-M14"
+garantia = "§14.bis regla 4: sin criterio mecanico, la tarea NO es AUTO"
+fichero = "orquestador.py"
+pruebas = ["test_red_controles_14.py::test_una_tarea_cuyo_criterio_no_es_mecanico_NO_puede_ser_AUTO"]
+buscar = '''    return criterio_valido(tarea.get("criterio_de_finalizacion"))'''
+sustituir = '''    return True'''
+
+[[mutante]]
+id = "C14-M15"
+garantia = "§14.bis regla 1: un criterio ALTERADO despues invalida la tarea"
+fichero = "orquestador.py"
+pruebas = ["test_red_controles_14.py::test_un_criterio_ALTERADO_despues_invalida_la_tarea"]
+buscar = '''    if len({f["huella"] for f in fijados}) > 1:
+        raise CriterioAlterado('''
+sustituir = '''    if False:
+        raise CriterioAlterado('''
+
+# C14-M16 RETIRADO — **EQUIVALENTE DEMOSTRADO POR EJECUCION**, no superviviente aceptado.
+#   `return fijados[-1]` en vez de `fijados[0]` no es distinguible por ninguna prueba posible:
+#   `criterio_registrado` lanza `CriterioAlterado` en cuanto hay mas de una huella, asi que cuando
+#   la funcion llega al `return` **todos** los registros tienen la misma huella; y un registro es
+#   `{id, criterio, huella}`, luego dos con la misma huella son iguales campo a campo.
+#   Demostrado ejecutando: `test_refijar_el_mismo_criterio_deja_entradas_IDENTICAS` fija el mismo
+#   criterio tres veces y comprueba `fijados[0] == fijados[-1]`.
+
+[[mutante]]
+id = "C14-M17"
+garantia = "el veredicto mecanico sale del CODIGO DE SALIDA de la capacidad, no de un si constante"
+fichero = "orquestador.py"
+pruebas = ["test_red_controles_14.py::test_si_la_capacidad_falla_el_veredicto_es_NO_VERIFICADO",
+           "test_red_controles_14.py::test_el_criterio_lo_ejecuta_el_ORQUESTADOR_contra_el_arbol"]
+buscar = '''    codigo = int(ejecutor(fijado["criterio"]))
+    ok = codigo == 0'''
+sustituir = '''    codigo = int(ejecutor(fijado["criterio"]))
+    ok = True'''
+
+[[mutante]]
+id = "C14-M18"
+garantia = "el veredicto va ATADO a la huella de SU criterio: si no, se reutiliza el de otra tarea"
+fichero = "orquestador.py"
+pruebas = ["test_red_controles_14.py::test_solo_el_veredicto_del_criterio_FIJADO_cierra_la_tarea",
+           "test_red_controles_14.py::test_la_huella_del_criterio_no_se_puede_falsificar_a_ojo"]
+buscar = '''            "origen": "criterio_mecanico", "huella_criterio": fijado["huella"]}'''
+sustituir = '''            "origen": "criterio_mecanico", "huella_criterio": "0" * 64}'''
+
+# C14-M19, C14-M20 y C14-M21 RETIRADOS el 2026-08-30 — **la regla que mutaban ya no vive ahi**.
+#   Apuntaban a las comprobaciones del criterio mecanico dentro de `agentes.cerrar_tarea`. Una
+#   auditoria independiente demostro que esa colocacion era el defecto: `control_plane.transicion()`
+#   —la primitiva que usa toda la base, incluida `agentes.py`— la esquivaba sin esfuerzo. `ALERTA-005`
+#   otra vez, y con la agravante de que las 34 pruebas que entonces cubrian A12 no la veian porque
+#   todas entraban por `cerrar_tarea`.
+#   La regla vive ahora **solo en el motor unico**, y escribirla dos veces era ademas el defecto que
+#   el `§0` del CHECKPOINT ya documenta. Su garantia la cubren `AUD-M1` y `AUD-M2`, que mutan la
+#   puerta en `transicion()`, mas `AUD-M9` para el circuito de `D-ORCH-3`.
+
+[[mutante]]
+id = "C14-M22"
+garantia = "la huella del criterio es un sha256 del criterio, no su nombre a la vista"
+pruebas = ["test_red_controles_14.py::test_la_huella_del_criterio_no_se_puede_falsificar_a_ojo"]
+# Reapuntado 2026-08-30: la formula vive ahora en el Control Plane — la puerta la deriva, no la recibe.
+fichero = "control_plane.py"
+buscar = '''    return hashlib.sha256(
+        json.dumps(criterio, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
+
+
+def registrar_criterio_fijado'''
+sustituir = '''    return str(criterio.get("capacidad", ""))
+
+
+def registrar_criterio_fijado'''
+
+# ============================================ A6-A11 · CRITERIOS DE ACEPTACION --
+
+[[mutante]]
+id = "C22-M1"
+garantia = "A6: la politica NO se escribe desde el codigo del orquestador"
+fichero = "orquestador.py"
+pruebas = ["test_red_criterios_22.py::test_A6_escribir_la_politica_desde_el_codigo_se_BLOQUEA",
+           "test_red_criterios_22.py::test_A6_la_politica_no_cambio_tras_el_intento"]
+buscar = '''    raise PoliticaInmutable(
+        "la politica es un fichero versionado'''
+sustituir = '''    return None
+    raise PoliticaInmutable(
+        "la politica es un fichero versionado'''
+
+[[mutante]]
+id = "C22-M2"
+garantia = "A6: el orquestador no puede tocar su codigo, su politica ni el Control Plane"
+fichero = "orquestador.py"
+pruebas = ["test_red_criterios_22.py::test_A6_el_orquestador_no_puede_tocar_su_codigo_su_politica_ni_el_control_plane",
+           "test_red_criterios_22.py::test_A6_toda_ruta_del_control_plane_esta_prohibida_al_worker"]
+buscar = '''        return pathlib.Path(ruta).name not in _INTOCABLES'''
+sustituir = '''        return True'''
+
+[[mutante]]
+id = "C22-M3"
+garantia = "A6: NINGUN sobre concede permiso de escritura"
+fichero = "orquestador.py"
+pruebas = ["test_red_criterios_22.py::test_A6_NINGUN_sobre_concede_permiso_de_escritura"]
+buscar = '''else {"allowedTools": ["Read", "Grep", "Glob"], "permission_mode": "plan"})'''
+sustituir = '''else {"allowedTools": ["Read", "Grep", "Glob", "Write"], "permission_mode": "plan"})'''
+
+[[mutante]]
+id = "C22-M4"
+garantia = "A11 (medido): ningun modo de permiso puede ANULAR la allowlist"
+fichero = "orquestador.py"
+pruebas = ["test_red_criterios_22.py::test_A11_ningun_modo_de_permiso_puede_ANULAR_la_allowlist",
+           "test_red_criterios_22.py::test_A11_un_modo_inseguro_se_RECHAZA_no_se_emite"]
+buscar = '''MODOS_QUE_NO_ANULAN_LA_ALLOWLIST = ("plan", "default")'''
+sustituir = '''MODOS_QUE_NO_ANULAN_LA_ALLOWLIST = ("plan", "default", "acceptEdits")'''
+
+[[mutante]]
+id = "C22-M5"
+garantia = "A11: un modo inseguro se RECHAZA, no se emite el sobre"
+fichero = "orquestador.py"
+pruebas = ["test_red_criterios_22.py::test_A11_un_modo_inseguro_se_RECHAZA_no_se_emite"]
+buscar = '''        if permisos["permission_mode"] not in MODOS_QUE_NO_ANULAN_LA_ALLOWLIST:
+            raise ModoDePermisoInseguro('''
+sustituir = '''        if False:
+            raise ModoDePermisoInseguro('''
+
+[[mutante]]
+id = "C22-M6"
+# RE-ANCLADO 2026-09-09: el codigo se movio durante el trabajo de esta sesion y el patron dejo de
+# coincidir. La garantia es la MISMA; lo que cambio es donde vive. Quedaba invisible porque el
+# auditor resolvia este plano contra la raiz del producto (defecto corregido el mismo dia).
+garantia = "HALLAZGO: /tmp ya NO es zona libre. Era la puerta por la que pasaban 17 pruebas"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_criterios_22.py::test_TMP_ya_no_es_una_zona_libre",
+           "test_red_criterios_22.py::test_A11_una_escritura_FUERA_de_la_zona_falla_de_verdad_y_no_deja_efecto"]
+buscar = '''    return _ZONA_PERMITIDA in texto'''
+sustituir = '''    return _ZONA_PERMITIDA in texto or texto.startswith("/tmp/") or "/pytest-" in texto'''
+
+[[mutante]]
+id = "C22-M7"
+garantia = "la raiz declarada ACOTA de verdad: una raiz que acepta todo no es un sandbox"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_criterios_22.py::test_TMP_ya_no_es_una_zona_libre",
+           "test_red_criterios_22.py::test_la_gobernanza_se_rechaza_incluso_DENTRO_de_la_raiz_declarada"]
+# Reapuntado: la rama de `raiz` se reescribio para que ESTRECHE y no amplie (auditoria del motor).
+buscar = '''            relativa = real.relative_to(pathlib.Path(raiz).resolve())
+        except ValueError:
+            return False'''
+sustituir = '''            relativa = real
+        except ValueError:
+            return True'''
+
+[[mutante]]
+id = "C22-M8"
+garantia = "A10: la zona de escritura EXCLUYE el producto y la gobernanza, este donde este"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_criterios_22.py::test_la_gobernanza_se_rechaza_incluso_DENTRO_de_la_raiz_declarada",
+           "test_red_criterios_22.py::test_A10_la_zona_de_escritura_EXCLUYE_el_producto"]
+buscar = '''    if segmentos & _DIRS_GOBERNANZA or ruta.name.lower() in _FICHEROS_GOBERNANZA:
+        return False'''
+sustituir = '''    if False:
+        return False'''
+
+[[mutante]]
+id = "C22-M9"
+garantia = "A7: sin revisor capaz, la tarea de REVIEW ESPERA; jamas se autoaprueba"
+fichero = "revisores.py"
+pruebas = ["test_red_criterios_22.py::test_A7_sin_ningun_revisor_capaz_la_tarea_de_REVIEW_ESPERA",
+           "test_red_criterios_22.py::test_A7_ningun_timeout_produce_APROBADO"]
+buscar = '''    return {"veredicto": None, "estado": cp.ESTADO_REVISION}'''
+sustituir = '''    return {"veredicto": None, "estado": "COMPLETED"}'''
+
+[[mutante]]
+id = "C22-M10"
+garantia = "A7: las acciones AUTO no esperan a ningun revisor, o el sistema se para entero"
+fichero = "revisores.py"
+pruebas = ["test_red_criterios_22.py::test_A7_y_mientras_tanto_las_tareas_AUTO_SIGUEN_avanzando"]
+buscar = '''def exige_revision(accion: str) -> bool:'''
+sustituir = '''def exige_revision(accion: str) -> bool:
+    return True'''
+
+[[mutante]]
+id = "C22-M11"
+garantia = "A9: un porcentaje de cuota SIN fuente ni instante se rechaza"
+fichero = "control_plane.py"
+pruebas = ["test_red_criterios_22.py::test_A9_un_porcentaje_SIN_fuente_ni_instante_se_rechaza"]
+buscar = '''        raise ValueError("un porcentaje sin fuente ni instante de observacion es indistinguible '''
+sustituir = '''        pass
+    if False:
+        raise ValueError("un porcentaje sin fuente ni instante de observacion es indistinguible '''
+
+[[mutante]]
+id = "C22-M12"
+garantia = "A9: usage_known permanece FALSE; el consumo real no es observable"
+fichero = "control_plane.py"
+pruebas = ["test_red_criterios_22.py::test_A9_usage_known_sigue_en_false"]
+buscar = '''        "usage_known": False,'''
+sustituir = '''        "usage_known": True,'''
+
+[[mutante]]
+id = "C22-M13"
+garantia = "§21, deuda pagada: el modelo DERIVA los campos del veredicto de la clase real de C5"
+fichero = "test_modelo_orquestador.py"
+pruebas = ["test_red_criterios_22.py::test_el_modelo_DERIVA_los_campos_del_veredicto_de_la_clase_real"]
+buscar = '''CAMPOS_VEREDICTO = tuple(revisores.Veredicto.__dataclass_fields__)'''
+sustituir = '''CAMPOS_VEREDICTO = ("veredicto", "motivos", "evidencia_citada", "revisor", "instante")'''
+
+# ================================= §13 · IDEMPOTENCIA, MECANISMO 2 --
+
+[[mutante]]
+id = "C13-M1"
+garantia = "§13: el session-id deriva del SOBRE, no solo del id. «la misma tarea CON EL MISMO SOBRE»"
+fichero = "orquestador.py"
+pruebas = ["test_red_idempotencia_13.py::test_el_session_id_DEPENDE_del_sobre_no_solo_del_id",
+           "test_red_idempotencia_13.py::test_el_session_id_cambia_si_cambia_el_CRITERIO_de_finalizacion"]
+buscar = '''        return str(uuid.uuid5(uuid.NAMESPACE_URL,
+                              f"aura-orch/{tarea['id']}/{self.huella_de_sobre(tarea, presupuesto)}"))'''
+sustituir = '''        return str(uuid.uuid5(uuid.NAMESPACE_URL, f"aura-orch/{tarea['id']}/"))'''
+
+[[mutante]]
+id = "C13-M2"
+garantia = "la huella del sobre depende del sobre: una huella constante no distingue nada"
+fichero = "orquestador.py"
+pruebas = ["test_red_idempotencia_13.py::test_el_session_id_DEPENDE_del_sobre_no_solo_del_id",
+           "test_red_idempotencia_13.py::test_el_session_id_cambia_si_cambian_los_FICHEROS_o_el_objetivo"]
+buscar = '''        return hashlib.sha256(
+            json.dumps(sobre, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()'''
+sustituir = '''        return "0" * 64'''
+
+[[mutante]]
+id = "C13-M3"
+garantia = "§13 nombra uuid5: recalculable desde el contrato, sin leer esta implementacion"
+fichero = "orquestador.py"
+pruebas = ["test_red_idempotencia_13.py::test_el_session_id_es_un_uuid5_como_dice_el_contrato",
+           "test_red_idempotencia_13.py::test_el_session_id_coincide_con_el_MODELO_conceptual"]
+buscar = '''        return str(uuid.uuid5(uuid.NAMESPACE_URL,
+                              f"aura-orch/{tarea['id']}/{self.huella_de_sobre(tarea, presupuesto)}"))'''
+sustituir = '''        semilla = hashlib.sha256(
+            f"aura-orch/{tarea['id']}/{self.huella_de_sobre(tarea, presupuesto)}".encode()).digest()[:16]
+        return str(uuid.UUID(bytes=semilla))'''
+
+[[mutante]]
+id = "C13-M4"
+garantia = "la orden lleva el id del SOBRE QUE MANDA: otro id no describiria la ejecucion que ocurre"
+fichero = "orquestador.py"
+pruebas = ["test_red_idempotencia_13.py::test_la_orden_de_invocacion_lleva_el_id_derivado_del_sobre_que_manda"]
+buscar = '''            "--session-id", self.session_id(tarea),'''
+sustituir = '''            "--session-id", self.session_id({**tarea, "objetivo": "otro"}),'''
+
+# ============================ §12 · ESCRITURA DE EVIDENCIA INTERRUMPIDA --
+
+[[mutante]]
+id = "C12-M1"
+garantia = "§12: una linea truncada se DESCARTA; no deja ilegible el Control Plane entero"
+fichero = "control_plane.py"
+pruebas = ["test_red_recuperacion_12.py::test_una_ULTIMA_linea_truncada_no_deja_ilegible_el_log",
+           "test_red_recuperacion_12.py::test_el_sistema_puede_VOLVER_A_ESCRIBIR_tras_una_caida"]
+buscar = '''            if numero == len(lineas):
+                return eventos, True                  # cola truncada: caida, se descarta'''
+sustituir = '''            if False:
+                return eventos, True                  # cola truncada: caida, se descarta'''
+
+[[mutante]]
+id = "C12-M2"
+garantia = "TRUNCADA no es ALTERADA: una linea rota EN MEDIO no se descarta en silencio"
+fichero = "control_plane.py"
+pruebas = ["test_red_recuperacion_12.py::test_una_linea_rota_EN_MEDIO_no_se_descarta_en_silencio"]
+buscar = '''            if numero == len(lineas):
+                return eventos, True                  # cola truncada: caida, se descarta'''
+sustituir = '''            if True:
+                return eventos, True                  # cola truncada: caida, se descarta'''
+
+[[mutante]]
+id = "C12-M3"
+garantia = "la cola truncada se RETIRA del fichero: ignorarla la convierte manana en linea de en medio"
+fichero = "control_plane.py"
+pruebas = ["test_red_recuperacion_12.py::test_la_cola_truncada_se_RETIRA_del_fichero_no_se_ignora_para_siempre"]
+buscar = '''        _retirar_cola_truncada(directorio, previos)'''
+sustituir = '''        pass'''
+
+[[mutante]]
+id = "C12-M4"
+garantia = "el descarte queda REGISTRADO: un log que se repara solo y en silencio no es auditable"
+fichero = "control_plane.py"
+pruebas = ["test_red_recuperacion_12.py::test_el_descarte_queda_REGISTRADO_no_ocurre_en_silencio"]
+buscar = '''        previos = [_registrar_sin_lock(directorio, "linea_truncada_descartada",
+                                       {"eventos_validos": len(previos)})]'''
+sustituir = '''        pass'''
+
+[[mutante]]
+id = "C12-M5"
+garantia = "verificar_integridad_log INFORMA de la cola truncada en vez de explotar con ella"
+fichero = "control_plane.py"
+pruebas = ["test_red_recuperacion_12.py::test_verificar_integridad_INFORMA_de_la_cola_truncada_en_vez_de_explotar",
+           "test_red_recuperacion_12.py::test_un_log_SANO_no_dispara_ningun_descarte"]
+buscar = '''    return {"integro": True, "eventos": len(eventos), "cola_truncada": cola_truncada,'''
+sustituir = '''    return {"integro": True, "eventos": len(eventos), "cola_truncada": False,'''
+
+[[mutante]]
+id = "C12-M6"
+garantia = "la cadena de hashes sigue INTEGRA tras el descarte: reparar no puede marcar el log como roto"
+fichero = "control_plane.py"
+pruebas = ["test_red_recuperacion_12.py::test_la_cadena_de_hashes_sigue_INTEGRA_tras_el_descarte"]
+buscar = '''        previos = leer_eventos(directorio)'''
+sustituir = '''        previos = []'''
+
+[[mutante]]
+id = "C12-M7"
+garantia = "§5/C1 «nunca reescribirse»: reparar la cola NO puede tocar un byte de lo ya cerrado"
+fichero = "control_plane.py"
+pruebas = ["test_red_recuperacion_12.py::test_retirar_la_cola_NO_TOCA_un_solo_byte_de_los_eventos_anteriores"]
+# El mutante regenera el fichero entero, que es lo que hacia la primera version de esta reparacion.
+# Con una serializacion distinta de la que se escribio —aqui, separadores por defecto en vez de los
+# compactos— los bytes de la historia ya cerrada cambian. Ese es exactamente el riesgo que `§5` cierra
+# diciendo que C1 «nunca se reescribe», y por eso la prueba compara BYTES y no contenido logico.
+buscar = '''    if corte < len(bruto):
+        with open(ruta, "r+b") as fh:
+            fh.truncate(corte)'''
+sustituir = '''    if corte < len(bruto):
+        ruta.write_text("".join(json.dumps(e, ensure_ascii=False) + chr(10) for e in eventos),
+                        encoding="utf-8")
+        with open(ruta, "r+b") as fh:
+            fh.truncate(len(ruta.read_bytes()))'''
+
+# =============== AUDITORIA INDEPENDIENTE 2026-08-30 · ALERTA-005 EN A12 --
+
+[[mutante]]
+id = "AUD-M1"
+garantia = "GRAVE 1: transicion() NO cierra a COMPLETED con autoridad no humana sin criterio superado"
+fichero = "control_plane.py"
+pruebas = ["test_red_auditoria_a12.py::test_ninguna_autoridad_NO_HUMANA_cierra_a_COMPLETED_sin_criterio_verificado",
+           "test_red_auditoria_a12.py::test_TODAS_las_vias_publicas_a_COMPLETED_respetan_el_criterio"]
+buscar = '''        if valor == "COMPLETED" and autoridad not in AUTORIDADES_HUMANAS:'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "AUD-M2"
+garantia = "GRAVE 1: ni con autoridad HUMANA se salta un criterio ya fijado"
+fichero = "control_plane.py"
+pruebas = ["test_red_auditoria_a12.py::test_transicion_NO_cierra_una_tarea_con_criterio_sin_haberlo_verificado",
+           "test_red_auditoria_a12.py::test_un_acto_HUMANO_si_puede_cerrar_una_tarea_sin_criterio_mecanico"]
+buscar = '''        if valor == "COMPLETED" and autoridad in AUTORIDADES_HUMANAS:'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "AUD-M3"
+garantia = "haberlo ejecutado no basta: el criterio tiene que haber SALIDO BIEN"
+fichero = "control_plane.py"
+pruebas = ["test_red_auditoria_a12.py::test_un_criterio_verificado_que_FALLO_no_deja_cerrar",
+           "test_red_auditoria_a12.py::test_el_criterio_VERIFICADO_si_deja_cerrar_por_la_via_automatica"]
+buscar = '''               and e["datos"].get("verificado") is True'''
+sustituir = '''               and e["datos"].get("verificado") is not None'''
+
+[[mutante]]
+id = "AUD-M4"
+garantia = "la verificacion va atada a SU huella: si no, verificar la tarea facil abre las demas"
+fichero = "control_plane.py"
+# Reapuntado: la primera pasada lo dejo SOBREVIVIR porque todas las pruebas distinguian ya por `id`,
+# y la huella no llegaba a hacer falta. El caso que la huella protege de verdad es una verificacion
+# **de la misma tarea** que no corresponde al criterio que rige.
+pruebas = ["test_red_auditoria_a12.py::test_una_verificacion_con_huella_QUE_NO_ES_LA_SUYA_no_cuenta"]
+buscar = '''               and e["datos"].get("huella") == fijado["huella"]'''
+sustituir = '''               and True'''
+
+[[mutante]]
+id = "AUD-M5"
+garantia = "la verificacion se REGISTRA: el motor no tiene otra cosa que consultar al cerrar"
+fichero = "orquestador.py"
+pruebas = ["test_red_auditoria_a12.py::test_la_verificacion_queda_REGISTRADA_en_el_log",
+           "test_red_auditoria_a12.py::test_el_criterio_VERIFICADO_si_deja_cerrar_por_la_via_automatica"]
+# Reapuntado 2026-08-30: la escritura pasa ahora por la puerta gobernada, porque el evento crudo
+# quedo bloqueado tras la 2.a auditoria.
+buscar = '''    cp.registrar_criterio_verificado(pathlib.Path(directorio), id_tarea, fijado["huella"], ok,
+                                     veredicto["comprobacion"])'''
+sustituir = '''    pass'''
+
+[[mutante]]
+id = "AUD-M6"
+garantia = "GRAVE 2: sin criterio mecanico la tarea NO es AUTO — el aparato quedaba inerte"
+fichero = "orquestador.py"
+pruebas = ["test_red_auditoria_a12.py::test_una_tarea_SIN_criterio_mecanico_no_es_AUTO",
+           "test_red_auditoria_a12.py::test_el_bucle_no_invoca_una_tarea_cuyo_criterio_no_es_mecanico"]
+buscar = '''        return (nivel_de(tarea.get("accion", "")) == "AUTO"
+                and admite_nivel_auto(tarea))'''
+sustituir = '''        return nivel_de(tarea.get("accion", "")) == "AUTO"'''
+
+[[mutante]]
+id = "AUD-M7"
+garantia = "GRAVE 2: el bucle FIJA el criterio en el log ANTES de invocar (§14.bis regla 1)"
+fichero = "orquestador.py"
+pruebas = ["test_red_auditoria_a12.py::test_el_bucle_FIJA_el_criterio_en_el_log_ANTES_de_invocar"]
+# Reapuntado 2026-08-30: entre fijar el criterio e invocar se anadio el registro de sesion (§12).
+# Reapuntado 2026-08-30: `registrar_sesion` paso DESPUES de invocar (3.a auditoria).
+buscar = '''                fijar_criterio(self.directorio, tarea["id"], tarea["criterio_de_finalizacion"])
+                self.worker.invocar(tarea)'''
+sustituir = '''                self.worker.invocar(tarea)
+                fijar_criterio(self.directorio, tarea["id"], tarea["criterio_de_finalizacion"])'''
+
+[[mutante]]
+id = "AUD-M8"
+garantia = "MEDIO: la raiz declarada NO puede conceder el producto — lo sostiene la funcion, no un grep"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_auditoria_a12.py::test_la_raiz_declarada_NO_puede_conceder_el_producto"]
+buscar = '''    if segmentos & _DIRS_PRODUCTO:
+        return False'''
+sustituir = '''    if False:
+        return False'''
+
+[[mutante]]
+id = "AUD-M9"
+garantia = "el circuito de D-ORCH-3 fija su criterio ANTES de invocar, o su cierre queda sin gobierno"
+fichero = "agentes.py"
+pruebas = ["test_red_d_orch_3.py::test_circuito_AUTO_a_cierre_con_el_agente_principal"]
+buscar = '''    orq.fijar_criterio(directorio, tarea["id"], {"capacidad": accion})'''
+sustituir = '''    pass'''
+
+# ======== 2.a AUDITORIA INDEPENDIENTE · el mismo error, dos veces --
+
+[[mutante]]
+id = "AUD2-M1"
+garantia = "GRAVE: completar_tarea/fijar_estado_tarea no cierran COMPLETED sin humano ni criterio"
+fichero = "control_plane.py"
+pruebas = ["test_red_auditoria_2.py::test_NINGUNA_funcion_gobernada_cierra_a_COMPLETED_sin_autoridad_humana_ni_criterio",
+           "test_red_auditoria_2.py::test_completar_tarea_SI_deja_cerrar_a_una_autoridad_humana"]
+buscar = '''    if valor == "COMPLETED" and autoridad not in AUTORIDADES_HUMANAS:
+        raise CriterioNoVerificado(
+            f"{funcion}() no puede cerrar'''
+sustituir = '''    if False:
+        raise CriterioNoVerificado(
+            f"{funcion}() no puede cerrar'''
+
+[[mutante]]
+id = "AUD2-M2"
+garantia = "forjar criterio_fijado/criterio_verificado en crudo NO abre la puerta"
+fichero = "control_plane.py"
+pruebas = ["test_red_auditoria_2.py::test_no_se_puede_forjar_un_criterio_con_registrar_evento_en_crudo",
+           "test_red_auditoria_2.py::test_la_via_gobernada_del_criterio_SI_funciona"]
+buscar = '''EVENTOS_GOBERNADOS = frozenset({_EVENTO_DE_ESTADO, "criterio_fijado", "criterio_verificado",
+                                "cuota_observada"})'''
+sustituir = '''EVENTOS_GOBERNADOS = frozenset({_EVENTO_DE_ESTADO})'''
+
+[[mutante]]
+id = "AUD2-M3"
+garantia = "la lista gobernada es UNA y el barrido la consume entera: quitar un nombre rompe la prueba"
+fichero = "control_plane.py"
+pruebas = ["test_red_auditoria_2.py::test_NINGUNA_funcion_gobernada_cierra_a_COMPLETED_sin_autoridad_humana_ni_criterio"]
+# Reapuntado 2026-08-30: la lista cruza modulos desde la 3.a auditoria.
+buscar = '''    "fijar_estado_tarea", "completar_tarea", "transicion", "reconciliar_tras_caida",'''
+sustituir = '''    "transicion", "reconciliar_tras_caida",'''
+
+[[mutante]]
+id = "AUD2-M4"
+garantia = "el meta-control detecta una funcion que concede COMPLETED y no esta clasificada"
+fichero = "control_plane.py"
+# Reapuntado: el mutante sobrevivio porque una funcion en AMBAS listas seguia restandose del barrido.
+# La garantia que lo mata es que las listas sean DISJUNTAS.
+pruebas = ["test_red_auditoria_2.py::test_la_lista_de_funciones_gobernadas_vive_en_UN_SOLO_SITIO"]
+# Reapuntado 2026-08-30: la lista de inocuos crecio con la maquinaria de vigilancia.
+buscar = '''    "validar_tareas",       # valida el borde de persistencia: solo lanza, nunca concede'''
+sustituir = '''    "validar_tareas", "completar_tarea",'''
+
+[[mutante]]
+id = "AUD2-M5"
+garantia = "zona_permitida resuelve enlaces simbolicos tambien en su forma por defecto"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_auditoria_2.py::test_zona_permitida_SIN_raiz_resuelve_los_enlaces_simbolicos",
+           "test_red_auditoria_2.py::test_un_fichero_REAL_de_la_zona_sigue_pasando"]
+buscar = '''    segmentos = {s.lower() for s in ruta.parts} | {s.lower() for s in real.parts}'''
+sustituir = '''    segmentos = {s.lower() for s in ruta.parts}'''
+
+[[mutante]]
+id = "AUD2-M6"
+garantia = "un veredicto FABRICADO no cierra: el motor mira el LOG, no el diccionario que le pasan"
+fichero = "control_plane.py"
+pruebas = ["test_red_controles_14.py::test_un_veredicto_FABRICADO_A_MANO_no_cierra_aunque_lleve_la_huella_buena"]
+buscar = '''    return any(e["tipo"] == "criterio_verificado"'''
+sustituir = '''    return True or any(e["tipo"] == "criterio_verificado"'''

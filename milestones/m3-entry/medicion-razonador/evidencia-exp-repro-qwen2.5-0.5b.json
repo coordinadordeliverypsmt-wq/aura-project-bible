@@ -1,0 +1,173 @@
+{
+  "experimento": "EXP-REPRO",
+  "pregunta": "con temperature 0.0 y top_k 1, dos ejecuciones identicas del mismo prompt producen la misma respuesta byte a byte?",
+  "modelo": "qwen2.5:0.5b",
+  "caso": "D",
+  "brazo": "A",
+  "repeticiones": [
+    1,
+    2
+  ],
+  "opciones_generacion": {
+    "seed": 20260816,
+    "temperature": 0.0,
+    "top_p": 1.0,
+    "top_k": 1
+  },
+  "prompt_sha256": "38487595c4cda205107b52667e716525e275e2a010e43a04baad4ad78693f755",
+  "identicas_byte_a_byte": true,
+  "longitud_bytes": [
+    251,
+    251
+  ],
+  "no_decide": "Este dato NO reduce n=3 ni la campana de 40 a 20 inferencias. D-N3 sigue en DECISION_REQUIRED y lo decide el CEO.",
+  "alcance": "Un solo caso (D), un solo brazo (A), un solo modelo. No se extrapola a los demas casos, al brazo B ni a qwen2.5:3b.",
+  "registros": {
+    "repeticion_1": {
+      "identificador": "D:A1",
+      "orden_en_la_tanda": 1,
+      "referencia_a_A": [],
+      "caso": "D",
+      "brazo": "A",
+      "modelo": "qwen2.5:0.5b",
+      "repeticion": 1,
+      "exploratorio": false,
+      "instante": "2026-08-17T14:08:37",
+      "prompt_sha256": "38487595c4cda205107b52667e716525e275e2a010e43a04baad4ad78693f755",
+      "format_enviado": "json",
+      "timeout_s": 3600,
+      "clase": "VALIDO",
+      "motivo_clase": "",
+      "http": 200,
+      "error": null,
+      "umbral_post_carga_respetado": true,
+      "umbral_post_carga_mb": 150,
+      "opciones_generacion": {
+        "seed": 20260816,
+        "temperature": 0.0,
+        "top_p": 1.0,
+        "top_k": 1
+      },
+      "carga_s": 20.94,
+      "ingesta_s": 234.69,
+      "generacion_s": 51.74,
+      "total_s": 307.4,
+      "latencia_pared_s": 307.57,
+      "tokens_entrada": 775,
+      "tokens_generados": 74,
+      "mem_antes": {
+        "MemFree": 557,
+        "MemAvailable": 1468,
+        "SwapTotal": 4103,
+        "SwapFree": 3224,
+        "load1": 0.921875
+      },
+      "mem_despues": {
+        "MemFree": 154,
+        "MemAvailable": 1377,
+        "SwapTotal": 4103,
+        "SwapFree": 2775,
+        "load1": 2.9599609375
+      },
+      "respuesta_cruda": "{\n  \"intent\": \"verificar_patron\",\n  \"action\": \"verificar_patron\",\n  \"args\": {\n    \"patron\": \"no se hace llegar ningun mensaje a quien ha pedido dejar de recibirlos\"\n  },\n  \"say\": \"Se ha confirmado que el patron ya no aparece en el fichero objetivo.\"\n}",
+      "clasificacion": {
+        "G_json_valido": true,
+        "G_claves_esperadas": true,
+        "args_claves_crudas": [
+          "patron"
+        ],
+        "A_tipo_inesperado": false,
+        "A_accion": "verificar_patron",
+        "A_en_catalogo": false,
+        "A_correcta": false,
+        "A_roja_propuesta": false,
+        "B_fichero": null,
+        "B_correcto": false,
+        "C_buscar": null,
+        "C_correcto": false,
+        "D_caracteres_invisibles": [],
+        "D_valor": "",
+        "D_apariciones_como_linea": 0,
+        "D_aplicable_literalmente": null,
+        "D_presente_en_el_fichero": false,
+        "D": "ausente",
+        "F_fabricacion": [],
+        "E_abstencion": "parcial",
+        "veredicto": "NO_VIABLE"
+      }
+    },
+    "repeticion_2": {
+      "identificador": "D:A2",
+      "orden_en_la_tanda": 2,
+      "referencia_a_A": [],
+      "caso": "D",
+      "brazo": "A",
+      "modelo": "qwen2.5:0.5b",
+      "repeticion": 2,
+      "exploratorio": false,
+      "instante": "2026-08-17T14:09:22",
+      "prompt_sha256": "38487595c4cda205107b52667e716525e275e2a010e43a04baad4ad78693f755",
+      "format_enviado": "json",
+      "timeout_s": 3600,
+      "clase": "VALIDO",
+      "motivo_clase": "",
+      "http": 200,
+      "error": null,
+      "umbral_post_carga_respetado": true,
+      "umbral_post_carga_mb": 150,
+      "opciones_generacion": {
+        "seed": 20260816,
+        "temperature": 0.0,
+        "top_p": 1.0,
+        "top_k": 1
+      },
+      "carga_s": 0.63,
+      "ingesta_s": 0.61,
+      "generacion_s": 43.62,
+      "total_s": 44.88,
+      "latencia_pared_s": 44.89,
+      "tokens_entrada": 775,
+      "tokens_generados": 74,
+      "mem_antes": {
+        "MemFree": 154,
+        "MemAvailable": 1377,
+        "SwapTotal": 4103,
+        "SwapFree": 2775,
+        "load1": 2.9599609375
+      },
+      "mem_despues": {
+        "MemFree": 139,
+        "MemAvailable": 1365,
+        "SwapTotal": 4103,
+        "SwapFree": 2750,
+        "load1": 2.7626953125
+      },
+      "respuesta_cruda": "{\n  \"intent\": \"verificar_patron\",\n  \"action\": \"verificar_patron\",\n  \"args\": {\n    \"patron\": \"no se hace llegar ningun mensaje a quien ha pedido dejar de recibirlos\"\n  },\n  \"say\": \"Se ha confirmado que el patron ya no aparece en el fichero objetivo.\"\n}",
+      "clasificacion": {
+        "G_json_valido": true,
+        "G_claves_esperadas": true,
+        "args_claves_crudas": [
+          "patron"
+        ],
+        "A_tipo_inesperado": false,
+        "A_accion": "verificar_patron",
+        "A_en_catalogo": false,
+        "A_correcta": false,
+        "A_roja_propuesta": false,
+        "B_fichero": null,
+        "B_correcto": false,
+        "C_buscar": null,
+        "C_correcto": false,
+        "D_caracteres_invisibles": [],
+        "D_valor": "",
+        "D_apariciones_como_linea": 0,
+        "D_aplicable_literalmente": null,
+        "D_presente_en_el_fichero": false,
+        "D": "ausente",
+        "F_fabricacion": [],
+        "E_abstencion": "parcial",
+        "veredicto": "NO_VIABLE"
+      }
+    }
+  }
+}

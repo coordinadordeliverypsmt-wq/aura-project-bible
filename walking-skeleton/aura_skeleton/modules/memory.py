@@ -9,6 +9,7 @@ import re
 import unicodedata
 
 from .. import observability as obs
+from ..contracts import HISTORICO, es_recuperable  # noqa: F401  (HISTORICO se reexporta)
 
 
 class SimpleMemory:
@@ -23,8 +24,8 @@ class SimpleMemory:
         q = set(query.lower().split())
         scored = []
         for it in self._items:
-            if it["user_id"] != user_id:
-                continue
+            if it["user_id"] != user_id or not es_recuperable(it):
+                continue  # el historico no recuperable existe, se persiste, y NO vuelve por aqui
             overlap = len(q & set(it["content"].lower().split()))
             if overlap:
                 scored.append((overlap, it))
@@ -111,6 +112,29 @@ def _terminos(texto: str) -> set[str]:
     return {t for t in re.findall(r"\w+", plano) if t not in _VACIAS}
 
 
+#: Marca de baja logica. Una linea con esta bandera NO es un recuerdo: es la constancia de que el
+#: recuerdo de su misma clave dejo de estar vigente.
+_LAPIDA = "_olvidada"
+
+
+def _clave(item: dict) -> tuple:
+    """Identidad de un recuerdo a efectos de proyeccion, analoga a `(user_id, rule_id)` en reglas."""
+    return (item.get("user_id"), item.get("kind"), item.get("content"))
+
+
+def _proyectar(lineas: list[dict]) -> list[dict]:
+    """`historial fisico completo + ultima linea por clave = estado logico` (DP-D-M-8 §5.2).
+
+    Es la mitad que hace util a la lapida: sin ella, un recuerdo dado de baja **reapareceria** al
+    reiniciar, y el olvido del usuario seria falso. Mismo modelo que `AlmacenReglas._cargar`, donde
+    por cada clave gana la ULTIMA linea y solo se listan las activas.
+    """
+    vigente: dict[tuple, dict] = {}
+    for linea in lineas:
+        vigente[_clave(linea)] = linea
+    return [i for i in vigente.values() if not i.get(_LAPIDA)]
+
+
 class PersistentMemory:
     """Memoria persistente con backups y recuperacion (Bible 4.1 / 3.5 §6; prioridad M1).
     Cumple el contrato MemoryStore. Escrituras atomicas + integridad sha256 + copias 3-2-1.
@@ -175,7 +199,10 @@ class PersistentMemory:
         # Desempate por posicion en el almacen: dos recuerdos con la misma cobertura salen SIEMPRE en
         # el mismo orden. Antes dependia del orden de iteracion de un `set`, que varia con el hash del
         # proceso: la misma consulta podia devolver recuerdos distintos en dos arranques (comprobado).
-        puntuados = [(idx, len(consulta & self._terminos_item(idx))) for idx in sorted(candidatos)]
+        # El historico no recuperable se descarta ANTES de puntuar: no compite, no desplaza a un
+        # recuerdo real por el hueco `k`, y no puede colarse por un empate.
+        puntuados = [(idx, len(consulta & self._terminos_item(idx)))
+                     for idx in sorted(candidatos) if es_recuperable(self._items[idx])]
         mejores = sorted(
             ((idx, n) for idx, n in puntuados if n >= minimo),
             key=lambda par: (-par[1], par[0]),
@@ -190,14 +217,21 @@ class PersistentMemory:
         Soberania del usuario (ADR-0017): un "olvida esto" debe sobrevivir al reinicio. Antes, borrar solo
         mutaba la lista en memoria y el dato reaparecia al releer el JSONL; aqui se reescribe el fichero.
         """
-        antes = len(self._items)
+        bajas = [i for i in self._items if predicado(i)]
         self._items = [i for i in self._items if not predicado(i)]
-        borrados = antes - len(self._items)
-        if borrados:
+        if bajas:
+            # G-7 · LAPIDA en vez de reescritura (DP-D-M-8 §5.2). Antes esto llamaba a `_persist()`,
+            # que reescribe el JSONL entero: el olvido borraba la historia junto con el dato, y no
+            # quedaba forma de saber que se perdio. Ahora se ANEXA una baja logica por entrada, que
+            # es el patron que `AlmacenReglas.desactivar` ya usaba —y que §5.2 llama «el modelo a
+            # imitar»—. El historial fisico permanece intacto; la proyeccion de `_load` decide.
+            #
+            # La purga fisica NO se implementa: §5.2 la deja abierta («No lo decido aqui»).
+            for baja in bajas:
+                self._anexar({**baja, _LAPIDA: True})
             self._reconstruir_indice()  # el indice guarda posiciones: hay que rehacerlo tras eliminar
-            self._persist()  # reescritura atomica del JSONL: el olvido sobrevive al reinicio
-            obs.log("MEM", "memory", f"olvidadas {borrados} entrada(s) del modelo del usuario", "-", audit=True)
-        return borrados
+            obs.log("MEM", "memory", f"olvidadas {len(bajas)} entrada(s) del modelo del usuario", "-", audit=True)
+        return len(bajas)
 
     def marcar(self, predicado, campos: dict) -> int:
         """Anota `campos` en la procedencia de las entradas que cumplen `predicado`, y PERSISTE el cambio.
@@ -205,13 +239,17 @@ class PersistentMemory:
         Lo usa la refutacion del usuario ("eso ya no es cierto"): marcar `refutada` debe sobrevivir al
         reinicio, igual que el olvido — si no, AURA volveria a darlo por cierto al arrancar.
         """
-        n = 0
+        marcadas = []
         for i in self._items:
             if predicado(i):
                 i.setdefault("provenance", {}).update(campos)
-                n += 1
+                marcadas.append(i)
+        n = len(marcadas)
         if n:
-            self._persist()
+            # G-7 · §5.2 pide para `marcar` lo mismo que para `olvidar`: **anexar la marca**. La
+            # linea nueva gana en la proyeccion por su clave, y la anterior sigue en el historial.
+            for i in marcadas:
+                self._anexar(i)
         return n
 
     # --- indice invertido (MA.2a) ---
@@ -266,7 +304,7 @@ class PersistentMemory:
             self._persist()
             obs.log("MEM", "memory", f"memoria migrada a formato incremental ({len(self._items)} items)", "-")
         else:
-            self._items = [json.loads(linea) for linea in contenido.splitlines() if linea.strip()]
+            self._items = _proyectar([json.loads(linea) for linea in contenido.splitlines() if linea.strip()])
         self._reconstruir_indice()
 
     # --- backups y recuperacion (3-2-1, prioridad M1) ---

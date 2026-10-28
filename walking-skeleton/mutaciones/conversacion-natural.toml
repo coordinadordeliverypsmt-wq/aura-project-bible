@@ -1,0 +1,49 @@
+incremento = "Conversacion natural local: pedir consejo no es interrogar un registro (M3, 2026-09-09)"
+# Esta frontera tiene DOS riesgos opuestos y los mutantes cubren los dos: si se cierra, AURA vuelve a
+# contestar «no tengo ningun recuerdo» a cualquier pregunta (el defecto medido en el producto real); si
+# se abre, una de las 24 consultas protegidas se escapa hacia el modelo. La prueba debe notar ambas.
+pruebas = ["tests/unit/test_conversacion_natural_local.py",
+           "tests/unit/test_frontera_cognitiva.py",
+           "tests/unit/test_m1_clasificacion_intencion.py"]
+timeout_s = 300
+
+[[mutante]]
+id = "CN-M1"
+garantia = "la rama de consejo desaparece: «que me recomiendas» vuelve a morir en la memoria vacia"
+fichero = "aura_skeleton/core/intencion.py"
+buscar = '''    if any(p in n for p in _PIDE_CONSEJO) and not _nombra(_con_bordes(n), _POSESIVO_PROPIO):
+        return True'''
+sustituir = '''    if False:
+        return True'''
+
+[[mutante]]
+id = "CN-M2"
+garantia = "el freno del posesivo se cae: «¿crees que mi hermana vive en Madrid?» iria al modelo"
+fichero = "aura_skeleton/core/intencion.py"
+buscar = '''    if any(p in n for p in _PIDE_CONSEJO) and not _nombra(_con_bordes(n), _POSESIVO_PROPIO):'''
+sustituir = '''    if any(p in n for p in _PIDE_CONSEJO):'''
+
+[[mutante]]
+id = "CN-M3"
+garantia = "la rama se vuelve incondicional: CUALQUIER pregunta esquivaria la memoria (24/24 a 0/24)"
+fichero = "aura_skeleton/core/intencion.py"
+buscar = '''    if any(p in n for p in _PIDE_CONSEJO) and not _nombra(_con_bordes(n), _POSESIVO_PROPIO):
+        return True'''
+sustituir = '''    if True:
+        return True'''
+
+[[mutante]]
+id = "CN-M4"
+garantia = "«crees» vuelve a la lista de ordenes: la pregunta se clasifica ORDEN y no conversa"
+fichero = "aura_skeleton/core/intencion.py"
+buscar = '''          "crea", "organiza", "guarda", "guardes",'''
+sustituir = '''          "crea", "crees", "organiza", "guarda", "guardes",'''
+
+[[mutante]]
+id = "CN-M5"
+garantia = "la evocacion explicita deja de frenar: «¿que me recomendaste ayer?» iria al modelo"
+fichero = "aura_skeleton/core/intencion.py"
+buscar = '''    if any(p in n for p in MARCADORES_DE_EVOCACION):
+        return False'''
+sustituir = '''    if False:
+        return False'''

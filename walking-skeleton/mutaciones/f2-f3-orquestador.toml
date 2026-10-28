@@ -1,0 +1,206 @@
+incremento = "DP-DEVELOPMENT-ORCHESTRATOR · F2 (C3+C4) + F3 (C6+C7) — 2026-08-26"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/control-plane"
+# Degrada las garantias del Orchestrator y su gobierno. Se ejecuta con --raiz apuntando a
+# entorno/control-plane, donde vive el plano de desarrollo (fuera de walking-skeleton a proposito).
+#
+# Las cuatro prohibiciones de §5 son el nucleo: C3 no decide politica ni se edita, C4 no ejecuta sin
+# permisos declarados, C6 no la escribe nadie del orquestador, C7 no inventa cuota.
+pruebas = [
+    "test_red_f2_f3_orquestador.py",
+    "test_e2e_f2_f3.py",
+]
+timeout_s = 180
+
+# ------------------------------------------------------------- C6 · politica --
+
+[[mutante]]
+id = "F23-M1"
+garantia = "sin regla, la accion es HUMAN: invertir el defecto convierte cada accion desconocida en automatica"
+fichero = "orquestador.py"
+pruebas = ["test_red_f2_f3_orquestador.py::test_c6_sin_regla_la_accion_es_HUMAN",
+           "test_red_f2_f3_orquestador.py::test_c3_una_tarea_HUMAN_NUNCA_la_ejecuta_el_orquestador"]
+buscar = '''NIVEL_POR_DEFECTO = "HUMAN"'''
+sustituir = '''NIVEL_POR_DEFECTO = "AUTO"'''
+
+[[mutante]]
+id = "F23-M2"
+garantia = "la politica es INMUTABLE desde el orquestador: si escribir_politica dejase de negarse, el ejecutor se concederia permisos"
+fichero = "orquestador.py"
+pruebas = ["test_red_f2_f3_orquestador.py::test_c6_ningun_componente_del_orquestador_puede_ESCRIBIR_la_politica"]
+buscar = '''    raise PoliticaInmutable(
+        "la politica es un fichero versionado y ningun componente del orquestador puede escribirla "'''
+sustituir = '''    return None
+    raise PoliticaInmutable(
+        "la politica es un fichero versionado y ningun componente del orquestador puede escribirla "'''
+
+[[mutante]]
+id = "F23-M3"
+garantia = "la politica declara su VERSION: sin ella no se puede decir bajo que reglas se ejecuto algo"
+fichero = "orquestador.py"
+pruebas = ["test_red_f2_f3_orquestador.py::test_c6_la_politica_declara_su_version",
+           "test_e2e_f2_f3.py::test_e2e_flujo_real_completo_con_la_politica_VIGENTE"]
+buscar = '''    return str(_politica().get("version", "desconocida"))'''
+sustituir = '''    return ""'''
+
+# ------------------------------------------------------------ C7 · presupuesto --
+
+[[mutante]]
+id = "F23-M4"
+garantia = "el tope POR TAREA acota: sin el, una sola tarea puede consumir el ciclo entero"
+fichero = "orquestador.py"
+pruebas = ["test_red_f2_f3_orquestador.py::test_c7_hay_tope_por_TAREA_y_por_CICLO"]
+buscar = '''        if coste_previsto > self.por_tarea_usd:
+            return False'''
+sustituir = '''        if False:
+            return False'''
+
+[[mutante]]
+id = "F23-M5"
+garantia = "el tope POR CICLO acota: sin el, el bucle gasta sin limite aunque cada tarea sea barata"
+fichero = "orquestador.py"
+pruebas = ["test_red_f2_f3_orquestador.py::test_c7_hay_tope_por_TAREA_y_por_CICLO",
+           "test_red_f2_f3_orquestador.py::test_c7_un_presupuesto_agotado_DETIENE_el_ciclo",
+           "test_e2e_f2_f3.py::test_e2e_el_presupuesto_del_CICLO_detiene_el_trabajo_de_verdad"]
+buscar = '''        return (gastado_en_ciclo + coste_previsto) <= self.por_ciclo_usd'''
+sustituir = '''        return True'''
+
+[[mutante]]
+id = "F23-M6"
+garantia = "el ciclo comprueba el presupuesto ANTES de invocar: comprobarlo despues es gastarlo"
+fichero = "orquestador.py"
+pruebas = ["test_e2e_f2_f3.py::test_e2e_el_presupuesto_del_CICLO_detiene_el_trabajo_de_verdad",
+           "test_red_f2_f3_orquestador.py::test_c7_un_presupuesto_agotado_DETIENE_el_ciclo"]
+buscar = '''            if not self.puede_gastar(self.presupuesto.por_tarea_usd):
+                motivo = "presupuesto del ciclo agotado"
+                break'''
+sustituir = '''            if False:
+                motivo = "presupuesto del ciclo agotado"
+                break'''
+
+# ------------------------------------------------------------- C3 · orchestrator --
+
+[[mutante]]
+id = "F23-M7"
+garantia = "el bucle es FINITO: sin tope es un demonio, y este DP no autoriza ninguno"
+fichero = "orquestador.py"
+pruebas = ["test_red_f2_f3_orquestador.py::test_c3_el_bucle_es_FINITO"]
+buscar = '''        tope = min(int(max_iteraciones), self.MAX_ITERACIONES)'''
+sustituir = '''        tope = max(int(max_iteraciones), self.MAX_ITERACIONES)'''
+
+[[mutante]]
+id = "F23-M8"
+garantia = "solo se ejecutan tareas AUTO: aceptar REVIEW o HUMAN salta la politica entera"
+fichero = "orquestador.py"
+pruebas = ["test_red_f2_f3_orquestador.py::test_c3_una_tarea_HUMAN_NUNCA_la_ejecuta_el_orquestador",
+           "test_red_f2_f3_orquestador.py::test_c3_sin_tareas_AUTO_el_ciclo_no_ejecuta_NADA"]
+# Reapuntado 2026-08-30: `es_ejecutable` exige ademas criterio mecanico (§14.bis regla 4), cableado
+# tras la auditoria. El patron viejo dejo de casar y salia NO_APLICADO, que nunca cuenta como detectado.
+buscar = '''        return (nivel_de(tarea.get("accion", "")) == "AUTO"
+                and admite_nivel_auto(tarea))'''
+sustituir = '''        return nivel_de(tarea.get("accion", "")) != "REVIEW"'''
+
+[[mutante]]
+id = "F23-M9"
+garantia = "el orquestador NO puede editarse a si mismo ni tocar su politica ni el Control Plane"
+fichero = "orquestador.py"
+pruebas = ["test_red_f2_f3_orquestador.py::test_c3_el_orquestador_NO_puede_editarse_a_si_mismo"]
+buscar = '''        return pathlib.Path(ruta).name not in _INTOCABLES'''
+sustituir = '''        return True'''
+
+[[mutante]]
+id = "F23-M10"
+garantia = "la lista de intocables incluye el propio modulo: quitarlo permite que se reescriba y se conceda lo que quiera"
+fichero = "orquestador.py"
+pruebas = ["test_red_f2_f3_orquestador.py::test_c3_el_orquestador_NO_puede_editarse_a_si_mismo"]
+buscar = '''_INTOCABLES = ("orquestador.py", "politica-orquestador.toml", "control_plane.py", "conftest.py")'''
+sustituir = '''_INTOCABLES = ("conftest.py",)'''
+
+[[mutante]]
+id = "F23-M11"
+garantia = "cada ciclo queda REGISTRADO: un ciclo sin rastro no es auditable, y F1 existe para que lo deje"
+fichero = "orquestador.py"
+pruebas = ["test_red_f2_f3_orquestador.py::test_c3_cada_iteracion_queda_REGISTRADA_en_el_log",
+           "test_e2e_f2_f3.py::test_e2e_flujo_real_completo_con_la_politica_VIGENTE",
+           "test_e2e_f2_f3.py::test_e2e_dos_ciclos_concurrentes_no_corrompen_la_historia"]
+buscar = '''        cp.registrar_evento(self.directorio, "ciclo_iniciado",
+                            {"tope": tope, "politica": version_de_politica()})'''
+sustituir = '''        pass'''
+
+[[mutante]]
+id = "F23-M12"
+garantia = "el evento de cierre registra el motivo: sin el, «no ejecuto nada» y «no habia nada» son indistinguibles"
+fichero = "orquestador.py"
+pruebas = ["test_red_f2_f3_orquestador.py::test_c3_cada_iteracion_queda_REGISTRADA_en_el_log",
+           "test_e2e_f2_f3.py::test_e2e_flujo_real_completo_con_la_politica_VIGENTE"]
+buscar = '''        cp.registrar_evento(self.directorio, "ciclo_terminado",
+                            {"iteraciones": iteraciones, "ejecutadas": ejecutadas, "motivo": motivo})'''
+sustituir = '''        pass'''
+
+# ------------------------------------------------------------ C4 · workeradapter --
+
+[[mutante]]
+id = "F23-M13"
+garantia = "C4 NO ejecuta sin permisos declarados: es la puerta que impide que el catalogo vacio se sortee"
+fichero = "orquestador.py"
+pruebas = ["test_red_f2_f3_orquestador.py::test_c4_NO_ejecuta_sin_permisos_declarados",
+           "test_red_f2_f3_orquestador.py::test_c3_sin_tareas_AUTO_el_ciclo_no_ejecuta_NADA"]
+buscar = '''        if not permisos["allowedTools"]:
+            raise SinPermisosDeclarados('''
+sustituir = '''        if False:
+            raise SinPermisosDeclarados('''
+
+[[mutante]]
+id = "F23-M14"
+garantia = "los permisos salen de la POLITICA, no de la tarea: si viniesen en la tarea, quien la redacta se concede los suyos"
+fichero = "orquestador.py"
+pruebas = ["test_red_f2_f3_orquestador.py::test_c4_NO_ejecuta_sin_permisos_declarados",
+           "test_e2e_f2_f3.py::test_e2e_el_flujo_COMPLETO_funciona_si_el_CEO_aprobara_una_accion"]
+# Reapuntado el 2026-08-30: `permisos_de` paso a un ternario al anadir la comprobacion de modo de
+# permiso inseguro. El patron viejo dejo de casar y el arnes lo reporto NO_APLICADO — que nunca
+# cuenta como detectado. La garantia es la misma.
+buscar = '''        permisos = ({"allowedTools": [], "permission_mode": "plan"}
+                    if nivel_de(accion) != "AUTO"'''
+sustituir = '''        permisos = ({"allowedTools": ["Read", "Grep", "Glob"], "permission_mode": "plan"}
+                    if nivel_de(accion) != "AUTO"'''
+
+[[mutante]]
+id = "F23-M15"
+garantia = "el session_id se DERIVA de la tarea: uno aleatorio rompe la idempotencia del reintento (§7.2)"
+fichero = "orquestador.py"
+pruebas = ["test_red_f2_f3_orquestador.py::test_c4_el_session_id_se_DERIVA_de_la_tarea_y_es_estable"]
+# Reapuntado 2026-08-30: el session-id pasa a derivarse del SOBRE (§13), no solo del id.
+buscar = '''        return str(uuid.uuid5(uuid.NAMESPACE_URL,
+                              f"aura-orch/{tarea['id']}/{self.huella_de_sobre(tarea, presupuesto)}"))'''
+sustituir = '''        return str(uuid.uuid4())'''
+
+[[mutante]]
+id = "F23-M16"
+garantia = "el sobre lleva las restricciones permanentes del CEO: sin ellas el worker podria commitear o empujar"
+fichero = "orquestador.py"
+pruebas = ["test_red_f2_f3_orquestador.py::test_c4_el_sobre_incluye_las_restricciones_permanentes_del_CEO",
+           "test_e2e_f2_f3.py::test_e2e_el_flujo_COMPLETO_funciona_si_el_CEO_aprobara_una_accion"]
+buscar = '''            "restricciones": list(RESTRICCIONES_PERMANENTES) + list(tarea.get("restricciones", ())),'''
+sustituir = '''            "restricciones": list(tarea.get("restricciones", ())),'''
+
+[[mutante]]
+id = "F23-M17"
+garantia = "la evidencia es ESTRUCTURADA: aceptar prosa obliga a reinterpretarla, y INV-7 lo prohibe"
+fichero = "orquestador.py"
+pruebas = ["test_red_f2_f3_orquestador.py::test_c4_recoge_evidencia_ESTRUCTURADA_no_prosa"]
+buscar = '''        except json.JSONDecodeError as exc:
+            raise EvidenciaNoEstructurada('''
+sustituir = '''        except json.JSONDecodeError as exc:
+            return {"prosa": salida}
+            raise EvidenciaNoEstructurada('''
+
+[[mutante]]
+id = "F23-M18"
+garantia = "construir la orden NO la lanza: lanzarla gasta dinero y pone a trabajar a un agente (INV-9)"
+fichero = "orquestador.py"
+pruebas = ["test_red_f2_f3_orquestador.py::test_c4_la_invocacion_se_CONSTRUYE_pero_no_se_lanza_sola",
+           "test_e2e_f2_f3.py::test_e2e_el_flujo_COMPLETO_funciona_si_el_CEO_aprobara_una_accion"]
+buscar = '''    def orden_de_invocacion(self, tarea: dict, presupuesto_usd: float = 0.50) -> list[str]:'''
+sustituir = '''    def orden_de_invocacion(self, tarea: dict, presupuesto_usd: float = 0.50) -> list[str]:
+        self.ejecuciones_reales += 1'''

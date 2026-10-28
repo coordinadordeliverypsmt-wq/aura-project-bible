@@ -82,8 +82,8 @@ No se desarrollan. La evidencia demuestra que no dependen de más arquitectura.
 | 014 | **Formular cambios de código** | hardware | Ollama: 25,8 s para «Hola»; 98 % del trabajo de una sesión fue generativo |
 | 015 | **Interpretar una necesidad en lenguaje** | formulación | Único paso del Traductor no determinista, en las 2 necesidades traducidas |
 | 016 | **Proponer backlog y cambios sugeridos** | formulación | Las 2 únicas secciones del Centro de Gobierno que AURORA no pudo construir |
-| 017 | **Usar su historial para decidir** | requiere juicio | `NO_MEDIBLE` en el IMA: registra `intentos` y nadie los lee para cambiar una decisión |
-| 018 | **Hablar con el CEO sin sesión externa** | **parcial — no confirmada** | Ver nota abajo |
+| 017 | **Usar su historial para decidir** | ⚠️ **el motivo registrado ya no es cierto** | Ver corrección 2026-08-17 |
+| 018 | **Hablar con el CEO sin sesión externa** | **parcial — no confirmada** | Ver nota abajo y corrección 2026-08-17 |
 
 **014, 015 y 016 son la misma limitación vista desde tres ángulos.** Todos los análisis independientes
 de dependencia externa han convergido en ella.
@@ -103,6 +103,64 @@ las **auditorías independientes cayeron por límite de cuota** y quedan pendien
 «qué decisiones esperan mi aprobación» **aún no existe**. Se declara aprendida cuando ambas cosas
 se cierren — no antes. La evidencia de que funciona no sustituye a la verificación de que es
 correcta.
+
+---
+
+## ⚠️ CORRECCIÓN DE VERACIDAD — 2026-08-17
+
+> Este documento llevaba desde el **2026-08-04** sin actualizar y declaraba como **ausentes o
+> bloqueadas** dos capacidades que **ya están construidas, cableadas en producción y probadas**.
+> Es el patrón «declarado ≠ real» **número 10** del proyecto — esta vez con el signo invertido: no
+> se afirmó de más, se afirmó de menos. Igual de caro: quien lo lea puede reconstruir algo que ya
+> existe, y el CEO puede creer que AURORA no puede pedirle permiso cuando sí puede.
+>
+> **No se reclasifica ninguna capacidad aquí.** Solo se corrigen los hechos. Mover una capacidad de
+> 🔴 a 🟡 o a ✅ exige la regla de admisión —evidencia repetida del uso real— y, en el caso de 018,
+> la auditoría independiente que sigue pendiente. Esa decisión no la toma la asistencia externa.
+
+### 018 · La Pieza 2 **SÍ existe** desde el 2026-08-10
+
+La frase «⛔ **Falta la Pieza 2**: desatendida, AURORA sigue autodenegándose toda acción de lista
+roja (`hitl_consola.py:35-38`). **Todavía no puede pedirte permiso: te lo deniega a sí misma**» era
+cierta al escribirse y **es falsa hoy**.
+
+| Verificado `[EJEC]` 2026-08-17 | Resultado |
+|---|---|
+| `git log -- core/decisiones.py` | `975e465 feat(Pieza 2): aprobacion diferida -- AURORA deja de detenerse sin el CEO`, con **acta del CEO 2026-08-10** citada en el docstring del módulo |
+| Adaptador | `aura_skeleton/adapters/hitl_diferido.py` existe (`crear_confirmador_diferido`) |
+| Cableado en producción | `aura_skeleton/__main__.py:28` lo importa; `composicion.py:368,372` monta `AlmacenDecisiones` y `reabrir_aprobadas` en `al_despertar` |
+| Pruebas | `test_decisiones_diferidas.py` + `test_gobierno_decisiones.py` → **34 pasadas** |
+
+**Y la segunda razón del bloqueo también cayó:** la ruta «qué decisiones esperan mi aprobación»
+**ya existe** — `2ae2416 feat(gobierno): el buzon de decisiones, visible en la interfaz oficial`.
+
+**Queda en 🔴 por un solo motivo, no por tres:** la **auditoría independiente sigue pendiente**, y
+la regla del CEO es explícita — *ninguna capacidad se promueve mientras exista una evidencia
+pendiente que pueda cambiar el veredicto*. La auditoría cayó por cuota, igual que la de
+`DP-COMMUNICATION-PLANE-AURORA`.
+
+### 017 · El motivo del bloqueo dejó de ser cierto el 2026-08-14
+
+El motivo registrado era: *«`NO_MEDIBLE` en el IMA: registra `intentos` y nadie los lee para cambiar
+una decisión»*. El commit `b48fbbd feat(017): AURORA usa su historial para dejar de insistir` lo
+cierra literalmente — de su propio mensaje: *«`intentos` YA contaba bien; el único que lo leía era el
+IMA, y solo para comprobar que el campo existe (`ima.py:124`). Ahora se lee para DECIDIR»*.
+
+Nació de un defecto **medido, no anticipado por diseño**, tras integrar la Pieza 2: una tarea
+aprobada que después falla por otra razón se reabría en cada latido, indefinidamente en `--servir`.
+
+Verificado `[EJEC]` 2026-08-17: `test_limite_reintentos.py` → **9 pasadas**.
+
+**Permanece en 🔴 en este documento** porque reclasificarla exige la regla de admisión y no hay aquí
+evidencia de **uso real repetido**, solo de que el mecanismo funciona. **La reclasificación de 017 y
+018 queda como decisión pendiente del CEO** (`D-FORM-1`), registrada en
+`entorno/control-plane/estado.json`.
+
+### Qué NO se tocó
+
+Las tablas ✅ y 🟡 no se han modificado: no se verificó ninguna de sus entradas en esta pasada, y
+corregir sin medir es exactamente el error que este documento acaba de sufrir. **014, 015 y 016
+siguen bloqueadas por hardware/formulación**, sin evidencia nueva.
 
 ---
 
@@ -128,5 +186,16 @@ En cada sesión del Consejo de Formación, y **solo con evidencia del Centro de 
 3. ¿Qué puede aprenderse con reglas deterministas, sin modelo más potente?
 4. ¿Qué sigue bloqueado por formulación?
 
-El resultado es un **plan**, nunca una implementación. Ninguna capacidad se desarrolla
-automáticamente.
+El resultado es un **plan**, nunca una implementación.
+
+**Enmienda `F5` — acta del CEO, 2026-09-07.** Hasta hoy esta sección terminaba con *«ninguna
+capacidad se desarrolla automáticamente»*. El CEO resolvió `F5`: una capacidad **puede** convertirse
+en trabajo autónomo de construcción, y solo si cumple **objetivamente** el
+[`CONTRATO-DE-CAPACIDAD`](milestones/m3-entry/CONTRATO-DE-CAPACIDAD.md) —las nueve condiciones,
+evaluadas por `entorno/control-plane/contrato.py`— **y** está explícitamente autorizada, dentro de
+perímetro permitido, con ejecutor real y sin bloqueo de gobernanza.
+
+Lo que **no** cambia: la evaluación es **por capacidad**, así que esto no autoriza ninguna en
+concreto; el catálogo sigue siendo un catálogo; la regla de admisión para mover una capacidad entre
+las tablas ✅ / 🟡 / 🔴 sigue exigiendo **evidencia repetida del uso real**, y esa reclasificación
+sigue sin tomarla la asistencia externa. **Estar autorizada a construirse no es estar aprendida.**

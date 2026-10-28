@@ -34,6 +34,7 @@ from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 
 from .. import observability as obs
+from .operaciones import texto_utilizable
 
 # Estados posibles de una tarea. `bloqueada` es distinto de `abierta`: una tarea bloqueada NO es la
 # siguiente accion, aunque no este terminada. Sin esa distincion, reanudar elegiria trabajo imposible.
@@ -59,6 +60,106 @@ TRANSICIONES: dict[str, tuple[str, ...]] = {
 
 class TransicionInvalida(Exception):
     """La transicion no esta permitida, o no declara autoridad y causa."""
+
+
+# CLAVE bajo la que el veredicto estructurado de un ejecutor viaja dentro de `Tarea.args` (acta del
+# CEO, 2026-08-15). Vive AQUI, con el modelo de datos, y no en el planificador: el contexto viaja
+# DENTRO de la tarea, asi que su clave pertenece al contrato de la tarea. Ponerla en `planificacion`
+# obligaba al Director a importar de alli y rompia un desacoplamiento deliberado -lo detecto
+# `test_el_director_NO_conoce_la_planificacion`, que existe justo para eso-.
+#
+# Va en `args` y NO en `evidencias`: aquello es una lista de texto para que la lea una persona, y
+# ademas de la evidencia se deriva el identificador de la tarea derivada, de modo que meter datos de
+# maquina ahi romperia la deduplicacion.
+CLAVE_CONTEXTO = "_veredicto"
+
+# Lo que el `EjecutorProgramador` lee de `args`. Solo se transporta lo que el veredicto TRAIGA: lo
+# ausente se queda ausente y el ejecutor bloquea con un motivo concreto, en vez de que alguien
+# invente un valor (INV-9).
+_CAMPOS_DE_EJECUCION = ("fichero", "buscar", "sustituir")
+
+
+def _utilizables(origen: dict) -> dict:
+    """Los campos de ejecucion que de verdad se pueden ejecutar, segun la regla UNICA del sistema.
+
+    Habia una copia de esta regla en cada capa -el traductor y el filtro del punto de paso-. La
+    tercera auditoria midio lo que eso costaba: revertir UNA de las dos a la veracidad a secas dejaba
+    44/44 pruebas en verde, porque la otra capa atrapaba el fallo. Dos guardas gemelas no son defensa
+    en profundidad: son dos sitios donde la regla puede divergir y una sola prueba que se entera.
+
+    Y VOLVIO A PASAR: la correccion anterior escribio `texto_utilizable` en `operaciones` para el
+    ejecutor y dejo AQUI la copia inline, mientras el commit y estos docstrings anunciaban la
+    unificacion. La quinta auditoria lo midio: `sustituir = "\\u200b"` y `sustituir = "\\x00"` los
+    rechazaba el ejecutor y los aceptaba esta capa. Declarado != real, esta vez en mi propio texto.
+    Ahora se llama a la funcion, que es la unica forma de que no puedan divergir.
+    """
+    return {c: origen[c] for c in _CAMPOS_DE_EJECUCION if texto_utilizable(origen.get(c))}
+
+
+def solo_ejecutable_completo(contexto: dict) -> dict:
+    """Filtra un contexto para que NUNCA salga con claves de ejecucion incompletas.
+
+    La guarda vivia solo en `contexto_de_correccion`, que llama el Director. Pero el oyente copiaba
+    `args[_veredicto]` VERBATIM: la proteccion era una propiedad de un llamador, no del sistema.
+    Cualquier ruta futura que adjuntase un contexto a mano -o un `transitar` con `args` puestos por
+    otro componente- lo esquivaba y volvia a abrir el camino destructivo.
+
+    Aqui se aplica en el PUNTO DE PASO, justo antes de que el contexto se convierta en argumentos de
+    una tarea que un ejecutor va a leer. Lo incompleto no se descarta: se degrada a `*_declarado`,
+    que nadie ejecuta y el CEO si puede leer.
+    """
+    if not isinstance(contexto, dict):
+        # `args` es un diccionario abierto: nadie garantiza que `_veredicto` traiga un dict. Sin esto
+        # un valor suelto reventaba con AttributeError DENTRO del observador, y la excepcion escapaba
+        # de `transitar` -- que promete justo lo contrario: "un observador que falle no corrompe el
+        # estado, solo se pierde su reaccion".
+        return {}
+    completos = _utilizables(contexto)
+    if len(completos) == len(_CAMPOS_DE_EJECUCION):
+        return dict(contexto)
+    limpio = {k: v for k, v in contexto.items() if k not in _CAMPOS_DE_EJECUCION}
+    for campo, valor in completos.items():
+        limpio.setdefault(f"{campo}_declarado", valor)
+    return limpio
+
+
+def contexto_de_correccion(resultado: dict, motivo: str) -> dict:
+    """Traduce el veredicto de un ejecutor a contexto accionable. Solo `motivo` si no hay mas.
+
+    Hoy solo el auditor publica datos accionables (`rotas`). El QA devuelve un resumen en prosa: de
+    ahi no sale un fichero ni un patron, y **no se inventa** -- la tarea derivada nacera sin
+    argumentos de ejecucion y se bloqueara, que es el resultado correcto y no un fallo.
+
+    Se toma la PRIMERA garantia rota, no todas: una tarea derivada es una unidad de trabajo, y
+    repartir varias correcciones en una sola impediria que el ciclo las escale por separado.
+    """
+    contexto: dict = {"motivo": motivo}
+    rotas = resultado.get("rotas") or []
+    primera = rotas[0] if isinstance(rotas, list) and rotas and isinstance(rotas[0], dict) else {}
+
+    # TODO O NADA en las claves de ejecucion. Publicar `fichero` y `buscar` SIN `sustituir` no deja
+    # la tarea a medias: la vuelve DESTRUCTIVA. Medido: el dry-run del Programador da `viable` y el
+    # efecto es "sustituir 1 aparicion", con `sustituir` vacio -- es decir, BORRAR el patron. Y como
+    # borrar un patron de un TOML no rompe ninguna prueba, el QA lo respaldaria y el cambio se
+    # conservaria: AURORA habria destruido la garantia en vez de repararla.
+    #
+    # Un cambio incompleto no es medio cambio: es otro cambio. Se exigen los tres.
+    # `str(...).strip()` y no la veracidad a secas: `sustituir = "   "` es un valor PRESENTE y
+    # VERDADERO que pasaba la guarda y llegaba como ejecutable. Medido: el dry-run daba `viable` y el
+    # efecto era sustituir el patron por espacios -- destruir la garantia, con el QA respaldandolo
+    # porque eso no rompe ninguna prueba. Un campo en blanco no es un campo.
+    completos = _utilizables(primera)
+    if len(completos) == len(_CAMPOS_DE_EJECUCION):
+        contexto.update(completos)
+    else:
+        # Incompleto: viaja igual, pero bajo claves que NINGUN ejecutor consume. El CEO -y manana un
+        # modelo- ven el fichero y el patron; nadie los ejecuta a ciegas.
+        for campo, valor in completos.items():
+            contexto[f"{campo}_declarado"] = valor
+
+    if primera.get("mutante"):
+        contexto["referencia"] = primera["mutante"]
+    return contexto
 
 
 @dataclass(frozen=True)

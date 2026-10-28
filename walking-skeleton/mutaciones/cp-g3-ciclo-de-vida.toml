@@ -1,0 +1,87 @@
+incremento = "CP · G3 lectura y ciclo de vida del canal (2026-08-24)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/communication-plane"
+# Cada mutante degrada una garantia REAL de G3: idempotencia, append-only, deteccion de
+# manipulacion, autosuficiencia del handoff y unicidad de la verdad sobre el lock.
+pruebas = ["test_red_communication_plane.py::test_el_hilo_completo_se_reconstruye_desde_el_log",
+           "test_red_communication_plane.py::test_una_linea_truncada_al_final_no_impide_abrir_el_canal",
+           "test_red_communication_plane.py::test_la_cadena_de_hashes_detecta_una_manipulacion_del_log",
+           "test_red_communication_plane.py::test_un_mensaje_marcado_como_procesado_no_vuelve_a_entregarse",
+           "test_red_communication_plane.py::test_marcar_procesado_dos_veces_es_inocuo",
+           "test_red_communication_plane.py::test_el_estado_de_procesado_sobrevive_al_reinicio",
+           "test_red_communication_plane.py::test_el_log_es_append_only_los_mensajes_no_se_modifican",
+           "test_red_communication_plane.py::test_el_handoff_se_genera_desde_el_canal_sin_intervencion",
+           "test_red_communication_plane.py::test_el_handoff_declara_los_bloqueos_pendientes",
+           "test_red_communication_plane.py::test_un_segundo_proceso_no_puede_tomar_el_lock_mientras_esta_tomado"]
+timeout_s = 120
+
+[[mutante]]
+id = "G3-M1"
+descripcion = "marcar_procesado deja de ser IDEMPOTENTE: anexa un evento cada vez"
+fichero = "communication_plane.py"
+buscar = '''        if id_mensaje in self._eventos("procesado"):
+            return'''
+sustituir = '''        if False:
+            return'''
+
+[[mutante]]
+id = "G3-M2"
+descripcion = "un mensaje procesado vuelve a entregarse: pendientes ignora los eventos"
+fichero = "communication_plane.py"
+buscar = '''                and m.get("id") not in procesados and m.get("id") not in retractados]'''
+sustituir = '''                ]'''
+
+[[mutante]]
+id = "G3-M3"
+descripcion = "retractar BORRA en vez de anexar: se rompe append-only"
+fichero = "communication_plane.py"
+buscar = '''        self._anexar_evento("retractado", id_mensaje, motivo=motivo)'''
+sustituir = '''        lineas = [l for l in self._log.read_text(encoding="utf-8").splitlines()
+                  if id_mensaje not in l]
+        self._log.write_text("\n".join(lineas) + "\n", encoding="utf-8")'''
+
+[[mutante]]
+id = "G3-M4"
+descripcion = "la manipulacion del log deja de detectarse: la cadena no se contrasta"
+fichero = "communication_plane.py"
+buscar = '''            if m.get("hash") != esperado or m.get("hash_anterior") != anterior_hash:'''
+sustituir = '''            if False:'''
+
+[[mutante]]
+id = "G3-M5"
+descripcion = "una linea ilegible se cuenta como corrupcion de la cadena en vez de descartarse"
+fichero = "communication_plane.py"
+buscar = '''                except json.JSONDecodeError:
+                    lineas_descartadas += 1'''
+sustituir = '''                except json.JSONDecodeError:
+                    pass'''
+
+[[mutante]]
+id = "G3-M6"
+descripcion = "el handoff deja de declarar los bloqueos: miente por omision"
+fichero = "communication_plane.py"
+buscar = '''                         for m in vivos if m.get("tipo") == "DECISION_REQUIRED"],'''
+sustituir = '''                         for m in vivos if False],'''
+
+[[mutante]]
+id = "G3-M7"
+descripcion = "el hilo se reconstruye ignorando in_reply_to: devuelve todo el log"
+fichero = "communication_plane.py"
+buscar = '''        return [m for m in mensajes if m.get("id") == raiz or m.get("in_reply_to") == raiz]'''
+sustituir = '''        return mensajes'''
+
+[[mutante]]
+id = "G3-M8"
+descripcion = "segunda verdad sobre el lock: se responde sin consultar el flock real"
+fichero = "communication_plane.py"
+buscar = '''        return not _lock_libre(self._dir)'''
+sustituir = '''        return False'''
+
+[[mutante]]
+id = "G3-M9"
+descripcion = "el estado de procesado deja de persistir: no se anexa al log"
+fichero = "communication_plane.py"
+buscar = '''            with open(self._log, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(registro, ensure_ascii=False, sort_keys=True) + "\n")'''
+sustituir = '''            pass'''

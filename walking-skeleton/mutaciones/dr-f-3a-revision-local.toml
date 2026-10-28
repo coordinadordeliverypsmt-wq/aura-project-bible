@@ -1,0 +1,115 @@
+incremento = "DR-F-3a · frontera del revisor local: AURA localiza, el modelo clasifica (2026-09-05)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/control-plane"
+# La garantia de DR-F-3a no es «obtener un veredicto»: es que el modelo no pueda aportar evidencia,
+# ni redactar, ni salirse del catalogo, y que una evidencia que no se sostiene detenga la revision.
+# Cada mutante abre una via para devolverle al modelo un trabajo que se le acaba de quitar.
+pruebas = ["test_red_revision_local.py"]
+timeout_s = 180
+
+[[mutante]]
+id = "F3A-M1"
+descripcion = "las citas vuelven a salir de la respuesta del modelo"
+fichero = "revision_local.py"
+buscar = '''    return tuple(f"{c['fichero']}:{c['linea']}" for c in expediente.evidencia)'''
+sustituir = '''    return ("/etc/passwd:1",)'''
+
+[[mutante]]
+id = "F3A-M2"
+descripcion = "el veredicto deja de validarse contra el catalogo: «aprobado_total» atraviesa"
+fichero = "revision_local.py"
+buscar = '''    return veredicto if veredicto in rev.VEREDICTOS else None'''
+sustituir = '''    return veredicto'''
+
+[[mutante]]
+id = "F3A-M3"
+descripcion = "una linea que no dice lo que se le atribuye pasa por evidencia"
+fichero = "revision_local.py"
+buscar = '''        if simbolo and simbolo not in texto:
+            continue'''
+sustituir = '''        if False:
+            continue'''
+
+[[mutante]]
+id = "F3A-M4"
+descripcion = "la raiz deja de acotar: se puede citar fuera del repositorio"
+fichero = "revision_local.py"
+buscar = '''    if not destino.is_relative_to(base) or not destino.is_file():'''
+sustituir = '''    if not destino.is_file():'''
+
+[[mutante]]
+id = "F3A-M5"
+descripcion = "sin evidencia se construye expediente igual: la revision pierde su fundamento"
+fichero = "revision_local.py"
+buscar = '''    if not citas:
+        return None'''
+sustituir = '''    if False:
+        return None'''
+
+[[mutante]]
+id = "F3A-M6"
+descripcion = "fail-open en la caida del transporte: se fabrica un conforme"
+fichero = "revision_local.py"
+buscar = '''    except Exception:            # noqa: BLE001 — transporte caido, timeout, lo que sea: fail-closed
+        return None'''
+sustituir = '''    except Exception:            # noqa: BLE001
+        return "conforme"'''
+
+[[mutante]]
+id = "F3A-M7"
+descripcion = "los motivos vuelven a traer texto del modelo"
+fichero = "revision_local.py"
+buscar = '''    return (f"clasificado {veredicto!r} sobre {len(expediente.evidencia)} evidencia(s) verificada(s)",
+            f"accion {expediente.accion} sobre {expediente.fichero}")'''
+sustituir = '''    return (f"clasificado {veredicto!r}", str(expediente.diagnostico))'''
+
+[[mutante]]
+id = "F3A-M8"
+descripcion = "las credenciales viajan al modelo dentro de las restricciones"
+fichero = "revision_local.py"
+buscar = '''    return {k: v for k, v in criterios.items()
+            if not any(s in k.lower() for s in _SOSPECHOSAS)}'''
+sustituir = '''    return dict(criterios)'''
+
+[[mutante]]
+id = "F3A-M9"
+descripcion = "el esquema deja de cerrar el catalogo: cualquier cadena seria veredicto"
+fichero = "revision_local.py"
+buscar = '''    "properties": {"veredicto": {"type": "string", "enum": list(rev.VEREDICTOS)}},'''
+sustituir = '''    "properties": {"veredicto": {"type": "string"}},'''
+
+[[mutante]]
+id = "F3A-M10"
+descripcion = "una linea fuera de rango se admite como evidencia"
+fichero = "revision_local.py"
+buscar = '''        if not 1 <= numero <= len(contenido):
+            continue'''
+sustituir = '''        if False:
+            continue'''
+
+[[mutante]]
+id = "F3A-M11"
+descripcion = "el revisor se enciende sin transporte: se finge capacidad (INV-9)"
+fichero = "revisores.py"
+buscar = '''        return bool(self._habilitado and self._transporte is not None and self._raiz is not None)'''
+sustituir = '''        return bool(self._habilitado)'''
+
+[[mutante]]
+id = "F3A-M12"
+descripcion = "None deja de ser espera y se convierte en veredicto: el silencio aprobaria"
+fichero = "revisores.py"
+buscar = '''        veredicto = _rl.clasificar(expediente, self._transporte)
+        if veredicto is None:
+            return None'''
+sustituir = '''        veredicto = _rl.clasificar(expediente, self._transporte)
+        if veredicto is None:
+            veredicto = "conforme"'''
+
+[[mutante]]
+id = "F3A-M13"
+descripcion = "anadir evidencia reescribe la identidad de los expedientes que ya existian"
+fichero = "revisores.py"
+buscar = '''        if self.evidencia:
+            base["evidencia"] = [dict(cita) for cita in self.evidencia]'''
+sustituir = '''        base["evidencia"] = [dict(cita) for cita in self.evidencia]'''

@@ -58,7 +58,7 @@ en rojo.
 | Capacidades de producto cerradas | **4** — N2 Memoria Semántica · Centro de Notificaciones · Modelo de Usuario · Automatización definida por el usuario |
 | Quality Gate | PASS **472 passed / 3 skipped** |
 | Benchmark permanente | `tests/datos/bateria_memoria.json` — 65 recuerdos, 77 consultas. Cualquier cambio del recuperador debe superarla. Decisión razonada en `milestones/m3-entry/DECISION-RECUPERADOR-N1.md` |
-| Alertas de arquitectura abiertas | **1 — `ALERTA-006`** (borrado sin motor único). Las cinco históricas siguen resueltas |
+| Alertas de arquitectura abiertas | **0.** `ALERTA-006` **resuelta técnicamente el 2026-09-09** (las cuatro rutas pasan por el Motor Único; `G-1` en `R-A 0`/`R-B 0`). Queda una **exposición residual distinta**, `memory.write` fuera del motor, gobernada por `ADR-0024` y abierta en `decisiones/2026-09-09-D-A006-decision-package.md`: **no hereda la prioridad de ALERTA-006** |
 | Trabajo en curso | **ninguno** |
 | Proceso automatizado | `CLAUDE.md` (protocolo por sesión) · 4 agentes en `.claude/agents/` · hook `pre-push` con bloqueo duro · arnés de mutación (`herramientas/mutar.py`, a demanda) |
 | Modo de trabajo | **Orquestado** (CEO, 2026-08-02): el trabajo se reparte entre agentes; una tarea solo se cierra por evidencia, nunca porque un agente diga que terminó |
@@ -91,8 +91,8 @@ construido?"* con la del **roadmap**. Ambas tablas están separadas en
 
 | Pendiente | Desde | Qué bloquea |
 |---|---|---|
-| **P1 · Escenario de despliegue** (¿es esta máquina el objetivo?) | 2026-07-21 | 3 de las 5 fases de M3 |
-| **Siguiente inversión del proyecto** tras la revisión estratégica | 2026-08-02 | Todo trabajo de construcción nuevo |
+| ~~**P1 · Escenario de despliegue**~~ | 2026-07-21 | **RESUELTA el 2026-09-09: despliegue local en la máquina principal; `HC-1` como hardware de referencia de medición.** Acta: `decisiones/2026-09-09-acta-cuatro-decisiones-ceo.md` §D-4. Las 3 fases de M3 quedan desbloqueadas |
+| ~~**Siguiente inversión del proyecto**~~ | 2026-08-02 | **RESUELTA el 2026-09-09: Cognición Local + Rendimiento del Razonador.** Acta §D-3 · perímetro en `milestones/m3-entry/DP-COGNICION-LOCAL-Y-RENDIMIENTO.md`. La construcción nueva queda desbloqueada |
 | **Mover el artefacto de N2** (opciones B/C del Decision Package) | 2026-08-02 | Nada urgente: el CEO lo aplazó hasta que N2 pueda usarse; hoy P1 la bloquea. Ver §4.3 |
 | **`CHANGELOG.md` e `INDICE.md` abandonados** | 2026-08-02 | Nada técnico, pero afirman ser registro del proyecto y llevan 12-15 días desfasados. Detectado durante el incremento de proceso; no se corrigió para no desviarlo |
 | **SIGKILL durante una mutación** deja el fichero mutado | 2026-08-02 | Nada: inevitable en Python (SIGKILL no es interceptable). Recuperación: `git checkout -- <fichero>`. SIGINT sí restaura correctamente |
@@ -233,6 +233,10 @@ tiene términos exclusivos. **No es un control de este escenario**, aunque su no
 
 1. **Abrir la fase de integración.** Decisión explícita del CEO (2026-08-02).
 2. **Iniciar cualquier incremento nuevo** sin decisión posterior a la revisión estratégica.
+   **LEVANTADO PARA LA LÍNEA B** — decisión expresa del CEO, 2026-08-25 (`D-ORCH-5`). El
+   Communication Plane puede avanzar más allá de B1 sin acta por incremento. **Sigue vigente
+   para todo lo demás**, y no autoriza tocar `D24`, local-first, `AURA_APPROVED` ni instalar
+   agentes de forma permanente.
 3. **Abrir frentes fuera del plan** aprobado.
 4. **Fabricar entornos** para aprobar hitos (D34) ni adoptar claves de terceros (D24).
 5. **Recortar capacidades del MVP**: exige nueva acta del CEO (D2 es rango 1).
@@ -262,7 +266,7 @@ trampas son de este checklist.**
 | `milestones/m3-entry/DEUDA-N1-RECUPERADOR.md` | 7 partidas. **`D-M-7` es CRÍTICA: ADR-0014 casi nunca se activa — 0 de 77 consultas de la batería reconocidas.** **`D-M-2` es CRÍTICA: el eco `usuario dijo:` del propio turno desactiva ADR-0014 al repetir una pregunta.** Además: recall a 0,000 con coletillas de cortesía, recuerdo largo como atractor de FP, refutados que siguen llegando al LLM, y `D-M-1` (régimen ubicuo) |
 | `milestones/m3-entry/ESPEC-G-1-RUTA-UNICA-DE-MUTACION.md` | Especificación **pendiente de aprobación** de la garantía G-1: contrato formal, verificador AST (3 reglas), 6 falsos positivos y 6 falsos negativos identificados, y migración por lista blanca que **solo puede encoger**. **Medido: renombrar las operaciones mutantes es condición de viabilidad** (resolución 40 % → 100 %) |
 | `milestones/m3-entry/DP-D-M-8-MOTOR-UNICO-DE-MUTACIONES.md` | Decision Package **pendiente de aprobación**. Define el contrato del Motor Único de Mutaciones, el flujo obligatorio, la integración con kill switch/permisos/HITL, reversibilidad, 7 garantías para el Quality Gate y plan de migración en 7 fases. **De él dependen las correcciones de ALERTA-006, D-M-7 y D-M-2** |
-| `milestones/m3-entry/ALERTA-006-BORRADO-SIN-MOTOR.md` | **ALERTA ABIERTA — PRIORIDAD MÁXIMA (CEO, 2026-08-03). CONTENCIÓN YA IMPLEMENTADA** (guarda de dominio · `_foco` que no destruye ante duda · `refutar` que no narra éxito sin efecto; 5/5 mutantes). **Sigue abierto lo estructural: la mutación NO pasa por el Motor Único y el kill switch armado NO la detiene.** 3 de las 7 ramas del turno mutan estado del usuario fuera del Motor Único. **Con el kill switch ARMADO, AURA sigue borrando datos del usuario.** «Se me olvida tomar la pastilla» destruyó un dato clínico. `olvidar` reescribe el JSONL (destruye historia, sin backup). `refutar` es irreversible y narra éxito con n=0. **Ninguna prueba cubre «ruta única», y la e2e de soberanía consagra el bypass** |
+| `milestones/m3-entry/ALERTA-006-BORRADO-SIN-MOTOR.md` | **RESUELTA TÉCNICAMENTE (2026-09-09).** Las cuatro rutas denunciadas —`modelo_usuario.borrar`/`refutar`, `AlmacenReglas.crear`/`desactivar`— pasan por el Motor Único desde F4, con permisos, kill switch y fail-closed; `G-1` las confirma con `R-A 0` y `R-B 0`. **El diagnóstico del 2026-08-03 se conserva íntegro y fechado**: el documento lleva un bloque de cierre y un aviso en su §1. **Lo que NO se cierra con ella:** `memory.write` muta memoria persistente fuera del motor y con `PARADA` armada — exposición residual acotada por `ADR-0024` (whitelist fail-closed de escritura pasiva) y abierta en `decisiones/2026-09-09-D-A006-decision-package.md` |
 | `milestones/m3-entry/DP-D-M-7-CLASIFICACION-DE-INTENCION.md` | Decision Package **pendiente de aprobación**: 13 clasificadores léxicos dispersos, 91 patrones, ninguno distingue pregunta de afirmación. Propone taxonomía de 2 ejes |
 | `milestones/m3-entry/DP-D-M-2-ECO-CONVERSACIONAL.md` | Decision Package **pendiente de aprobación** para `D-M-2`. Recomienda `Op-5` (no almacenar como recuperable lo que es una pregunta). Advierte de solapamiento con `D-M-7` |
 | `milestones/m3-entry/DP-D-M-1-RECUPERACION-EXACTA.md` | Decision Package **APROBADO como documento** (CEO, 2026-08-03). Recomienda `A′` (prefijo con cota, α=1 como elección de diseño). **La implementación NO está autorizada: el CEO la supeditó a resolver antes `D-M-2`** |

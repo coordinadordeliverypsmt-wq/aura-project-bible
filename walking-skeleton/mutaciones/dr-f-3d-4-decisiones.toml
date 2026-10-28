@@ -1,0 +1,130 @@
+incremento = "DR-F-3d-4 · A3 decisiones aplicables + B2 alcance de D21 (2026-09-06)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/control-plane"
+# La garantia no es «el juicio sale conforme»: es que **una declaracion nunca valga como
+# verificacion**, que una referencia inventada no conceda autoridad, y que `B2` no se convierta ni en
+# una puerta abierta (D21 opcional donde aplica) ni en un bloqueo (D21 exigido a toda tarea).
+pruebas = ["test_red_decisiones_aplicables.py", "test_red_veracidad_revisor.py"]
+timeout_s = 240
+
+[[mutante]]
+id = "A3-M1"
+descripcion = "vuelve la constante: respeta_decisiones=True concede consistencia"
+fichero = "review.py"
+buscar = '''        elif all(estado == VERIFICADO for estado in decisiones.values()):
+            verificados.append("consistencia")'''
+sustituir = '''        elif tarea.get("respeta_decisiones"):
+            verificados.append("consistencia")'''
+
+[[mutante]]
+id = "A3-M2"
+descripcion = "la bandera autodeclarada se acepta como verificacion"
+fichero = "review.py"
+buscar = '''    else:
+        declarados.append("consistencia")
+    if not tarea.get("respeta_decisiones", True) and "consistencia" not in fallos:'''
+sustituir = '''    elif tarea.get("respeta_decisiones"):
+        verificados.append("consistencia")
+    if not tarea.get("respeta_decisiones", True) and "consistencia" not in fallos:'''
+
+[[mutante]]
+id = "A3-M3"
+descripcion = "UNKNOWN pasa a PASS: lo no mecanizable se da por verificado"
+fichero = "review.py"
+buscar = '''        elif _documento_existe(nombre, raiz):
+            resultado[nombre] = REQUIERE_REVISION_HUMANA'''
+sustituir = '''        elif _documento_existe(nombre, raiz):
+            resultado[nombre] = VERIFICADO'''
+
+[[mutante]]
+id = "A3-M4"
+descripcion = "fail-closed roto: una decision inexistente deja de fallar"
+fichero = "review.py"
+buscar = '''        else:
+            resultado[nombre] = INCUMPLIDA
+    return resultado'''
+sustituir = '''        else:
+            resultado[nombre] = REQUIERE_REVISION_HUMANA
+    return resultado'''
+
+[[mutante]]
+id = "A3-M5"
+descripcion = "una decision verificada legitima a las demas"
+fichero = "review.py"
+buscar = '''        elif all(estado == VERIFICADO for estado in decisiones.values()):'''
+sustituir = '''        elif any(estado == VERIFICADO for estado in decisiones.values()):'''
+
+[[mutante]]
+id = "A3-M6"
+descripcion = "una comprobacion que revienta se da por buena"
+fichero = "review.py"
+buscar = '''            except Exception:            # noqa: BLE001 — una comprobacion que revienta no aprueba
+                resultado[nombre] = INCUMPLIDA'''
+sustituir = '''            except Exception:            # noqa: BLE001
+                resultado[nombre] = VERIFICADO'''
+
+[[mutante]]
+id = "A3-M7"
+descripcion = "una decision incumplida deja de hacer fallar la consistencia"
+fichero = "review.py"
+buscar = '''        if any(estado == INCUMPLIDA for estado in decisiones.values()):
+            fallos.append("consistencia")'''
+sustituir = '''        if False:
+            fallos.append("consistencia")'''
+
+[[mutante]]
+id = "B2-M1"
+descripcion = "D21 se vuelve opcional para una decision estrategica"
+fichero = "review.py"
+buscar = '''    if es_tarea_tecnica_acotada(tarea, directorio=directorio):
+        no_aplica.append("cinco_preguntas_d21")'''
+sustituir = '''    if True:
+        no_aplica.append("cinco_preguntas_d21")'''
+
+[[mutante]]
+id = "B2-M2"
+descripcion = "D21 se vuelve obligatorio para toda tarea tecnica acotada"
+fichero = "review.py"
+buscar = '''    if es_tarea_tecnica_acotada(tarea, directorio=directorio):
+        no_aplica.append("cinco_preguntas_d21")
+    else:'''
+sustituir = '''    if False:
+        no_aplica.append("cinco_preguntas_d21")
+    else:'''
+
+[[mutante]]
+id = "B2-M3"
+descripcion = "una accion fuera del catalogo delegable se presume acotada"
+fichero = "review.py"
+buscar = '''    if accion not in TODO_LO_DELEGABLE:
+        return False'''
+sustituir = '''    if False:
+        return False'''
+
+[[mutante]]
+id = "B2-M4"
+descripcion = "la materia reservada se presume tarea acotada y esquiva D21"
+fichero = "review.py"
+buscar = '''    if es_materia_reservada(accion):
+        return False
+    if accion not in TODO_LO_DELEGABLE:'''
+sustituir = '''    if False:
+        return False
+    if accion not in TODO_LO_DELEGABLE:'''
+
+[[mutante]]
+id = "B2-M5"
+descripcion = "el alcance del acta deja de condicionar la clasificacion"
+fichero = "review.py"
+buscar = '''    if directorio is not None and not en_alcance(directorio, accion):
+        return False'''
+sustituir = '''    if False:
+        return False'''
+
+[[mutante]]
+id = "A3-M8"
+descripcion = "el planificador vuelve a firmar en blanco en vez de enumerar decisiones"
+fichero = "planificador.py"
+buscar = '''        "decisiones_aplicables": DECISIONES_DE_CODIGO_MUERTO,'''
+sustituir = '''        "respeta_decisiones": True,'''

@@ -1,0 +1,53 @@
+incremento = "Control Plane · contencion de zonas bloqueadas (2026-08-25)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/control-plane"
+# La contencion falla en DOS sentidos y ambos importan: dejar pasar una zona vetada (falso negativo)
+# y bloquear un identificador ajeno (falso positivo). Los mutantes atacan los dos.
+pruebas = ["test_red_discovery.py"]
+timeout_s = 90
+
+[[mutante]]
+id = "ZON-M1"
+descripcion = "se pierde la normalizacion de mayusculas: DCP8 deja de bloquear"
+fichero = "control_plane.py"
+buscar = '''    return "".join(c for c in str(texto).lower() if c.isalnum())'''
+sustituir = '''    return "".join(c for c in str(texto) if c.isalnum())'''
+
+[[mutante]]
+id = "ZON-M2"
+descripcion = "se dejan de eliminar los separadores: d-cp-8 y dcp8 dejan de ser la misma zona"
+fichero = "control_plane.py"
+buscar = '''    return "".join(c for c in str(texto).lower() if c.isalnum())'''
+sustituir = '''    return str(texto).lower()'''
+
+[[mutante]]
+id = "ZON-M3"
+descripcion = "se pierden las concatenaciones de tokens: d_cp_8 deja de bloquear"
+fichero = "control_plane.py"
+buscar = '''        for j in range(i + 1, min(i + 5, len(crudos)) + 1):   # hasta 4 tokens contiguos'''
+sustituir = '''        for j in range(i + 1, i + 2):'''
+
+[[mutante]]
+id = "ZON-M4"
+descripcion = "el matching normalizado vuelve a ser por SUBSTRING: md-cp-8x queda bloqueado por error"
+fichero = "control_plane.py"
+buscar = '''    return any(_normalizar(z) in piezas for z in zonas)'''
+sustituir = '''    return any(_normalizar(z) in _normalizar(texto) for z in zonas)'''
+
+[[mutante]]
+id = "ZON-M5"
+descripcion = "sin lista de zonas se deja de bloquear: se pierde el fail-closed"
+fichero = "control_plane.py"
+buscar = '''    if not zonas:
+        return True'''
+sustituir = '''    if not zonas:
+        return False'''
+
+[[mutante]]
+id = "ZON-M6"
+descripcion = "toda zona queda bloqueada indiscriminadamente: el descubridor deja de servir"
+fichero = "control_plane.py"
+buscar = '''    piezas = _fragmentos(texto)
+    return any(_normalizar(z) in piezas for z in zonas)'''
+sustituir = '''    return True'''

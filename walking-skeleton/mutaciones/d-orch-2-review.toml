@@ -1,0 +1,142 @@
+incremento = "D-ORCH-2 · nivel REVIEW construido y apagado (2026-08-26)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/control-plane"
+pruebas = ["test_red_review.py"]
+timeout_s = 240
+
+[[mutante]]
+id = "RV-M1"
+garantia = "REVIEW nace APAGADO: nacer encendido seria concederse el nivel a si mismo (ADR-0003:33 «nunca automaticamente»)"
+fichero = "review.py"
+pruebas = ["test_red_review.py::test_REVIEW_nace_DESHABILITADO",
+           "test_red_review.py::test_sin_habilitacion_una_tarea_REVIEW_no_se_ejecuta",
+           "test_red_review.py::test_la_habilitacion_NO_se_hereda_entre_directorios"]
+buscar = '''REVIEW_HABILITADO = False'''
+sustituir = '''REVIEW_HABILITADO = True'''
+
+[[mutante]]
+id = "RV-M2"
+garantia = "solo una autoridad HUMANA habilita el nivel"
+fichero = "review.py"
+pruebas = ["test_red_review.py::test_solo_un_ACTA_del_CEO_habilita_el_nivel"]
+buscar = '''    if por not in ac.AUTORIDADES_HUMANAS:
+        raise ReviewNoHabilitado('''
+sustituir = '''    if False:
+        raise ReviewNoHabilitado('''
+
+[[mutante]]
+id = "RV-M3"
+garantia = "habilitar exige ACTA: sin constancia no es una decision"
+fichero = "review.py"
+pruebas = ["test_red_review.py::test_solo_un_ACTA_del_CEO_habilita_el_nivel"]
+buscar = '''    if not (acta or "").strip():
+        raise ReviewNoHabilitado("habilitar REVIEW exige acta'''
+sustituir = '''    if False:
+        raise ReviewNoHabilitado("habilitar REVIEW exige acta'''
+
+[[mutante]]
+id = "RV-M4"
+garantia = "el alcance es CERRADO: habilitar REVIEW no es un cheque en blanco"
+fichero = "review.py"
+pruebas = ["test_red_review.py::test_la_habilitacion_tiene_ALCANCE_CERRADO",
+           "test_red_review.py::test_circuito_REVIEW_completo_cuando_el_CEO_lo_habilita"]
+buscar = '''    return accion in _alcance(directorio) and not es_materia_reservada(accion)'''
+sustituir = '''    return not es_materia_reservada(accion)'''
+
+[[mutante]]
+id = "RV-M5"
+garantia = "MATERIA RESERVADA no pasa por REVIEW ni con el nivel encendido (D22)"
+fichero = "review.py"
+pruebas = ["test_red_review.py::test_MATERIA_RESERVADA_nunca_pasa_por_REVIEW",
+           "test_red_review.py::test_bajo_REVIEW_la_gobernanza_SIGUE_intocable"]
+buscar = '''    if es_materia_reservada(accion):
+        raise MateriaReservada('''
+sustituir = '''    if False:
+        raise MateriaReservada('''
+
+[[mutante]]
+id = "RV-M6"
+garantia = "EL QUE PROPONE NO REVISA: «No aprueba su propio trabajo» (1.1:94)"
+fichero = "review.py"
+pruebas = ["test_red_review.py::test_EL_QUE_PROPONE_NO_REVISA"]
+buscar = '''    if revisor == propuesto_por:
+        raise RevisorNoIndependiente('''
+sustituir = '''    if False:
+        raise RevisorNoIndependiente('''
+
+[[mutante]]
+id = "RV-M7"
+garantia = "una OBJECION detiene la ejecucion: si no la parase, revisar no serviria de nada"
+fichero = "review.py"
+pruebas = ["test_red_review.py::test_una_objecion_DETIENE_la_ejecucion"]
+buscar = '''    return veredicto is not None and not veredicto.objeciones'''
+sustituir = '''    return True'''
+
+[[mutante]]
+id = "RV-M8"
+# RE-ANCLADO 2026-09-09: el codigo se movio durante el trabajo de esta sesion y el patron dejo de
+# coincidir. La garantia es la MISMA; lo que cambio es donde vive. Quedaba invisible porque el
+# auditor resolvia este plano contra la raiz del producto (defecto corregido el mismo dia).
+garantia = "los CUATRO criterios de D22 se comprueban: basta uno para rechazar"
+fichero = "review.py"
+pruebas = ["test_red_review.py::test_el_criterio_de_ALCANCE_se_comprueba_sobre_una_base_que_CUMPLE",
+           "test_red_review.py::test_las_CINCO_PREGUNTAS_D21_se_exigen_a_una_tarea_que_NO_es_tecnica_acotada",
+           "test_red_review.py::test_basta_UN_criterio_incumplido_para_que_no_cumpla",
+           "test_red_review.py::test_el_veredicto_aplica_los_CUATRO_criterios_de_D22"]
+buscar = '''        if not tarea.get("d21_afirmativas"):
+            fallos.append("cinco_preguntas_d21")'''
+sustituir = '''        if False:
+            fallos.append("cinco_preguntas_d21")'''
+
+[[mutante]]
+id = "RV-M9"
+# RE-ANCLADO 2026-09-09: el codigo se movio durante el trabajo de esta sesion y el patron dejo de
+# coincidir. La garantia es la MISMA; lo que cambio es donde vive. Quedaba invisible porque el
+# auditor resolvia este plano contra la raiz del producto (defecto corregido el mismo dia).
+garantia = "el criterio de ALCANCE se comprueba (D22: «sin cambio de alcance»)"
+fichero = "review.py"
+pruebas = ["test_red_review.py::test_el_criterio_de_ALCANCE_se_comprueba_sobre_una_base_que_CUMPLE",
+           "test_red_review.py::test_las_CINCO_PREGUNTAS_D21_se_exigen_a_una_tarea_que_NO_es_tecnica_acotada"]
+buscar = '''    if tarea.get("cambia_alcance") and "alcance" not in fallos:
+        fallos.append("alcance")'''
+sustituir = '''    if False:
+        fallos.append("alcance")  # re-anclado'''
+
+[[mutante]]
+id = "RV-M10"
+garantia = "el nivel se comprueba ANTES de tocar nada: comprobarlo despues es haberlo tocado"
+fichero = "review.py"
+pruebas = ["test_red_review.py::test_sin_habilitacion_una_tarea_REVIEW_no_se_ejecuta"]
+buscar = '''    if not habilitado(directorio):
+        raise ReviewNoHabilitado('''
+sustituir = '''    if False:
+        raise ReviewNoHabilitado('''
+
+[[mutante]]
+id = "RV-M11"
+garantia = "la habilitacion NO se hereda entre trabajos: vive con su log"
+fichero = "review.py"
+pruebas = ["test_red_review.py::test_la_habilitacion_NO_se_hereda_entre_directorios"]
+buscar = '''    return any(e["tipo"] == "review_habilitado"
+               for e in cp.leer_eventos(pathlib.Path(directorio)))'''
+sustituir = '''    return True'''
+
+[[mutante]]
+id = "RV-M12"
+garantia = "bajo REVIEW el cambio sigue siendo REVERSIBLE y el efecto se verifica releyendo"
+fichero = "review.py"
+pruebas = ["test_red_review.py::test_bajo_REVIEW_el_cambio_sigue_siendo_REVERSIBLE",
+           "test_red_review.py::test_circuito_REVIEW_completo_cuando_el_CEO_lo_habilita"]
+buscar = '''    resultado = ac.ejecutar(directorio, propuesta, autoridad=autoridad, verificacion=verificacion)'''
+sustituir = '''    resultado = ac.ejecutar(directorio, propuesta, autoridad=autoridad, verificacion=None)'''
+
+[[mutante]]
+id = "RV-M13"
+garantia = "el alcance habilitado no puede incluir materia reservada"
+fichero = "review.py"
+pruebas = ["test_red_review.py::test_un_acta_NO_puede_habilitar_materia_reservada"]
+buscar = '''    fuera = [a for a in alcance if es_materia_reservada(a)]
+    if fuera:'''
+sustituir = '''    fuera = []
+    if fuera:'''

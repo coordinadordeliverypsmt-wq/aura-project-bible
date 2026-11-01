@@ -11739,3 +11739,23 @@ autoriza. Enlazado desde el índice.
 6. Prototipo de Coucou: no autorizado.
 7. KORUS: descartado.
 8. Ideas externas: solo con evidencia, experimento aislado y DP.
+
+## 2026-11-01 · Ratificación DN-1 + DN-2 y respaldo en GitHub (rama integracion/m3-entry)
+
+- **Decisiones del CEO ratificadas:** DN-2 aprobado; DN-1 aprobado técnicamente y **ratificadas las 10
+  clasificaciones por operación del manifiesto, sin ampliar exclusiones**; M4 sigue PROPUESTO (DP §11.1); el `unlink`
+  del firmador NO se toca (solo revisión). Cableado a producción RECHAZADO.
+- **Verificación de los 4 criterios de ratificación [EJEC]:** las 10 entradas nuevas son todas por operación
+  (`opera` no vacío), ninguna es de módulo entero, ninguna pasa a `persistencia_autorizada`, y la detección de una
+  operación nueva no declarada se conserva (guardas `test_parada_escritura_pasiva` y
+  `test_una_escritura_NUEVA_no_declarada`, verdes en el QG).
+- **Pruebas [EJEC]:** arnés G-1 `g1-escritura-bajo-nivel.toml` 11/11; arnés delegación `delegacion-segura.toml`
+  194/194; Quality Gate PASS 4284/3/17. Sin secretos en los ficheros publicados (escaneo previo).
+- **DN-2:** `_anotar_ancla` conserva `jsonl_durable.anexar` (no se sustituye por AuditLog). No se tocó producción ni
+  se crearon anclas reales.
+- **Respaldo GitHub:** commits atómicos en `integracion/m3-entry`, publicados en `origin/integracion/m3-entry`
+  (rama nueva; `main` intacto, sin PR, sin force). Ver entradas del CHECKPOINT de producción (worktree-m3-entry) y el
+  informe de sesión para hashes locales/remotos.
+- **Producción intacta:** `estado.json`/`eventos.jsonl` de producción no tocados; PARADA armada; main = d933a08.
+- **Riesgos pendientes (bloquean cableado):** N2, R4-M1/M2/M3, N1 residual, D-LOG-1 fuera de producción,
+  `cryptography` sin declarar, `unlink` del firmador (revisión en curso). M4 sin aprobar.

@@ -473,3 +473,77 @@ Veredicto: **APTO** para la integración no cableada.
 - `cryptography` sin declarar.
 
 **Cableado a producción: RECHAZADO.** Siguen vigentes los 8 requisitos de §10.6.
+
+## 12. Cierre de DN-1 (G-1) y DN-2 (ancla), sin commit (2026-11-01)
+
+Trabajo sobre `integracion/m3-entry` (HEAD `a0ae469`) con **cambios SIN COMMIT** (la misión prohíbe commit/push/merge).
+El implementador inicial (agente Sonnet) agotó su límite semanal a mitad; el director (Opus) completó el trabajo y lo
+auditó con un revisor independiente (`code-reviewer`) distinto del implementador.
+
+### 12.1 Herramientas realmente usadas
+
+| Herramienta | Estado |
+|---|---|
+| Graphify 0.9.65 | EJECUTADA (grafo del worktree integrado; orientó a `verificador_g1.py`, `jsonl_durable.py`, `observability.py`) |
+| ECC (agentes del proyecto y globales) | EJECUTADA (`security-reviewer`, `arquitecto-evaluador`, `explorador-repositorio`, `code-reviewer`) |
+| Arnés oficial `herramientas.mutar` | EJECUTADA |
+| Quality Gate `quality-gate.sh` | EJECUTADA |
+| AgentShield / Codex / OpenCode | NO INSTALADOS (`command -v` → ausente); no se instalaron |
+
+### 12.2 DN-1 — F2 de bajo nivel en el verificador G-1
+
+- `tests/unit/verificador_g1.py` (+171/−14): R-B detecta ahora `os.open` con flags de escritura (fail-closed si los
+  flags no son una expresión literal `os.O_*`), `os.write/pwrite/writev/ftruncate/truncate`, `os.fdopen` en modo
+  escritura, `tempfile.mkstemp/mkdtemp/NamedTemporaryFile(delete=False)`, `wave.open` en modo escritura, y resuelve
+  alias `import os as X` y `from os import write`. Nombres calificados (`os.open`), sin colisión con el `open` builtin.
+  Falsos negativos declarados: `io.open`/`FileIO`, `Path.open/touch/rename/replace`, `shutil.*`, `mmap`, `sqlite3`,
+  `subprocess`, `ctypes`, acceso dinámico; metadatos (`chmod/mkdir/makedirs/bind`) fuera por diseño.
+- `tests/unit/test_g1_escritura_bajo_nivel.py` (nuevo, 49 casos: negativos y positivos, con la no-colisión
+  builtin↔os.open).
+- `architecture_manifest.toml` (+10 entradas `[[mutaciones.excluido]]` **por operación**): clasifica las 24 escrituras
+  reales que el F2 ampliado hace visibles (computador, jsonl_durable, firma_delegacion, diario_hc1, identidad_nodo,
+  receptor_nodos, nodo_agente, microfono, tts_espeak, voice_real). Ninguna pasa a `persistencia_autorizada` ni es
+  exclusión de módulo entero: una operación nueva no listada se sigue acusando. **REQUIERE RATIFICACIÓN DEL CEO** como
+  D-G1-2/D-A006-4.
+- `tests/unit/test_parada_escritura_pasiva.py`: se amplió el conjunto esperado de la guarda D-A006-4 para computador.py
+  (`+os.open, +os.write, +os.fdopen`), preservando el invariante por-operación. También pendiente de ratificación.
+
+### 12.3 DN-2 — el ancla de revocados detecta la escritura parcial
+
+- `aura_skeleton/adapters/firma_delegacion.py`: `_anotar_ancla` usa `anexar` (jsonl_durable), que comprueba el retorno
+  de `os.write` y falla con `ErrorDurable` ante una escritura parcial; antes el `os.write` ignoraba su retorno y el
+  ancla quedaba truncada en silencio (lista de revocados rota para siempre). Preserva O_APPEND/O_NOFOLLOW, la
+  comprobación de propietario/permisos y el fsync de directorio. `_leer_ancla` parsea el formato compacto de `anexar`.
+- `tests/unit/test_delegacion_dn2_ancla.py` (nuevo): fuerza una escritura parcial del ancla → `ErrorClave`, con control.
+- Observación DN-2 (arquitecto): `jsonl_durable` y `AuditLog` NO son equivalentes (flock, O_EXCL/O_NOFOLLOW, fsync de
+  directorio, escritura parcial, fallo cerrado, multiproceso); se mantienen ambos justificadamente.
+
+### 12.4 Validación en serie `[EJEC]` (sin nada en paralelo)
+
+| Comando | RC | Resultado |
+|---|---|---|
+| `pytest` DN-1+DN-2 (g1 + ruta_unica + manifiesto + dn2) | 0 | verde |
+| `pytest -k delegac/firma/spki/...` | 0 | verde |
+| `herramientas.mutar mutaciones/g1-escritura-bajo-nivel.toml` (`timeout_s=900`) | 0 | **11/11 detectados**, 0 sobreviven |
+| `herramientas.mutar mutaciones/delegacion-segura.toml` (M177 re-apuntado al `anexar`) | 0 | **194/194 detectados** |
+| `quality-gate.sh` sobre el worktree | 0 | **PASS** · 4284 passed / 3 skipped / 17 xfailed · contratos 8 |
+
+Dos tropiezos resueltos durante la verificación: (a) la base del arnés de G-1 excedía `timeout_s=180` porque
+`test_g1_ruta_unica` recorre todo el paquete con el resolvedor de receptor (233 s tras el merge de delegación) — se
+subió a 900 s (observación técnica: esa lentitud es preexistente, no bloquea); (b) el mutante M10 ponía `opera = []`,
+que el verificador trata como exclusión de módulo entero, por lo que sobrevivía — se cambió a un `opera` ficticio no
+vacío. M177 de delegación quedaba AUSENTE porque DN-2 movió su línea: se re-apuntó al nuevo `anexar`.
+
+### 12.5 Alcance y veredicto
+
+- **Alcance:** 5 ficheros modificados (verificador_g1, manifiesto, firma_delegacion, delegacion-segura.toml,
+  test_parada) + 3 nuevos (test_g1_escritura_bajo_nivel, test_delegacion_dn2_ancla, g1-escritura-bajo-nivel.toml).
+  Único código de producción tocado: `firma_delegacion.py` (DN-2, autorizado). Intocables sin cambios.
+- **Revisor independiente (`code-reviewer`): APTO CON OBSERVACIONES** — motivos del manifiesto veraces, no se debilita
+  ningún control, DN-2 preserva garantías y añade la de escritura parcial. Su observación (quitar `os.write` de la
+  entrada de firma_delegacion, que DN-2 dejó sin uso) ya está aplicada.
+- **DN-1: CERRADO técnicamente** (detección probada con 11 mutantes + QG), **pendiente de RATIFICACIÓN del CEO** de las
+  10 clasificaciones del manifiesto y de la ampliación de la guarda D-A006-4.
+- **DN-2: CERRADO** (fix + prueba con control + mutante M11 + M177; QG PASS).
+- **Sin commit, sin merge a main, sin push, sin cableado.** Producción intacta. Delegación sigue sin cablear; el
+  cableado sigue RECHAZADO (§10.6). M4 queda como PROPUESTA en el DP §11.1; el DP sigue PROPUESTO.

@@ -269,6 +269,42 @@ aprobado** (§11 de ese DP). La delegación no puede implementarse antes de que 
 
 `DP-NODO-01` sigue sin cambios.
 
+### 11.1 Contrato M4: capacidades delegables idempotentes (PROPUESTA, 2026-11-01 · DECISION_REQUIRED)
+
+**Estado: PROPUESTA.** Este contrato NO está implementado ni aprobado; formaliza la fila M4 del §11 y responde a
+la `DECISION_REQUIRED 1` (contrato de reintento). Requiere acta del CEO. Hoy el catálogo de delegación
+(`aura_skeleton/core/delegacion.py:CAPACIDADES`) **no valida idempotencia al construirse**: solo contiene
+`calcular_resumen_sha256` (`idempotente=True`), y HC-1 bloquea la REEMISIÓN de una no idempotente
+(`delegacion_hc1.py:89,370-373`), pero el nodo ejecutaría la PRIMERA emisión de una capacidad no idempotente si
+alguien la registrara.
+
+1. **Alcance.** Solo el catálogo de delegación a nodos. No rige el Registro de Capacidades (ADR-0021,
+   `core/capacidades.py`), ni `permissions.CATALOGO`, ni `hogar.CAPACIDADES`.
+2. **Idempotente** = ejecutar la misma orden dos veces con los mismos argumentos da el mismo resultado verificable y
+   ningún efecto adicional observable fuera del nodo.
+3. **Rechazo al construir.** Todo elemento del catálogo debe tener `idempotente is True`; una `Capacidad` con
+   `idempotente` distinto de `True` hace fallar la construcción del catálogo (no puede cargarse).
+4. **Rechazo al validar.** `validar_orden` (nodo) y `registrar_emision` (HC-1) rechazan toda orden cuya capacidad no
+   sea idempotente, con un motivo explícito, sin depender de que el catálogo esté bien construido.
+5. **Sin reintento automático.** Nadie reintenta solo una tarea cuyo intento previo fue EMITIDA→INTERRUMPIDA o
+   ACEPTADA→AMBIGUA, salvo el reintento acotado por `TOPE_DE_REINTENTOS` de capacidades idempotentes. Las líneas del DP
+   que hablan de `interrumpida_reintentable` valen **solo** para idempotentes.
+6. **AMBIGUA solo la resuelve un humano** (`resolver_ambigua`, con autorización firmada de autoridad humana, nonce de
+   un solo uso). Nunca por temporizador, nodo ni HC-1.
+7. **Fuera del MVP.** El reintento de capacidades NO idempotentes (con efectos) queda fuera del MVP; solo se admitiría
+   por acta futura del CEO que modifique esta cláusula y declare su semántica y verificador. Rehacer un efecto que pudo
+   producirse es, por defecto, una acción de **lista roja** (ADR-0003).
+
+**Prueba RED que la haría exigible si se aprueba** (diseño, NO implementada):
+`tests/unit/test_delegacion_m4_idempotente.py` con: (T1) construir el catálogo con una `Capacidad(idempotente=False)`
+debe lanzar excepción, y la idempotente real se construye (control); (T2) `validar_orden`/`registrar_emision` rechazan
+una no idempotente ya en la PRIMERA emisión (control: la idempotente pasa); (T3) el nodo no invoca `cap.ejecutar` de una
+no idempotente; (T4) `all(c.idempotente for c in CAPACIDADES.values())` con control de catálogo no vacío; (T5) la única
+salida de AMBIGUA es `resolver_ambigua`. Mutantes: quitar el chequeo del constructor, el de `validar_orden`, el de
+`registrar_emision`, e invertir `not cap.idempotente`. **Al aprobarse habría que reescribir** la prueba vigente
+`test_c3_capacidad_no_idempotente_con_intento_incierto_no_se_reemite` (`test_delegacion_revision2.py`), que hoy trata
+como válido el registro de una capacidad no idempotente.
+
 ## 12. Análisis formal de amenazas (STRIDE) de la delegación propuesta (2026-10-26, documental)
 
 **Estado:** propuesta documental. **No se ha ejecutado ninguna tarea remota.** `DP-NODO-01` sigue vigente sin cambios

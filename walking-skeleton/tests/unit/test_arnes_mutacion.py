@@ -39,6 +39,21 @@ def _copias_aisladas_en_el_tmp_de_pytest(tmp_path_factory, monkeypatch):
     monkeypatch.setattr(tempfile, "tempdir", str(destino))
 
 
+@pytest.fixture(autouse=True)
+def _entorno_git_aislado(monkeypatch):
+    """Elimina las variables `GIT_*` del entorno de estas meta-pruebas.
+
+    El pre-push hook las exporta (`GIT_DIR`, `GIT_INDEX_FILE`, …) apuntando al repositorio REAL. El arnés detecta
+    la raíz con `git -C <origen> rev-parse --show-toplevel` (`mutar._raiz_del_repositorio`): ese subproceso, con
+    `GIT_DIR` heredado, devuelve la raíz del repo real en vez de la del repo de juguete, así que el arnés copia el
+    árbol equivocado y la base del juguete queda en rojo (`base_verde=False`) SOLO bajo el hook. Limpiar el entorno
+    aquí aísla TODOS los subprocesos (git y pytest) que lanza el arnés; `monkeypatch` lo restaura al terminar. No
+    toca el entorno global del proceso ni el índice real. [arreglo del aislamiento del pre-push, 2026-11-01]
+    """
+    for clave in [k for k in os.environ if k.startswith("GIT_")]:
+        monkeypatch.delenv(clave, raising=False)
+
+
 def _crear_proyecto_juguete(tmp_path: Path) -> None:
     """Mini-proyecto: un modulo con dos funciones y una prueba que cubre solo una de ellas.
 

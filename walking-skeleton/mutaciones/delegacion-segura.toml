@@ -1492,9 +1492,8 @@ id = "M177"
 garantia = "BAJO 2 el ancla no se actualiza cuando la lista crece"
 fichero = "aura_skeleton/adapters/firma_delegacion.py"
 pruebas = ["tests/unit/test_delegacion_revision3.py"]
-buscar = '''        os.write(fd, linea)
-        os.fsync(fd)'''
-sustituir = '''        os.fsync(fd)'''
+buscar = '''        anexar(fd, {"tam": len(contenido), "sha256": hashlib.sha256(contenido).hexdigest()})'''
+sustituir = '''        pass  # mutante M177: no se anota el crecimiento de la lista en el ancla'''
 
 [[mutante]]
 id = "M178"

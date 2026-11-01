@@ -216,9 +216,6 @@ def _anotar_ancla(ancla: Path, contenido: bytes) -> None:
             raise _ilegible_ancla("la lista de revocados se truncó o se alteró tras anclarla")
         if len(contenido) == tam and os.lstat(ancla).st_size > 0:
             return  # nada nuevo que anclar
-    linea = (
-        json.dumps({"tam": len(contenido), "sha256": hashlib.sha256(contenido).hexdigest()}, sort_keys=True) + "\n"
-    ).encode()
     try:
         creada = not os.path.lexists(ancla)
         fd = os.open(ancla, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW, 0o600)
@@ -228,10 +225,16 @@ def _anotar_ancla(ancla: Path, contenido: bytes) -> None:
         st = os.fstat(fd)
         if not stat.S_ISREG(st.st_mode) or st.st_uid != os.getuid() or st.st_mode & 0o022:
             raise _ilegible_ancla("ancla con permisos inseguros, ajena o no regular")
-        os.write(fd, linea)
-        os.fsync(fd)
+        # DN-2 (2026-10-27): el añadido pasa por `anexar` (jsonl_durable), que comprueba el retorno de
+        # `os.write` y falla con `ErrorDurable` ante una escritura PARCIAL (p. ej. ENOSPC). Antes, el
+        # `os.write` de aquí ignoraba su retorno: una escritura corta dejaba el ancla truncada SIN error,
+        # y a partir de ahí `_leer_ancla` fallaba cerrado para siempre («ancla truncada»). Reutiliza el
+        # mismo primitivo append-only del paquete en vez de duplicar la escritura (CLAUDE.md §4).
+        anexar(fd, {"tam": len(contenido), "sha256": hashlib.sha256(contenido).hexdigest()})
         if creada:
             fsync_directorio(ancla.parent)
+    except ErrorDurable as e:
+        raise _ilegible_ancla("no se puede anclar la existencia de la lista") from e
     except OSError as e:
         raise _ilegible_ancla("no se puede anclar la existencia de la lista") from e
     finally:

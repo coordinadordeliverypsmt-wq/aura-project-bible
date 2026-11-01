@@ -150,7 +150,9 @@ def test_las_cuatro_exclusiones_son_POR_OPERACION_no_por_modulo():
     por_op = v._excluidos_por_operacion()
     completos = v._excluidos()
     esperado = {
-        "aura_skeleton/adapters/computador.py": {"unlink", "rename"},
+        # computador.py suma las escrituras de bajo nivel de su escritura atomica (DN-1, 2026-10-27,
+        # PENDIENTE DE RATIFICACION DEL CEO): sigue siendo exencion POR OPERACION, nunca de modulo entero.
+        "aura_skeleton/adapters/computador.py": {"unlink", "rename", "os.open", "os.write", "os.fdopen"},
         "aura_skeleton/adapters/programador.py": {"write_bytes"},
         "aura_skeleton/conectores/auditoria.py": {"open", "replace"},
         "aura_skeleton/core/decisiones.py": {"open", "replace"},

@@ -1,0 +1,100 @@
+incremento = "DN-1 (F2 de bajo nivel en el verificador G-1 + clasificacion en el manifiesto) y DN-2 (anexar en el ancla de revocados). 2026-10-27."
+# NO ejecutado por la sesion que lo escribio: lo corre el orquestador con `python3 -m herramientas.mutar mutaciones/g1-escritura-bajo-nivel.toml`, sin nada en paralelo.
+pruebas = ["tests/unit/test_g1_escritura_bajo_nivel.py"]
+# test_g1_ruta_unica recorre todo aura_skeleton con el resolvedor de receptor (operaciones_que_alcanzan_el_motor),
+# lento tras el merge de delegacion: la union base mide 233 s [EJEC 2026-11-01]. Margen amplio para base y mutantes.
+timeout_s = 900
+
+# --- Verificador: cada rama de deteccion nueva (fichero tests/unit/verificador_g1.py) ----------
+
+[[mutante]]
+id = "M1"
+garantia = "dejar de perseguir os.ftruncate/os.write: una escritura de fd no se detecta"
+fichero = "tests/unit/verificador_g1.py"
+buscar = '''ESCRITURAS_DE_FD = frozenset({"write", "pwrite", "writev", "ftruncate", "truncate"})'''
+sustituir = '''ESCRITURAS_DE_FD = frozenset({"pwrite", "writev"})'''
+
+[[mutante]]
+id = "M2"
+garantia = "quitar O_CREAT/O_TRUNC de los flags de escritura: os.open que crea no se detecta"
+fichero = "tests/unit/verificador_g1.py"
+buscar = '''FLAGS_DE_ESCRITURA = frozenset({"O_WRONLY", "O_RDWR", "O_CREAT", "O_APPEND", "O_TRUNC", "O_TMPFILE"})'''
+sustituir = '''FLAGS_DE_ESCRITURA = frozenset({"O_WRONLY", "O_RDWR"})'''
+
+[[mutante]]
+id = "M3"
+garantia = "romper el fail-closed: flags no demostrables de lectura dejan de acusarse"
+fichero = "tests/unit/verificador_g1.py"
+buscar = '''        return flags.attr in FLAGS_DE_ESCRITURA
+    return True'''
+sustituir = '''        return flags.attr in FLAGS_DE_ESCRITURA
+    return False'''
+
+[[mutante]]
+id = "M4"
+garantia = "dejar de crear ficheros con tempfile.mkstemp sin acusar"
+fichero = "tests/unit/verificador_g1.py"
+buscar = '''CREADORES_DE_TEMPFILE = frozenset({"mkstemp", "mkdtemp"})'''
+sustituir = '''CREADORES_DE_TEMPFILE = frozenset({"mkdtemp"})'''
+
+[[mutante]]
+id = "M5"
+garantia = "ignorar el modo de escritura: os.fdopen('wb') y wave.open('wb') dejan de acusarse"
+fichero = "tests/unit/verificador_g1.py"
+buscar = '''    return any(c in modo.value for c in MODOS_DE_ESCRITURA)'''
+sustituir = '''    return False'''
+
+[[mutante]]
+id = "M6"
+garantia = "no resolver el alias `import os as o`: o.write deja de verse como os.write"
+fichero = "tests/unit/verificador_g1.py"
+buscar = '''                    modulos[a.asname or a.name] = a.name'''
+sustituir = '''                    pass'''
+
+[[mutante]]
+id = "M7"
+garantia = "no resolver `from os import write`: write() importado deja de verse como os.write"
+fichero = "tests/unit/verificador_g1.py"
+buscar = '''                nombres[a.asname or a.name] = f"{nodo.module}.{a.name}"'''
+sustituir = '''                pass'''
+
+# --- Manifiesto: una exclusion nueva quitada reabre un hallazgo (pruebas: test_g1_ruta_unica) ---
+
+[[mutante]]
+id = "M8"
+garantia = "sin la exclusion de os.ftruncate de jsonl_durable, R-B vuelve a acusar el recorte de cola"
+fichero = "architecture_manifest.toml"
+pruebas = ["tests/unit/test_g1_ruta_unica.py"]
+buscar = '''opera  = ["os.open", "os.write", "os.ftruncate"]'''
+sustituir = '''opera  = ["os.open", "os.write"]'''
+
+[[mutante]]
+id = "M9"
+garantia = "sin la exclusion de tempfile.mkstemp de identidad_nodo, R-B vuelve a acusarlo"
+fichero = "architecture_manifest.toml"
+pruebas = ["tests/unit/test_g1_ruta_unica.py"]
+buscar = '''opera  = ["os.fdopen", "tempfile.mkstemp"]'''
+sustituir = '''opera  = ["os.fdopen"]'''
+
+[[mutante]]
+id = "M10"
+garantia = "sin la exclusion de wave.open de tts_espeak, R-B vuelve a acusar el WAV de voz"
+fichero = "architecture_manifest.toml"
+pruebas = ["tests/unit/test_g1_ruta_unica.py"]
+buscar = '''modulo = "aura_skeleton/adapters/tts_espeak.py"
+opera  = ["wave.open"]'''
+# `opera` vacio NO vale como mutante: el verificador trata una lista falsy como exclusion de MODULO ENTERO
+# (tts_espeak quedaria igualmente exento y el mutante sobreviviria). Un `opera` ficticio no vacio que NO cubre
+# wave.open deja el modulo como por-operacion y hace reaparecer el hallazgo.
+sustituir = '''modulo = "aura_skeleton/adapters/tts_espeak.py"
+opera  = ["os.chmod"]'''
+
+# --- DN-2: el ancla de revocados pasa por anexar, que detecta la escritura parcial -------------
+
+[[mutante]]
+id = "M11"
+garantia = "volver al os.write sin comprobar el retorno: una escritura parcial del ancla pasa inadvertida"
+fichero = "aura_skeleton/adapters/firma_delegacion.py"
+pruebas = ["tests/unit/test_delegacion_dn2_ancla.py"]
+buscar = '''        anexar(fd, {"tam": len(contenido), "sha256": hashlib.sha256(contenido).hexdigest()})'''
+sustituir = '''        os.write(fd, (json.dumps({"tam": len(contenido), "sha256": hashlib.sha256(contenido).hexdigest()}, sort_keys=True) + "\n").encode()); os.fsync(fd)'''

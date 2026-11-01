@@ -49,6 +49,23 @@ ESCRITURAS_DE_PATH = frozenset({"write_text", "write_bytes", "unlink"})
 ESCRITURAS_DE_OS = frozenset({"replace", "remove", "unlink", "rename", "rmdir"})
 MODOS_DE_ESCRITURA = ("w", "a", "x", "+")
 
+# F2 ampliado · DN-1 (2026-10-27) — escritura de BAJO NIVEL. Hasta hoy F2 solo veía `open(..., "w")`,
+# `Path.write_*` y `os.replace/remove/...`: quien escribía con `os.open(...)` + `os.write(...)` esquivaba
+# R-B entera. Estas operaciones se identifican por **módulo + función** (`os.write`, no `write`), así que
+# NO colisionan con el `open` builtin ni con `f.write()`; el nombre del hallazgo es el calificado.
+#
+# **Falsos negativos que DN-1 NO cierra, declarados**: `io.open`/`io.FileIO`, `Path.open/touch/rename/
+# replace`, `shutil.*`, `mmap`, `sqlite3`, `subprocess`, `ctypes`, y cualquier acceso dinámico
+# (`getattr`, `__import__`). Los metadatos (`chmod`, `mkdir`, `makedirs`, `bind`) quedan fuera por
+# diseño: no escriben contenido. Sigue siendo una lista y sigue siendo incompleta (FN-2).
+MODULOS_DE_BAJO_NIVEL = frozenset({"os", "tempfile", "wave"})
+# `os.*` que escriben SIEMPRE (el descriptor ya está abierto o la ruta se trunca): se acusan sin más.
+ESCRITURAS_DE_FD = frozenset({"write", "pwrite", "writev", "ftruncate", "truncate"})
+# Flags de `os.open` que abren para escribir. `O_TMPFILE` crea un fichero anónimo: también escribe.
+FLAGS_DE_ESCRITURA = frozenset({"O_WRONLY", "O_RDWR", "O_CREAT", "O_APPEND", "O_TRUNC", "O_TMPFILE"})
+# Funciones de `tempfile` que crean ficheros/directorios en disco sin más (NamedTemporaryFile: ver abajo).
+CREADORES_DE_TEMPFILE = frozenset({"mkstemp", "mkdtemp"})
+
 
 @dataclass(frozen=True)
 class Hallazgo:
@@ -489,6 +506,7 @@ def analizar_fichero(ruta: Path, autorizado_para: frozenset[str]) -> list[Hallaz
     # Exención POR OPERACIÓN: exime lo declarado y solo lo declarado (D-A006-4).
     ops_exentas = _excluidos_por_operacion().get(_rel(Path(ruta)), set())
     hallazgos: list[Hallazgo] = []
+    modulos, nombres_importados = _importaciones_de_bajo_nivel(arbol)
 
     for nodo in ast.walk(arbol):
         if not isinstance(nodo, ast.Call):
@@ -517,7 +535,27 @@ def analizar_fichero(ruta: Path, autorizado_para: frozenset[str]) -> list[Hallaz
         # --- R-B: escritura directa a disco fuera de los módulos de persistencia.
         if autorizado_disco:
             continue
-        if isinstance(fn, ast.Name) and fn.id == "open" and _abre_para_escribir(nodo):
+        # F2 ampliado (DN-1): primero lo calificado, para que `from os import open` no se confunda con
+        # el builtin. Su exención es por NOMBRE CALIFICADO: excluir `open` (builtin) no exime `os.open`.
+        bajo_nivel = _operacion_de_bajo_nivel(nodo, modulos, nombres_importados)
+        if bajo_nivel is not None:
+            if bajo_nivel not in ops_exentas:
+                hallazgos.append(
+                    Hallazgo(
+                        regla="R-B",
+                        fichero=_rel(Path(ruta)),
+                        linea=nodo.lineno,
+                        operacion=bajo_nivel,
+                        detalle="escritura de bajo nivel directa en disco (DN-1)",
+                    )
+                )
+            continue
+        if (
+            isinstance(fn, ast.Name)
+            and fn.id == "open"
+            and "open" not in nombres_importados
+            and _abre_para_escribir(nodo)
+        ):
             if "open" in ops_exentas:
                 continue
             hallazgos.append(
@@ -529,7 +567,7 @@ def analizar_fichero(ruta: Path, autorizado_para: frozenset[str]) -> list[Hallaz
                     detalle="apertura de fichero en modo de escritura",
                 )
             )
-        elif isinstance(fn, ast.Attribute) and _es_escritura_de_disco(fn):
+        elif isinstance(fn, ast.Attribute) and _es_escritura_de_disco(fn, modulos):
             if fn.attr in ops_exentas:
                 continue
             hallazgos.append(
@@ -544,25 +582,130 @@ def analizar_fichero(ruta: Path, autorizado_para: frozenset[str]) -> list[Hallaz
     return hallazgos
 
 
-def _es_escritura_de_disco(fn: ast.Attribute) -> bool:
-    """Distingue `os.replace(...)` de `texto.replace(...)`. Sin esto, R-B es ruido."""
+def _es_escritura_de_disco(fn: ast.Attribute, modulos: dict[str, str] | None = None) -> bool:
+    """Distingue `os.replace(...)` de `texto.replace(...)`. Sin esto, R-B es ruido.
+
+    `modulos` resuelve alias (`import os as _os`): `_os.replace` es `os.replace`. Sin él, solo el
+    receptor literal `os`."""
     if fn.attr in ESCRITURAS_DE_PATH:
         return True
     if fn.attr in ESCRITURAS_DE_OS:
-        return isinstance(fn.value, ast.Name) and fn.value.id == "os"
+        return _modulo_del_receptor(fn.value, modulos) == "os"
     return False
 
 
-def _abre_para_escribir(llamada: ast.Call) -> bool:
-    modo = None
-    if len(llamada.args) >= 2 and isinstance(llamada.args[1], ast.Constant):
-        modo = llamada.args[1].value
+def _modulo_del_receptor(receptor: ast.expr, modulos: dict[str, str] | None) -> str | None:
+    """Módulo (`os`, `tempfile`, `wave`) al que se refiere un receptor `Name`, o None.
+
+    El receptor literal (`os`) cuenta aunque no haya `import` visible; un alias solo cuenta si el
+    módulo lo declara con `import X as alias`."""
+    if not isinstance(receptor, ast.Name):
+        return None
+    if modulos and receptor.id in modulos:
+        return modulos[receptor.id]
+    return receptor.id if receptor.id in MODULOS_DE_BAJO_NIVEL else None
+
+
+def _importaciones_de_bajo_nivel(arbol: ast.AST) -> tuple[dict[str, str], dict[str, str]]:
+    """Alias de módulo y nombres importados, por fichero (DN-1).
+
+    Devuelve `(modulos, nombres)`: `import os as o` -> `{"o": "os"}`; `from os import write as w` ->
+    `{"w": "os.write"}`. Solo módulos de `MODULOS_DE_BAJO_NIVEL`; el resto de importaciones no importa
+    aquí. Un `def write` propio NO entra: solo cuenta lo que se importa de verdad de `os`."""
+    modulos: dict[str, str] = {}
+    nombres: dict[str, str] = {}
+    for nodo in ast.walk(arbol):
+        if isinstance(nodo, ast.Import):
+            for a in nodo.names:
+                if a.name in MODULOS_DE_BAJO_NIVEL:
+                    modulos[a.asname or a.name] = a.name
+        elif isinstance(nodo, ast.ImportFrom) and nodo.level == 0 and nodo.module in MODULOS_DE_BAJO_NIVEL:
+            for a in nodo.names:
+                nombres[a.asname or a.name] = f"{nodo.module}.{a.name}"
+    return modulos, nombres
+
+
+def _operacion_de_bajo_nivel(llamada: ast.Call, modulos: dict[str, str], nombres: dict[str, str]) -> str | None:
+    """Nombre calificado (`os.write`) si la llamada es una escritura de bajo nivel; None si no (DN-1).
+
+    Cubre `os.open` con flags de escritura, `os.write/pwrite/writev/ftruncate/truncate`, `os.fdopen`
+    en modo escritura, `tempfile.mkstemp/mkdtemp/NamedTemporaryFile(delete=False)` y `wave.open` en modo
+    escritura. Las operaciones antiguas de `os` (`replace`, `remove`...) importadas por nombre se
+    devuelven con su nombre simple, que es como el manifiesto las declara."""
+    fn = llamada.func
+    if isinstance(fn, ast.Attribute):
+        modulo = _modulo_del_receptor(fn.value, modulos)
+        if modulo is None:
+            return None
+        calificado = f"{modulo}.{fn.attr}"
+    elif isinstance(fn, ast.Name) and fn.id in nombres:
+        calificado = nombres[fn.id]
+        modulo = calificado.partition(".")[0]
+        if modulo == "os" and calificado.partition(".")[2] in ESCRITURAS_DE_OS:
+            return calificado.partition(".")[2]
+    else:
+        return None
+    return calificado if _escribe_el_calificado(calificado, llamada, modulos) else None
+
+
+def _escribe_el_calificado(calificado: str, llamada: ast.Call, modulos: dict[str, str]) -> bool:
+    modulo, _, simple = calificado.partition(".")
+    if modulo == "os":
+        if simple in ESCRITURAS_DE_FD:
+            return True
+        if simple == "open":
+            return _flags_escriben(_argumento(llamada, 1, "flags"), modulos)
+        if simple == "fdopen":
+            return _modo_escribe(_argumento(llamada, 1, "mode"))
+    elif modulo == "tempfile":
+        if simple in CREADORES_DE_TEMPFILE:
+            return True
+        if simple == "NamedTemporaryFile":
+            delete = _argumento(llamada, 99, "delete")  # `delete` solo se reconoce por palabra clave
+            return isinstance(delete, ast.Constant) and delete.value is False
+    elif modulo == "wave" and simple == "open":
+        return _modo_escribe(_argumento(llamada, 1, "mode"))
+    return False
+
+
+def _argumento(llamada: ast.Call, posicion: int, nombre: str) -> ast.expr | None:
+    """Argumento por posición o por palabra clave (la palabra clave gana, como en `open`)."""
+    valor = llamada.args[posicion] if len(llamada.args) > posicion else None
     for kw in llamada.keywords:
-        if kw.arg == "mode" and isinstance(kw.value, ast.Constant):
-            modo = kw.value.value
-    if not isinstance(modo, str):
-        return False  # sin modo literal, `open` es lectura por defecto
-    return any(c in modo for c in MODOS_DE_ESCRITURA)
+        if kw.arg == nombre:
+            valor = kw.value
+    return valor
+
+
+def _flags_escriben(flags: ast.expr | None, modulos: dict[str, str]) -> bool:
+    """True si los flags de `os.open` escriben **o no se pueden demostrar de solo lectura**.
+
+    Fail-closed, al revés que el `open` builtin: aquí callar sería dejar pasar justo la escritura que
+    DN-1 quiere ver. Solo una expresión LITERAL de atributos `os.O_*` unidos con `|` se analiza; una
+    variable, una llamada o un entero se acusan."""
+    if flags is None:
+        return True
+    if isinstance(flags, ast.BinOp) and isinstance(flags.op, ast.BitOr):
+        return _flags_escriben(flags.left, modulos) or _flags_escriben(flags.right, modulos)
+    if (
+        isinstance(flags, ast.Attribute)
+        and flags.attr.startswith("O_")
+        and _modulo_del_receptor(flags.value, modulos) == "os"
+    ):
+        return flags.attr in FLAGS_DE_ESCRITURA
+    return True
+
+
+def _modo_escribe(modo: ast.expr | None) -> bool:
+    """Modo literal de escritura. Sin modo o modo no literal: False (lectura por defecto / se calla,
+    coherente con el `open` builtin)."""
+    if not (isinstance(modo, ast.Constant) and isinstance(modo.value, str)):
+        return False
+    return any(c in modo.value for c in MODOS_DE_ESCRITURA)
+
+
+def _abre_para_escribir(llamada: ast.Call) -> bool:
+    return _modo_escribe(_argumento(llamada, 1, "mode"))
 
 
 def no_resueltos(ruta: Path) -> int:

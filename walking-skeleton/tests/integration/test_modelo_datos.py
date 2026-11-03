@@ -32,9 +32,34 @@ def _estado_operativo():
     )
 
 
+def _almacen_con_motor(ruta):
+    """F4 tramo 2 (2026-08-25): `AlmacenReglas` ya no escribe sin motor. El componente se construye
+    como en produccion; **el principio que esta prueba verifica no cambia**."""
+    import asyncio  # noqa: F401  (lo usa `operar`)
+
+    from aura_skeleton.core.automatizacion import MotorAutomatizacion
+    from aura_skeleton.core.ejecutor_reglas import EjecutorReglas
+    from aura_skeleton.core.permissions import PermissionManager
+    from aura_skeleton.core.registro import RegistroAdaptadores
+
+    async def _si(accion, args, trace_id):
+        return True
+
+    registro = RegistroAdaptadores()
+    almacen = AlmacenReglas(ruta, motor=MotorAutomatizacion(registro, PermissionManager(_si)))
+    registro.registrar(EjecutorReglas(almacen))
+    return almacen
+
+
 def _automatizaciones():
+    import asyncio
+
     def operar(a):
-        a.crear(
+        # el verificador es sincrono y `crear` paso a ser corrutina: se ejecuta aqui, en el test.
+        asyncio.run(_crear(a))
+
+    async def _crear(a):
+        await a.crear(
             ReglaUsuario(
                 rule_id="r1", user_id="u", evento="action.command", condicion={}, accion="copiar_archivo", args={}
             )
@@ -42,11 +67,15 @@ def _automatizaciones():
 
     return Componente(
         nombre="Automatizaciones",
-        construir=AlmacenReglas,
+        construir=_almacen_con_motor,
         operar=operar,
         observar=lambda a: [(r.rule_id, r.estado) for r in a._reglas],
         proyeccion=lambda a: a._reglas,
-        retirar=lambda a: a.desactivar("u", "r1"),
+        # CORREGIDO 2026-08-25. `desactivar` paso a corrutina en F4 y este callback la
+        # invocaba SIN esperarla: la retirada nunca ocurria y Python lo denunciaba con
+        # `RuntimeWarning: coroutine ... was never awaited`. El verificador es sincrono, asi
+        # que la corrutina se ejecuta aqui, igual que ya se hacia en `operar`.
+        retirar=lambda a: asyncio.run(a.desactivar("u", "r1")),
     )
 
 
@@ -77,17 +106,24 @@ def test_las_automatizaciones_CUMPLEN_el_principio(tmp_path):
     assert v.clasificacion == CUMPLE, f"fallo: {v.fallidas} — {v.detalle}"
 
 
-def test_LA_MEMORIA_VIOLA_EL_PRINCIPIO_Y_EL_PROTOCOLO_LO_DETECTA(tmp_path):
-    """PRIMER CASO DE PRUEBA (CEO): no se arregla; se verifica que la garantia sepa verlo.
+def test_LA_MEMORIA_YA_CUMPLE_EL_PRINCIPIO(tmp_path):
+    """**PREMISA SUPERADA, garantia sustituida** — 2026-08-25, G-7.
 
-    `PersistentMemory._persist` reescribe el fichero DESDE `self._items`, asi que la proyeccion es la
-    fuente de verdad y el historial su volcado: la direccion esta invertida. Es el mismo defecto que
-    ALERTA-006 encontro por la via de seguridad.
+    La version anterior se llamaba `test_LA_MEMORIA_VIOLA_EL_PRINCIPIO_Y_EL_PROTOCOLO_LO_DETECTA` y
+    empezaba diciendo *«no se arregla; se verifica que la garantia sepa verlo»*. Se arreglo: era lo
+    que `DP-D-M-8 §5.2` ordenaba —*«la memoria debe adoptar el patron que las reglas ya usan»*—.
+    `olvidar` y `marcar` **anexan** en vez de reescribir, y `_load` proyecta quedandose con la ultima
+    linea por clave. La direccion ya no esta invertida: el historial es la fuente y la proyeccion su
+    lectura.
+
+    **Que el protocolo sepa detectar un incumplimiento sigue cubierto**, y por casos que no caducan:
+    `test_un_componente_que_no_persiste_nada_viola_el_principio` y
+    `test_se_detecta_un_componente_que_NO_reconstruye_igual`, ambos con componentes sinteticos. Lo
+    que se retira es usar la memoria REAL como ejemplo de defecto, porque ya no lo es.
     """
     v = verificar(_memoria(), str(tmp_path / "m.jsonl"))
 
-    assert v.clasificacion == VIOLA, f"el protocolo NO detecto el incumplimiento conocido: {v}"
-    assert "nada vive solo en la proyeccion" in v.fallidas, f"detecto otra cosa: {v.fallidas}"
+    assert v.clasificacion == CUMPLE, f"la memoria deberia cumplir tras G-7: {v.fallidas} — {v.detalle}"
 
 
 def test_el_protocolo_es_reutilizable_sin_conocer_el_componente(tmp_path):
@@ -97,9 +133,11 @@ def test_el_protocolo_es_reutilizable_sin_conocer_el_componente(tmp_path):
         verificar(_automatizaciones(), str(tmp_path / "b.jsonl")),
         verificar(_memoria(), str(tmp_path / "c.jsonl")),
     ]
-    assert [v.clasificacion for v in veredictos] == [CUMPLE, CUMPLE, VIOLA]
+    # ACTUALIZADO 2026-08-25 (G-7): la memoria dejo de ser el ejemplo de incumplimiento. Lo que esta
+    # prueba mide —que el verificador no tiene ramas por tipo de componente— NO cambia.
+    assert [v.clasificacion for v in veredictos] == [CUMPLE, CUMPLE, CUMPLE]
     txt = informe(veredictos)
-    assert "Memoria" in txt and "viola" in txt
+    assert "Memoria" in txt and "cumple" in txt
 
 
 def test_un_componente_que_no_persiste_nada_viola_el_principio(tmp_path):

@@ -1,0 +1,46 @@
+incremento = "PARADA · Opcion B: definicion mecanica de escritura pasiva (CEO 2026-09-09, D-A006-2/4)"
+# La garantia no es «con PARADA se escribe menos»: es que la whitelist sea ESTRECHA y fail-closed, y
+# que las exclusiones de G-1 eximan lo declarado y SOLO lo declarado. Cada mutante ensancha una de las
+# dos puertas, que es la unica forma en que esto se rompe en la practica: por dilatacion silenciosa.
+pruebas = [
+  "tests/unit/test_parada_escritura_pasiva.py",
+  "tests/unit/test_g1_ruta_unica.py::test_g1_rb_ninguna_escritura_directa_a_disco_fuera_de_persistencia_autorizada",
+]
+timeout_s = 240
+
+[[mutante]]
+id = "P-M1"
+garantia = "la definicion de pasiva se vuelve una amnistia: cualquier kind pasaria con PARADA armada"
+fichero = "aura_skeleton/contracts.py"
+buscar = '''    return kind in KINDS_PASIVOS'''
+sustituir = '''    return True'''
+
+[[mutante]]
+id = "P-M2"
+garantia = "la whitelist se ensancha al modelo del usuario: PARADA dejaria pasar `semantica`"
+fichero = "aura_skeleton/contracts.py"
+buscar = '''KINDS_PASIVOS = frozenset({"episodica", HISTORICO})'''
+sustituir = '''KINDS_PASIVOS = frozenset({"episodica", HISTORICO, "semantica", "procedimental"})'''
+
+[[mutante]]
+id = "P-M3"
+garantia = "la guarda del cierre de turno desaparece: con PARADA armada se escribiria cualquier kind"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            if self._sistema_detenido() and not es_escritura_pasiva(kind):'''
+sustituir = '''            if False:'''
+
+[[mutante]]
+id = "P-M4"
+garantia = "una exclusion por operacion se vuelve exclusion de modulo: la amnistia que el CEO prohibio"
+fichero = "tests/unit/verificador_g1.py"
+buscar = '''    return {x["modulo"] for x in _mutaciones().get("excluido", []) if not x.get("opera")}'''
+sustituir = '''    return {x["modulo"] for x in _mutaciones().get("excluido", [])}'''
+
+[[mutante]]
+id = "P-M5"
+garantia = "la exencion por operacion cubre CUALQUIER operacion del modulo, no solo la declarada"
+fichero = "tests/unit/verificador_g1.py"
+buscar = '''            if fn.attr in ops_exentas:
+                continue'''
+sustituir = '''            if ops_exentas:
+                continue'''

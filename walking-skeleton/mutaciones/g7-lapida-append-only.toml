@@ -1,0 +1,58 @@
+incremento = "G-7 · lapida append-only en la memoria (DP-D-M-8 §5.2) — 2026-08-25"
+# La garantia tiene DOS mitades y los mutantes atacan ambas: anexar la baja (historial intacto) y
+# proyectarla al releer (el olvido no reaparece). Romper cualquiera de las dos la deja inservible.
+pruebas = ["tests/unit/test_g7_lapida_append_only.py"]
+timeout_s = 180
+
+[[mutante]]
+id = "G7-M1"
+descripcion = "vuelve la reescritura fisica: el olvido destruye la historia"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''            for baja in bajas:
+                self._anexar({**baja, _LAPIDA: True})'''
+sustituir = '''            self._persist()'''
+
+[[mutante]]
+id = "G7-M2"
+descripcion = "la lapida se anexa SIN marcar: queda una copia del recuerdo, no una baja"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''                self._anexar({**baja, _LAPIDA: True})'''
+sustituir = '''                self._anexar({**baja})'''
+
+[[mutante]]
+id = "G7-M3"
+descripcion = "la proyeccion IGNORA las lapidas: lo olvidado reaparece al reiniciar"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''    return [i for i in vigente.values() if not i.get(_LAPIDA)]'''
+sustituir = '''    return list(vigente.values())'''
+
+[[mutante]]
+id = "G7-M4"
+descripcion = "en la proyeccion gana la PRIMERA linea, no la ultima"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''    for linea in lineas:
+        vigente[_clave(linea)] = linea'''
+sustituir = '''    for linea in lineas:
+        vigente.setdefault(_clave(linea), linea)'''
+
+[[mutante]]
+id = "G7-M5"
+descripcion = "no se proyecta en absoluto: el historial se lee como si fuera el estado"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''            self._items = _proyectar([json.loads(linea) for linea in contenido.splitlines() if linea.strip()])'''
+sustituir = '''            self._items = [json.loads(linea) for linea in contenido.splitlines() if linea.strip()]'''
+
+[[mutante]]
+id = "G7-M6"
+descripcion = "marcar vuelve a reescribir el fichero entero"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''            for i in marcadas:
+                self._anexar(i)'''
+sustituir = '''            self._persist()'''
+
+[[mutante]]
+id = "G7-M7"
+descripcion = "la clave de proyeccion pierde el usuario: el olvido de uno afecta a otro"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''    return (item.get("user_id"), item.get("kind"), item.get("content"))'''
+sustituir = '''    return (item.get("kind"), item.get("content"))'''

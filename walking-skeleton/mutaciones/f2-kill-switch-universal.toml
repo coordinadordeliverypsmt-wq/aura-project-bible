@@ -1,0 +1,61 @@
+incremento = "F2 · Kill switch universal — decision CEO 17.1 = B (2026-08-25)"
+# La RED F2 nacio en VERDE: con 17.1 = B la garantia YA se cumple en el codigo actual. Entonces lo
+# que hay que demostrar no es que el codigo la cumpla, sino que las pruebas la PROTEGEN: que la
+# garantia no depende de que el codigo conserve accidentalmente su forma de hoy.
+pruebas = ["tests/unit/test_f2_kill_switch_universal.py"]
+timeout_s = 180
+
+[[mutante]]
+id = "F2-M1"
+descripcion = "el motor IGNORA el veredicto de permisos y ejecuta igual"
+fichero = "aura_skeleton/core/automatizacion.py"
+buscar = '''        ok, motivo = await self.permisos.authorize(accion, contexto, trace_id)
+        if not ok:'''
+sustituir = '''        ok, motivo = await self.permisos.authorize(accion, contexto, trace_id)
+        if False:'''
+
+[[mutante]]
+id = "F2-M2"
+descripcion = "BYPASS de authorize(): el motor no la llama y se autoriza a si mismo"
+fichero = "aura_skeleton/core/automatizacion.py"
+buscar = '''        ok, motivo = await self.permisos.authorize(accion, contexto, trace_id)'''
+sustituir = '''        ok, motivo = True, ""'''
+
+[[mutante]]
+id = "F2-M3"
+descripcion = "el kill switch se ignora dentro de authorize()"
+fichero = "aura_skeleton/core/permissions.py"
+buscar = '''        if self._kill is not None and self._kill.is_engaged():'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "F2-M4"
+descripcion = "el bloqueo deja de ser efectivo: se registra el motivo pero se autoriza"
+fichero = "aura_skeleton/core/permissions.py"
+buscar = '''            return False, "kill switch activo (5.3 §5)"'''
+sustituir = '''            return True, "kill switch activo (5.3 §5)"'''
+
+[[mutante]]
+id = "F2-M5"
+descripcion = "el orden se invierte: se pide confirmacion humana ANTES de mirar el kill switch"
+fichero = "aura_skeleton/core/permissions.py"
+buscar = '''        if self._kill is not None and self._kill.is_engaged():
+            obs.log("KILL", "permissions", f"kill switch activo: {action} BLOQUEADA", trace_id, audit=True)'''
+sustituir = '''        if self._kill is not None and self._kill.is_engaged():
+            await self._confirm(action, args, trace_id)
+            obs.log("KILL", "permissions", f"kill switch activo: {action} BLOQUEADA", trace_id, audit=True)'''
+
+[[mutante]]
+id = "F2-M6"
+descripcion = "is_engaged() invertido: la parada armada se lee como desarmada"
+fichero = "aura_skeleton/core/kill_switch.py"
+buscar = '''    def is_engaged(self) -> bool:'''
+sustituir = '''    def is_engaged(self) -> bool:
+        return False'''
+
+[[mutante]]
+id = "F2-M7"
+descripcion = "la detencion deja de registrarse en el audit"
+fichero = "aura_skeleton/core/automatizacion.py"
+buscar = '''        obs.log("AUTO", "ejecutor", f"[{origen}] DETENIDA {accion}: {motivo}", tid, audit=True)'''
+sustituir = '''        pass'''

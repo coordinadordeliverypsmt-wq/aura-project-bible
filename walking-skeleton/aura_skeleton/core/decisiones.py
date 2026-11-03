@@ -96,13 +96,22 @@ class AlmacenDecisiones:
         )
         return huella
 
-    def aprobar(self, huella: str) -> bool:
-        """Marca una decision como aprobada. En produccion lo hace el CEO editando el fichero; este
-        metodo existe para que las pruebas ejerciten el mismo camino y para una futura interfaz."""
-        return self._marcar(huella, _APROBADA)
+    def aprobar(self, huella: str, *, por: str = "", origen: str = "", evidencia: str = "") -> bool:
+        """Marca una decision como aprobada, anotando de donde vino la aprobacion.
 
-    def rechazar(self, huella: str) -> bool:
-        return self._marcar(huella, _RECHAZADA)
+        La «futura interfaz» que este metodo anticipaba es la conversacion (CEO, 2026-09-01). Al
+        llegar la aprobacion por un canal y no por el CEO editando el fichero a mano, importa quedarse
+        con **quien**, **desde donde** y **con que palabras**: sin eso, una aprobacion registrada es
+        indistinguible de otra, y la unica forma de auditar quien abrio una accion de lista roja
+        seria creer lo que diga quien pregunte.
+
+        Los tres campos son opcionales para no romper a los llamadores que ya existen -- las pruebas y
+        el CEO editando el fichero siguen funcionando igual.
+        """
+        return self._marcar(_APROBADA, huella, por=por, origen=origen, evidencia=evidencia)
+
+    def rechazar(self, huella: str, *, por: str = "", origen: str = "", evidencia: str = "") -> bool:
+        return self._marcar(_RECHAZADA, huella, por=por, origen=origen, evidencia=evidencia)
 
     # -------------------------------------------------------------- lectura --
 
@@ -142,13 +151,25 @@ class AlmacenDecisiones:
     def _ruta(self, huella: str) -> str:
         return os.path.join(self._dir, f"{huella}.json")
 
-    def _marcar(self, huella: str, estado: str) -> bool:
+    def _marcar(self, estado: str, huella: str, *, por: str = "", origen: str = "",
+                evidencia: str = "") -> bool:
         ruta = self._ruta(huella)
         decision = self._leer(ruta)
         if decision is None:
             return False
+        # El estado ANTERIOR se conserva. Una transicion que no deja rastro de donde venia obliga a
+        # reconstruirla por la fecha, y el fichero es justamente la prueba de que hubo una decision.
+        decision["estado_anterior"] = decision.get("estado")
         decision["estado"] = estado
         decision["ts_respuesta"] = time.time()
+        if por:
+            decision["respondida_por"] = por
+        if origen:
+            decision["origen_respuesta"] = origen
+        if evidencia:
+            # El mensaje literal con el que se autorizo. Se recorta porque un turno puede ser largo y
+            # esto es una prueba de intencion, no una transcripcion.
+            decision["evidencia"] = evidencia[:500]
         self._escribir(ruta, decision)
         return True
 

@@ -1,7 +1,44 @@
 # ALERTA-006 — Rutas que mutan estado del usuario fuera del Motor Único
 
 **Detectada:** 2026-08-03. **Ampliada el mismo día** tras el barrido exhaustivo ordenado por el CEO.
-**Estado:** abierta, **prioridad máxima**. No se ha modificado código.
+**Estado:** **RESUELTA el 2026-09-09** por la migración F4. Ver el bloque de cierre inmediatamente
+debajo. **Todo lo que sigue a partir del §1 se conserva sin tocar**: es el diagnóstico tal como se
+escribió el 2026-08-03, y reescribirlo sería falsificar el registro de lo que se sabía entonces.
+
+---
+
+## CIERRE — 2026-09-09 `[EJEC]`
+
+**Las cuatro rutas denunciadas pasan por el Motor Único.** Verificado sobre el código, no sobre una
+declaración:
+
+| Ruta de este documento | Símbolo | Evidencia |
+|---|---|---|
+| G-1 · M-01 borrado del modelo | `modelo_usuario.borrar` | `modelo_usuario.py:112` → `_por_el_motor` |
+| G-1 · M-02 refutación | `modelo_usuario.refutar` | `modelo_usuario.py:128` → `_por_el_motor` |
+| §1 rama 4 · crear automatización | `AlmacenReglas.crear` | `reglas.py:126-135` → `self._motor.ejecutar` |
+| §1 rama 5 · cancelar automatización | `AlmacenReglas.desactivar` | `reglas.py:154-162` → `self._motor.ejecutar` |
+
+Camino único, declarado en `modelo_usuario._por_el_motor`: `catálogo → sujeto → authorize → kill
+switch → motor → ejecutor`. **Fail-closed en las cuatro**: sin motor inyectado no hay mutación
+(`return 0` / `return` / `return False`).
+
+El propio código nombra el defecto que cerró — `modelo_usuario.py:119`: *«MIGRADA en F4. Antes llamaba
+a `memoria.olvidar` directamente: sin motor, sin permisos y sin kill switch. **Ese era el agujero de
+ALERTA-006**.»*
+
+**Fijado por prueba**, para que no vuelva sin que nadie se entere:
+`tests/unit/test_g1_ruta_unica.py::test_las_cuatro_rutas_de_alerta_006_ALCANZAN_el_motor`. La prueba
+anterior aseveraba que el detector **encontrara** las cuatro rutas; se reescribió porque una prueba
+que asevera la PRESENCIA de un defecto se vuelve falsa el día que el defecto se arregla.
+
+**Lo que este cierre NO afirma.** No afirma que toda mutación esté gobernada. Queda abierta una
+**exposición residual distinta**, que no hereda ni la gravedad ni la prioridad de ALERTA-006:
+`orchestrator.py:1777` escribe memoria persistente sin motor, sin permisos y sin kill switch, y no hay
+guarda de parada al inicio del turno (`_sistema_detenido()` solo se comprueba en `:1218`). **Crear no
+es destruir**, y el dato resultante sí puede olvidarse por el motor. Su tratamiento depende de una
+decisión de semántica constitucional de `PARADA` que corresponde al CEO, y está planteada en
+`decisiones/2026-09-09-D-A006-decision-package.md` §6.
 **Viola:** ALERTA-005 (*«toda ejecución pasa por el motor único; ninguna ruta alternativa»*), ADR-0003
 (lista roja ⇒ confirmación humana **siempre**), **Bible 5.3 §5 / RN-3** (kill switch) e **INV-9** (no
 fingir capacidad).
@@ -10,6 +47,22 @@ fingir capacidad).
 > datos del usuario** `[EJEC]`.
 
 ---
+
+> ## ⚠ LÉASE CON SU FECHA — todo lo que sigue es el diagnóstico del 2026-08-03
+>
+> **Las cuatro rutas que este diagnóstico denuncia ya NO están abiertas.** Las columnas «¿Motor?»,
+> «¿Permisos?» y «¿Kill switch?» de la tabla de abajo decían *No* cuando se escribieron, y hoy dicen
+> *Sí* en las cuatro: ver el bloque de cierre del 2026-09-09, arriba, con la evidencia por símbolo y
+> línea. `G-1` lo confirma con `R-A = 0` y `R-B = 0`.
+>
+> **No se corrige la tabla: se fecha.** Reescribirla para que coincidiera con el código de hoy
+> falsificaría lo que se sabía entonces, y este documento vale precisamente porque registra cómo se veía
+> el sistema antes de repararlo. El historial íntegro está en git desde `58ba28f`.
+>
+> **Lo único que sigue vigente de este §1** es su última frase —que `_finalizar_turno` muta estado
+> persistente en todas las ramas—. Es la exposición residual de `memory.write`, que **no se cierra con
+> este cierre**: se gobierna por `ADR-0024` y sigue abierta en
+> `decisiones/2026-09-09-D-A006-decision-package.md`.
 
 ## 1 · Las 7 ramas del turno: solo una pasa por el motor `[EJEC]`
 

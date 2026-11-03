@@ -1,0 +1,84 @@
+incremento = "Emparejamiento gramatical simetrico + apertura posesiva + terceros reforzados (CEO, 2026-09-10)"
+# Tres piezas que solo valen juntas: si la declaracion no entra no hay nada que responder; si la
+# resolucion no empareja el hecho se va al modelo; y si la proteccion de terceros cae, AURA se convierte
+# en un registro sobre la familia del usuario. Cada mutante ataca una de las tres.
+pruebas = ["tests/unit/test_hechos_posesivos_generales.py",
+           "tests/unit/test_hecho_declarado_sin_llm.py",
+           "tests/unit/test_frontera_cognitiva.py"]
+timeout_s = 300
+
+[[mutante]]
+id = "HP-M1"
+garantia = "la apertura posesiva desaparece: «mi cumpleanos es...» vuelve a no guardarse"
+fichero = "aura_skeleton/conectores/conversacion.py"
+buscar = '''    r"\bmi [a-z]+(?: [a-z]+)? es\b",'''
+sustituir = '''    r"\bmi JAMAS DICHO es\b",'''
+
+[[mutante]]
+id = "HP-M2"
+garantia = "la guarda de terceros sale de la clasificacion: «mi abuela es enfermera» seria hecho personal"
+fichero = "aura_skeleton/conectores/conversacion.py"
+buscar = '''    if _habla_de_tercero(texto_norm):
+        return False'''
+sustituir = '''    if False:
+        return False'''
+
+[[mutante]]
+id = "HP-M3"
+garantia = "las relaciones nuevas se caen de _TERCERO: abuela, primo y tio volverian a capturarse"
+fichero = "aura_skeleton/conectores/conversacion.py"
+buscar = '''    r"\bmi (abuel\w*|prim[oa]s?|ti[oa]s?|amig\w*|herman\w*|jef\w*|vecin\w*|madre|padre|hij\w*|espos\w*|pareja)\b",'''
+sustituir = '''    r"\bmi (amig\w*|herman\w*|jef\w*|vecin\w*|madre|padre|hij\w*|espos\w*|pareja)\b",'''
+
+[[mutante]]
+id = "HP-M4"
+garantia = "la resolucion simetrica no responde: el hecho se va al modelo aunque el Core lo tenga"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        atributo = _atributo_preguntado(t)
+        if atributo is not None:'''
+sustituir = '''        atributo = _atributo_preguntado(t)
+        if False:'''
+
+[[mutante]]
+id = "HP-M5"
+garantia = "el atributo deja de compararse: la primera declaracion cualquiera respondería la pregunta"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''                if par and _normalizar(par[0]) == atributo:'''
+sustituir = '''                if par:'''
+
+[[mutante]]
+id = "HP-M6"
+garantia = "gana la PRIMERA declaracion: corregirse dejaria de funcionar"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            for entrada in reversed(hechos):
+                par = _atributo_declarado(str(entrada.get("contenido", "")))'''
+sustituir = '''            for entrada in hechos:
+                par = _atributo_declarado(str(entrada.get("contenido", "")))'''
+
+[[mutante]]
+id = "HP-M7"
+garantia = "el valor se normaliza: el usuario recibe «seat leon» donde escribio «Seat Leon»"
+# FICHERO ACTUALIZADO (2026-09-10, AMP-AURA etapas 1-2): la extraccion se movio intacta a
+# `identidad_memoria.py` para que el EJECUTOR pudiera versionar con la misma gramatica. La garantia
+# no cambia —el valor se devuelve como el usuario lo escribio (ADR-0017)—, solo su direccion.
+fichero = "aura_skeleton/core/identidad_memoria.py"
+buscar = '''    hallado = _ATRIBUTO_DECLARADO.search(contenido)'''
+sustituir = '''    hallado = _ATRIBUTO_DECLARADO.search(_normalizar(contenido))'''
+
+[[mutante]]
+id = "HP-M8"
+garantia = "la ruta acepta entradas que no son hechos declarados (observadas, preferencias)"
+fichero = "aura_skeleton/core/orchestrator.py"
+# PATRON ACTUALIZADO (2026-09-10): la linea crecio con el filtro de vigencia de AMP-AURA.
+buscar = '''        hechos = [e for e in vivas
+                  if e.get("clase") == ClaseSenal.HECHO_DECLARADO.value and e.get("valid_until") is None]'''
+sustituir = '''        hechos = list(vivas)'''
+
+[[mutante]]
+id = "HP-M9"
+garantia = "el valor deja de cortarse: «mi coche es rojo y viejo» devolveria la coletilla entera"
+# FICHERO ACTUALIZADO (2026-09-10): misma mudanza que HP-M7.
+fichero = "aura_skeleton/core/identidad_memoria.py"
+buscar = '''    bruto = re.split(r"\s+(?:y|pero|aunque|porque)\s+|[,;.]", hallado.group(2))[0]
+    valor = bruto.strip(" .,;:!?")'''
+sustituir = '''    valor = hallado.group(2).strip(" .,;:!?")'''

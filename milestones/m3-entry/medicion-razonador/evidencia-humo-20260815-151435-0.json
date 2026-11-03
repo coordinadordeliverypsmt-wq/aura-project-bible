@@ -1,0 +1,113 @@
+{
+  "identificador": "20260815-151435-0",
+  "modo": "humo",
+  "instante": "2026-08-15T15:14:35",
+  "modelo": "qwen2.5:0.5b",
+  "laboratorio": "/tmp/aura-lab-36u_eyhp",
+  "aura_datos": "/tmp/aura-datos-1x2x7pb1",
+  "verdad_de_referencia": {
+    "fichero_objetivo": "laboratorio_objetivo.py",
+    "patron_obsoleto_declarado": "    if not tiene_permiso(x):",
+    "patron_correcto_esperado": "    if not autorizado(x):",
+    "apariciones_del_correcto_en_el_objetivo": 1
+  },
+  "arnes": {
+    "fichero": "humo.py",
+    "sha256": "00f525d140fb57a2992a8a3fd0defb012ef12e4aee18b8ce71be47df8853799c"
+  },
+  "prompt_congelado_sha256": "b9a01206489bd8c6f7bfe2613f1ad24b8e7504810369a655d8be9b1f746c5b0d",
+  "timeouts": {
+    "ollama_s": 300,
+    "wait_s": 330
+  },
+  "codigo_salida": 0,
+  "stderr_ultimas_lineas": [
+    "  [AUTO ] ejecutor       trace=tr-humo [conversacion] DETENIDA revisar: permisos: accion no clasificada (deny por defecto) audit=True",
+    "  [MEM  ] memory         trace=tr-humo write [episodica] 'usuario dijo: Una garantia declarada del'",
+    "  [MEM  ] memory         trace=tr-humo write [semantica] 'Una garantia declarada del proyecto ha d'",
+    "  [CTX  ] senales        trace=tr-humo capturadas 1 senal(es) de aprendizaje",
+    "Traceback (most recent call last):",
+    "  File \"/home/majo1230/.local/bin/piper\", line 8, in <module>",
+    "    sys.exit(main())",
+    "             ^^^^^^",
+    "  File \"/home/majo1230/.local/lib/python3.12/site-packages/piper/__main__.py\", line 149, in main",
+    "    voice = PiperVoice.load(model_path, use_cuda=args.cuda)",
+    "            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
+    "  File \"/home/majo1230/.local/lib/python3.12/site-packages/piper/voice.py\", line 148, in load",
+    "    with open(config_path, \"r\", encoding=\"utf-8\") as config_file:",
+    "         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
+    "FileNotFoundError: [Errno 2] No such file or directory: '..json'"
+  ],
+  "evidencia": {
+    "modelo": "qwen2.5:0.5b",
+    "timeout_ollama_s": 300,
+    "timeout_wait_s": 330,
+    "prompt_congelado": "Una garantia declarada del proyecto ha dejado de aplicar y hay que corregir su declaracion. Este es TODO el contexto disponible:\n- motivo: {motivo}\n- fichero que hay que corregir: {fichero}\n- patron declarado que ya no aparece: {patron}\n- referencia de la garantia: {referencia}\nCorrige la declaracion sustituyendo en ese fichero el patron que ya no aparece por el patron correcto.",
+    "laboratorio": "/tmp/aura-lab-36u_eyhp",
+    "paquete_importado": "/tmp/aura-lab-36u_eyhp/walking-skeleton/aura_skeleton",
+    "raiz_que_usaran_los_ejecutores": "/tmp/aura-lab-36u_eyhp/walking-skeleton",
+    "raices_efectivas_de_los_ejecutores": {
+      "auditor": "/tmp/aura-lab-36u_eyhp/walking-skeleton",
+      "programador": "/tmp/aura-lab-36u_eyhp/walking-skeleton",
+      "qa": "/tmp/aura-lab-36u_eyhp/walking-skeleton"
+    },
+    "ciclo_real": {
+      "latidos": 1,
+      "tareas_totales": 2,
+      "causa_estado": "bloqueada",
+      "causa_bloqueos": [
+        "veredicto negativo: 1 garantia(s) declaradas que NO protegen nada: laboratorio-humo.toml:H1 (AUSENTE)"
+      ],
+      "derivadas": 1
+    },
+    "args_literales_de_la_derivada": {
+      "motivo": "veredicto negativo: 1 garantia(s) declaradas que NO protegen nada: laboratorio-humo.toml:H1 (AUSENTE)",
+      "fichero_declarado": "mutaciones/laboratorio-humo.toml",
+      "buscar_declarado": "    if not tiene_permiso(x):",
+      "referencia": "laboratorio-humo.toml:H1"
+    },
+    "texto_entregado_al_razonador": "Una garantia declarada del proyecto ha dejado de aplicar y hay que corregir su declaracion. Este es TODO el contexto disponible:\n- motivo: veredicto negativo: 1 garantia(s) declaradas que NO protegen nada: laboratorio-humo.toml:H1 (AUSENTE)\n- fichero que hay que corregir: mutaciones/laboratorio-humo.toml\n- patron declarado que ya no aparece:     if not tiene_permiso(x):\n- referencia de la garantia: laboratorio-humo.toml:H1\nCorrige la declaracion sustituyendo en ese fichero el patron que ya no aparece por el patron correcto.",
+    "recursos_antes": {
+      "MemFree": 596,
+      "MemAvailable": 1109,
+      "SwapTotal": 4103,
+      "SwapFree": 1218,
+      "load1": 1.30322265625
+    },
+    "latencia_total_s": 253.32,
+    "recursos_despues": {
+      "MemFree": 156,
+      "MemAvailable": 1074,
+      "SwapTotal": 4103,
+      "SwapFree": 787,
+      "load1": 2.32666015625
+    },
+    "respuesta_del_producto": null,
+    "fallo_en_el_turno": "CalledProcessError: Command '['piper', '--model', '', '--output_file', '/tmp/aura/resp_tr-humo.wav']' returned non-zero exit status 1.",
+    "llamadas_al_modelo": [
+      {
+        "prompt_enviado": "[contexto memoria: (sin recuerdos relevantes)]\n[conversacion reciente:\n(inicio de la conversacion)]\nUsuario: Una garantia declarada del proyecto ha dejado de aplicar y hay que corregir su declaracion. Este es TODO el contexto disponible:\n- motivo: veredicto negativo: 1 garantia(s) declaradas que NO protegen nada: laboratorio-humo.toml:H1 (AUSENTE)\n- fichero que hay que corregir: mutaciones/laboratorio-humo.toml\n- patron declarado que ya no aparece:     if not tiene_permiso(x):\n- referencia de la garantia: laboratorio-humo.toml:H1\nCorrige la declaracion sustituyendo en ese fichero el patron que ya no aparece por el patron correcto.",
+        "respuesta_cruda": "{\n  \"intent\": \"corregir_fichero\",\n  \"action\": \"revisar\",\n  \"args\": {\n    \"ruta\": \"mutaciones/laboratorio-humo.toml\"\n  }\n}",
+        "error": null,
+        "latencia_s": 252.18
+      }
+    ],
+    "confirmaciones_solicitadas": [],
+    "se_denegaron_todas": true
+  },
+  "sha256": {
+    "laboratorio": {
+      "ficheros": 512,
+      "modificados": [],
+      "aparecidos": [],
+      "desaparecidos": []
+    },
+    "worktree_real": {
+      "ficheros": 94,
+      "modificados": [],
+      "aparecidos": [],
+      "desaparecidos": []
+    }
+  },
+  "nada_se_modifico": true
+}

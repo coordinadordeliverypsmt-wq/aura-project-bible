@@ -25,11 +25,23 @@ import os
 import sys
 import uuid
 
+from . import observability as obs
 from .adapters.hitl_diferido import crear_confirmador_diferido
 from .composicion import Configuracion, componer
 from .core.centro_gobierno import panel, publicar
 from .core.decisiones import AlmacenDecisiones
 from .core.motor_ciclo import FallosConsecutivosExcedidos
+
+#: Timeout total de un turno de conversacion (existente; no se cambia, D-FC-7). Vive aqui como
+#: constante en vez de un `900` suelto porque `_informe` necesita el MISMO numero para poder avisar
+#: si el timeout del proveedor lo supera -- dos literales identicos habrian podido divergir sin que
+#: nadie lo notara (el mismo patron "declarado != real").
+_TIMEOUT_TURNO_S = 900
+
+#: D-FC-6: tramo corto antes del primer acuse de espera. Reutiliza `orquestador.wait` en dos tramos;
+#: no crea colas ni hilos nuevos. 3s es deliberadamente corto: una respuesta mock o de cognicion local
+#: rapida no llega a mostrar el acuse, solo lo ve quien de verdad esta esperando al modelo.
+_ACUSE_TRAMO_S = 3
 
 
 def _informe(sistema) -> str:
@@ -54,8 +66,45 @@ def _informe(sistema) -> str:
         if m.degradada:
             lineas.append(f"  [!] '{m.capacidad}': el equipo permitía {m.estado_plan.name}, corre {m.nivel}")
             lineas.append(f"      motivo: {m.motivo}")
+    lineas.extend(_informe_proveedor(sistema))
     lineas.append("=" * 62)
     return "\n".join(lineas)
+
+
+def _informe_proveedor(sistema) -> list[str]:
+    """D-FC-7 (entregable 3): hace visible lo que hasta ahora solo se podia medir -- el timeout
+    efectivo del proveedor, su origen, la politica del circuito y su estado. Sin esto, un timeout de
+    900s heredado de `~/.profile` era indistinguible del defecto de 180s del codigo con solo mirar
+    `--verificar`."""
+    config = sistema.config
+    router = sistema.orquestador.router
+    stack = "real" if config.usar_stack_real else "mock"
+    if config.usar_stack_real:
+        proveedor = router.providers[0] if router.providers else None
+        nombre_proveedor = getattr(proveedor, "name", "?")
+        modelo = getattr(proveedor, "model", config.modelo)
+        circuitos = str(router.estado_circuitos())
+    else:
+        nombre_proveedor = "mock"
+        modelo = "mock (no aplica)"
+        # El circuit breaker SI corre sobre el mock (es el mismo ModelRouter); se etiqueta el stack
+        # para que no se lea como si fuera el estado de un proveedor real.
+        circuitos = f"{router.estado_circuitos()} (stack mock)"
+    lineas = [
+        f"  proveedor LLM       : {nombre_proveedor} (stack={stack})",
+        f"  modelo              : {modelo}",
+        f"  timeout proveedor   : {config.timeout_proveedor_s}s (fuente: {config.fuente_timeout_proveedor})",
+        f"  enfriamiento circuito: {config.enfriamiento_circuito_s}s (fuente: {config.fuente_enfriamiento_circuito})",
+        f"  estado circuitos    : {circuitos}",
+        f"  timeout conversacion (wait): {_TIMEOUT_TURNO_S}s",
+    ]
+    if config.timeout_proveedor_s > _TIMEOUT_TURNO_S:
+        lineas.append(
+            f"  [!] el timeout del proveedor ({config.timeout_proveedor_s}s) SUPERA el timeout de la "
+            f"conversacion ({_TIMEOUT_TURNO_S}s): un turno lento puede cortarse antes de que el "
+            "proveedor termine de responder."
+        )
+    return lineas
 
 
 def _gobierno(sistema) -> str:
@@ -105,7 +154,19 @@ async def _servir(sistema) -> int:
     return 0
 
 
-async def _conversar(sistema) -> int:
+async def _conversar(sistema, telemetria: bool = False) -> int:
+    """Conversacion humana. La telemetria NO se apaga: se saca de la pantalla.
+
+    `[VOICE]`, `[MEM]`, `[EVENT]`, `[LAT]`… seguian saliendo por `stderr` mientras la respuesta salia
+    por `stdout` — dos flujos distintos, si, pero en una terminal caen en el mismo sitio, asi que la
+    separacion no separaba nada y la conversacion aparecia sepultada bajo su propia instrumentacion.
+
+    Lo que cambia es DONDE se imprime, no si se registra: `observability.log` guarda el registro y
+    persiste la auditoria **antes** de decidir si lo pinta. El audit log sigue en
+    `sistema.ruta_audit`, `obs.audit_records()` sigue devolviendo lo mismo, y `--telemetria` la
+    devuelve a la pantalla para quien la quiera delante."""
+    if not telemetria:
+        obs.configurar_salida(None)
     print(_informe(sistema))
     print("Escribe para hablar con AURA. Ctrl-D para salir.\n")
     while True:
@@ -118,12 +179,69 @@ async def _conversar(sistema) -> int:
             continue
         tid = uuid.uuid4().hex[:12]
         try:
-            await sistema.orquestador.handle_utterance("usuario", texto, tid)
-            res = await sistema.orquestador.wait(tid, timeout=900)
+            res = await _turno(sistema.orquestador, texto, tid)
             print(f"AURA> {res['say']}\n")
         except Exception as e:
             # Un turno fallido no puede tumbar la sesion: AURA sigue disponible.
             print(f"AURA> No pude completar el turno ({type(e).__name__}: {e})\n")
+
+
+async def _turno(orquestador, texto: str, tid: str) -> dict:
+    """Lanza el turno como TAREA del MISMO bucle de eventos (D-FC-6, medido con Ollama y el bus real
+    -- arquitecto, 2026-09-13): `InProcessEventBus.publish` hace `await h(event)`, asi que
+    `handle_utterance` NO vuelve hasta que el turno ENTERO termina (251-263s medidos con Ollama). Con
+    `await handle_utterance(...)` en linea, el turno ya estaba resuelto cuando `_esperar_con_acuse` lo
+    consultaba: el acuse nunca se imprimia en produccion, solo en pruebas con un doble cuyo `wait()`
+    expiraba por su cuenta. Lanzandolo como tarea, el bucle queda libre para que `_esperar_con_acuse`
+    consulte el progreso REAL mientras la llamada al modelo corre en `run_in_executor` (sin hilos ni
+    colas nuevas: es la misma infraestructura de `asyncio` que ya usaba el proyecto).
+
+    Al final se hace `await tarea`: si el turno fallo con una excepcion (en vez de resolverse con una
+    respuesta, aunque sea de abstencion), se propaga aqui, igual que con el `await` directo de antes."""
+    tarea = asyncio.create_task(orquestador.handle_utterance("usuario", texto, tid))
+    try:
+        return await _esperar_con_acuse(orquestador, tid)
+    finally:
+        await tarea
+
+
+async def _esperar_con_acuse(orquestador, tid: str) -> dict:
+    """D-FC-6: acuse de espera sobre la infraestructura EXISTENTE -- reutiliza `orquestador.wait` en
+    dos tramos, sin colas ni hilos nuevos. Una inferencia real medida en 123-248s no imprimia nada
+    hasta terminar y parecia un cuelgue; esto no acorta la espera, solo la hace visible.
+
+    `turno_en_modelo` es OPCIONAL (lo implementa el integrador del orquestador): con `getattr` y
+    respaldo, esta funcion se comporta igual si el metodo todavia no existe."""
+    try:
+        return await _wait_robusto(orquestador, tid, _ACUSE_TRAMO_S)
+    except TimeoutError:
+        pass
+    turno_en_modelo = getattr(orquestador, "turno_en_modelo", None)
+    if callable(turno_en_modelo) and turno_en_modelo(tid):
+        print("AURA> (consultando mi modelo local; puede tardar varios minutos…)")
+    else:
+        print("AURA> (sigo trabajando en tu petición…)")
+    return await orquestador.wait(tid, timeout=_TIMEOUT_TURNO_S - _ACUSE_TRAMO_S)
+
+
+async def _wait_robusto(orquestador, tid: str, timeout: float, reintentos_registro: int = 200) -> dict:
+    """`orquestador.wait` puede lanzar `KeyError` si se le pregunta por un turno que
+    `handle_utterance` todavia no registro: el `Orchestrator` real crea `_done[trace_id]` en sus DOS
+    PRIMERAS lineas -antes de su primer `await`- pero `_turno` lo lanza como tarea para no bloquear
+    el acuse (ver `_turno`), y eso abre una ventana de carrera muy breve entre crear la tarea y que
+    el turno quede registrado.
+
+    Se cierra cediendo el control con duracion CERO (`asyncio.sleep(0)`) las veces que haga falta --
+    nunca con un sleep de duracion arbitraria-- y solo mientras el fallo sea EXACTAMENTE ese
+    `KeyError`; cualquier otro resultado (exito o `TimeoutError` genuino porque el turno sigue en
+    curso) se propaga tal cual, sin reintentar. `reintentos_registro` es una red de seguridad, no un
+    plazo: en la practica se resuelve en la primera o segunda vuelta."""
+    for _ in range(reintentos_registro):
+        try:
+            return await orquestador.wait(tid, timeout=timeout)
+        except KeyError:
+            await asyncio.sleep(0)
+    return await orquestador.wait(tid, timeout=timeout)  # se agotaron los reintentos: que se vea el KeyError real
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -134,6 +252,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument(
         "--servir", action="store_true", help="AURORA con proceso propio: sirve el objetivo activo hasta Ctrl-C"
+    )
+    ap.add_argument(
+        "--telemetria",
+        action="store_true",
+        help="muestra la telemetria interna en pantalla durante la conversacion (por defecto solo se registra)",
     )
     args = ap.parse_args(argv)
 
@@ -163,7 +286,7 @@ def main(argv: list[str] | None = None) -> int:
         except FallosConsecutivosExcedidos as e:
             print(f"\nAURA: servicio detenido -- {e}", flush=True)
             return 1
-    return asyncio.run(_conversar(sistema))
+    return asyncio.run(_conversar(sistema, telemetria=args.telemetria))
 
 
 if __name__ == "__main__":

@@ -1,0 +1,71 @@
+incremento = "B2 · verificador de la ejecucion controlada (PLAN-B2 §4) — 2026-08-25"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/communication-plane"
+# Las seis evidencias y, sobre todo, la DISTINCION del §4: un canal sano con un agente que no siguio
+# la instruccion NO es lo mismo que un canal roto. Confundirlos invalidaria el experimento.
+pruebas = ["test_b2_ejecucion_controlada.py"]
+timeout_s = 120
+
+[[mutante]]
+id = "B2-M1"
+descripcion = "el exito se decide por `subtype` en vez de por `is_error` (la trampa ya medida)"
+fichero = "verificador_b2.py"
+buscar = '''    try:
+        return cp.ejecucion_correcta(sobre)
+    except ValueError:
+        return False'''
+sustituir = '''    return sobre.get("subtype") == "success"'''
+
+[[mutante]]
+id = "B2-M2"
+descripcion = "un sobre sin `is_error` pasa por exito"
+fichero = "verificador_b2.py"
+buscar = '''    except ValueError:
+        return False'''
+sustituir = '''    except ValueError:
+        return True'''
+
+[[mutante]]
+id = "B2-M3"
+descripcion = "cualquier RESULT vale: no se comprueba que responda A ESTA tarea"
+fichero = "verificador_b2.py"
+buscar = '''    respuesta = next((m for m in resultados if m.get("in_reply_to") == id_tarea), None)'''
+sustituir = '''    respuesta = resultados[0] if resultados else None'''
+
+[[mutante]]
+id = "B2-M4"
+descripcion = "la suma no se comprueba: basta con que haya respuesta"
+fichero = "verificador_b2.py"
+buscar = '''        "suma_correcta": bool(respuesta) and respuesta.get("cuerpo", {}).get("suma") == SUMA_ESPERADA,'''
+sustituir = '''        "suma_correcta": bool(respuesta),'''
+
+[[mutante]]
+id = "B2-M5"
+descripcion = "la integridad de la cadena deja de comprobarse"
+fichero = "verificador_b2.py"
+buscar = '''        "integridad": bool(integridad.get("integro")) and cp.huecos_de_secuencia(seqs) == [],'''
+sustituir = '''        "integridad": True,'''
+
+[[mutante]]
+id = "B2-M6"
+descripcion = "se declara GREEN sin las seis evidencias"
+fichero = "verificador_b2.py"
+buscar = '''    if all(evidencias.values()):
+        return "GREEN"'''
+sustituir = '''    if evidencias["exit_cero"]:
+        return "GREEN"'''
+
+[[mutante]]
+id = "B2-M7"
+descripcion = "se pierde la distincion del §4: un canal sano con agente fallido pasa por FALLO"
+fichero = "verificador_b2.py"
+buscar = '''    if proceso_limpio and canal_sano:'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "B2-M8"
+descripcion = "los huecos de secuencia dejan de contar para la integridad"
+fichero = "verificador_b2.py"
+buscar = '''and cp.huecos_de_secuencia(seqs) == [],'''
+sustituir = ''','''

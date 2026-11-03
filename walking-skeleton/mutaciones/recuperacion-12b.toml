@@ -1,0 +1,114 @@
+incremento = "§12 · las tres filas de recuperacion que quedaban sin implementar (2026-08-30)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/control-plane"
+pruebas = ["test_red_recuperacion_12b.py"]
+timeout_s = 300
+
+[[mutante]]
+id = "S12B-M1"
+garantia = "§12: una sesion ya ejecutada se DETECTA. «Detectable» solo vale si alguien mira"
+fichero = "orquestador.py"
+pruebas = ["test_red_recuperacion_12b.py::test_una_sesion_ya_ejecutada_se_DETECTA",
+           "test_red_recuperacion_12b.py::test_la_deteccion_de_sesion_sobrevive_al_REINICIO"]
+buscar = '''    return any(e["tipo"] == "sesion_ejecutada" and e["datos"].get("session_id") == session_id
+               for e in cp.leer_eventos(pathlib.Path(directorio)))'''
+sustituir = '''    return False'''
+
+[[mutante]]
+id = "S12B-M2"
+garantia = "§12: «la segunda no se registra» — el bucle no reejecuta la misma tarea con el mismo sobre"
+fichero = "orquestador.py"
+pruebas = ["test_red_recuperacion_12b.py::test_la_segunda_ejecucion_de_la_MISMA_tarea_con_el_MISMO_sobre_NO_se_registra",
+           "test_red_recuperacion_12b.py::test_el_ciclo_dice_POR_QUE_se_detuvo_cuando_la_sesion_ya_corrio"]
+buscar = '''            sin_correr = [t for t in frescas
+                          if not sesion_ya_ejecutada(self.directorio, self.worker.session_id(t))]'''
+sustituir = '''            sin_correr = list(frescas)'''
+
+[[mutante]]
+id = "S12B-M3"
+garantia = "la sesion se ANOTA al invocar: sin anotarla, la deteccion no tiene nada que encontrar"
+fichero = "orquestador.py"
+pruebas = ["test_red_recuperacion_12b.py::test_la_segunda_ejecucion_de_la_MISMA_tarea_con_el_MISMO_sobre_NO_se_registra"]
+buscar = '''                registrar_sesion(self.directorio, tarea["id"], self.worker.session_id(tarea))'''
+sustituir = '''                pass'''
+
+[[mutante]]
+id = "S12B-M4"
+garantia = "el ciclo distingue «ya ejecutada» de «sin tareas»: confundirlas manda a buscar donde no es"
+fichero = "orquestador.py"
+pruebas = ["test_red_recuperacion_12b.py::test_el_ciclo_dice_POR_QUE_se_detuvo_cuando_la_sesion_ya_corrio"]
+buscar = '''                motivo = "sesión ya ejecutada"'''
+sustituir = '''                motivo = "sin tareas ejecutables"'''
+
+[[mutante]]
+id = "S12B-M5"
+garantia = "el review_id es DERIVADO del expediente: uno constante confundiria dos revisiones distintas"
+fichero = "revisores.py"
+pruebas = ["test_red_recuperacion_12b.py::test_cada_peticion_de_revision_lleva_un_review_id_DERIVADO",
+           "test_red_recuperacion_12b.py::test_dos_tareas_distintas_pueden_responderse_las_dos"]
+buscar = '''    canonico = json.dumps(expediente.como_dict(), sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(canonico.encode("utf-8")).hexdigest()[:32]'''
+sustituir = '''    return "el-mismo-para-todos"'''
+
+[[mutante]]
+id = "S12B-M6"
+garantia = "§12: la SEGUNDA respuesta al mismo review_id se descarta. Manda la primera"
+fichero = "revisores.py"
+pruebas = ["test_red_recuperacion_12b.py::test_la_SEGUNDA_respuesta_al_mismo_review_id_se_DESCARTA",
+           "test_red_recuperacion_12b.py::test_la_respuesta_duplicada_NO_cambia_el_veredicto_registrado"]
+buscar = '''    if respuesta_ya_registrada(directorio, identificador):
+        raise RespuestaDuplicada('''
+sustituir = '''    if False:
+        raise RespuestaDuplicada('''
+
+[[mutante]]
+id = "S12B-M7"
+garantia = "el rechazo ocurre ANTES de escribir: si escribiera primero, el log ya mostraria el segundo"
+fichero = "revisores.py"
+pruebas = ["test_red_recuperacion_12b.py::test_la_respuesta_duplicada_NO_cambia_el_veredicto_registrado"]
+buscar = '''    if respuesta_ya_registrada(directorio, identificador):'''
+sustituir = '''    cp.registrar_evento(directorio, "veredicto_emitido", {
+        "id": tarea_id, "revisor": por, "veredicto": veredicto,
+        "motivos": list(motivos), "evidencia_citada": list(evidencia_citada)})
+    if respuesta_ya_registrada(directorio, identificador):'''
+
+[[mutante]]
+id = "S12B-M8"
+garantia = "los reintentos cuentan AUSENCIAS: un revisor que responde no debe gastar ninguno"
+fichero = "revisores.py"
+pruebas = ["test_red_recuperacion_12b.py::test_un_revisor_que_SI_responde_no_gasta_reintentos",
+           "test_red_recuperacion_12b.py::test_sin_respuesta_se_REINTENTA_de_forma_acotada"]
+buscar = '''    cp.registrar_evento(directorio, "revision_sin_respuesta",
+                        {"id": expediente.tarea_id, "review_id": review_id(expediente)})'''
+sustituir = '''    pass'''
+
+[[mutante]]
+id = "S12B-M9"
+garantia = "§12: agotados los reintentos, la tarea escala a DECISION_REQUIRED; no espera en silencio"
+fichero = "revisores.py"
+pruebas = ["test_red_recuperacion_12b.py::test_agotados_los_reintentos_la_tarea_pasa_a_DECISION_REQUIRED",
+           "test_red_recuperacion_12b.py::test_pasar_a_DECISION_REQUIRED_no_es_aprobar"]
+buscar = '''    if max_reintentos is not None and intentos_de_revision(directorio, expediente.tarea_id) > int(max_reintentos):'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "S12B-M10"
+garantia = "1.1:85 · escalar NO es aprobar: agotar reintentos jamas produce COMPLETED"
+fichero = "revisores.py"
+pruebas = ["test_red_recuperacion_12b.py::test_pasar_a_DECISION_REQUIRED_no_es_aprobar",
+           "test_red_recuperacion_12b.py::test_agotados_los_reintentos_la_tarea_pasa_a_DECISION_REQUIRED"]
+buscar = '''            cp.transicion(directorio, expediente.tarea_id, "DECISION_REQUIRED", autoridad=autoridad,
+                          causa=f"agotados {max_reintentos} reintentos de revision sin respuesta")
+        return {"veredicto": None, "estado": "DECISION_REQUIRED"}'''
+sustituir = '''            pass
+        return {"veredicto": None, "estado": "DECISION_REQUIRED"}'''
+
+[[mutante]]
+id = "S12B-M11"
+garantia = "el tope es un TOPE: sin cota, «reintento acotado» es un bucle y el §14 no autoriza ninguno"
+fichero = "revisores.py"
+pruebas = ["test_red_recuperacion_12b.py::test_agotados_los_reintentos_la_tarea_pasa_a_DECISION_REQUIRED",
+           "test_red_recuperacion_12b.py::test_sin_respuesta_se_REINTENTA_de_forma_acotada"]
+buscar = '''intentos_de_revision(directorio, expediente.tarea_id) > int(max_reintentos):'''
+sustituir = '''intentos_de_revision(directorio, expediente.tarea_id) > 10 ** 6:'''

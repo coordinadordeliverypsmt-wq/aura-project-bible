@@ -42,7 +42,16 @@ _FEEDBACK = ("no me gusta que", "deja de", "no vuelvas a", "me molesta")
 _TERCERO = (
     r"\ba (?!mi\b)\w+ le (gusta|encanta|molesta)",
     r"\b(el|ella|ellos|ellas) (prefiere|prefieren|suele|suelen)\b",
-    r"\bmi (amig|herman|jef|vecin|madre|padre|hij|espos|pareja)\w*\b",
+    # RELACIONES AMPLIADAS (CEO, 2026-09-10), condicion de la apertura posesiva de `_HECHO`. Medido
+    # antes de ampliarla: «mi abuela es enfermera», «mi primo es piloto» y «mi tio es abogado» daban
+    # `tercero=False`; hasta ahora no se guardaban solo porque `_HECHO` era una lista cerrada que no
+    # los nombraba. Al abrir la construccion posesiva, esa proteccion accidental desaparece y habria
+    # convertido a AURA en un registro sobre la familia del usuario (restriccion 3 / ALERTA-002).
+    #
+    # `prim[oa]s?\b` y `ti[oa]s?\b` llevan borde a proposito: `prim\w*` casaria «mi primera vez» y
+    # `ti[oa]\w*` casaria «mi tiovivo», y cada falso positivo aqui es un hecho del usuario que se
+    # pierde. La lista se amplia con lo que el comportamiento demostro necesario, nada mas.
+    r"\bmi (abuel\w*|prim[oa]s?|ti[oa]s?|amig\w*|herman\w*|jef\w*|vecin\w*|madre|padre|hij\w*|espos\w*|pareja)\b",
     r"\ba \w+ le\b",
 )
 
@@ -69,6 +78,25 @@ _HECHO = (
     r"\btrabajo de\b",
     r"\bproyecto llamado\b",
     r"\bmi proyecto se llama\b",
+    # COLOR FAVORITO (CEO, 2026-09-10). Medido antes de esto: el enunciado no se clasificaba -ni hecho
+    # ni preferencia-, asi que se guardaba SIN clase y `_responder_hecho` no podia verlo; la pregunta
+    # caia al modelo, que devolvio «amarillo» donde el usuario habia dicho «azul».
+    #
+    # Es un HECHO y no una PREFERENCIA porque exige la CONSTRUCCION DECLARATIVA COMPLETA: es verdadero
+    # o falso respecto de lo que el usuario dijo. «me gusta el azul» -marcador suelto de gusto- sigue
+    # siendo `PREFERENCIA_DECLARADA`, y la precedencia de `_clasificar` lo garantiza sin tocarla.
+    # El patron especifico de «mi color favorito es» ESTUVO AQUI y se retiro el 2026-09-10: la apertura
+    # posesiva de abajo lo absorbe por completo, y dejarlo seria codigo muerto que aparenta cobertura
+    # -la verificacion de mutacion lo demostro: romperlo no cambiaba nada porque el generico capturaba
+    # la frase igual-. La garantia no se pierde: la cubre el mutante del patron generico.
+    # APERTURA POSESIVA GENERICA (CEO, 2026-09-10). Sustituye el goteo de un patron por atributo: «mi
+    # cumpleanos es el 10 de mayo» o «mi telefono es 600123456» no se guardaban, asi que no habia nada
+    # que responder y la pregunta caia al modelo -que ya deformo un hecho: «azul» -> «amarillo»-.
+    #
+    # UNO O DOS terminos, no mas: acota el atributo a algo nombrable («color favorito», «cumpleanos»)
+    # y evita tragarse oraciones enteras. La proteccion contra terceros va DELANTE, en
+    # `_es_hecho_declarado`, no solo en la captura.
+    r"\bmi [a-z]+(?: [a-z]+)? es\b",
 )
 
 # TERCERA CONDICION de la regla de promocion: el atributo debe ser ESTABLE. Un marcador temporal
@@ -143,6 +171,11 @@ def _es_hecho_declarado(texto_norm: str) -> bool:
         return False
     if any(re.search(p, texto_norm) for p in _NO_AFIRMA):
         return False
+    # Un hecho sobre un TERCERO no es un hecho declarado del usuario, y la comprobacion va aqui -no
+    # solo al construir la senal- porque la apertura posesiva la hace imprescindible: asi la clase
+    # nunca llega a ser `HECHO_DECLARADO` para «mi abuela es enfermera».
+    if _habla_de_tercero(texto_norm):
+        return False
     return any(re.search(p, texto_norm) for p in _HECHO)
 
 
@@ -197,3 +230,17 @@ class ConectorConversacion:
                 # registrar "hubo una senal sobre un tercero" ya seria un rastro sobre esa persona.
                 continue
         return senales
+
+
+def es_declaracion_de_hecho_propio(texto: str) -> bool:
+    """True si el usuario DECLARA un hecho sobre si mismo («me llamo Mauricio», «trabajo en logistica»).
+
+    Es el MISMO criterio con el que la captura clasifica un enunciado como `HECHO_DECLARADO`: una sola
+    definicion, no una segunda lista que pudiera divergir. Por eso excluye lo que la captura excluye
+    -hechos de terceros, preferencias, estados de animo, preguntas-.
+
+    Funcion pura y sin estado: no observa, no guarda ni encola nada. Que el hecho se registre sigue
+    siendo asunto exclusivo de `ConectorConversacion.recoger`; quien consulta esta funcion solo sabe
+    QUE CLASE de enunciado es, nunca si la captura llego a guardarlo.
+    """
+    return _clasificar(_normalizar(texto)) is ClaseSenal.HECHO_DECLARADO

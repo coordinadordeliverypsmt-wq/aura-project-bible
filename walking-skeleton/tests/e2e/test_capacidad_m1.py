@@ -45,6 +45,19 @@ async def test_capacidad_conversacional_completa(tmp_path):
     assert "kill switch activo" in r["say"]
     ks.disengage()
 
+    # EL VEHICULO DE LA PERSISTENCIA ES UNA AFIRMACION, NO LA ORDEN (CEO, 2026-09-09).
+    #
+    # Antes, el recuerdo que se recuperaba mas abajo procedia de la ORDEN de arriba. Dejo de ser
+    # valido cuando se aprobo `HISTORICO_NO_RECUPERABLE`: una orden pura se persiste con `kind`
+    # historico y NO vuelve en un `recall` -es lo que el usuario PIDIO, no lo que AFIRMO sobre si
+    # mismo-. Por `DP-D-M-7` (eje 2) esta afirmacion si tiene destino `RECUPERABLE`.
+    #
+    # Y la prueba sale REFORZADA, no debilitada: la orden sigue en el mismo almacen, con las mismas
+    # palabras -"sala", "tenue"-, marcada como historico. Si el filtro cediera, el `recall` de abajo
+    # devolveria DOS cosas en vez de una. Que solo vuelva la afirmacion es la garantia entera.
+    r = await _run(orch, "Prefiero la luz de la sala en modo tenue")
+    assert r["say"], "la afirmacion tiene que cerrar turno como cualquier otra"
+
     # persistencia entre sesiones: nueva instancia carga del disco
     mem2 = PersistentMemory(mem_path)
     orch2 = _orch(mem2, ks)

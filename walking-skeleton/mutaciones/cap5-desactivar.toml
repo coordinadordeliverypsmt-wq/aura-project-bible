@@ -62,9 +62,12 @@ sustituir = '''    return any(p in t for p in _PAT_CANCELACION)'''
 
 [[mutante]]
 id = "M8"
+# RE-ANCLADO 2026-09-09: el codigo se movio durante el trabajo de esta sesion y el patron dejo de
+# coincidir. La garantia es la MISMA; lo que cambio es donde vive. Quedaba invisible porque el
+# auditor resolvia este plano contra la raiz del producto (defecto corregido el mismo dia).
 garantia = "crear una regla acumula duplicados en memoria y rompe la desactivacion posterior"
 fichero = "aura_skeleton/core/reglas.py"
-buscar = '''    def crear(self, regla: ReglaUsuario) -> None:
-        self._proyectar(regla)'''
-sustituir = '''    def crear(self, regla: ReglaUsuario) -> None:
-        self._reglas.append(regla)'''
+buscar = '''        self._proyectar(regla)
+        with open(self._ruta, "a", encoding="utf-8") as f:'''
+sustituir = '''        self._reglas.append(regla)
+        with open(self._ruta, "a", encoding="utf-8") as f:'''

@@ -43,10 +43,10 @@ id = "M3"
 garantia = "falta el 'return' tras responder capacidades: el turno sigue hasta el LLM y sobreescribe la respuesta"
 fichero = "aura_skeleton/core/orchestrator.py"
 buscar = '''        if _es_consulta_de_capacidades(text):
-            await self._finalizar_turno(uid, tid, text, self._describir_capacidades(), "core", t)
+            await self._finalizar_turno(uid, tid, text, self._describir_capacidades(), "core", t, dominio="capacidades")
             return'''
 sustituir = '''        if _es_consulta_de_capacidades(text):
-            await self._finalizar_turno(uid, tid, text, self._describir_capacidades(), "core", t)'''
+            await self._finalizar_turno(uid, tid, text, self._describir_capacidades(), "core", t, dominio="capacidades")'''
 
 # (d) DATOS FABRICADOS EN VEZ DE LEER LA FUENTE: "¿en que estas trabajando?" deja de leer el Estado
 # Operativo real y devuelve un texto fijo. INV-9: fingir trabajo que no esta en el almacen.
@@ -54,12 +54,9 @@ sustituir = '''        if _es_consulta_de_capacidades(text):
 id = "M4"
 garantia = "'en que estas trabajando' deja de leer el Estado Operativo real: devuelve un texto fijo (INV-9)"
 fichero = "aura_skeleton/core/orchestrator.py"
-buscar = '''        secciones = self._secciones_del_ciclo()
-        if not secciones:
-            return "No tengo ningún objetivo activo registrado en el estado operativo ahora mismo."
-        resumen = self._resumen_de(secciones, "Que esta haciendo", "Que hara despues", "Progreso")
-        return f"Esto es en lo que estoy trabajando:\n{resumen}"'''
-sustituir = '''        return "Esto es en lo que estoy trabajando:\n• trabajando en tareas generales"'''
+buscar = '''        resumen = self._resumen_de(secciones, "Que esta haciendo", "Que hara despues", "Progreso")
+        tablero = f"Esto es en lo que estoy trabajando:\n{resumen}"'''
+sustituir = '''        tablero = "Esto es en lo que estoy trabajando:\n• trabajando en tareas generales"'''
 
 # CABLEADO DE composicion.py (CLAUDE.md: "muta tambien el cableado, no solo la logica"). Sin
 # `estado_operativo=` en la construccion del Orchestrator, "que tareas tienes"/"por que estas
@@ -69,12 +66,9 @@ sustituir = '''        return "Esto es en lo que estoy trabajando:\n• trabajan
 id = "M5"
 garantia = "la composicion no enciende la ventana del Estado Operativo en la conversacion"
 fichero = "aura_skeleton/composicion.py"
-buscar = '''        # Ventana del SO Interno en la conversacion (M3 entry): "¿que tareas tienes?" y "¿por que
-        # estas bloqueada?" leen el MISMO almacen que expone `sistema.estado_operativo` y que
-        # `--gobierno` ya publica -- nunca un segundo estado que pudiera divergir.
-        estado_operativo=estado_operativo,
-    )'''
-sustituir = '''    )'''
+buscar = '''        # `--gobierno` ya publica -- nunca un segundo estado que pudiera divergir.
+        estado_operativo=estado_operativo,'''
+sustituir = '''        # `--gobierno` ya publica -- nunca un segundo estado que pudiera divergir.'''
 
 # --- Rechazo de auditoria independiente: mutantes A7-A11 que sobrevivian a las 684 pruebas -------
 #

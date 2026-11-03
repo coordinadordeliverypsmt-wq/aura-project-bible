@@ -12,12 +12,30 @@ import pytest
 from aura_skeleton.adapters.home_assistant import HomeAssistantMock
 from aura_skeleton.adapters.voice import VoiceAdapterMock
 from aura_skeleton.bus import InProcessEventBus
+from aura_skeleton.core.automatizacion import MotorAutomatizacion
+from aura_skeleton.core.ejecutor_modelo_usuario import EjecutorModeloUsuario
 from aura_skeleton.core.kill_switch import KillSwitch
 from aura_skeleton.core.modelo_usuario import ModeloUsuario
 from aura_skeleton.core.orchestrator import Orchestrator
 from aura_skeleton.core.permissions import PermissionManager
 from aura_skeleton.modules.memory import PersistentMemory
 from aura_skeleton.modules.router import MockProvider, ModelRouter
+
+
+def _mu(mem, kill=None):
+    """`ModeloUsuario` cableado al MOTOR UNICO (F4, 2026-08-25).
+
+    La ruta de soberania dejo de mutar el almacen directamente. **Sin motor no muta**, asi que un
+    fixture que construya `ModeloUsuario(mem)` a secas haria pasar la prueba en vacio. El veredicto
+    que cada prueba mide no cambia: se completa el cableado que la migracion hizo obligatorio.
+    """
+    return ModeloUsuario(mem, motor=MotorAutomatizacion(
+        EjecutorModeloUsuario(mem), PermissionManager(_confirmar_mu, kill_switch=kill)))
+
+
+async def _confirmar_mu(accion, args, trace_id):
+    return True
+
 
 
 async def _si(a, args, tid):
@@ -37,7 +55,7 @@ def _orq(tmp_path, armado):
             PermissionManager(_si, kill_switch=ks),
             VoiceAdapterMock(),
             HomeAssistantMock(),
-            modelo_usuario=ModeloUsuario(mem),
+            modelo_usuario=_mu(mem, locals().get("kill")),
         ),
         mem,
         ks,
@@ -56,7 +74,7 @@ async def test_con_la_parada_ARMADA_no_se_borra_nada(tmp_path):
     resp = await orq._atender_modelo_usuario("u", "Olvida lo de la penicilina.")
 
     assert "detenido" in (resp or "").lower(), f"debe declarar que esta detenido: {resp!r}"
-    quedan = [e["contenido"] for e in await ModeloUsuario(mem).ver("u")]
+    quedan = [e["contenido"] for e in await _mu(mem).ver("u")]
     assert any("penicilina" in c for c in quedan), "con la parada echada NO puede borrarse un dato"
 
 
@@ -67,7 +85,7 @@ async def test_con_la_parada_ARMADA_no_se_refuta_nada(tmp_path):
 
     await orq._atender_modelo_usuario("u", "Lo de la penicilina ya no es cierto.")
 
-    assert not any(e.get("refutada") for e in await ModeloUsuario(mem).ver("u")), "refutar tambien muta"
+    assert not any(e.get("refutada") for e in await _mu(mem).ver("u")), "refutar tambien muta"
 
 
 @pytest.mark.asyncio
@@ -91,4 +109,4 @@ async def test_CONTROL_al_desarmar_el_olvido_vuelve_a_funcionar(tmp_path):
     resp = await orq._atender_modelo_usuario("u", "Olvida lo de la penicilina.")
 
     assert "hecho" in (resp or "").lower(), f"al desarmar debe volver a funcionar: {resp!r}"
-    assert not [e for e in await ModeloUsuario(mem).ver("u")], "el olvido debe surtir efecto"
+    assert not [e for e in await _mu(mem).ver("u")], "el olvido debe surtir efecto"

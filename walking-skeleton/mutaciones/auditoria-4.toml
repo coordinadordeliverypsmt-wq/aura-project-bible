@@ -1,0 +1,101 @@
+incremento = "4.a auditoria: WAITING_FOR_QUOTA en el motor, borde de persistencia, barrido total (2026-08-30)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/control-plane"
+pruebas = ["test_red_auditoria_4.py", "test_red_auditoria_3.py", "test_red_blindaje_estado.py"]
+timeout_s = 300
+
+[[mutante]]
+id = "A4-M1"
+garantia = "GRAVE: WAITING_FOR_QUOTA exige observacion registrada EN EL MOTOR, no en un envoltorio"
+fichero = "control_plane.py"
+pruebas = ["test_red_auditoria_4.py::test_transicion_NO_aparca_por_cuota_sin_evidencia_observada",
+           "test_red_auditoria_4.py::test_la_via_gobernada_de_cuota_SI_aparca"]
+buscar = '''        if valor == "WAITING_FOR_QUOTA":'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "A4-M2"
+garantia = "§11: no queda escrita una observacion de cuota que nadie observo"
+fichero = "control_plane.py"
+pruebas = ["test_red_auditoria_4.py::test_una_observacion_de_cuota_FALSA_no_llega_a_escribirse"]
+buscar = '''    if not (evidencia or "").strip():
+        raise ValueError('''
+sustituir = '''    if False:
+        raise ValueError('''
+
+[[mutante]]
+id = "A4-M3"
+garantia = "la observacion de cuota va atada a SU tarea: la de al lado no vale"
+fichero = "control_plane.py"
+pruebas = ["test_red_auditoria_4.py::test_la_observacion_de_cuota_va_atada_a_SU_tarea"]
+buscar = '''              if e["tipo"] == "cuota_observada" and e["datos"].get("id") == id_tarea]'''
+sustituir = '''              if e["tipo"] == "cuota_observada"]'''
+
+[[mutante]]
+id = "A4-M4"
+garantia = "GRAVE: el borde de persistencia rechaza un COMPLETED fabricado sin autoridad humana"
+fichero = "control_plane.py"
+pruebas = ["test_red_auditoria_4.py::test_guardar_NO_persiste_una_tarea_COMPLETED_sin_autoridad_humana",
+           "test_red_auditoria_4.py::test_actualizar_estado_tampoco_deja_fabricar_un_COMPLETED"]
+buscar = '''        if tarea.get("estado") == "COMPLETED" and tarea.get("autoridad") not in AUTORIDADES_HUMANAS:'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "A4-M5"
+garantia = "el borde no cierra de mas: los demas estados se persisten con normalidad"
+fichero = "control_plane.py"
+pruebas = ["test_red_auditoria_4.py::test_los_demas_estados_se_persisten_con_normalidad",
+           "test_red_auditoria_4.py::test_una_tarea_COMPLETED_con_autoridad_HUMANA_si_se_persiste"]
+buscar = '''        if tarea.get("estado") == "COMPLETED" and tarea.get("autoridad") not in AUTORIDADES_HUMANAS:'''
+sustituir = '''        if tarea.get("autoridad") not in AUTORIDADES_HUMANAS:'''
+
+[[mutante]]
+id = "A4-M6"
+garantia = "el barrido ve los functools.partial: inspect.isfunction devuelve False para uno"
+fichero = "control_plane.py"
+pruebas = ["test_red_auditoria_4.py::test_el_barrido_ve_los_functools_partial"]
+buscar = '''    if isinstance(objeto, functools.partial):
+        return True'''
+sustituir = '''    if False:
+        return True'''
+
+[[mutante]]
+id = "A4-M7"
+garantia = "el barrido DESCIENDE a las clases anidadas: recorria un solo nivel"
+fichero = "control_plane.py"
+pruebas = ["test_red_auditoria_4.py::test_el_barrido_desciende_a_las_clases_ANIDADAS"]
+buscar = '''        elif inspect.isclass(valor):
+            hallados.extend(invocables_de(valor, f"{prefijo}.{nombre}", profundidad - 1))'''
+sustituir = '''        elif False:
+            hallados.extend(invocables_de(valor, f"{prefijo}.{nombre}", profundidad - 1))'''
+
+[[mutante]]
+id = "A4-M8"
+garantia = "los modulos vigilados salen del DIRECTORIO, no de una tupla escrita a mano"
+fichero = "control_plane.py"
+pruebas = ["test_red_auditoria_4.py::test_los_modulos_vigilados_salen_del_DIRECTORIO_no_de_una_tupla",
+           "test_red_auditoria_3.py::test_el_metacontrol_MIRA_todos_los_modulos_no_solo_el_suyo"]
+buscar = '''    base = pathlib.Path(__file__).resolve().parent
+    return tuple(sorted(
+        f.stem for f in base.glob("*.py")
+        if not f.name.startswith(("test_", "conftest")) and "-" not in f.name))'''
+sustituir = '''    return ("control_plane",)'''
+
+[[mutante]]
+id = "A4-M9"
+garantia = "un revisor NOMBRADO sin ficha se rechaza: un veredicto en nombre de quien no existe es un sello"
+fichero = "review.py"
+pruebas = ["test_red_auditoria_4.py::test_un_revisor_NOMBRADO_sin_ficha_se_rechaza",
+           "test_red_review_enchufado.py::test_con_revisor_capaz_la_ruta_real_SIGUE_funcionando"]
+buscar = '''    if revisor is not None and revisor not in capaces:'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "A4-M10"
+garantia = "guardar y actualizar_estado estan CLASIFICADAS: fuera de toda lista fue como se colaron"
+fichero = "control_plane.py"
+pruebas = ["test_red_auditoria_4.py::test_guardar_y_actualizar_estado_estan_CLASIFICADAS"]
+buscar = '''    "guardar", "actualizar_estado",
+})'''
+sustituir = '''})'''

@@ -1,0 +1,138 @@
+incremento = "Segunda barrera anti-falsos-positivos + identidad de la oportunidad (2026-08-31)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/control-plane"
+pruebas = ["test_red_segunda_barrera.py", "test_red_codigo_muerto_completo.py"]
+timeout_s = 300
+
+# --------- LOS TRES FALSOS POSITIVOS REALES ---------
+
+[[mutante]]
+id = "SB-M1"
+garantia = "ACEPTAR __dunder__: es protocolo del lenguaje, no una constante privada"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_segunda_barrera.py::test_la_barrera_rechaza_CUALQUIER_dunder_no_solo_los_tres_conocidos",
+           "test_red_segunda_barrera.py::test_la_barrera_RECHAZA_los_tres_falsos_positivos_reales"]
+buscar = '''    if corto.startswith("__") and corto.endswith("__"):
+        return False, f"{corto!r} es protocolo del lenguaje, no una constante privada"'''
+sustituir = '''    if False:
+        return False, f"{corto!r} es protocolo del lenguaje, no una constante privada"'''
+
+[[mutante]]
+id = "SB-M2"
+garantia = "ACEPTAR __future__: es una directiva del compilador y su efecto no es un uso contable"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_segunda_barrera.py::test_la_barrera_RECHAZA_los_tres_falsos_positivos_reales",
+           "test_red_codigo_muerto_completo.py::test_un_import_de___future___NUNCA_es_codigo_muerto"]
+buscar = '''            if isinstance(n, ast.ImportFrom) and n.module == "__future__":
+                if any((a.asname or a.name) == corto for a in n.names):'''
+sustituir = '''            if False:
+                if any((a.asname or a.name) == corto for a in n.names):'''
+
+[[mutante]]
+id = "SB-M3"
+garantia = "ACEPTAR lo exportado en __all__: borrarlo deja `import *` roto y ninguna prueba lo veria"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_segunda_barrera.py::test_la_barrera_RECHAZA_los_tres_falsos_positivos_reales",
+           "test_red_codigo_muerto_completo.py::test_lo_que_esta_en___all___NO_es_codigo_muerto"]
+buscar = '''    if corto in _exportados(arbol):'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "SB-M4"
+garantia = "leer __all__ de verdad: una lista vacia de exportados equivale a no mirarla"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_segunda_barrera.py::test_la_barrera_RECHAZA_los_tres_falsos_positivos_reales",
+           "test_red_codigo_muerto_completo.py::test_una_constante_exportada_en___all___tampoco_se_toca"]
+buscar = '''            exportados |= {e.value for e in ast.walk(n.value)
+                           if isinstance(e, ast.Constant) and isinstance(e.value, str)}'''
+sustituir = '''            pass'''
+
+# --------- BYPASS DE LA BARRERA ---------
+
+[[mutante]]
+id = "SB-M5"
+garantia = "BYPASS: el EJECUTOR consulta la barrera antes de tocar el fichero"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_segunda_barrera.py::test_el_EJECUTOR_se_niega_aunque_la_tarea_llegue_por_otra_via",
+           "test_red_segunda_barrera.py::test_el_rechazo_del_ejecutor_QUEDA_REGISTRADO"]
+buscar = '''    puede, motivo = es_eliminable(original, propuesta["simbolo"], forma)
+    if not puede:'''
+sustituir = '''    puede, motivo = es_eliminable(original, propuesta["simbolo"], forma)
+    if False:'''
+
+[[mutante]]
+id = "SB-M6"
+garantia = "BYPASS: el DESCUBRIDOR consulta la barrera, para que un falso positivo no llegue a proponerse"
+fichero = "descubrimiento.py"
+pruebas = ["test_red_segunda_barrera.py::test_un_falso_positivo_NO_LLEGA_A_SER_OPORTUNIDAD"]
+buscar = '''    return [(s, ln, forma) for s, ln, forma in muertos
+            if ac.es_eliminable(fuente, s, forma)[0]]'''
+sustituir = '''    return muertos'''
+
+[[mutante]]
+id = "SB-M7"
+garantia = "INVERSION: la barrera devuelve lo que decide, no lo contrario"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_segunda_barrera.py::test_la_barrera_ACEPTA_lo_que_si_es_eliminable",
+           "test_red_segunda_barrera.py::test_CONTROL_una_oportunidad_legitima_SI_recorre_el_circuito_entero"]
+buscar = '''        return False, f"quitar {simbolo!r} deja un fichero que no compila: {exc}"
+    return True, ""'''
+sustituir = '''        return False, f"quitar {simbolo!r} deja un fichero que no compila: {exc}"
+    return False, "nada es eliminable"'''
+
+[[mutante]]
+id = "SB-M8"
+garantia = "FAIL-CLOSED: lo que no consta en el fichero no se borra"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_segunda_barrera.py::test_la_barrera_rechaza_lo_que_NO_EXISTE",
+           "test_red_autoconstruccion.py::test_AURA_no_declara_exito_sin_comprobar_el_efecto"]
+buscar = '''    if _nodo_de(arbol, simbolo, forma) is None:
+        return False, f"{simbolo!r} no consta como {forma} en este fichero"'''
+sustituir = '''    if False:
+        return False, f"{simbolo!r} no consta como {forma} en este fichero"'''
+
+[[mutante]]
+id = "SB-M9"
+garantia = "ESTRUCTURAL: si quitarlo deja un fichero que no compila, no se quita"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_segunda_barrera.py::test_la_barrera_rechaza_si_el_resultado_NO_COMPILA"]
+buscar = '''    try:
+        ast.parse(quitar_simbolo(fuente, simbolo, forma))
+    except SyntaxError as exc:
+        return False, f"quitar {simbolo!r} deja un fichero que no compila: {exc}"'''
+sustituir = '''    if False:
+        return False, "nunca"'''
+
+[[mutante]]
+id = "SB-M10"
+garantia = "el rechazo del ejecutor QUEDA REGISTRADO: uno que no consta es indistinguible de no intentarlo"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_segunda_barrera.py::test_el_rechazo_del_ejecutor_QUEDA_REGISTRADO"]
+buscar = '''        cp.registrar_evento(directorio, "eliminacion_rechazada",'''
+sustituir = '''        _ = lambda *a, **k: None
+        _(directorio, "eliminacion_rechazada",'''
+
+# --------- LA IDENTIDAD DE LA OPORTUNIDAD ---------
+
+[[mutante]]
+id = "SB-M11"
+garantia = "la identidad es (fichero, simbolo, forma): sin el distintivo, dos simbolos en la misma linea colisionan"
+fichero = "descubrimiento.py"
+pruebas = ["test_red_segunda_barrera.py::test_dos_simbolos_DISTINTOS_no_comparten_identidad",
+           "test_red_segunda_barrera.py::test_AURA_no_pierde_la_segunda_tarea_cuando_ocupa_la_linea_de_la_primera"]
+buscar = '''    semilla = f"{fuente}|{alcance}|{accion}|{distintivo}"'''
+sustituir = '''    semilla = f"{fuente}|{alcance}|{accion}"'''
+
+[[mutante]]
+id = "SB-M12"
+garantia = "la identidad NO incluye la linea: si la incluyera, mover el simbolo lo haria parecer nuevo"
+fichero = "descubrimiento.py"
+pruebas = ["test_red_segunda_barrera.py::test_la_identidad_NO_cambia_si_el_simbolo_se_MUEVE_de_linea",
+           "test_red_segunda_barrera.py::test_AURA_no_pierde_la_segunda_tarea_cuando_ocupa_la_linea_de_la_primera"]
+buscar = '''                id=_id_de(str(fichero), str(fichero), "eliminar_codigo_muerto", identidad),
+                fuente=fuente,
+                justificacion=(f"{simbolo} es {forma} muerto'''
+sustituir = '''                id=_id_de(fuente, str(fichero), "eliminar_codigo_muerto", identidad),
+                fuente=fuente,
+                justificacion=(f"{simbolo} es {forma} muerto'''

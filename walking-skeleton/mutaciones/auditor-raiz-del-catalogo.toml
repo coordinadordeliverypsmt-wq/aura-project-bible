@@ -1,0 +1,23 @@
+incremento = "El auditor resuelve cada catalogo contra SU raiz (defecto corregido 2026-09-09)"
+# La garantia no es «hay menos garantias rotas»: es que el auditor NO MIENTA sobre donde vive un
+# mutante. Decia que 583 garantias no protegian nada porque buscaba sus ficheros en el plano
+# equivocado -el patron «declarado != real» cometido por quien existe para cazarlo-.
+pruebas = ["tests/unit/test_garantias_vigentes.py::test_el_auditor_resuelve_cada_catalogo_contra_SU_raiz",
+           "tests/unit/test_garantias_vigentes.py::test_todo_catalogo_de_otro_plano_DECLARA_su_raiz"]
+timeout_s = 180
+
+[[mutante]]
+id = "AUD-M1"
+garantia = "el auditor vuelve a resolver todo contra el producto: los otros planos dan AUSENTE en falso"
+fichero = "aura_skeleton/adapters/auditor.py"
+buscar = '''        raiz_catalogo = base / str(datos.get("raiz", "")) if datos.get("raiz") else base'''
+sustituir = '''        raiz_catalogo = base'''
+
+[[mutante]]
+id = "AUD-M2"
+garantia = "un catalogo sin `raiz` deja de resolverse contra el producto: se invierte el defecto"
+fichero = "aura_skeleton/adapters/auditor.py"
+buscar = '''        raiz_catalogo = base / str(datos.get("raiz", "")) if datos.get("raiz") else base
+        for m in datos.get("mutante", []):'''
+sustituir = '''        raiz_catalogo = base / str(datos.get("raiz", "..")) 
+        for m in datos.get("mutante", []):'''

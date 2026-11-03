@@ -1,0 +1,52 @@
+incremento = "HISTORICO NO RECUPERABLE — la tercera salida del eje 2 (CEO, 2026-09-09)"
+# La garantia no es «existe un kind nuevo»: es que **lo escrito como historico se conserva y aun asi
+# no vuelve nunca en un recall**. Son dos mitades, y cada mutante ataca una. Un mutante que solo
+# comprobara la segunda pasaria borrando el historico, que es exactamente lo que NO se autorizo.
+pruebas = ["tests/unit/test_historico_no_recuperable.py",
+           "tests/unit/test_m1_clasificacion_intencion.py",
+           "tests/integration/test_bateria_memoria.py"]
+timeout_s = 180
+
+[[mutante]]
+id = "H-M1"
+garantia = "el filtro del contrato cede: el historico vuelve a ser recuperable en las tres implementaciones"
+fichero = "aura_skeleton/contracts.py"
+buscar = '''    return item.get("kind") not in KINDS_NO_RECUPERABLES'''
+sustituir = '''    return True'''
+
+[[mutante]]
+id = "H-M2"
+garantia = "el nivel se declara pero queda vacio: nada se considera no recuperable"
+fichero = "aura_skeleton/contracts.py"
+buscar = '''KINDS_NO_RECUPERABLES = frozenset({HISTORICO})'''
+sustituir = '''KINDS_NO_RECUPERABLES = frozenset()'''
+
+[[mutante]]
+id = "H-M3"
+garantia = "PersistentMemory deja de filtrar: el historico compite por el hueco `k` y desplaza memoria real"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''                     for idx in sorted(candidatos) if es_recuperable(self._items[idx])]'''
+sustituir = '''                     for idx in sorted(candidatos)]'''
+
+[[mutante]]
+id = "H-M4"
+garantia = "SimpleMemory deja de filtrar: la garantia solo valdria para una de las dos implementaciones"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''            if it["user_id"] != user_id or not es_recuperable(it):'''
+sustituir = '''            if it["user_id"] != user_id:'''
+
+[[mutante]]
+id = "H-M5"
+garantia = "la orden pura deja de tener destino: se pierde la traza en vez de ir al historico"
+fichero = "aura_skeleton/core/intencion.py"
+buscar = '''    if c.acto == ORDEN and not es_interrogativa(texto):
+        return HISTORICO_NO_RECUPERABLE'''
+sustituir = '''    if False:
+        return HISTORICO_NO_RECUPERABLE'''
+
+[[mutante]]
+id = "H-M6"
+garantia = "el historico se convierte en memoria recuperable al escribirse: el auto-eco por la puerta de atras"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            kind = "episodica" if destino == intencion.RECUPERABLE else HISTORICO'''
+sustituir = '''            kind = "episodica"'''

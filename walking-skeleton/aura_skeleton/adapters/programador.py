@@ -1,4 +1,9 @@
-"""Ejecutor Programador: propone cambios VERIFICABLES, no escribe ficheros.
+"""Ejecutor Programador: propone cambios VERIFICABLES; no CONSERVA nada que la verificacion no respalde.
+
+CORRECCION DE LA PRIMERA LINEA (H6, auditoria ALERTA-006 del 2026-09-09). Antes decia «no escribe
+ficheros», y era falso: escribe (`write_bytes`, lineas 125/129/143), verifica, y revierte byte a byte
+si la verificacion falla. El comportamiento siempre fue correcto; la descripcion no. Es el patron
+«declarado != real» del §5 de CLAUDE.md, y se corrige donde nacio: en la frase.
 
 LA DISTINCION QUE PIDIO EL CEO (2026-08-03). Un agente que "escribe archivos" deja el repositorio en
 manos de quien acierte; este propone un cambio y **solo lo conserva si la verificacion lo respalda**.
@@ -25,6 +30,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from .. import observability as obs
+from ..core.operaciones import texto_utilizable
 
 
 class EjecutorProgramador:
@@ -50,10 +56,10 @@ class EjecutorProgramador:
         No aplica nada: comprueba las mismas precondiciones que `execute` y describe el efecto para
         que la confirmacion humana sea informada (lista roja, ADR-0003).
         """
-        relativa, buscar, sustituir = _campos(args)
-        rechazo = self._rechazo_previo(relativa, buscar, sustituir)
+        rechazo = self._rechazo_previo(args)
         if rechazo:
             return {"viable": False, "motivo": rechazo}
+        relativa, buscar, sustituir = _campos(args)
         ruta, fuera = self._resolver(relativa)
         if fuera:
             return {"viable": False, "motivo": "ruta fuera del arbol"}
@@ -61,21 +67,51 @@ class EjecutorProgramador:
         if apariciones != 1:
             motivo = "el patron no aparece" if apariciones == 0 else f"el patron aparece {apariciones} veces"
             return {"viable": False, "motivo": motivo}
-        return {"viable": True, "efecto": f"sustituir 1 aparicion en {relativa} y verificar; se revierte si falla"}
+        # LA PREVISUALIZACION DICE QUE SE SUSTITUYE, Y POR QUE. Decia solo "sustituir 1 aparicion en
+        # X", que es cierto y no informa de nada: con ese texto delante, el humano aprobo -en cuatro
+        # auditorias seguidas- borrados encubiertos y sustituciones por caracteres invisibles, todos
+        # indistinguibles entre si y de un cambio legitimo.
+        #
+        # Y ESTA ES LA GARANTIA QUE SOSTIENE EL RESTO. `texto_utilizable` es una red anterior, pero
+        # deliberadamente incompleta: no existe regla categorica que separe U+3164 -relleno hangul,
+        # categoria `Lo`, se pinta vacio- de una letra. Ampliar la lista de invisibles es una carrera
+        # que se pierde; cada auditoria encontraba dos o tres puntos de codigo mas que la anterior.
+        # `ascii()` Y NO `repr()`. Lo intente con `repr` primero y NO SERVIA: Python solo escapa lo
+        # que considera no imprimible, y U+3164 lo es -categoria `Lo`-, asi que la previsualizacion
+        # mostraba el invisible... invisible. `ascii()` escapa TODO lo que no sea ASCII imprimible, de
+        # modo que la regla es completa y se puede enunciar entera: **en la previsualizacion no cabe
+        # nada que no se vea**. Un relleno hangul aparece como `'\\u3164'`.
+        #
+        # El coste es que un texto con acentos se muestra escapado. Se acepta: esto es lo que un
+        # humano lee para autorizar que se toque el codigo, no un mensaje de interfaz.
+        return {
+            "viable": True,
+            "efecto": (
+                f"en {relativa}: sustituir {ascii(buscar)} por {ascii(sustituir)} "
+                "(1 aparicion) y verificar; se revierte si falla"
+            ),
+        }
 
     def _resolver(self, relativa: str):
+        # `startswith` sobre la ruta DESNUDA comparaba prefijos de texto, no de arbol: con la raiz en
+        # `.../x`, un `../xyz/secreto.py` resolvia a `.../xyz/secreto.py`, que empieza por `.../x` y
+        # pasaba la contencion. Medido por la cuarta auditoria: el cambio se aplico y se CONSERVO
+        # fuera del arbol declarado. No era explotable en la composicion real -no hay hermano de
+        # `walking-skeleton/` con ese prefijo-, pero la contencion no puede depender de como se
+        # llamen los directorios vecinos.
+        #
+        # `is_relative_to` compara SEGMENTOS, que es lo que "dentro del arbol" significa.
         ruta = (self._raiz / relativa).resolve()
-        return ruta, not str(ruta).startswith(str(self._raiz.resolve()))
+        return ruta, not ruta.is_relative_to(self._raiz.resolve())
 
     async def execute(self, command: str, args: dict, trace_id: str, event_id: str) -> dict:
         if command != "proponer_cambio":
             raise ValueError(f"capacidad no ofrecida por el ejecutor Programador: {command!r}")
 
-        relativa, buscar, sustituir = _campos(args)
-
-        rechazo = self._rechazo_previo(relativa, buscar, sustituir)
+        rechazo = self._rechazo_previo(args)
         if rechazo:
             return {"capacidad": command, "aplicado": False, "verificado": False, "motivo": rechazo}
+        relativa, buscar, sustituir = _campos(args)
 
         ruta, fuera = self._resolver(relativa)
         if fuera:
@@ -125,9 +161,27 @@ class EjecutorProgramador:
             "motivo": f"revertido: {veredicto.get('resumen', 'la verificacion no paso')}",
         }
 
-    def _rechazo_previo(self, relativa: str, buscar: str, sustituir: str) -> str:
-        if not relativa or not buscar:
+    def _rechazo_previo(self, args: dict) -> str:
+        """Recibe los argumentos CRUDOS, no convertidos: validar despues de `str()` no valida nada."""
+        relativa, buscar, sustituir = _crudos(args)
+        if not isinstance(relativa, str) or not isinstance(buscar, str) or not relativa or not buscar:
             return "un cambio necesita fichero y patron a sustituir"
+        # UN CAMBIO SIN SUSTITUTO NO ES UN CAMBIO: ES UN BORRADO. Medido por la tercera auditoria
+        # independiente sobre el sistema real -- `fichero` + `buscar` sin `sustituir` daba `viable` con
+        # el efecto "sustituir 1 aparicion", y borraba el patron del disco. Como quitar una guarda no
+        # rompe pruebas, el QA daba verde y el cambio se CONSERVABA.
+        #
+        # Y rompia el consentimiento antes que el codigo: al humano se le enseñaba "sustituir" y se
+        # ejecutaba un borrado. Una confirmacion sobre una previsualizacion falsa no es una
+        # confirmacion (ADR-0003).
+        #
+        # La regla de "esto sirve como texto" es UNA y vive en `operaciones`. Estuvo escrita dos
+        # veces y las dos copias divergieron: la primera correccion aplico aqui la leccion del caso
+        # BLANCO y no la del caso TIPO, asi que una lista seguia escribiendose como `['x']` en el
+        # fichero. Y `.strip()` por si solo deja pasar los invisibles que no son espacio -- un ZWSP
+        # sustituyendo a una guarda es indistinguible de haberla borrado.
+        if not texto_utilizable(sustituir):
+            return "un cambio necesita un sustituto real: sin el seria un borrado, no una sustitucion"
         if buscar == sustituir:
             return "el cambio es degenerado: no cambia nada"
         if not (self._raiz / relativa).is_file():
@@ -135,10 +189,19 @@ class EjecutorProgramador:
         return ""
 
 
-def _campos(args: dict) -> tuple[str, str, str]:
-    """Lectura unica de los argumentos: `simular` y `execute` deben ver EXACTAMENTE lo mismo.
+def _crudos(args: dict) -> tuple[object, object, object]:
+    """Lectura unica de los argumentos, SIN CONVERTIR: `simular` y `execute` deben ver EXACTAMENTE lo
+    mismo. Si divergieran, el dry-run aprobaria un cambio y la ejecucion aplicaria otro — que es la
+    clase de defecto que el dry-run existe para impedir.
 
-    Si divergieran, el dry-run aprobaria un cambio y la ejecucion aplicaria otro — que es la clase de
-    defecto que el dry-run existe para impedir.
+    Sin convertir porque la conversion era justo lo que enmascaraba el valor inadmisible: `str(["x"])`
+    es un texto perfectamente valido, asi que validar DESPUES de convertir no valida nada.
     """
-    return str(args.get("fichero", "")), str(args.get("buscar", "")), str(args.get("sustituir", ""))
+    return args.get("fichero", ""), args.get("buscar", ""), args.get("sustituir", "")
+
+
+def _campos(args: dict) -> tuple[str, str, str]:
+    """Los mismos argumentos ya como texto. Solo se llama DESPUES de `_rechazo_previo`, que es quien
+    garantiza que los tres son cadenas: aqui `str()` ya no puede convertir nada inesperado."""
+    fichero, buscar, sustituir = _crudos(args)
+    return str(fichero), str(buscar), str(sustituir)

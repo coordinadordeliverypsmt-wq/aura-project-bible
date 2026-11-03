@@ -1,0 +1,98 @@
+incremento = "D-CP-1 · ciclo instalar->ejecutar->retirar del agente externo (2026-08-25)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/agente-externo"
+# Las dos barreras del contrato (§2 necesidad, §3 politica de datos) y la garantia mas facil de
+# falsear: declarar el ciclo cerrado mientras el agente sigue en la maquina.
+pruebas = ["test_red_ciclo_bajo_demanda.py"]
+timeout_s = 120
+
+[[mutante]]
+id = "AEX-M1"
+descripcion = "se invita a un externo SIN necesidad declarada"
+fichero = "ciclo_bajo_demanda.py"
+buscar = '''    if not isinstance(necesidad, dict):
+        return False, ('''
+sustituir = '''    if False:
+        return False, ('''
+
+[[mutante]]
+id = "AEX-M2"
+descripcion = "un motivo cualquiera basta: «el agente principal fallo» pasa a ser suficiente"
+fichero = "ciclo_bajo_demanda.py"
+buscar = '''    if not any(r in motivo for r in RAZONES_VALIDAS):'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "AEX-M3"
+descripcion = "la politica de datos deja salir codigo de AURA sin AURA_APPROVED"
+fichero = "ciclo_bajo_demanda.py"
+buscar = '''    if tipo == "codigo_de_aura":
+        return bool(aprobados)'''
+sustituir = '''    if tipo == "codigo_de_aura":
+        return True'''
+
+[[mutante]]
+id = "AEX-M4"
+descripcion = "una carga sin tipo declarado se deja salir (fail-open)"
+fichero = "ciclo_bajo_demanda.py"
+buscar = '''    if tipo == _SINTETICO:
+        return True'''
+sustituir = '''    if tipo != "codigo_de_aura":
+        return True'''
+
+[[mutante]]
+id = "AEX-M5"
+descripcion = "si la ejecucion falla, el agente se queda instalado"
+fichero = "ciclo_bajo_demanda.py"
+buscar = '''    if not trabajo.ok:
+        # Un fallo del trabajo NO justifica dejarlo instalado: se retira igual.
+        registro["fallo"] = "ejecucion"'''
+sustituir = '''    if not trabajo.ok:
+        registro["fallo"] = "ejecucion"
+        registro["residuo"] = False
+        return registro'''
+
+[[mutante]]
+id = "AEX-M6"
+descripcion = "se declara COMPLETED aunque el agente siga instalado"
+fichero = "ciclo_bajo_demanda.py"
+buscar = '''    if registro.get("residuo"):
+        return "RESIDUO"'''
+sustituir = '''    if False:
+        return "RESIDUO"'''
+
+[[mutante]]
+id = "AEX-M7"
+descripcion = "la retirada se cree sin comprobarla: basta con que el desinstalador devuelva 0"
+fichero = "ciclo_bajo_demanda.py"
+# REAPUNTADO 2026-08-25: la linea original desaparecio al anadir el paso `limpiar`. El arnes lo
+# reporto como NO_APLICADO —que NO es «detectado»— y por eso se corrige en vez de darlo por bueno.
+buscar = '''    registro["residuo"] = comprobacion.ok or residuos.ok'''
+sustituir = '''    registro["residuo"] = not retirada.ok'''
+
+[[mutante]]
+id = "AEX-M8"
+descripcion = "la instalacion fallida no detiene el ciclo: se ejecuta igual"
+fichero = "ciclo_bajo_demanda.py"
+buscar = '''    if not instalacion.ok:
+        # Fail-closed: si no se pudo instalar, no hay nada que ejecutar ni que retirar.
+        registro["fallo"] = "instalacion"
+        registro["residuo"] = False
+        return registro'''
+sustituir = '''    if not instalacion.ok:
+        registro["fallo"] = "instalacion"'''
+
+[[mutante]]
+id = "AEX-M9"
+descripcion = "se desinstala pero NO se limpian los residuos (el defecto real que destapo el E2E)"
+fichero = "ciclo_bajo_demanda.py"
+buscar = '''    limpieza = ejecutor("limpiar", ordenes["limpiar"])'''
+sustituir = '''    limpieza = ejecutor("comprobar", ordenes["comprobar"])'''
+
+[[mutante]]
+id = "AEX-M10"
+descripcion = "el residuo en disco deja de contar: solo se mira si el ejecutable responde"
+fichero = "ciclo_bajo_demanda.py"
+buscar = '''    registro["residuo"] = comprobacion.ok or residuos.ok'''
+sustituir = '''    registro["residuo"] = comprobacion.ok'''

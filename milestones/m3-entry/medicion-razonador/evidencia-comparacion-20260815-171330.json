@@ -1,0 +1,88 @@
+{
+  "instante": "2026-08-15T17:08:34",
+  "origen_del_prompt": "evidencia-humo-20260815-151435-0.json",
+  "prompt_usuario_sha256": "115b4b49226f4908876cddc814e1e517ef67d49e650e9bb1e2f56bc9fa00b525",
+  "system_sha256": "8cb38813aad899e729dc95c03b2e266f6df53a2c4337571cf2d7b9874398ce47",
+  "prompt_completo_sha256": "58159836278f0df22caab205d56a83ce92ff1d40866e80eba2d73264340d3b81",
+  "contexto_sha256": "0a5800b2eabc6470bc1b2c15b09b635c29d17a3737e58bffbc05b5c802860963",
+  "contexto": {
+    "motivo": "veredicto negativo: 1 garantia(s) declaradas que NO protegen nada: laboratorio-humo.toml:H1 (AUSENTE)",
+    "fichero_declarado": "mutaciones/laboratorio-humo.toml",
+    "buscar_declarado": "    if not tiene_permiso(x):",
+    "referencia": "laboratorio-humo.toml:H1"
+  },
+  "timeout_s": 1800,
+  "umbrales": {
+    "ram_antes_mb": 1400,
+    "swap_libre_mb": 600,
+    "ram_tras_carga_mb": 150
+  },
+  "resultados": {
+    "qwen2.5:0.5b": {
+      "modelo": "qwen2.5:0.5b",
+      "mem_antes": {
+        "MemFree": 1131,
+        "MemAvailable": 1727,
+        "SwapTotal": 4103,
+        "SwapFree": 2135,
+        "load1": 0.787109375
+      },
+      "carga_s": 20.98,
+      "calentamiento_s": 28.64,
+      "mem_tras_carga": {
+        "MemFree": 244,
+        "MemAvailable": 1228,
+        "SwapTotal": 4103,
+        "SwapFree": 2135,
+        "load1": 1.43701171875
+      },
+      "error": null,
+      "latencia_pared_s": 266.91,
+      "mem_despues": {
+        "MemFree": 258,
+        "MemAvailable": 973,
+        "SwapTotal": 4103,
+        "SwapFree": 2057,
+        "load1": 4.1611328125
+      },
+      "tokens_entrada": 727,
+      "tokens_generados": 61,
+      "ingesta_s": 233.48,
+      "generacion_s": 32.71,
+      "ingesta_tok_s": 3.11,
+      "generacion_tok_s": 1.86,
+      "inferencia_total_s": 266.89,
+      "carga_en_esta_llamada_s": 0.66,
+      "respuesta_cruda": "{\n  \"intent\": \"corregir la declaración\",\n  \"action\": \"monitoreo\",\n  \"args\": {\n    \"patron\": \"laboratorio-humo.toml:H1\",\n    \"ruta\": \"mutaciones/laboratorio-humo.toml\"\n  }\n}",
+      "validacion": {
+        "action": "monitoreo",
+        "args": {
+          "patron": "laboratorio-humo.toml:H1",
+          "ruta": "mutaciones/laboratorio-humo.toml"
+        },
+        "accion_existe_en_catalogo": true,
+        "accion_inventada": false,
+        "campos_presentes": [],
+        "campos_faltantes": [
+          "fichero",
+          "buscar",
+          "sustituir"
+        ],
+        "tiene_los_tres_campos": false,
+        "fichero_es_el_declarado": false,
+        "json_valido": true
+      }
+    },
+    "qwen2.5:3b": {
+      "modelo": "qwen2.5:3b",
+      "mem_antes": {
+        "MemFree": 387,
+        "MemAvailable": 1103,
+        "SwapTotal": 4103,
+        "SwapFree": 2057,
+        "load1": 3.90771484375
+      },
+      "abandono": "umbral previo: disponible 1103 MB (min 1400) / swap libre 2057 MB (min 600)"
+    }
+  }
+}

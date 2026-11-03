@@ -23,6 +23,8 @@ import pytest
 from aura_skeleton.adapters.home_assistant import HomeAssistantMock
 from aura_skeleton.adapters.voice import VoiceAdapterMock
 from aura_skeleton.bus import InProcessEventBus
+from aura_skeleton.core.automatizacion import MotorAutomatizacion
+from aura_skeleton.core.ejecutor_modelo_usuario import EjecutorModeloUsuario
 from aura_skeleton.core.modelo_usuario import ModeloUsuario
 from aura_skeleton.core.orchestrator import Orchestrator
 from aura_skeleton.core.permissions import PermissionManager
@@ -35,14 +37,19 @@ async def _deny(a, args, tid):
 
 
 def _orq(mem):
+    # MOTOR ANADIDO 2026-08-25 (F4). `ModeloUsuario` ya no muta el almacen directamente: enruta por
+    # el motor unico. Sin motor no mutaria nada y estas pruebas pasarian EN VACIO. El veredicto que
+    # miden NO cambia; se completa el cableado que la migracion hizo obligatorio.
+    permisos = PermissionManager(_deny)
+    motor = MotorAutomatizacion(EjecutorModeloUsuario(mem), permisos)
     return Orchestrator(
         InProcessEventBus(),
         mem,
         ModelRouter([MockProvider("m", 1)], 1200),
-        PermissionManager(_deny),
+        permisos,
         VoiceAdapterMock(),
         HomeAssistantMock(),
-        modelo_usuario=ModeloUsuario(mem),
+        modelo_usuario=ModeloUsuario(mem, motor=motor),
     )
 
 

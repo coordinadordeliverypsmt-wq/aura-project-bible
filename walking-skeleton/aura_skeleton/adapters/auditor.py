@@ -55,22 +55,58 @@ def auditar_garantias(raiz: str, trace_id: str = "-") -> dict:
 
     for toml in sorted((base / "mutaciones").glob("*.toml")):
         datos = tomllib.loads(toml.read_text(encoding="utf-8"))
+        # RAIZ DEL CATALOGO. **Un mutante no vive necesariamente en el plano del producto.** El arnes
+        # ya lo sabia -acepta `--raiz`, y asi se corren los catalogos del plano de control-, pero el
+        # auditor resolvia SIEMPRE contra `base` y daba AUSENTE a todo lo que no fuera producto:
+        # 583 de 588 «garantias que no protegen nada» eran este defecto, no garantias rotas. Es el
+        # patron «declarado != real» cometido por el auditor cuyo oficio es cazarlo.
+        #
+        # Se DECLARA en el TOML en vez de adivinarse: probar raices hasta que una encaje acertaria
+        # casi siempre y mentiria el resto, y un homonimo entre planos resolveria al fichero
+        # equivocado sin avisar. Sin `raiz`, el plano es el del producto -que es lo que era antes-.
+        raiz_catalogo = base / str(datos.get("raiz", "")) if datos.get("raiz") else base
         for m in datos.get("mutante", []):
             total += 1
-            fichero = base / str(m.get("fichero", ""))
+            fichero = raiz_catalogo / str(m.get("fichero", ""))
             buscar, sustituir = str(m.get("buscar", "")), str(m.get("sustituir", ""))
             ident = f"{toml.name}:{m.get('id')}"
 
+            # CONTEXTO ACCIONABLE (acta del CEO, 2026-08-15). Estos tres datos ya estaban aqui, en
+            # `m`, y se descartaban: solo salia el identificador y un detalle en prosa. Publicarlos
+            # es lo que permite que la correccion derivada llegue al ejecutor con algo que usar en
+            # vez de morir en el dry-run por `args={}`. No se infiere nada: es lo que el TOML declara.
+            # EL ARTEFACTO A CORREGIR ES EL TOML, no el fichero objetivo (defecto detectado en
+            # auditoria, 2026-08-15). Cuando una garantia deja de aplicar, el codigo objetivo suele
+            # estar BIEN: lo que quedo obsoleto es el patron DECLARADO en `mutaciones/*.toml`.
+            # Publicar el objetivo enviaba al ejecutor a tocar el fichero equivocado.
+            #
+            # `sustituir` del mutante NO se publica como correccion: es el texto de la mutacion, no
+            # el patron nuevo que hay que escribir en el TOML. Ese hay que DECIDIRLO -- y decidirlo
+            # es razonar, no transportar. Se deja ausente a proposito (INV-9).
+            accionable = {
+                "fichero": str(toml.relative_to(base)),
+                "buscar": buscar,
+                "objetivo": str(m.get("fichero", "")),
+            }
+
+            # SE DECIDE QUE PASA, Y LUEGO SE PUBLICA UNA SOLA VEZ. Las cuatro ramas anexaban su
+            # propio diccionario con `**accionable` repetido, y solo una tenia prueba: la quinta
+            # auditoria encontro las otras tres como mutantes vivos -- quitar el contexto de la rama
+            # AMBIGUO, o de DEGENERADO, o de la de fichero ausente, no rompia nada. Es la misma
+            # familia que ya costo tres rechazos: una regla escrita N veces diverge en N-1 sitios.
+            problema, detalle = "", ""
             if not fichero.is_file():
-                rotos.append({"mutante": ident, "problema": "AUSENTE", "detalle": f"no existe {m.get('fichero')}"})
-                continue
-            apariciones = fichero.read_text(encoding="utf-8").count(buscar)
-            if apariciones == 0:
-                rotos.append({"mutante": ident, "problema": "AUSENTE", "detalle": "el patron ya no aparece"})
-            elif apariciones > 1:
-                rotos.append({"mutante": ident, "problema": "AMBIGUO", "detalle": f"aparece {apariciones} veces"})
-            elif buscar == sustituir:
-                rotos.append({"mutante": ident, "problema": "DEGENERADO", "detalle": "no degrada nada"})
+                problema, detalle = "AUSENTE", f"no existe {m.get('fichero')}"
+            else:
+                apariciones = fichero.read_text(encoding="utf-8").count(buscar)
+                if apariciones == 0:
+                    problema, detalle = "AUSENTE", "el patron ya no aparece"
+                elif apariciones > 1:
+                    problema, detalle = "AMBIGUO", f"aparece {apariciones} veces"
+                elif buscar == sustituir:
+                    problema, detalle = "DEGENERADO", "no degrada nada"
+            if problema:
+                rotos.append({"mutante": ident, "problema": problema, "detalle": detalle, **accionable})
 
     ok = not rotos
     obs.log("AUDIT", "ejecutor-auditor", f"garantias: {total - len(rotos)}/{total} vigentes", trace_id, audit=True)

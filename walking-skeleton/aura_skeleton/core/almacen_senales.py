@@ -28,21 +28,37 @@ def tipo_de_memoria(clase: ClaseSenal) -> str:
 class AlmacenSenales:
     """Escribe senales en el MemoryStore. No lee, no infiere, no decide (restricciones 1 y 2)."""
 
-    def __init__(self, memoria) -> None:
+    def __init__(self, memoria, motor=None) -> None:
         self._memoria = memoria
+        # F4 tramo 3 · el motor unico. §4.2 lo señalaba como hueco: «la captura de señales escribe
+        # conocimiento sobre el usuario sin correspondencia alguna». Sin motor NO se guarda nada.
+        self._motor = motor
 
     async def guardar(self, user_id: str, senales: list[Senal]) -> int:
+        """MIGRADA en F4: cada señal entra por `registrar_informacion_usuario`, que ya esta
+        catalogada y declara `sujeto`. Devuelve cuantas se guardaron REALMENTE — con el kill switch
+        armado son cero, y decir otra cosa seria narrar un efecto que no ocurrio (INV-9).
+        """
+        if self._motor is None:
+            return 0
+        guardadas = 0
         for s in senales:
-            await self._memoria.write(
-                user_id,
-                tipo_de_memoria(s.clase),
-                s.contenido,
+            r = await self._motor.ejecutar(
+                "registrar_informacion_usuario",
                 {
-                    "trace_id": s.trace_id,
-                    "fuente": s.fuente,
-                    "clase": s.clase.value,
-                    "origen": "declarada" if s.declarada else "observada",
-                    "ts": s.ts,
+                    "user_id": user_id,
+                    "contenido": s.contenido,
+                    "tipo": tipo_de_memoria(s.clase),
+                    "procedencia": {
+                        "trace_id": s.trace_id,
+                        "fuente": s.fuente,
+                        "clase": s.clase.value,
+                        "origen": "declarada" if s.declarada else "observada",
+                        "ts": s.ts,
+                    },
                 },
+                s.trace_id or "-", f"senal-{s.clase.value}", origen="captura-de-senales",
             )
-        return len(senales)
+            if r.get("estado") == "ejecutada":
+                guardadas += 1
+        return guardadas

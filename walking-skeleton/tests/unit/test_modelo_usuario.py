@@ -10,16 +10,38 @@ import json
 
 import pytest
 
+from aura_skeleton.core.automatizacion import MotorAutomatizacion
+from aura_skeleton.core.ejecutor_modelo_usuario import EjecutorModeloUsuario
 from aura_skeleton.core.modelo_usuario import ModeloUsuario
+from aura_skeleton.core.permissions import PermissionManager
 from aura_skeleton.core.senales import ClaseSenal, Senal
 from aura_skeleton.modules.memory import SimpleMemory
+
+
+def _mu(mem, kill=None):
+    """`ModeloUsuario` cableado al MOTOR UNICO (F4, 2026-08-25).
+
+    La ruta de soberania dejo de mutar el almacen directamente. **Sin motor no muta**, asi que un
+    fixture que construya `ModeloUsuario(mem)` a secas haria pasar la prueba en vacio. El veredicto
+    que cada prueba mide no cambia: se completa el cableado que la migracion hizo obligatorio.
+    """
+    return ModeloUsuario(mem, motor=MotorAutomatizacion(
+        EjecutorModeloUsuario(mem), PermissionManager(_confirmar_mu, kill_switch=kill)))
+
+
+async def _confirmar_mu(accion, args, trace_id):
+    return True
+
 
 
 async def _sembrar(mem, uid="mauricio"):
     """Siembra por la via real: el almacen de senales de M3.0."""
     from aura_skeleton.core.almacen_senales import AlmacenSenales
 
-    await AlmacenSenales(mem).guardar(
+    # motor ANADIDO (F4 tramo 3): la captura de senales pasa por el camino unico y sin motor no
+    # guarda nada; sembrar en vacio habria dejado estas pruebas midiendo una memoria vacia.
+    await AlmacenSenales(mem, motor=MotorAutomatizacion(
+        EjecutorModeloUsuario(mem), PermissionManager(_confirmar_mu))).guardar(
         uid,
         [
             Senal(ClaseSenal.PREFERENCIA_DECLARADA, "prefiere la luz tenue", "conversacion", "t1"),
@@ -33,7 +55,7 @@ async def test_ver_lo_que_aura_cree_saber():
     mem = SimpleMemory()
     await _sembrar(mem)
 
-    entradas = await ModeloUsuario(mem).ver("mauricio")
+    entradas = await _mu(mem).ver("mauricio")
 
     assert len(entradas) == 2
     assert {e["origen"] for e in entradas} == {"declarada", "observada"}
@@ -44,7 +66,7 @@ async def test_ver_lo_que_aura_cree_saber():
 async def test_una_correccion_prevalece_sobre_lo_inferido():
     """ADR-0017 §2: el usuario gana siempre, sin ponderacion."""
     mem = SimpleMemory()
-    modelo = ModeloUsuario(mem)
+    modelo = _mu(mem)
     await mem.write(
         "mauricio",
         "semantica",
@@ -70,7 +92,7 @@ async def test_exportar_es_legible_sin_aura():
     mem = SimpleMemory()
     await _sembrar(mem)
 
-    volcado = await ModeloUsuario(mem).exportar("mauricio")
+    volcado = await _mu(mem).exportar("mauricio")
     datos = json.loads(volcado)
 
     assert datos["usuario"] == "mauricio"
@@ -82,7 +104,7 @@ async def test_exportar_es_legible_sin_aura():
 async def test_borrado_selectivo_no_toca_el_resto():
     mem = SimpleMemory()
     await _sembrar(mem)
-    modelo = ModeloUsuario(mem)
+    modelo = _mu(mem)
 
     borradas = await modelo.borrar("mauricio", contiene="luz")
 
@@ -99,9 +121,9 @@ async def test_borrado_total_no_degrada_la_memoria_episodica():
     await _sembrar(mem)
     await mem.write("mauricio", "episodica", "usuario dijo: hola", {"trace_id": "t"})
 
-    await ModeloUsuario(mem).borrar("mauricio")
+    await _mu(mem).borrar("mauricio")
 
-    assert await ModeloUsuario(mem).ver("mauricio") == []
+    assert await _mu(mem).ver("mauricio") == []
     episodicas = [i for i in mem._items if i["kind"] == "episodica"]
     assert len(episodicas) == 1, "el borrado del modelo no puede tocar el historial episodico"
 
@@ -112,7 +134,7 @@ async def test_el_modelo_esta_aislado_por_usuario():
     mem = SimpleMemory()
     await _sembrar(mem, "mauricio")
     await _sembrar(mem, "otra_persona")
-    modelo = ModeloUsuario(mem)
+    modelo = _mu(mem)
 
     await modelo.borrar("otra_persona")
 

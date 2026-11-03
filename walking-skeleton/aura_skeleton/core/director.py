@@ -21,7 +21,12 @@ trabajo ni tocan el estado global. Por eso el estado se actualiza aqui y no en e
 
 from __future__ import annotations
 
-from .estado_operativo import AlmacenEstadoOperativo, Tarea
+from .estado_operativo import (
+    CLAVE_CONTEXTO,
+    AlmacenEstadoOperativo,
+    Tarea,
+    contexto_de_correccion,
+)
 
 
 class ResponsableDuplicado(Exception):
@@ -80,6 +85,11 @@ class DirectorGeneral:
                 autoridad="director",
                 causa=f"ningun ejecutor atiende al responsable '{tarea.responsable}'",
                 bloqueos=[*tarea.bloqueos, f"ningun ejecutor atiende al responsable '{tarea.responsable}'"],
+                # Tambien aqui viaja el contexto: es la unica derivada que aparece en el log real de
+                # produccion, y nacia sin nada. No hay veredicto -no se llego a ejecutar-, asi que
+                # solo hay motivo; pero el motivo es justo lo que el CEO necesita para saber que la
+                # correccion no es de codigo sino de CABLEADO.
+                args={**tarea.args, CLAVE_CONTEXTO: {"motivo": f"sin ejecutor para '{tarea.responsable}'"}},
             )
 
         res = await self.motor.ejecutar(
@@ -110,6 +120,30 @@ class DirectorGeneral:
             if not (res.get("estado") == "ejecutada")
             else f"veredicto negativo: {(veredicto or {}).get('resumen', 'el ejecutor no lo respalda')}"
         )
+        # EL VEREDICTO ESTRUCTURADO VIAJA CON LA TAREA (acta del CEO, 2026-08-15). El director es el
+        # unico punto donde coexisten el resultado del ejecutor -con sus datos accionables- y la
+        # tarea que se va a bloquear. Hasta aqui se conservaba solo `motivo`, una linea de prosa, y
+        # la correccion derivada nacia sin nada que ejecutar.
+        #
+        # Va en `args` bajo una clave declarada, NO en `evidencias`: el contexto es dato de maquina y
+        # la evidencia es texto para una persona -y ademas de la evidencia se deriva el identificador
+        # de la tarea, asi que meterlo ahi romperia la deduplicacion-.
+        contexto = contexto_de_correccion(veredicto if isinstance(veredicto, dict) else {}, motivo)
+        # LA HERENCIA DE ARGUMENTOS SE RETIRO (auditoria independiente, 2026-08-15). Se anadio para
+        # que una tarea del programador con la verificacion en rojo pasara su contexto a la
+        # correccion, y resulto ser mala idea por dos motivos MEDIDOS:
+        #
+        # 1. NO APORTABA. La derivada re-aplicaba el triple identico, obtenia la misma verificacion
+        #    en rojo y revertia byte a byte: una repeticion del cambio que ya fallo, no una
+        #    correccion. Dos verificaciones gastadas para volver al mismo sitio.
+        # 2. SORTEABA EL GOBIERNO. Un cambio de lista roja DENEGADO por el CEO engendraba una
+        #    derivada que heredaba los argumentos, pasaba el dry-run y volvia a pedir la misma
+        #    autorizacion con `intentos=0` -- presupuesto nuevo, saltandose el umbral que la
+        #    capacidad 017 introdujo justo para no insistir. Re-presentar lo denegado no es
+        #    autonomia: es erosionar una decision del CEO.
+        #
+        # Sin herencia, esa derivada nace solo con el motivo y se bloquea. Es el comportamiento
+        # correcto: quien decide si se reintenta un cambio denegado es el CEO, no el ciclo.
         return self.estado.transitar(
             objetivo_id,
             tarea.tarea_id,
@@ -117,6 +151,7 @@ class DirectorGeneral:
             autoridad="director",
             causa=motivo,
             bloqueos=[*tarea.bloqueos, motivo],
+            args={**tarea.args, CLAVE_CONTEXTO: contexto},
         )
 
     def _siguiente_distinta(self, objetivo_id: str, actual: str) -> str:

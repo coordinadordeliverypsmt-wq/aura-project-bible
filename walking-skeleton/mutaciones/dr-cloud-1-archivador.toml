@@ -1,0 +1,146 @@
+incremento = "DR-CLOUD-1 · archivador Cloud: solo copia, lista blanca, fail-closed (2026-09-06)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/control-plane"
+# La garantia de un archivador no es «copia ficheros»: es que **no pueda hacer nada mas**. Cada
+# mutante abre una de las puertas que el contrato cierra — archivar runtime vivo, sacar un secreto de
+# la maquina, sobrescribir lo ya preservado, o convertir un destino ausente en una escritura ciega.
+pruebas = ["test_red_archivador_cloud.py"]
+timeout_s = 180
+
+[[mutante]]
+id = "AC-M1"
+descripcion = "la lista blanca de categorias deja de aplicarse: cualquier carpeta vale"
+fichero = "archivador_cloud.py"
+buscar = '''    if categoria not in CATEGORIAS:'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "AC-M2"
+descripcion = "fail-closed roto: sin destino disponible se intenta archivar igual"
+fichero = "archivador_cloud.py"
+buscar = '''    if not base.is_dir():'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "AC-M3"
+descripcion = "la lista negra deja de mirarse: .git, estado.json y credenciales se archivan"
+fichero = "archivador_cloud.py"
+buscar = '''        motivo = _motivo_de_rechazo(origen, raiz)
+        if motivo is not None:'''
+sustituir = '''        motivo = _motivo_de_rechazo(origen, raiz)
+        if False:'''
+
+[[mutante]]
+id = "AC-M4"
+descripcion = "un fichero de fuera de la raiz se archiva"
+fichero = "archivador_cloud.py"
+buscar = '''    if not real.is_relative_to(base):
+        return "fuera de la raiz declarada"'''
+sustituir = '''    if False:
+        return "fuera de la raiz declarada"'''
+
+[[mutante]]
+id = "AC-M5"
+descripcion = "los directorios prohibidos dejan de serlo: se archiva .git y las caches"
+fichero = "archivador_cloud.py"
+buscar = '''    if partes & _DIRS_PROHIBIDOS:'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "AC-M6"
+descripcion = "el runtime vivo se archiva: estado.json y eventos.jsonl salen a Drive"
+fichero = "archivador_cloud.py"
+buscar = '''    if nombre in _FICHEROS_PROHIBIDOS:'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "AC-M7"
+descripcion = "un nombre que delata un secreto deja de bloquearse"
+fichero = "archivador_cloud.py"
+buscar = '''    if any(s in nombre for s in _NOMBRES_SOSPECHOSOS):'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "AC-M8"
+descripcion = "la idempotencia se rompe: se recopia lo identico una y otra vez"
+fichero = "archivador_cloud.py"
+buscar = '''            if candidato.is_file() and _hash(candidato) == resumen:'''
+sustituir = '''            if False:'''
+
+[[mutante]]
+id = "AC-M9"
+descripcion = "el conflicto SOBRESCRIBE la copia ya preservada en vez de versionar"
+fichero = "archivador_cloud.py"
+buscar = '''                if candidato.is_file():
+                    candidato = carpeta / _nombre_versionado(origen.name, resumen)
+                    previsto = VERSIONADO'''
+sustituir = '''                if candidato.is_file():
+                    previsto = VERSIONADO'''
+
+[[mutante]]
+id = "AC-M10"
+descripcion = "la identidad se decide por nombre y tamano, no por contenido"
+fichero = "archivador_cloud.py"
+buscar = '''            resumen = _hash(origen)'''
+sustituir = '''            resumen = str(origen.stat().st_size)'''
+
+[[mutante]]
+id = "AC-M11"
+descripcion = "el registro se lleva el motivo con el contenido del fichero dentro"
+fichero = "archivador_cloud.py"
+buscar = '''            anotacion["motivo"] = motivo'''
+sustituir = '''            anotacion["motivo"] = motivo + ":" + origen.read_text(errors="replace")[:60]'''
+
+[[mutante]]
+id = "AC-M12"
+descripcion = "un enlace o directorio pasa por fichero regular"
+fichero = "archivador_cloud.py"
+buscar = '''    if not real.is_file():
+        return "no es un fichero regular"'''
+sustituir = '''    if False:
+        return "no es un fichero regular"'''
+
+# --- DR-CLOUD-2 · la copia se demuestra, no se supone -------------------------------------------
+# Sin estos mutantes, «verificado: true» seria una etiqueta que nadie comprueba. Cada uno devuelve el
+# archivador al estado en que la auditoria lo encontro: escribir y dar por buena la escritura.
+
+[[mutante]]
+id = "AC-M13"
+descripcion = "desaparece la relectura: se da por buena la escritura sin comprobarla"
+fichero = "archivador_cloud.py"
+buscar = '''                escrito = _hash(candidato) if candidato.is_file() else None'''
+sustituir = '''                escrito = resumen'''
+
+[[mutante]]
+id = "AC-M14"
+descripcion = "la comparacion se invierte: se acepta justo lo que difiere"
+fichero = "archivador_cloud.py"
+buscar = '''                if escrito != resumen:'''
+sustituir = '''                if escrito == resumen:'''
+
+[[mutante]]
+id = "AC-M15"
+descripcion = "un hash distinto se acepta como copia buena"
+fichero = "archivador_cloud.py"
+buscar = '''                if escrito != resumen:
+                    #: Fail-closed. No se borra el destino defectuoso —seria destruir la evidencia de
+                    #: lo ocurrido— y no se toca el origen, que es lo que un archivador nunca hace.'''
+sustituir = '''                if False:
+                    #: mutante'''
+
+[[mutante]]
+id = "AC-M16"
+descripcion = "un destino que no llego a existir se da por copiado"
+fichero = "archivador_cloud.py"
+buscar = '''                escrito = _hash(candidato) if candidato.is_file() else None
+                anotacion["hash_destino"] = escrito'''
+sustituir = '''                escrito = _hash(candidato) if candidato.is_file() else resumen
+                anotacion["hash_destino"] = escrito'''
+
+[[mutante]]
+id = "AC-M17"
+descripcion = "el «ya archivado» se declara verificado sin haber releido el destino"
+fichero = "archivador_cloud.py"
+buscar = '''            if candidato.is_file() and _hash(candidato) == resumen:'''
+sustituir = '''            if candidato.is_file():'''

@@ -1,0 +1,80 @@
+incremento = "DR-A · septima fuente: observacion del entorno de ejecucion (2026-09-05)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/control-plane"
+# La garantia de DR-A no es «detectar Ollama»: es detectarlo SIN mentir y SIN poder tocarlo. Cada
+# mutante abre una via para que la fuente invente una ausencia, afirme sobre lo que no pudo observar,
+# se vuelva ejecutable, pierda la estabilidad del id o deje de encenderse. Todos deben morir.
+pruebas = ["test_red_entorno_disponible.py"]
+timeout_s = 120
+
+[[mutante]]
+id = "DA-M1"
+descripcion = "una conexion establecida pasa por listener: el estado del socket deja de distinguirse"
+fichero = "entorno_disponible.py"
+buscar = '''_LISTEN = "0A"'''
+sustituir = '''_LISTEN = "01"'''
+
+[[mutante]]
+id = "DA-M2"
+descripcion = "se pierde el tercer estado: lo no observado se declara AUSENTE (ausencia inventada)"
+fichero = "entorno_disponible.py"
+buscar = '''        estado = DESCONOCIDO'''
+sustituir = '''        estado = AUSENTE'''
+
+[[mutante]]
+id = "DA-M3"
+descripcion = "la observacion se vuelve EJECUTABLE: DECISION_REQUIRED pasa a OPORTUNIDAD_REAL"
+fichero = "entorno_disponible.py"
+buscar = '''            estado=des.DECISION_REQUIRED,'''
+sustituir = '''            estado=des.OPORTUNIDAD_REAL,'''
+
+[[mutante]]
+id = "DA-M4"
+descripcion = "fail-closed roto: tambien se eleva lo que no esta DISPONIBLE"
+fichero = "entorno_disponible.py"
+buscar = '''        if obs["estado"] != DISPONIBLE:'''
+sustituir = '''        if obs["estado"] == AUSENTE:'''
+
+[[mutante]]
+id = "DA-M5"
+descripcion = "el id deja de ser estable: depende de los modelos, y cambia si aparece uno nuevo"
+fichero = "entorno_disponible.py"
+buscar = '''        firma = f"capacidad:{capacidad.nombre}"'''
+sustituir = '''        firma = f"capacidad:{capacidad.nombre}:{modelos}"'''
+
+[[mutante]]
+id = "DA-M6"
+descripcion = "un servidor sin modelos cuenta como capacidad de razonamiento"
+fichero = "entorno_disponible.py"
+buscar = '''    elif senal_proceso and senal_puerto and senal_modelos:'''
+sustituir = '''    elif senal_proceso and senal_puerto:'''
+
+[[mutante]]
+id = "DA-M7"
+descripcion = "un /proc irrecorrible se convierte en «no hay procesos» en vez de DESCONOCIDO"
+fichero = "entorno_disponible.py"
+buscar = '''    raiz = pathlib.Path(proc)
+    if not raiz.is_dir():
+        return None'''
+sustituir = '''    raiz = pathlib.Path(proc)
+    if not raiz.is_dir():
+        return set()'''
+
+[[mutante]]
+id = "DA-M8"
+descripcion = "un /proc/net/tcp ilegible se convierte en «ningun puerto escucha» (no observable -> ausente)"
+fichero = "entorno_disponible.py"
+buscar = '''        crudo = pathlib.Path(net_tcp).read_text()
+    except OSError:
+        return None'''
+sustituir = '''        crudo = pathlib.Path(net_tcp).read_text()
+    except OSError:
+        return set()'''
+
+[[mutante]]
+id = "DA-M9"
+descripcion = "la fuente NO se enciende: se descablea del dict FUENTES (ALERTA-005)"
+fichero = "descubrimiento.py"
+buscar = '''    "capacidades_del_entorno": ent.entorno,'''
+sustituir = '''    "NO_capacidades_del_entorno": ent.entorno,'''

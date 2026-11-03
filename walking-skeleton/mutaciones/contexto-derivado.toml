@@ -1,0 +1,392 @@
+incremento = "El contexto del fallo viaja hasta el ejecutor (acta del CEO, 2026-08-15)"
+# Junto a las pruebas del incremento van las que protegen lo que este cambio podria romper: el
+# desacoplamiento Director/planificacion, el corte de ciclos y la deduplicacion por evidencia.
+pruebas = [
+    "tests/integration/test_contexto_derivado.py",
+    # El punto donde el contexto se convierte en escritura en disco. Sin esta, C17 -el borrado
+    # encubierto- no tiene quien lo mate: la regla del todo-o-nada solo protegia el carril derivado.
+    "tests/integration/test_ejecutor_programador.py",
+    "tests/integration/test_ciclo_completo.py",
+    "tests/integration/test_planificacion.py",
+    "tests/integration/test_veredicto_del_ejecutor.py",
+]
+
+# ================================================================================================
+# EL CONTEXTO VIAJA -- o AURORA vuelve a perder lo que ya sabe
+# ================================================================================================
+
+# (C1) EL AUDITOR VUELVE A DESCARTAR LO ACCIONABLE. Sabe el fichero y el patron, y solo publica el
+# identificador y una linea de prosa. Es el defecto original: la informacion se pierde en el primer
+# eslabon y ya no hay nada que transportar.
+[[mutante]]
+id = "C1"
+garantia = "el auditor deja de publicar fichero y patron: la informacion se pierde en el origen"
+fichero = "aura_skeleton/adapters/auditor.py"
+buscar = '''            accionable = {
+                "fichero": str(toml.relative_to(base)),
+                "buscar": buscar,
+                "objetivo": str(m.get("fichero", "")),
+            }'''
+sustituir = '''            accionable = {}'''
+
+# (C2) EL DIRECTOR NO ADJUNTA EL VEREDICTO. El unico punto donde coexisten el resultado del ejecutor
+# y la tarea que se va a bloquear deja de unirlos: la derivada vuelve a nacer con `args={}`.
+[[mutante]]
+id = "C2"
+garantia = "el director no adjunta el veredicto a la tarea: la derivada vuelve a nacer sin argumentos"
+fichero = "aura_skeleton/core/director.py"
+buscar = '''            args={**tarea.args, CLAVE_CONTEXTO: contexto},'''
+sustituir = '''            args=dict(tarea.args),'''
+
+# (C3) EL OYENTE NO TRANSPORTA. El contexto llega a la tarea bloqueada y se queda ahi: la derivada
+# no lo hereda y muere igual en el dry-run. El eslabon roto se mueve, no desaparece.
+[[mutante]]
+id = "C3"
+garantia = "el oyente no traslada el contexto a la tarea derivada: se queda en la causa"
+fichero = "aura_skeleton/core/planificacion.py"
+buscar = '''                args=dict(contexto) or {"motivo": motivo},'''
+sustituir = '''                args={},'''
+
+# ================================================================================================
+# NO SE FINGE: lo ausente sigue ausente (INV-9)
+# ================================================================================================
+
+# (C4) SE INVENTA EL CONTEXTO CUANDO NO LO HAY. Un veredicto sin datos accionables -el QA solo da
+# prosa- produciria un fichero y un patron fabricados. El ejecutor intentaria un cambio sobre algo
+# que nadie declaro: es exactamente lo que INV-9 prohibe, y peor que no poder actuar.
+[[mutante]]
+id = "C4"
+garantia = "se fabrican fichero y patron cuando el veredicto no los trae (INV-9)"
+fichero = "aura_skeleton/core/estado_operativo.py"
+buscar = '''    return {c: origen[c] for c in _CAMPOS_DE_EJECUCION if texto_utilizable(origen.get(c))}'''
+sustituir = '''    return {c: origen.get(c) or "desconocido" for c in _CAMPOS_DE_EJECUCION}'''
+
+# (C5) EL MOTIVO DEJA DE VIAJAR. Aun sin datos accionables, el motivo es lo unico que convierte una
+# escalada en informacion util para el CEO. Sin el, la tarea derivada vuelve a ser opaca.
+[[mutante]]
+id = "C5"
+garantia = "el motivo del fallo no viaja: la escalada al CEO vuelve a ser opaca"
+fichero = "aura_skeleton/core/estado_operativo.py"
+buscar = '''    contexto: dict = {"motivo": motivo}'''
+sustituir = '''    contexto: dict = {}'''
+
+# ================================================================================================
+# LO QUE NO PUEDE ROMPERSE
+# ================================================================================================
+
+# (C6) EL CONTEXTO SE CUELA EN LA EVIDENCIA. Dos efectos, ambos malos: `evidencias` es texto para que
+# lo lea una persona, y de la evidencia se deriva el IDENTIFICADOR de la tarea derivada -- asi que
+# cada matiz del veredicto crearia una tarea nueva en vez de reutilizar la misma. Es el criterio 8
+# del acta y la garantia de deduplicacion, rotos de una sola vez.
+[[mutante]]
+id = "C6"
+garantia = "el contexto entra en la evidencia: rompe el criterio 8 y duplica tareas por cada matiz"
+fichero = "aura_skeleton/core/planificacion.py"
+buscar = '''                evidencia=f"{actual.tarea_id}:bloqueada:{motivo}",
+                prioridad=1,'''
+sustituir = '''                evidencia=f"{actual.tarea_id}:bloqueada:{motivo}:{contexto}",
+                prioridad=1,'''
+
+# (C7) EL DIRECTOR VUELVE A CONOCER LA PLANIFICACION. Este mutante existe porque el defecto SE
+# COMETIO durante este incremento: la primera version importaba `contexto_de_correccion` desde
+# `planificacion` y rompio un desacoplamiento deliberado. Lo detecto
+# `test_el_director_NO_conoce_la_planificacion`, que existe justo para eso. El traductor vive ahora
+# en el modelo de datos, donde le corresponde: el contexto viaja DENTRO de la tarea.
+[[mutante]]
+id = "C7"
+garantia = "el Director vuelve a importar de planificacion: se rompe el desacoplamiento del bucle"
+fichero = "aura_skeleton/core/director.py"
+buscar = '''from .estado_operativo import (
+    CLAVE_CONTEXTO,'''
+sustituir = '''from .planificacion import admitir  # noqa: F401
+from .estado_operativo import (
+    CLAVE_CONTEXTO,'''
+
+# (C8) SE REPARTEN VARIAS CORRECCIONES EN UNA SOLA TAREA. Con varias garantias rotas, mezclar todas
+# en una tarea impide que el ciclo las escale por separado: una que no se pueda resolver arrastraria
+# a las demas.
+[[mutante]]
+id = "C8"
+garantia = "se mezclan varias garantias rotas en una sola tarea derivada"
+fichero = "aura_skeleton/core/estado_operativo.py"
+buscar = '''    primera = rotas[0] if isinstance(rotas, list) and rotas and isinstance(rotas[0], dict) else {}'''
+sustituir = '''    primera = {k: v for r in rotas if isinstance(r, dict) for k, v in r.items()} if rotas else {}'''
+
+# ================================================================================================
+# SEGUNDA AUDITORIA (2026-08-15): tres mutantes propios sobrevivieron y una regresion de gobierno.
+# ================================================================================================
+
+# (C9) LA GUARDA VUELVE A LA VERACIDAD. `sustituir = "   "` es PRESENTE y VERDADERO: pasaria el
+# todo-o-nada, llegaria como ejecutable, y el dry-run daria `viable` con el efecto de sustituir el
+# patron POR ESPACIOS. Destruir la garantia, con el QA respaldandolo porque eso no rompe pruebas.
+[[mutante]]
+id = "C9"
+garantia = "un campo en blanco cuenta como campo: el contexto incompleto se vuelve destructivo"
+fichero = "aura_skeleton/core/operaciones.py"
+buscar = '''    return any(unicodedata.category(c) not in _INVISIBLES for c in valor)'''
+sustituir = '''    return bool(valor)'''
+
+# (C10) LA PROTECCION VUELVE A SER DE UN LLAMADOR, NO DEL SISTEMA. El oyente copiaba el contexto
+# VERBATIM: cualquier ruta que lo adjuntase a mano esquivaba la guarda y reabria el camino
+# destructivo. Se filtra en el PUNTO DE PASO.
+[[mutante]]
+id = "C10"
+garantia = "el oyente copia el contexto sin filtrar: la proteccion se puede esquivar"
+fichero = "aura_skeleton/core/planificacion.py"
+buscar = '''        contexto = solo_ejecutable_completo(actual.args.get(CLAVE_CONTEXTO) or {})'''
+sustituir = '''        contexto = actual.args.get(CLAVE_CONTEXTO) or {}'''
+
+# (C11) EL FILTRO DEL PUNTO DE PASO DEJA PASAR LO INCOMPLETO.
+[[mutante]]
+id = "C11"
+garantia = "`solo_ejecutable_completo` admite contextos parciales como ejecutables"
+fichero = "aura_skeleton/core/estado_operativo.py"
+buscar = '''    if len(completos) == len(_CAMPOS_DE_EJECUCION):
+        return dict(contexto)'''
+sustituir = '''    if completos:
+        return dict(contexto)'''
+
+# (C12) VUELVE LA HERENCIA DE ARGUMENTOS. Es la REGRESION DE GOBIERNO que la auditoria midio: un
+# cambio de lista roja DENEGADO por el CEO engendraba una derivada que heredaba el triple, pasaba el
+# dry-run y volvia a pedir la misma autorizacion con `intentos=0` -- presupuesto nuevo, saltandose el
+# umbral de la capacidad 017. Re-presentar lo denegado erosiona una decision del CEO.
+[[mutante]]
+id = "C12"
+garantia = "la correccion hereda los args de su causa: re-pide al CEO lo que ya denego, con presupuesto nuevo"
+fichero = "aura_skeleton/core/director.py"
+buscar = '''        contexto = contexto_de_correccion(veredicto if isinstance(veredicto, dict) else {}, motivo)'''
+sustituir = '''        contexto = contexto_de_correccion(veredicto if isinstance(veredicto, dict) else {}, motivo)
+        contexto.update({c: tarea.args[c] for c in ("fichero", "buscar", "sustituir") if tarea.args.get(c)})'''
+
+# ================================================================================================
+# TERCERA AUDITORIA (2026-08-15): garantias reales sin red PROPIA, sostenidas por la capa de al lado.
+# Cada una de estas lineas podia revertirse a su version defectuosa con las 44 pruebas en verde.
+# ================================================================================================
+
+# (C13) UN CAMPO QUE NO ES TEXTO CUENTA COMO CAMPO. `str(["x"])` es veraz, asi que una lista o un
+# numero pasaban el todo-o-nada y llegaban como ejecutables; aguas abajo `_campos()` los convierte a
+# cadena y el ejecutor escribiria literalmente `['x']` en el fichero. Un cambio que nadie formulo.
+[[mutante]]
+id = "C13"
+garantia = "un valor no textual pasa como campo de ejecucion: el ejecutor escribiria su repr"
+fichero = "aura_skeleton/core/operaciones.py"
+buscar = '''    if not isinstance(valor, str):'''
+sustituir = '''    if False:'''
+
+# (C14) UN VEREDICTO QUE NO ES UN DICCIONARIO TUMBA EL OBSERVADOR. `args` es abierto: nadie garantiza
+# que `_veredicto` traiga un dict. Sin la guarda revienta con AttributeError DENTRO del observador y
+# la excepcion ESCAPA de `transitar`, que promete lo contrario.
+[[mutante]]
+id = "C14"
+garantia = "un `_veredicto` mal formado propaga AttributeError fuera de `transitar`"
+fichero = "aura_skeleton/core/estado_operativo.py"
+buscar = '''    if not isinstance(contexto, dict):'''
+sustituir = '''    if False:'''
+
+# (C15) LA RAMA SIN EJECUTOR DEJA DE ADJUNTAR CONTEXTO. Es la UNICA derivada que aparece en el log
+# real de produccion del CEO. Estaba sin red: la asercion usaba `"inexistente" in ...`, y el fallback
+# del oyente compone otro texto que tambien lo contiene, asi que la prueba no distinguia las capas.
+[[mutante]]
+id = "C15"
+garantia = "la rama sin ejecutor no adjunta contexto: la derivada del log real vuelve a nacer opaca"
+fichero = "aura_skeleton/core/director.py"
+buscar = '''                args={**tarea.args, CLAVE_CONTEXTO: {"motivo": f"sin ejecutor para '{tarea.responsable}'"}},'''
+sustituir = '''                args=dict(tarea.args),'''
+
+# (C16) DESAPARECE EL FALLBACK DEL OYENTE. Estaba enmascarado por C15: como el director SIEMPRE
+# adjunta contexto, el fallback no se ejercitaba. Pero cualquier componente que bloquee con
+# `transitar` sin adjuntar `_veredicto` -el comportamiento de TODO el sistema antes de este
+# incremento- cae ahi, y su derivada volveria a nacer con `args={}`.
+[[mutante]]
+id = "C16"
+garantia = "sin veredicto la derivada pierde el motivo del bloqueo"
+fichero = "aura_skeleton/core/planificacion.py"
+buscar = '''                args=dict(contexto) or {"motivo": motivo},'''
+sustituir = '''                args=dict(contexto),'''
+
+# (C17) EL DEFECTO CAPITAL, EN EL PUNTO DONDE SE TOCA EL DISCO. Medido sobre el sistema real:
+# `fichero` + `buscar` sin `sustituir` daba `viable` con efecto "sustituir 1 aparicion" y BORRABA el
+# patron; el QA daba verde -quitar una guarda no rompe pruebas- y el cambio se CONSERVABA. Ademas
+# rompia el consentimiento de ADR-0003: al humano se le enseñaba "sustituir" y se ejecutaba un
+# borrado. La regla existia un piso mas arriba, pero solo protegia el carril derivado.
+[[mutante]]
+id = "C17"
+garantia = "un cambio sin sustituto se aplica: es un borrado con la previsualizacion de una sustitucion"
+fichero = "aura_skeleton/adapters/programador.py"
+buscar = '''        if not texto_utilizable(sustituir):'''
+sustituir = '''        if False:'''
+
+# (C18) VUELVE EL DEFECTO D1. El auditor publicaba el fichero OBJETIVO de la garantia en vez del TOML
+# de declaracion que hay que corregir. Tenia prueba pero NO tenia mutante, y fue el defecto capital de
+# la primera auditoria.
+[[mutante]]
+id = "C18"
+garantia = "el auditor vuelve a publicar el fichero objetivo en vez del TOML de declaracion (D1)"
+fichero = "aura_skeleton/adapters/auditor.py"
+buscar = '''                "fichero": str(toml.relative_to(base)),'''
+sustituir = '''                "fichero": str(m.get("fichero", "")),'''
+
+# ================================================================================================
+# CUARTA AUDITORIA (2026-08-15): cuatro supervivientes que YO no habia declarado, sobre lineas que
+# este incremento anadio, y dos huecos mas en el punto donde se toca el disco.
+# ================================================================================================
+
+# (C19) SE PIERDE QUE GARANTIA HAY QUE ARREGLAR. `referencia` es el identificador del mutante roto
+# (`x.toml:M1`) y el dato MAS accionable que llega al CEO: sin el, la escalada dice que algo se rompio
+# pero no cual. No tenia ni prueba ni mutante.
+[[mutante]]
+id = "C19"
+garantia = "la referencia de la garantia rota no viaja: la escalada no dice QUE hay que arreglar"
+fichero = "aura_skeleton/core/estado_operativo.py"
+buscar = '''        contexto["referencia"] = primera["mutante"]'''
+sustituir = '''        pass'''
+
+# (C20) UN VEREDICTO NO-DICT TUMBA EL CICLO ENTERO. Gemelo exacto de C14, que si tiene red un piso mas
+# abajo. Se alcanza por la ruta de una accion DETENIDA -permisos, kill switch-, que es de las mas
+# frecuentes: el traductor revienta con AttributeError fuera de la contencion del observador y se
+# lleva por delante `DirectorGeneral.ciclo`. No una tarea: el ciclo.
+[[mutante]]
+id = "C20"
+garantia = "un veredicto no-dict propaga AttributeError y tumba el ciclo del Director"
+fichero = "aura_skeleton/core/director.py"
+buscar = '''        contexto = contexto_de_correccion(veredicto if isinstance(veredicto, dict) else {}, motivo)'''
+sustituir = '''        contexto = contexto_de_correccion(veredicto or {}, motivo)'''
+
+# (C21) LA TAREA BLOQUEADA PIERDE LO QUE INTENTO. Adjuntar el veredicto no puede costar el registro de
+# los argumentos con los que se fallo: al reanudar tras un reinicio nadie sabria con que se intento, y
+# la regla del CEO es que solo pertenece a AURORA lo que el sistema puede recuperar y continuar solo.
+# Sobrevivia en LAS DOS ramas que bloquean; van las dos.
+[[mutante]]
+id = "C21"
+garantia = "la tarea bloqueada por veredicto negativo pierde sus propios argumentos"
+fichero = "aura_skeleton/core/director.py"
+buscar = '''            args={**tarea.args, CLAVE_CONTEXTO: contexto},'''
+sustituir = '''            args={CLAVE_CONTEXTO: contexto},'''
+
+[[mutante]]
+id = "C22"
+garantia = "la tarea bloqueada por falta de ejecutor pierde sus propios argumentos"
+fichero = "aura_skeleton/core/director.py"
+buscar = '''                args={**tarea.args, CLAVE_CONTEXTO: {"motivo": f"sin ejecutor para '{tarea.responsable}'"}},'''
+sustituir = '''                args={CLAVE_CONTEXTO: {"motivo": f"sin ejecutor para '{tarea.responsable}'"}},'''
+
+# (C23) LA REGLA DE "ESTO SIRVE COMO TEXTO" VUELVE A ESTAR ESCRITA DOS VECES. Es el defecto que se
+# repitio en las auditorias 2, 3 y 4: cada vez que la regla tiene una copia, una de las dos se queda
+# atras. Aqui el punto de paso al disco vuelve a su propia version, que ignora el tipo.
+[[mutante]]
+id = "C23"
+garantia = "el ejecutor deja de usar la regla unica: un valor no textual se escribe como su repr"
+fichero = "aura_skeleton/adapters/programador.py"
+buscar = '''        if not texto_utilizable(sustituir):'''
+sustituir = '''        if not str(sustituir).strip():'''
+
+# (C24) LOS INVISIBLES QUE NO SON ESPACIO VUELVEN A PASAR. `.strip()` solo quita lo que `isspace()`
+# reconoce; un ZWSP (U+200B) o un guion blando (U+00AD) lo atraviesan. Sustituir una guarda por un
+# caracter de anchura cero es INDISTINGUIBLE de borrarla, en el fichero y en el diff, y la
+# previsualizacion que ve el humano es la misma de siempre.
+[[mutante]]
+id = "C24"
+garantia = "un caracter invisible cuenta como sustituto: el borrado se disfraza de sustitucion"
+fichero = "aura_skeleton/core/operaciones.py"
+buscar = '''_INVISIBLES = frozenset({"Cc", "Cf", "Cs", "Co", "Cn", "Mn", "Me", "Zs", "Zl", "Zp"})'''
+sustituir = '''_INVISIBLES = frozenset({"Cf"})'''
+
+# (C25) EL FICHERO Y EL PATRON DEJAN DE COMPROBARSE COMO TEXTO. `_campos` los convierte con `str()`
+# despues, asi que sin la comprobacion de tipo el ejecutor buscaria el `repr` de una lista dentro del
+# fichero. Validar despues de convertir no valida nada.
+[[mutante]]
+id = "C25"
+garantia = "fichero y patron no se comprueban como texto: `str()` los convierte y la validacion es ciega"
+fichero = "aura_skeleton/adapters/programador.py"
+buscar = '''        if not isinstance(relativa, str) or not isinstance(buscar, str) or not relativa or not buscar:'''
+sustituir = '''        if not relativa or not buscar:'''
+
+# (C26) LA CONTENCION DE RUTA VUELVE A COMPARAR PREFIJOS DE TEXTO. Con la raiz en `.../x`, un
+# `../xyz/secreto.py` resuelve a `.../xyz/secreto.py`, que empieza por `.../x` y pasa la contencion.
+# Medido: el cambio se aplico y se CONSERVO fuera del arbol declarado. Preexistente, y no explotable
+# en la composicion real -no hay hermano de `walking-skeleton/` con ese prefijo-, pero la contencion
+# no puede depender de como se llamen los directorios vecinos.
+[[mutante]]
+id = "C26"
+garantia = "la contencion de ruta compara prefijos de texto: se escribe fuera del arbol declarado"
+fichero = "aura_skeleton/adapters/programador.py"
+buscar = '''        return ruta, not ruta.is_relative_to(self._raiz.resolve())'''
+sustituir = '''        return ruta, not str(ruta).startswith(str(self._raiz.resolve()))'''
+
+# ================================================================================================
+# QUINTA AUDITORIA (2026-08-15): la unificacion estaba ANUNCIADA Y NO HECHA, la guarda dejaba pasar
+# cinco categorias mas de invisibles, y seis mutantes vivos sin declarar.
+# ================================================================================================
+
+# (C27) LA UNIFICACION SE DESHACE. Es el mutante mas importante del arnes, porque el defecto que
+# representa YA OCURRIO: la correccion anterior escribio `texto_utilizable` para el ejecutor y dejo la
+# copia inline en esta capa, mientras el commit y los docstrings anunciaban la unificacion. Medido: un
+# ZWSP y un NUL los rechazaba el ejecutor y los aceptaba aqui. Declarado != real, el patron numero 1
+# de este proyecto, esta vez dentro de la propia correccion.
+[[mutante]]
+id = "C27"
+garantia = "la capa del contexto vuelve a tener su copia de la regla y diverge del ejecutor"
+fichero = "aura_skeleton/core/estado_operativo.py"
+buscar = '''if texto_utilizable(origen.get(c))}'''
+sustituir = '''if isinstance(origen.get(c), str) and origen[c].strip()}'''
+
+# (C28) LOS CONTROLES VUELVEN A PASAR. La mitad de control de la guarda no tenia caso: ninguna prueba
+# usaba un `Cc`, asi que quitar esa categoria no rompia nada y un NUL se escribia en el fichero.
+[[mutante]]
+id = "C28"
+garantia = "un caracter de control cuenta como sustituto"
+fichero = "aura_skeleton/core/operaciones.py"
+buscar = '''frozenset({"Cc", "Cf",'''
+sustituir = '''frozenset({"Cf",'''
+
+# (C29) LA PREVISUALIZACION VUELVE A CALLAR QUE SE SUSTITUYE. Decia solo "sustituir 1 aparicion en X":
+# cierto y sin informar de nada. Con ese texto delante se aprobaron, en cuatro auditorias seguidas,
+# borrados encubiertos y sustituciones por invisibles -- todos indistinguibles entre si y de un cambio
+# legitimo. ADR-0003 pide consentimiento INFORMADO.
+[[mutante]]
+id = "C29"
+garantia = "la previsualizacion no dice que se sustituye ni por que: el consentimiento es ciego"
+fichero = "aura_skeleton/adapters/programador.py"
+buscar = '''sustituir {ascii(buscar)} por {ascii(sustituir)} '''
+sustituir = '''sustituir '''
+
+# (C30) LA PREVISUALIZACION DEJA DE SER ASCII. Es la garantia que sostiene a las demas:
+# `texto_utilizable` es deliberadamente incompleta -no hay regla categorica que separe U+3164, relleno
+# hangul de categoria `Lo`, de una letra- y lo que cierra el hueco es que el humano LO VEA. Con `repr`
+# no lo ve: Python solo escapa lo que considera no imprimible, y U+3164 lo es. Se probo, y no servia.
+[[mutante]]
+id = "C30"
+garantia = "la previsualizacion usa repr: un invisible se muestra invisible y el humano lo aprueba"
+fichero = "aura_skeleton/adapters/programador.py"
+buscar = '''{ascii(buscar)} por {ascii(sustituir)}'''
+sustituir = '''{buscar!r} por {sustituir!r}'''
+
+# (C31) LA RAIZ DEJA DE RESOLVERSE ANTES DE COMPARAR. Linea nueva sin prueba propia: si la raiz llega
+# con enlaces simbolicos o `..`, la comparacion de segmentos se hace contra una ruta que no es la real.
+[[mutante]]
+id = "C31"
+garantia = "la contencion compara contra la raiz sin resolver"
+fichero = "aura_skeleton/adapters/programador.py"
+buscar = '''not ruta.is_relative_to(self._raiz.resolve())'''
+sustituir = '''not ruta.is_relative_to(self._raiz)'''
+
+# (C32) UNAS `rotas` MAL FORMADAS REVIENTAN EL TRADUCTOR. Gemelo de C14 y C20, que si tienen red en sus
+# capas. `contexto_de_correccion` es contrato publico: con `rotas=["texto"]` lanzaba AttributeError
+# DENTRO del observador, fuera de su contencion.
+[[mutante]]
+id = "C32"
+garantia = "unas rotas mal formadas propagan AttributeError desde el traductor"
+fichero = "aura_skeleton/core/estado_operativo.py"
+buscar = '''isinstance(rotas, list) and rotas and isinstance(rotas[0], dict) else {}'''
+sustituir = '''isinstance(rotas, list) and rotas else {}'''
+
+# (C33) EL CONTEXTO DEJA DE PUBLICARSE EN TODAS LAS RAMAS. Las cuatro ramas del auditor anexaban su
+# propio diccionario repitiendo `**accionable`, y solo una tenia prueba: quitarlo de AMBIGUO, de
+# DEGENERADO o de la de fichero ausente no rompia nada. Ahora se publica en un solo sitio, asi que un
+# unico mutante cubre las cuatro salidas -- que es justo el punto de escribir la regla una sola vez.
+[[mutante]]
+id = "C33"
+garantia = "alguna rama del auditor deja de publicar el contexto accionable"
+fichero = "aura_skeleton/adapters/auditor.py"
+buscar = '''"detalle": detalle, **accionable})'''
+sustituir = '''"detalle": detalle})'''

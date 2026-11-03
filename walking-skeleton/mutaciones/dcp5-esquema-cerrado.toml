@@ -1,0 +1,59 @@
+incremento = "D-CP-5 · esquema CERRADO y recursivo por tipo (2026-08-23)"
+# El plano de este catalogo. Sin esto el auditor lo resolvia contra el producto
+# y daba AUSENTE a todos sus mutantes (defecto corregido el 2026-09-09).
+raiz = "../entorno/communication-plane"
+# Lista BLANCA en lugar de lista negra. Los mutantes degradan cada pieza del cierre.
+pruebas = ["test_red_dcp5_esquema_cerrado.py",
+           "test_red_seccion_e.py::test_v4_el_cuerpo_se_valida_contra_un_esquema_CERRADO_por_tipo",
+           "test_red_seccion_e.py::test_v4_una_clave_prohibida_anidada_se_rechaza_a_cualquier_profundidad",
+           "test_b2_ciclo_con_dobles.py"]
+timeout_s = 60
+
+[[mutante]]
+id = "M1"
+garantia = "lo NO declarado se rechaza: es TODA la diferencia entre lista blanca y lista negra"
+fichero = "communication_plane.py"
+pruebas = ["test_red_dcp5_esquema_cerrado.py::test_un_sinonimo_o_nombre_alternativo_se_rechaza_sin_estar_en_ninguna_lista_negra"]
+buscar = '''        if clave not in campos:'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "M2"
+garantia = "`bool` es subclase de `int`: sin la guarda, True cuela como numero donde se espera un operando"
+fichero = "communication_plane.py"
+pruebas = ["test_red_dcp5_esquema_cerrado.py::test_un_valor_del_tipo_equivocado_se_rechaza"]
+buscar = '''        if esperado is int and isinstance(valor, bool):'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "M3"
+garantia = "el TIPO cierra el anidamiento: sin el, un dict dentro de un campo permitido entra igual"
+fichero = "communication_plane.py"
+pruebas = ["test_red_dcp5_esquema_cerrado.py::test_el_rechazo_es_recursivo_a_cualquier_profundidad"]
+buscar = '''        if not isinstance(valor, esperado):'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "M4"
+garantia = "el esquema se declara CERRADO: uno abierto admite cualquier contrabando"
+fichero = "communication_plane.py"
+pruebas = ["test_red_dcp5_esquema_cerrado.py::test_el_esquema_es_CERRADO_y_declara_sus_campos",
+           "test_red_seccion_e.py::test_v4_el_cuerpo_se_valida_contra_un_esquema_CERRADO_por_tipo"]
+buscar = '''    return {"modo": "CERRADO", "campos": dict(_ESQUEMAS_DE_CUERPO.get(tipo, {}))}'''
+sustituir = '''    return {"modo": "ABIERTO", "campos": dict(_ESQUEMAS_DE_CUERPO.get(tipo, {}))}'''
+
+[[mutante]]
+id = "M5"
+garantia = "D-CP-4 no se debilita desde D-CP-5: declarar `criterio` como campo legitimo reabriria V1 por la puerta principal"
+fichero = "communication_plane.py"
+pruebas = ["test_red_dcp5_esquema_cerrado.py::test_el_esquema_es_CERRADO_y_declara_sus_campos"]
+buscar = '''    "TASK": {"objetivo": str, "a": int, "b": int, "instruccion": str},'''
+sustituir = '''    "TASK": {"objetivo": str, "a": int, "b": int, "instruccion": str, "criterio": str},'''
+
+[[mutante]]
+id = "M6"
+garantia = "el cuerpo debe ser un objeto, y lo que no lo es se rechaza COMO MensajeInvalido: sin la guarda reventaba con AttributeError, y una excepcion inesperada no es un rechazo"
+fichero = "communication_plane.py"
+pruebas = ["test_red_dcp5_esquema_cerrado.py::test_un_cuerpo_que_no_es_un_objeto_se_rechaza_limpiamente"]
+buscar = '''    if not isinstance(cuerpo, dict):'''
+sustituir = '''    if False:'''

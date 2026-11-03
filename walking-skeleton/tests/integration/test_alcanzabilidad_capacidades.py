@@ -108,7 +108,11 @@ async def test_toda_capacidad_es_alcanzable_desde_la_conversacion(accion, tmp_pa
     orch, llamadas, _ = _montar(tmp_path, accion, args)
 
     tid = uuid.uuid4().hex[:12]
-    await orch.handle_utterance("u", "haz algo", tid)
+    # FRONTERA COGNITIVA (mandato §20, 2026-09-13): un turno COGNITIVO nunca llega al motor, asi que la
+    # frase tiene que PEDIR una accion (`_pide_accion`). «haz algo» no nombra ningun verbo de accion: iba
+    # por modo cognitivo y solo alcanzaba el adaptador porque el Core no descartaba la accion del modelo.
+    # La garantia no cambia -toda capacidad declarada se alcanza HABLANDO con AURA-; cambia la frase.
+    await orch.handle_utterance("u", "ejecuta lo que te pido", tid)
     res = await orch.wait(tid)
 
     assert accion in llamadas, (

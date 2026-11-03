@@ -1,3 +1,4 @@
 {
-  "worktree": {"bgIsolation": "none"}
+  "worktree": {"bgIsolation": "none"},
+  "fallbackModel": ["sonnet"]
 }

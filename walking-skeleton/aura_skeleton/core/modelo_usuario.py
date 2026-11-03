@@ -27,8 +27,26 @@ _TIPOS = ("semantica", "procedimental")
 class ModeloUsuario:
     """Lo que AURA cree saber sobre una persona. Opera sobre memoria semantica y procedimental."""
 
-    def __init__(self, memoria) -> None:
+    def __init__(self, memoria, motor=None) -> None:
         self._memoria = memoria
+        # F4 · el motor unico. Sin el, las mutaciones NO ocurren (fail-closed): una ruta directa de
+        # reserva seria la segunda via que ALERTA-005 prohibe, y volveria decorativa la migracion.
+        self._motor = motor
+
+    async def _por_el_motor(self, operacion: str, args: dict) -> int:
+        """Camino unico: catalogo -> sujeto -> authorize -> kill switch -> motor -> ejecutor.
+
+        Devuelve cuantas entradas se vieron afectadas; **0 si el control detuvo la operacion**, que
+        es lo que hace que un `n == 0` signifique «no se toco nada» y no «no me enteré».
+        """
+        if self._motor is None:
+            return 0
+        resultado = await self._motor.ejecutar(
+            operacion, args, args.get("user_id") or "-", f"modelo-{operacion}", origen="modelo_usuario"
+        )
+        if resultado.get("estado") != "ejecutada":
+            return 0
+        return int((resultado.get("resultado") or {}).get("n", 0))
 
     # ------------------------------------------------------------------ ver --
 
@@ -43,6 +61,13 @@ class ModeloUsuario:
                 "clase": i.get("provenance", {}).get("clase"),
                 "refutada": i.get("provenance", {}).get("refutada", False),
                 "ts": i.get("provenance", {}).get("ts"),
+                # Historial y vigencia (AMP-AURA etapas 1-2). Se exponen por la MISMA puerta que el
+                # resto de la procedencia: si no salieran por `ver`, el historial existiria en el
+                # disco y el usuario no podria verlo — que es no tenerlo (ADR-0017 §3).
+                "version": i.get("provenance", {}).get("version"),
+                "supersedes": i.get("provenance", {}).get("supersedes"),
+                "valid_from": i.get("provenance", {}).get("valid_from"),
+                "valid_until": i.get("provenance", {}).get("valid_until"),
             }
             for i in self._entradas(user_id)
         ]
@@ -50,22 +75,32 @@ class ModeloUsuario:
     # ------------------------------------------------------------- corregir --
 
     async def corregir(self, user_id: str, anterior: str, correccion: str) -> None:
-        """El usuario rectifica. Su version pasa a ser `declarada` y prevalece."""
-        for i in self._entradas(user_id):
-            if i["content"] == anterior:
-                i.setdefault("provenance", {})["refutada"] = True
-                i["provenance"]["refutada_ts"] = time.time()
-        await self._memoria.write(
-            user_id,
-            "semantica",
-            correccion,
+        """El usuario rectifica. Su version pasa a ser `declarada` y prevalece.
+
+        MIGRADA en F4 (§7 lo pide con esas palabras: «cablear `corregir`»). Era la ultima ruta
+        huerfana del grupo de soberania: marcaba `refutada` sobre `_items` **en RAM, sin motor y sin
+        persistir**, y solo la escritura de la correccion pasaba por `write`.
+
+        Corregir son DOS operaciones del catalogo, no una —**refutar** lo anterior y **registrar** la
+        version del usuario—, y ambas atraviesan el camino unico. Si el kill switch esta armado, no
+        ocurre ninguna de las dos.
+        """
+        await self._por_el_motor(
+            "refutar_informacion_usuario", {"user_id": user_id, "contiene": anterior}
+        )
+        await self._por_el_motor(
+            "registrar_informacion_usuario",
             {
-                "trace_id": "correccion",
-                "fuente": "usuario",
-                "clase": "correccion",
-                "origen": "declarada",  # lo corrige el usuario: es un hecho, no una hipotesis
-                "corrige": anterior,
-                "ts": time.time(),
+                "user_id": user_id,
+                "contenido": correccion,
+                "procedencia": {
+                    "trace_id": "correccion",
+                    "fuente": "usuario",
+                    "clase": "correccion",
+                    "origen": "declarada",  # lo corrige el usuario: es un hecho, no una hipotesis
+                    "corrige": anterior,
+                    "ts": time.time(),
+                },
             },
         )
 
@@ -89,10 +124,11 @@ class ModeloUsuario:
         sobrevive al reinicio (antes solo se mutaba la lista en memoria y el dato reaparecia).
         """
 
-        def objetivo(i: dict) -> bool:
-            return i["user_id"] == user_id and i["kind"] in _TIPOS and (contiene is None or contiene in i["content"])
-
-        return self._memoria.olvidar(objetivo)
+        # MIGRADA en F4 (DP-D-M-8 §7, tramo «soberania»). Antes llamaba a `memoria.olvidar`
+        # directamente: sin motor, sin permisos y sin kill switch. Ese era el agujero de ALERTA-006.
+        return await self._por_el_motor(
+            "olvidar_informacion_usuario", {"user_id": user_id, "contiene": contiene}
+        )
 
     # ---------------------------------------------------------------- refutar --
 
@@ -102,15 +138,10 @@ class ModeloUsuario:
         No borra (a diferencia de `borrar`): conserva el rastro (ADR-0017), pero AURA deja de afirmarlo.
         """
 
-        def objetivo(i: dict) -> bool:
-            return (
-                i["user_id"] == user_id
-                and i["kind"] in _TIPOS
-                and contiene in i["content"]
-                and not i.get("provenance", {}).get("refutada")
-            )
-
-        return self._memoria.marcar(objetivo, {"refutada": True, "refutada_ts": time.time()})
+        # MIGRADA en F4, misma razon que `borrar`.
+        return await self._por_el_motor(
+            "refutar_informacion_usuario", {"user_id": user_id, "contiene": contiene}
+        )
 
     # ----------------------------------------------------------------- util --
 

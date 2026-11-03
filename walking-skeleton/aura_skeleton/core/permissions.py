@@ -80,11 +80,37 @@ CATALOGO: dict[str, dict] = {
     "mensaje_a_tercero": {"lista": "roja", "efecto": "externo", "desc": "enviar mensaje a otra persona"},
     "accion_legal": {"lista": "roja", "efecto": "externo", "desc": "accion con efecto legal"},
     "accion_financiera": {"lista": "roja", "efecto": "externo", "desc": "accion financiera"},
+    # --- F3 · informacion sobre la persona (DP-D-M-8 §4.2, D-M8-2) ---------------------------------
+    #
+    # §4.2 declaraba dos huecos: no existia entrada para CREAR informacion sobre la persona, y el
+    # catalogo no distinguia el SUJETO —borrar un temporal y borrar un hecho clinico eran ambos
+    # "borrar"—. `sujeto` cierra el segundo; estas tres entradas, el primero. Son las que el DP
+    # nombra literalmente: ni una mas (D23 sigue cerrado).
+    #
+    # TERCERA CLASE (`soberania`), decision del CEO 2026-08-25 sobre D-M8-2. El vocabulario
+    # verde|roja no puede expresar la fila que §4.3 ya aprobo: kill switch SI, catalogo SI, dry-run
+    # SI, permisos SI, **HITL NO por defecto**, auditoria SI, reversibilidad SI. En verde chocarian
+    # con «nada que altere o destruya puede estar en verde»; en roja, con §4.3 —y ADR-0003 no
+    # permite eximir del HITL a una accion roja—. Esta clase expresa la politica sin tocar ninguna
+    # de las dos garantias: la regla estructural habla de VERDE, ADR-0003 habla de ROJA.
+    "registrar_informacion_usuario": {
+        "lista": "soberania", "efecto": "altera", "sujeto": "usuario",
+        "desc": "registrar informacion sobre la persona"},
+    "olvidar_informacion_usuario": {
+        "lista": "soberania", "efecto": "destruye", "sujeto": "usuario",
+        "desc": "olvidar informacion sobre la persona"},
+    "refutar_informacion_usuario": {
+        "lista": "soberania", "efecto": "altera", "sujeto": "usuario",
+        "desc": "marcar como refutada informacion sobre la persona"},
 }
 
 # Fuente unica de verdad: las listas se DERIVAN del catalogo, no se mantienen en paralelo.
 GREEN = {a for a, m in CATALOGO.items() if m["lista"] == "verde"}
 RED = {a for a, m in CATALOGO.items() if m["lista"] == "roja"}
+
+# Soberania del usuario sobre sus propios datos: pasa TODOS los controles y no pide confirmacion.
+# Derivada del mismo catalogo — una sola fuente de verdad, sin segunda via de clasificacion.
+SOBERANIA = {a for a, m in CATALOGO.items() if m["lista"] == "soberania"}
 
 # Acciones que exigen DRY-RUN antes de confirmarse (M2.5, ALERTA-005).
 #
@@ -96,6 +122,21 @@ RED = {a for a, m in CATALOGO.items() if m["lista"] == "roja"}
 # rechazaria encender una luz: una regresion de la garantia de M1 "lista verde ejecuta" a cambio de
 # ninguna proteccion real, porque apagar lo que se encendio cuesta un segundo.
 ALTERA_ESTADO = {a for a, m in CATALOGO.items() if m["efecto"] in ("altera", "destruye", "externo")}
+
+# Operaciones que recaen sobre una PERSONA y deben declarar sobre quien (DP-D-M-8 §4.2). Derivada del
+# catalogo por el mismo motivo que las anteriores: una lista escrita a mano seria una segunda via de
+# clasificacion, y acabaria divergiendo de la primera.
+SUJETO_REQUERIDO = {a for a, m in CATALOGO.items() if m.get("sujeto") == "usuario"}
+
+
+def sujeto_declarado(args: dict) -> bool:
+    """¿Los argumentos identifican sobre QUIEN recae la operacion? **Fail-closed.**
+
+    Presente pero vacio no es declarado: `{"user_id": ""}` no dice sobre quien recae, y tratarlo
+    como valido convertiria la comprobacion en decorativa.
+    """
+    valor = (args or {}).get("user_id")
+    return isinstance(valor, str) and valor.strip() != ""
 
 
 def altera_estado(accion: str) -> bool:
@@ -119,6 +160,13 @@ class PermissionManager:
             obs.log("KILL", "permissions", f"kill switch activo: {action} BLOQUEADA", trace_id, audit=True)
             _metrica_resultado(False)
             return False, "kill switch activo (5.3 §5)"
+        # F3 · el par (operacion, sujeto). Va DESPUES del kill switch —I-F2-5 no se toca— y ANTES de
+        # cualquier autorizacion: una operacion que recae sobre una persona y no dice sobre quien no
+        # puede evaluarse, y lo que no se puede evaluar se deniega (mismo criterio que RN-2).
+        if action in SUJETO_REQUERIDO and not sujeto_declarado(args):
+            obs.log("AUDIT", "permissions", f"{action} sin sujeto declarado -> denegada", trace_id, audit=True)
+            _metrica_resultado(False)
+            return False, "la operacion recae sobre una persona y no declara el sujeto"
         if action in RED:
             obs.log(
                 "HITL", "permissions", f"accion de LISTA ROJA requiere confirmacion: {action}", trace_id, audit=True
@@ -133,6 +181,13 @@ class PermissionManager:
             )
             _metrica_resultado(ok)
             return ok, ("confirmada por el usuario" if ok else "denegada por el usuario")
+        if action in SOBERANIA:
+            # §4.3: «el motor aplica la politica; la politica puede eximir de HITL SIN EXIMIR DE NADA
+            # MAS». Llega aqui habiendo pasado ya kill switch y sujeto; le siguen dry-run, motor,
+            # ejecutor y auditoria. Lo unico que se omite es preguntar: el usuario lo esta pidiendo.
+            obs.log("AUDIT", "permissions", f"soberania {action} -> sin HITL (§4.3)", trace_id, audit=True)
+            _metrica_resultado(True)
+            return True, "soberania del usuario (§4.3: sin HITL por defecto)"
         if action in GREEN:
             obs.log("AUDIT", "permissions", f"lista verde {action} -> auto-ejecucion", trace_id, audit=True)
             _metrica_resultado(True)

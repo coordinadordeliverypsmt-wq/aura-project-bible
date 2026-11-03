@@ -26,6 +26,7 @@ import math
 import os
 
 from .. import observability as obs
+from ..contracts import es_recuperable
 from .memory import PersistentMemory
 
 # Cache de modelo por directorio: cargar el ONNX (90 MB) una sola vez por proceso, no por instancia.
@@ -100,7 +101,7 @@ class SemanticMemory:
         puntuados = [
             (self._coseno(consulta, self._vectores[i]), it)
             for i, it in enumerate(self._store._items)
-            if it["user_id"] == user_id
+            if it["user_id"] == user_id and es_recuperable(it)
         ]
         puntuados.sort(key=lambda par: -par[0])
         hits = [it for _, it in puntuados[:k]]

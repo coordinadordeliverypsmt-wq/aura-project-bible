@@ -1,0 +1,60 @@
+incremento = "Contrato de salida del modo cognitivo: decodificado restringido por esquema (M3, 2026-09-09)"
+# La garantia NO es «el modelo responde bien» —eso depende del modelo—: es que AURA le EXIJA un contrato
+# verificable y que ese contrato no le conceda autoridad. Cada mutante relaja el contrato de una forma
+# distinta, y cada una reproduce un defecto ya MEDIDO en HC-1: `say` ausente 3 de 4 veces, y una accion
+# inventada con argumentos fabricados.
+pruebas = ["tests/unit/test_contrato_cognitivo.py"]
+timeout_s = 120
+
+[[mutante]]
+id = "CC-M1"
+garantia = "`say` vuelve a ser opcional: regresa exactamente el defecto medido (say ausente 3/4)"
+fichero = "aura_skeleton/modules/providers_real.py"
+buscar = '''    "required": ["say", "action"],'''
+sustituir = '''    "required": ["action"],'''
+
+[[mutante]]
+id = "CC-M2"
+garantia = "la clave esta pero puede estar vacia: contrato cumplido y usuario recibiendo el fallback"
+fichero = "aura_skeleton/modules/providers_real.py"
+buscar = '''        "say": {"type": "string", "minLength": 1},'''
+sustituir = '''        "say": {"type": "string"},'''
+
+[[mutante]]
+id = "CC-M3"
+garantia = "`action` vuelve a ser texto libre: el modelo puede volver a inventar una accion"
+fichero = "aura_skeleton/modules/providers_real.py"
+buscar = '''        "action": {"type": "string", "enum": ["consulta"]},'''
+sustituir = '''        "action": {"type": "string"},'''
+
+[[mutante]]
+id = "CC-M4"
+garantia = "el esquema deja de pedirse: el modulo lo declara pero la peticion no lo lleva"
+fichero = "aura_skeleton/modules/providers_real.py"
+buscar = '''        formato = _ESQUEMA_COGNITIVO if modo == "cognitivo" else "json"'''
+sustituir = '''        formato = "json"'''
+
+[[mutante]]
+id = "CC-M5"
+garantia = "el esquema invade el modo accion: duplica en el proveedor la autoridad del catalogo"
+fichero = "aura_skeleton/modules/providers_real.py"
+buscar = '''        formato = _ESQUEMA_COGNITIVO if modo == "cognitivo" else "json"'''
+sustituir = '''        formato = _ESQUEMA_COGNITIVO'''
+
+[[mutante]]
+id = "CC-M6"
+garantia = "la degradacion se convierte en reintento general: dobla la latencia del peor caso"
+fichero = "aura_skeleton/modules/providers_real.py"
+buscar = '''            if formato == "json":
+                raise'''
+sustituir = '''            if False:
+                raise'''
+
+[[mutante]]
+id = "CC-M7"
+garantia = "no hay degradacion: con un Ollama antiguo el turno se queda sin respuesta"
+fichero = "aura_skeleton/modules/providers_real.py"
+buscar = '''            if formato == "json":
+                raise'''
+sustituir = '''            if True:
+                raise'''

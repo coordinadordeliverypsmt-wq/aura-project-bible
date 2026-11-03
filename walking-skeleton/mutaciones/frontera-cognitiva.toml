@@ -1,0 +1,303 @@
+incremento = "Frontera cognitiva de AURA: estatus epistemico, referente y razonamiento formal (D-FC-1..8, CEO 2026-09-13)"
+pruebas = ["tests/unit/test_estatus_epistemico.py",
+           "tests/unit/test_contaminacion_propuesta.py",
+           "tests/unit/test_frontera_referente.py",
+           "tests/unit/test_razonamiento_formal.py",
+           "tests/unit/test_circuito_proveedor.py",
+           "tests/unit/test_configuracion_proveedor.py",
+           "tests/integration/test_frontera_cognitiva_vertical.py"]
+timeout_s = 600
+
+# El estatus epistemico (HECHO/AUSENCIA/ACLARACION/ABSTENCION/PROPUESTA) es la garantia que ADR-0014
+# §4 exige verificable con codigo, no con la buena voluntad de un modelo: `asignar` es el UNICO sitio
+# que decide, y cada mutante de abajo degrada una sola pieza de esa cadena.
+
+# --------- 1 · EL ESTATUS LO DECIDE EL CORE, NUNCA EL PROVEEDOR ---------
+
+[[mutante]]
+id = "FC-M1"
+garantia = "asignar deja de forzar PROPUESTA para un proveedor que no es el Core: una salida probabilistica podria salir HECHO"
+fichero = "aura_skeleton/core/estatus.py"
+pruebas = ["tests/unit/test_estatus_epistemico.py::test_una_respuesta_del_modelo_es_PROPUESTA_y_lleva_la_marca_del_core",
+           "tests/unit/test_estatus_epistemico.py::test_el_LLM_nunca_es_HECHO_aunque_el_cierre_lo_pida",
+           "tests/unit/test_contaminacion_propuesta.py::test_una_propuesta_falsa_no_contamina_memoria_senales_ni_contexto"]
+buscar = '''    if proveedor != CORE:
+        return Estatus.PROPUESTA'''
+sustituir = '''    if False:
+        return Estatus.PROPUESTA'''
+
+[[mutante]]
+id = "FC-M2"
+garantia = "presentar deja de anteponer la marca del Core: una propuesta se leeria como afirmacion de AURA"
+fichero = "aura_skeleton/core/estatus.py"
+pruebas = ["tests/unit/test_estatus_epistemico.py::test_una_respuesta_del_modelo_es_PROPUESTA_y_lleva_la_marca_del_core",
+           "tests/unit/test_estatus_epistemico.py::test_la_marca_SOLO_aparece_en_una_propuesta",
+           "tests/unit/test_contaminacion_propuesta.py::test_una_propuesta_falsa_no_contamina_memoria_senales_ni_contexto"]
+buscar = '''    if estatus is Estatus.PROPUESTA and say:
+        return f"{MARCA_PROPUESTA} {say}"'''
+sustituir = '''    if False:
+        return f"{MARCA_PROPUESTA} {say}"'''
+
+[[mutante]]
+id = "FC-M3"
+garantia = "la linea de contexto vuelve a reentrar sin etiqueta de estatus: una propuesta se leeria como afirmacion del turno anterior"
+fichero = "aura_skeleton/core/estatus.py"
+pruebas = ["tests/unit/test_contaminacion_propuesta.py::test_una_propuesta_falsa_no_contamina_memoria_senales_ni_contexto"]
+buscar = '''    return f"(previo) tu: {usuario} | AURA [{ETIQUETA_CONTEXTO[estatus]}]: {aura}"'''
+sustituir = '''    return f"(previo) tu: {usuario} | AURA: {aura}"'''
+
+[[mutante]]
+id = "FC-M4"
+garantia = "el buffer de dialogo guarda el say YA MARCADO: la marca del Core se duplicaria al reentrar en el prompt"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/unit/test_contaminacion_propuesta.py::test_una_propuesta_falsa_no_contamina_memoria_senales_ni_contexto"]
+buscar = '''        buffer.append((text, say, e))'''
+sustituir = '''        buffer.append((text, visible, e))'''
+
+[[mutante]]
+id = "FC-M5"
+garantia = "la memoria persiste el SAY del modelo en vez del texto del usuario: una propuesta contaminaria la memoria del usuario"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/unit/test_contaminacion_propuesta.py::test_una_propuesta_falsa_no_contamina_memoria_senales_ni_contexto"]
+buscar = '''                await self.memory.write(
+                    uid, kind, f"usuario dijo: {text}", {"trace_id": tid, "fuente": "conversacion"}
+                )'''
+sustituir = '''                await self.memory.write(
+                    uid, kind, f"usuario dijo: {say}", {"trace_id": tid, "fuente": "conversacion"}
+                )'''
+
+# --------- 2 · EL MODELO NUNCA EJECUTA NI SE ABSTIENE POR SU CUENTA ---------
+
+[[mutante]]
+id = "FC-M6"
+garantia = "en modo cognitivo el Core deja de forzar 'consulta': el modelo podria ejecutar una accion en un turno que solo debia responder"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_frontera_cognitiva_vertical.py::test_en_modo_cognitivo_el_core_descarta_la_accion_aunque_no_haya_esquema"]
+buscar = '''        if modo == "cognitivo" and action != "consulta":'''
+sustituir = '''        if False and action != "consulta":'''
+
+[[mutante]]
+id = "FC-M7"
+garantia = "se elimina la abstencion en dominio sensible: el Core transmitiria una afirmacion del modelo sobre salud, derecho, finanzas, religion o una persona real"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/unit/test_estatus_epistemico.py::test_dominio_sensible_es_ABSTENCION_sin_modelo",
+           "tests/unit/test_estatus_epistemico.py::test_la_abstencion_sensible_NO_se_aplica_a_una_orden",
+           "tests/integration/test_frontera_cognitiva_vertical.py::test_lo_que_responde_el_core_no_llama_al_modelo"]
+buscar = '''        if sensible is not None:
+            obs.log("CORE", "sensible", f"dominio={sensible} -> abstencion, sin llamada al LLM", tid, audit=True)'''
+sustituir = '''        if False:
+            obs.log("CORE", "sensible", f"dominio={sensible} -> abstencion, sin llamada al LLM", tid, audit=True)'''
+
+[[mutante]]
+id = "FC-M8"
+garantia = "dominio_sensible pierde el marco de 'personas_reales': preguntar quien es alguien dejaria de abstenerse"
+fichero = "aura_skeleton/core/intencion.py"
+pruebas = ["tests/unit/test_frontera_referente.py::test_dominio_sensible_por_dominio",
+           "tests/unit/test_frontera_referente.py::test_T7_quien_es_Jesus_Cristo_es_sensible"]
+buscar = '''_MARCOS_PERSONA = ("quien es ", "quien fue ", "quien era ", "quien invento", "quien escribio",
+                   "quien descubrio")'''
+sustituir = '''_MARCOS_PERSONA = ()'''
+
+# --------- 3 · AURA SOBRE SI MISMA ---------
+
+[[mutante]]
+id = "FC-M9"
+garantia = "la ruta 'AURA sobre si misma' desaparece: 'que desarrollas ahora?' volveria a la pared de memoria"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_frontera_cognitiva_vertical.py::test_T8_sin_objetivos_es_AUSENCIA_del_core_sin_modelo",
+           "tests/integration/test_frontera_cognitiva_vertical.py::test_T8_con_estado_real_es_HECHO_con_el_dato"]
+buscar = '''        if (self.estado_operativo is not None or self.estado_autonomo is not None) \
+                and intencion.es_consulta_sobre_aura(text):'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "FC-M10"
+garantia = "es_consulta_sobre_aura pierde el freno de primera persona: 'que estas haciendo con mis archivos?' se leeria como pregunta sobre AURA"
+fichero = "aura_skeleton/core/intencion.py"
+pruebas = ["tests/unit/test_frontera_referente.py::test_una_pregunta_del_usuario_sobre_si_mismo_NO_es_sobre_aura",
+           "tests/unit/test_frontera_referente.py::test_T8_una_pregunta_a_AURA_sobre_si_misma"]
+buscar = '''    if _nombra(bordes, _OBJETO_DEL_USUARIO) or any(p in n for p in MARCADORES_DE_EVOCACION):
+        return False'''
+sustituir = '''    if any(p in n for p in MARCADORES_DE_EVOCACION):
+        return False'''
+
+# --------- 4 · RAZONAMIENTO FORMAL: HECHO O ACLARACION, NUNCA UNA ADIVINANZA ---------
+
+[[mutante]]
+id = "FC-M11"
+garantia = "resolver_formal deja de cubrir los problemas verbales (D-FC-4): 'tengo 4 manzanas y como 1' volveria a caer en el LLM"
+fichero = "aura_skeleton/core/aritmetica.py"
+pruebas = ["tests/unit/test_razonamiento_formal.py::test_un_problema_verbal_ESTRUCTURADO_se_resuelve_con_certeza",
+           "tests/unit/test_razonamiento_formal.py::test_lo_que_ANTES_caia_en_la_rama_numerica_del_LLM_ahora_nunca_da_None"]
+buscar = '''    plegado = _plegar(texto)
+    if not _forma_cuantitativa(texto, plegado):
+        return None'''
+sustituir = '''    plegado = _plegar(texto)
+    if not _forma_cuantitativa(texto, plegado) or True:
+        return None'''
+
+[[mutante]]
+id = "FC-M12"
+garantia = "un resultado negativo en un consumo pasa a HECHO: se afirmaria un conteo negativo en vez de pedir aclaracion"
+fichero = "aura_skeleton/core/aritmetica.py"
+pruebas = ["tests/unit/test_razonamiento_formal.py::test_RESULTADO_NEGATIVO_en_un_consumo_pide_aclaracion",
+           "tests/unit/test_razonamiento_formal.py::test_CONTROL_una_cantidad_suficiente_SI_resuelve"]
+buscar = '''    resultado = cantidad + signo * cantidad_operacion
+    if resultado < 0:'''
+sustituir = '''    resultado = cantidad + signo * cantidad_operacion
+    if False:'''
+
+# --------- 5 · LA COMPUERTA COGNITIVA Y EL REFERENTE ---------
+
+[[mutante]]
+id = "FC-M13"
+garantia = "la compuerta cognitiva pierde 'and ref == REFERENTE_MUNDO': una suposicion con posesivo ('si mi hermano tiene 3 coches...') se trataria como cognicion del mundo y saltaria la pared de memoria de ADR-0014"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/unit/test_frontera_referente.py::test_el_posesivo_gana_al_mundo",
+           "tests/unit/test_estatus_epistemico.py::test_la_compuerta_cognitiva_exige_referente_MUNDO",
+           "tests/integration/test_frontera_cognitiva_vertical.py::test_T5_va_al_modelo_UNA_vez_como_PROPUESTA_y_nunca_a_memoria"]
+# RE-ANCLADO 2026-09-13: la compuerta se extrajo a `_es_turno_cognitivo` (superviviente en la cascada
+# porque `resolver_formal` reclama antes el ejemplo alcanzable). Misma degradacion, sobre la funcion.
+buscar = '''    return intencion.es_cognicion_general(texto) and intencion.referente(texto) == intencion.REFERENTE_MUNDO'''
+sustituir = '''    return intencion.es_cognicion_general(texto)'''
+
+[[mutante]]
+id = "FC-M14"
+garantia = "T5 (hipotesis de consecuencia sin cifra) deja de activarse: 'si meto la mano en agua caliente que me pasa?' volveria a la pared de memoria"
+fichero = "aura_skeleton/core/intencion.py"
+pruebas = ["tests/unit/test_frontera_referente.py::test_hipotesis_de_consecuencia_sin_cifra_es_cognicion",
+           "tests/unit/test_frontera_referente.py::test_T5_literal_llega_a_la_cognicion"]
+buscar = '''    if _es_hipotesis_de_consecuencia(texto):
+        return True'''
+sustituir = '''    if False:
+        return True'''
+
+[[mutante]]
+id = "FC-M15"
+garantia = "la hipotesis de consecuencia pierde su guarda de posesivo: 'si meto mi mano en agua caliente...' se leeria como cognicion del mundo, no del usuario"
+fichero = "aura_skeleton/core/intencion.py"
+pruebas = ["tests/unit/test_frontera_referente.py::test_cada_freno_de_la_hipotesis_tiene_su_prueba"]
+buscar = '''    bordes = _con_bordes(n)
+    if _nombra(bordes, _POSESIVO_HIPOTESIS):
+        return False
+    premisa = _premisa_de_consecuencia(bordes)'''
+sustituir = '''    bordes = _con_bordes(n)
+    if False:
+        return False
+    premisa = _premisa_de_consecuencia(bordes)'''
+
+[[mutante]]
+id = "FC-M16"
+garantia = "referente invierte el orden: MUNDO se decide antes que el posesivo/evocacion, y una pregunta con 'mi' se saldria como si fuera del mundo"
+fichero = "aura_skeleton/core/intencion.py"
+pruebas = ["tests/unit/test_frontera_referente.py::test_el_posesivo_gana_al_mundo",
+           "tests/unit/test_frontera_referente.py::test_referente"]
+buscar = '''    if _nombra(bordes, _POSESIVO_HIPOTESIS) or any(p in n for p in MARCADORES_DE_EVOCACION):
+        return REFERENTE_USUARIO
+    if es_cognicion_general(texto):
+        return REFERENTE_MUNDO'''
+sustituir = '''    if es_cognicion_general(texto):
+        return REFERENTE_MUNDO
+    if _nombra(bordes, _POSESIVO_HIPOTESIS) or any(p in n for p in MARCADORES_DE_EVOCACION):
+        return REFERENTE_USUARIO'''
+
+# --------- 6 · EL CIRCUITO RECUPERABLE DEL ROUTER (D-FC-7) ---------
+
+[[mutante]]
+id = "FC-M17"
+garantia = "un circuito ABIERTO vuelve a llamar al proveedor: la proteccion del enfriamiento desaparece"
+fichero = "aura_skeleton/modules/router.py"
+pruebas = ["tests/unit/test_circuito_proveedor.py::test_fallo_abre_el_circuito_y_la_siguiente_llamada_queda_protegida"]
+# PATRON ACTUALIZADO: `ruff format` partio en varias lineas el log del circuito ABIERTO. Se ancla ahora
+# el cierre de esa llamada y el `continue`, que es lo que la garantia protege: quitarlo hace que un
+# circuito ABIERTO vuelva a llamar al proveedor.
+buscar = '''                    "WARN", "router", f"circuito ABIERTO: {prov.name} en enfriamiento, se salta sin llamar", trace_id
+                )
+                continue'''
+sustituir = '''                    "WARN", "router", f"circuito ABIERTO: {prov.name} en enfriamiento, se salta sin llamar", trace_id
+                )'''
+
+[[mutante]]
+id = "FC-M18"
+garantia = "el circuito SEMIABIERTO deja de cerrarse tras una prueba exitosa: quedaria protegiendo un proveedor que ya funciona"
+fichero = "aura_skeleton/modules/router.py"
+pruebas = ["tests/unit/test_circuito_proveedor.py::test_semiabierto_hace_una_llamada_de_prueba_y_cierra_si_acierta"]
+# PATRON ACTUALIZADO: mismo motivo que FC-M17. La garantia es el `cerrar()` tras la prueba exitosa, asi
+# que se ancla solo eso y no la forma en que quede partido el log.
+buscar = '''            if estado == _EstadoCircuito.SEMIABIERTO:
+                circuito.cerrar()'''
+sustituir = '''            if estado == _EstadoCircuito.SEMIABIERTO:
+                pass'''
+
+[[mutante]]
+id = "FC-M19"
+garantia = "el enfriamiento se ignora: un circuito recien ABIERTO pasaria a SEMIABIERTO de inmediato, sin esperar"
+fichero = "aura_skeleton/modules/router.py"
+pruebas = ["tests/unit/test_circuito_proveedor.py::test_tras_enfriar_el_circuito_pasa_a_semiabierto",
+           "tests/unit/test_circuito_proveedor.py::test_fallo_abre_el_circuito_y_la_siguiente_llamada_queda_protegida"]
+buscar = '''        if ahora - self.abierto_desde < enfriamiento_s:
+            return _EstadoCircuito.ABIERTO'''
+sustituir = '''        if False:
+            return _EstadoCircuito.ABIERTO'''
+
+[[mutante]]
+id = "FC-M20"
+garantia = "la captura del RuntimeError del router desaparece: sin proveedor disponible, el turno se queda colgado en vez de terminar en ABSTENCION"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/unit/test_estatus_epistemico.py::test_sin_proveedor_el_turno_TERMINA_en_ABSTENCION",
+           "tests/unit/test_estatus_epistemico.py::test_router_sin_ningun_proveedor_tambien_termina"]
+buscar = '''        except RuntimeError as e:
+            # `ProveedoresNoDisponibles` es subclase de RuntimeError: se captura por la base para que el'''
+sustituir = '''        except ValueError as e:
+            # `ProveedoresNoDisponibles` es subclase de RuntimeError: se captura por la base para que el'''
+
+# --------- 7 · CABLEADO EN composicion.py / __main__.py (D-FC-7) — FAMILIA OBLIGATORIA ---------
+
+[[mutante]]
+id = "FC-M21"
+garantia = "composicion deja de pasar timeout_s=config.timeout_proveedor_s al proveedor real: el timeout declarado y el que corre divergirian de nuevo"
+fichero = "aura_skeleton/composicion.py"
+pruebas = ["tests/unit/test_configuracion_proveedor.py::test_componer_pasa_el_timeout_y_el_enfriamiento_explicitos_al_proveedor_real"]
+buscar = '''        proveedores: list[ModelProvider] = [
+            OllamaProvider("ollama", config.modelo, timeout_s=config.timeout_proveedor_s)
+        ]'''
+sustituir = '''        proveedores: list[ModelProvider] = [
+            OllamaProvider("ollama", config.modelo)
+        ]'''
+
+[[mutante]]
+id = "FC-M22"
+garantia = "el informe deja de mostrar la FUENTE del timeout: el operador vuelve a no saber si el numero vino del entorno o del defecto"
+fichero = "aura_skeleton/__main__.py"
+pruebas = ["tests/unit/test_configuracion_proveedor.py::test_el_informe_contiene_el_timeout_y_su_fuente"]
+buscar = '''        f"  timeout proveedor   : {config.timeout_proveedor_s}s (fuente: {config.fuente_timeout_proveedor})",'''
+sustituir = '''        f"  timeout proveedor   : {config.timeout_proveedor_s}s",'''
+
+# --------- 8 · «ESCRIBE» COMO ACCION (frontera con la lista roja) ---------
+
+[[mutante]]
+id = "FC-M23"
+garantia = "_RE_PIDE_ESCRIBIR deja de reconocer 'escribe'/'escribir': una orden de escritura real caeria en modo cognitivo y nunca alcanzaria el motor"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_frontera_cognitiva_vertical.py::test_escribe_pide_accion_solo_como_palabra_y_no_impersonal",
+           "tests/integration/test_frontera_cognitiva_vertical.py::test_escribe_en_un_fichero_SI_llega_al_motor"]
+buscar = '''_RE_PIDE_ESCRIBIR = re.compile(r"(?<!\bse )\bescrib(?:e|ir)\b")'''
+sustituir = '''_RE_PIDE_ESCRIBIR = re.compile(r"a^")'''
+
+[[mutante]]
+id = "FC-M24"
+garantia = "se elimina la exclusion de 'se escribe': una pregunta de ortografia ('como se escribe hola?') se trataria como una orden de escritura"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_frontera_cognitiva_vertical.py::test_escribe_pide_accion_solo_como_palabra_y_no_impersonal",
+           "tests/integration/test_frontera_cognitiva_vertical.py::test_como_se_escribe_no_llega_al_motor"]
+buscar = '''_RE_PIDE_ESCRIBIR = re.compile(r"(?<!\bse )\bescrib(?:e|ir)\b")'''
+sustituir = '''_RE_PIDE_ESCRIBIR = re.compile(r"\bescrib(?:e|ir)\b")'''
+
+[[mutante]]
+id = "FC-M25"
+garantia = "D-FC-6 declarado != real: el turno vuelve a ejecutarse en linea y el acuse de la CLI nunca se imprime con el bus real"
+fichero = "aura_skeleton/__main__.py"
+pruebas = ["tests/integration/test_acuse_cli_real.py"]
+buscar = '''    tarea = asyncio.create_task(orquestador.handle_utterance("usuario", texto, tid))'''
+sustituir = '''    await orquestador.handle_utterance("usuario", texto, tid)
+    tarea = asyncio.sleep(0)'''

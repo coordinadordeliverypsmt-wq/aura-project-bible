@@ -21,8 +21,11 @@ pruebas = [
 [[mutante]]
 id = "M1"
 garantia = "la puerta de ADR-0014 se salta: con memoria vacia el turno llega al LLM y este fabrica el recuerdo"
+# RE-ANCLADO 2026-09-09: la condicion de la puerta gano `and not cognicion_general` al abrir la
+# superficie cognitiva. La garantia es LA MISMA -que la puerta siga cerrandose- y el mutante sigue
+# siendo el mismo: anularla entera.
 fichero = "aura_skeleton/core/orchestrator.py"
-buscar = '''        if not hits and _es_consulta_de_memoria(text):'''
+buscar = '''        if not hits and _es_consulta_de_memoria(text) and not cognicion_general:'''
 sustituir = '''        if False:'''
 
 # ------------------------------------------------------------------------------------------------
@@ -67,17 +70,17 @@ garantia = "Conversacion General se evalua DESPUES de capacidades: el saludo de 
 fichero = "aura_skeleton/core/orchestrator.py"
 buscar = '''        resp = await self._atender_conversacion_general(uid, text)
         if resp is not None:
-            await self._finalizar_turno(uid, tid, text, resp, "core", t)
+            await self._finalizar_turno(uid, tid, text, resp, "core", t, dominio="conversacion_general")
             return
         if _es_consulta_de_capacidades(text):
-            await self._finalizar_turno(uid, tid, text, self._describir_capacidades(), "core", t)
+            await self._finalizar_turno(uid, tid, text, self._describir_capacidades(), "core", t, dominio="capacidades")
             return'''
 sustituir = '''        if _es_consulta_de_capacidades(text):
-            await self._finalizar_turno(uid, tid, text, self._describir_capacidades(), "core", t)
+            await self._finalizar_turno(uid, tid, text, self._describir_capacidades(), "core", t, dominio="capacidades")
             return
         resp = await self._atender_conversacion_general(uid, text)
         if resp is not None:
-            await self._finalizar_turno(uid, tid, text, resp, "core", t)
+            await self._finalizar_turno(uid, tid, text, resp, "core", t, dominio="conversacion_general")
             return'''
 
 # ------------------------------------------------------------------------------------------------

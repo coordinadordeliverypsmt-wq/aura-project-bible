@@ -1,7 +1,7 @@
 ---
 documento: "Decision Package — Durabilidad de memoria.json (PersistentMemory)"
 fecha: 2026-11-05
-estado: "APROBADO por el CEO (2026-11-05, opción A del informe de continuidad). P1 (durabilidad) EN EJECUCIÓN dentro del alcance. P2 (tolerar la cola truncada) DECISION_REQUIRED: contradice el contrato vigente T9"
+estado: "APROBADO por el CEO (2026-11-05, opción A del informe de continuidad). P1 (durabilidad) CERRADA y publicada (commits 473df8d, 8ff5bf9, 5bd18be; HEAD 5bd18be). P2 (tolerar la cola truncada) DECISION_REQUIRED: contradice el contrato vigente T9"
 alcance-aprobado: "Persistencia de memoria.json en walking-skeleton/aura_skeleton/modules/memory.py, rama integracion/m3-entry"
 no-cubre: "M4 · residencia (Fases 2/3, activación) · delegación remota · autenticación · CM2/S3 · producción · ~/.aura · cron · PARADA · purga física (CONTRATO-OLVIDO §5, BLOQUEADO)"
 ---
@@ -35,7 +35,7 @@ deshace en silencio la orden soberana del usuario (ADR-0017): lo olvidado reapar
 cierto. Por eso «`_load` tolera la última línea incompleta» **no se implementa** sin decisión: cambiaría un contrato
 vigente. El problema del §1 (recuerdos inaccesibles) es real; el fallo en alto es deliberado.
 
-## 3. P1 — en ejecución (sin conflicto con ningún contrato)
+## 3. P1 — CERRADA (sin conflicto con ningún contrato)
 
 1. **`_anexar` duradero:** escritura + `flush` + `os.fsync` del fichero; `fsync` del directorio cuando el fichero se
    crea, y **reintentado** en el siguiente `_anexar` si falló (bandera `_dir_pendiente`; hallazgo MEDIUM de la
@@ -88,6 +88,35 @@ Mutación: `mutaciones/durabilidad-memoria.toml`. Quality Gate PASS y auditoría
   por eso el error se propaga siempre.
 - Preexistentes (auditoría de seguridad, MEDIUM, fuera de P1): `memoria.json` y su `.tmp` se crean sin modo 0600
   (dependen de la umask) y sin `O_NOFOLLOW`; `.tmp` predecible. Candidatos a un incremento de endurecimiento aparte.
+
+## 7. Cierre de P1 (2026-11-05)
+
+Publicado en `integracion/m3-entry` (push normal, pre-push con Quality Gate PASS):
+
+| Commit | SHA | Contenido |
+|---|---|---|
+| DP | `473df8def56bd3cba6d72a2ea291896598588cc0` | este documento |
+| Código | `8ff5bf9acecfe0028d33e460e8948022cdd59caf` | `walking-skeleton/aura_skeleton/modules/memory.py` |
+| Pruebas | `5bd18beefb97604434b52ed91eef9abaeaaada85` | `tests/unit/test_durabilidad_memoria.py` + `mutaciones/durabilidad-memoria.toml` |
+
+Evidencia `[EJEC]` (sobre exactamente el código publicado):
+
+- RED: 5 pruebas de comportamiento fallaban sobre `4ccf202` (2 controles en verde); la del reintento del `fsync`
+  de directorio falló antes de su corrección. GREEN: 9/9.
+- Regresión (memoria, olvido, lápidas G-7, histórico, batería, G-1): **146 passed, 16 xfailed**.
+- T9 (`test_olvido_adversarial.py`): **3/3** en verde — sigue fallando en alto. G-1 (`test_g1_escritura_bajo_nivel`,
+  `test_g1_ruta_unica`): **PASS**.
+- Mutación `durabilidad-memoria.toml`: **8/8** (DM-1..DM-8). Catálogos previos anclados en `memory.py`:
+  `g7-lapida-append-only` 7/7, `olvido-adversarial` 4/4.
+- Quality Gate: **PASS** — 4334 passed / 5 skipped / 17 xfailed, contratos 8 (también en el pre-push).
+- Auditoría de seguridad independiente: **APROBADO**, sin CRITICAL ni HIGH (MEDIUM preexistentes: modo 0600,
+  `O_NOFOLLOW`, orden RAM/disco en `olvidar`/`marcar`).
+- Auditoría de corrección independiente: **APROBADO**; sus dos MEDIUM: reintento del `fsync` de directorio
+  (corregido, DM-8) y escritura parcial a media línea (documentada en §6, ligada a P2).
+- AgentShield: NO DISPONIBLE. Codex/OpenCode: no usados (sin bloqueo).
+
+Riesgos residuales: los de §6, sin cambios. **P2 sigue DECISION_REQUIRED** (§4): `_load`, `olvidar`, `marcar` y
+`_proyectar` no se modificaron.
 
 ## Retorno sobre tokens
 

@@ -11805,3 +11805,30 @@ autoriza. Enlazado desde el índice.
   plantada en la ruta del manifiesto bloquearía (igual que antes). `_cola_sin_salto` duplica la lectura del último
   byte de `_cerrar_cola_truncada` (se dejó así para no alterar el mutante X6).
 - **Siguen BLOQUEADAS:** Fase 2, Fase 3 y residencia. Producción, cron, PARADA, `~/.aura`, CM2 y S3 sin cambios.
+
+## 2026-11-05 · DP-DURABILIDAD-MEMORIA — P1 cerrada y publicada (rama integracion/m3-entry)
+
+- **Aprobación del CEO (2026-11-05):** opción A del informe de continuidad. DP en
+  `milestones/m3-entry/DP-DURABILIDAD-MEMORIA.md`.
+- **Problema `[EJEC]`:** 3 recuerdos válidos + corte a media escritura → `PersistentMemory` no arranca
+  (`JSONDecodeError`). Además: `_anexar` sin `fsync`, `_persist` sin `fsync` del `.tmp` (un corte podía dejar la memoria
+  vacía) y `write` anotaba en RAM antes de escribir (sesión recordando lo no persistido, INV-9).
+- **Disenso registrado:** «tolerar la línea final cortada» contradice la fila T9 VIGENTE de
+  `CONTRATO-OLVIDO-Y-RETENCION.md` (una lápida o una marca cortada ignorada deshace en silencio la orden del usuario).
+  Se dividió: P1 ejecutado; **P2 DECISION_REQUIRED** (opciones P2-A statu quo, P2-B tolerancia selectiva
+  —recomendada—, P2-C recuperación explícita).
+- **P1 (commits):** DP `473df8def56bd3cba6d72a2ea291896598588cc0` · código `8ff5bf9acecfe0028d33e460e8948022cdd59caf`
+  (`write` disco→RAM, `fsync` de fichero y de directorio con reintento `_dir_pendiente`, `_persist` con `fsync` del
+  `.tmp` y del directorio) · pruebas y mutación `5bd18beefb97604434b52ed91eef9abaeaaada85`. HEAD local = remoto =
+  `5bd18be`.
+- **Evidencia `[EJEC]`:** regresión 146 passed / 16 xfailed · T9 3/3 · G-1 PASS · mutación P1 8/8 (G-7 7/7 y
+  olvido-adversarial 4/4 siguen muriendo) · Quality Gate PASS 4334 passed / 5 skipped / 17 xfailed, contratos 8 ·
+  auditoría de seguridad APROBADO sin CRITICAL/HIGH · auditoría de corrección APROBADO (MEDIUM del reintento de
+  directorio corregido). AgentShield NO DISPONIBLE.
+- **Riesgos residuales:** escritura parcial a media línea (disco lleno) → el siguiente `write` se concatena y la
+  apertura falla en alto (ligado a P2); `fsync` de directorio fallido tras un append correcto → «al menos una vez»
+  (duplicado colapsado por la proyección); preexistentes MEDIUM: `memoria.json`/`.tmp` sin 0600 ni `O_NOFOLLOW`,
+  `olvidar`/`marcar` mutan RAM antes del disco.
+- **Pendiente del CEO:** decisión P2 (enmienda de T9 si P2-B/P2-C). Sin cambios en `main` (`99f2109`), producción,
+  `~/.aura`, cron, PARADA (NO VERIFICADO), CM2 ni S3. Observación CM2 del 2026-11-05: tarea de sesión `f914c7bc` a
+  las 23:46 (solo si la sesión sigue viva).

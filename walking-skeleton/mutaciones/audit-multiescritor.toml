@@ -1,7 +1,7 @@
 incremento = "Fase 1 de DP-RESIDENCIA-MEDICION-CM2: audit log con varios escritores (cerrojo flock, seq bajo cerrojo, cola truncada, huerfanos, escritura parcial). 2026-11-05."
 # NO ejecutado por la sesion que lo escribio: lo corre el orquestador con `python3 -m herramientas.mutar mutaciones/audit-multiescritor.toml`, sin nada en paralelo.
 # Las pruebas nuevas lanzan subprocesos reales (R1/R2 ~1 s cada una); el fichero de rotacion protege que el sellado sigue igual en un solo proceso.
-pruebas = ["tests/integration/test_audit_multiescritor.py", "tests/unit/test_rotacion_audit_log.py", "tests/integration/test_reloj_cm2_integracion.py"]
+pruebas = ["tests/integration/test_audit_multiescritor.py", "tests/integration/test_audit_manifiesto_parcial.py", "tests/unit/test_rotacion_audit_log.py", "tests/integration/test_reloj_cm2_integracion.py"]
 timeout_s = 600
 
 # X1 y X4 dependen de una CARRERA: las pruebas R1/R2 la provocan con barrera de arranque, pero un
@@ -142,3 +142,28 @@ buscar = '''    with _cerrojo_lectura(path):
         for s in _leer_fichero'''
 sustituir = '''    with contextlib.nullcontext():
         for s in _leer_fichero'''
+
+# --- Hallazgo posterior: escritura parcial del MANIFIESTO (2026-11-05) -------------------------
+
+[[mutante]]
+id = "X17"
+garantia = "no cerrar la cola del manifiesto: la entrada siguiente se fusiona con el fragmento y el segmento queda invisible"
+fichero = "aura_skeleton/observability.py"
+buscar = '''        cola_abierta = _cola_sin_salto(manifiesto)'''
+sustituir = '''        cola_abierta = False'''
+
+[[mutante]]
+id = "X18"
+garantia = "cerrar la cola del manifiesto sin dejar constancia en el audit (INV-9: ninguna recuperacion silenciosa)"
+fichero = "aura_skeleton/observability.py"
+buscar = '''        if cola_abierta:
+            self._escribir_registro('''
+sustituir = '''        if False:
+            self._escribir_registro('''
+
+[[mutante]]
+id = "X19"
+garantia = "comprobar la cola del ACTIVO en vez de la del manifiesto: el fragmento del manifiesto nunca se cierra"
+fichero = "aura_skeleton/observability.py"
+buscar = '''        cola_abierta = _cola_sin_salto(manifiesto)'''
+sustituir = '''        cola_abierta = _cola_sin_salto(self._path)'''

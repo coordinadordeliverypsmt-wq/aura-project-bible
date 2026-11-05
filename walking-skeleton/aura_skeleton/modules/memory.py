@@ -118,6 +118,15 @@ def _terminos(texto: str) -> set[str]:
 _LAPIDA = "_olvidada"
 
 
+def _fsync_dir(directorio: str) -> None:
+    """Sincroniza la entrada de directorio (creacion o rename duraderos). Errores: se propagan."""
+    fd = os.open(directorio, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
 def _clave(item: dict) -> tuple:
     """Identidad de un recuerdo a efectos de proyeccion, analoga a `(user_id, rule_id)` en reglas."""
     return (item.get("user_id"), item.get("kind"), item.get("content"))
@@ -151,6 +160,9 @@ class PersistentMemory:
         # D-M-1 A′: recuerdos por usuario, para la cota de seguridad del recall (α·N). O(1) en write;
         # se recomputa al reconstruir el indice. No se persiste: es estado derivado de `_items`.
         self._conteo_usuario: dict[str, int] = {}
+        # DP-DURABILIDAD-MEMORIA: si sincronizar el directorio fallo al crear el fichero, se reintenta en el
+        # siguiente _anexar (si no, los write posteriores darian exito con la entrada sin confirmar).
+        self._dir_pendiente = False
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         os.makedirs(self._bdir, exist_ok=True)
         self._load()
@@ -160,10 +172,12 @@ class PersistentMemory:
     # --- contrato MemoryStore ---
     async def write(self, user_id: str, kind: str, content: str, provenance: dict) -> None:
         item = {"user_id": user_id, "kind": kind, "content": content, "provenance": provenance}
+        # DP-DURABILIDAD-MEMORIA: primero en disco (con fsync), luego en la sesion. Si la escritura falla, el
+        # error se propaga y el recuerdo NO entra en la proyeccion: la sesion no recuerda lo no confirmado.
+        self._anexar(item)  # MA.2a: append O(1), no reescritura del historial completo
         self._items.append(item)
         self._indexar(len(self._items) - 1, item)
         self._conteo_usuario[user_id] = self._conteo_usuario.get(user_id, 0) + 1
-        self._anexar(item)  # MA.2a: append O(1), no reescritura del historial completo
         obs.log("MEM", "memory", f"write [{kind}] '{content[:40]}'", provenance.get("trace_id", "-"))
 
     async def recall(self, user_id: str, query: str, k: int = 3) -> list[dict]:
@@ -296,9 +310,19 @@ class PersistentMemory:
             self._conteo_usuario[item["user_id"]] = self._conteo_usuario.get(item["user_id"], 0) + 1
 
     def _anexar(self, item: dict) -> None:
-        """Escritura incremental en JSONL. Un corte solo puede danar la ultima linea."""
+        """Escritura incremental en JSONL. Un corte solo puede danar la ultima linea.
+
+        Duradera (DP-DURABILIDAD-MEMORIA): flush + fsync del fichero, y fsync del directorio si el fichero se
+        acaba de crear. Cualquier error (ENOSPC, EIO, el propio fsync) se propaga: nunca se da por escrito."""
+        existia = os.path.exists(self._path)
         with open(self._path, "a", encoding="utf-8") as f:
             f.write(json.dumps(item, ensure_ascii=False) + "\n")
+            f.flush()
+            os.fsync(f.fileno())
+        if not existia or self._dir_pendiente:
+            self._dir_pendiente = True
+            _fsync_dir(os.path.dirname(self._path) or ".")
+            self._dir_pendiente = False
 
     # --- persistencia atomica ---
     def _persist(self) -> None:
@@ -308,7 +332,10 @@ class PersistentMemory:
         data = "".join(json.dumps(it, ensure_ascii=False) + "\n" for it in self._items)
         with open(tmp, "w", encoding="utf-8") as f:
             f.write(data)
+            f.flush()
+            os.fsync(f.fileno())  # el contenido en disco ANTES del rename: si no, un corte deja la memoria vacia
         os.replace(tmp, self._path)  # atomico (3.5 §4: no corromper la memoria)
+        _fsync_dir(os.path.dirname(self._path) or ".")  # el rename, duradero
 
     def _load(self) -> None:
         if not os.path.exists(self._path):

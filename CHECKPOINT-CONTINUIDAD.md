@@ -11759,3 +11759,27 @@ autoriza. Enlazado desde el índice.
 - **Producción intacta:** `estado.json`/`eventos.jsonl` de producción no tocados; PARADA armada; main = d933a08.
 - **Riesgos pendientes (bloquean cableado):** N2, R4-M1/M2/M3, N1 residual, D-LOG-1 fuera de producción,
   `cryptography` sin declarar, `unlink` del firmador (revisión en curso). M4 sin aprobar.
+
+## 2026-11-05 · DP-RESIDENCIA-MEDICION-CM2 — Fase 1 implementada y validada (rama integracion/m3-entry)
+
+- **Aprobación del CEO (2026-11-05):** alternativa A2, solo Fase 1. DP en `milestones/m3-entry/DP-RESIDENCIA-MEDICION-CM2.md`
+  (commit `8b725ab`).
+- **Código (commit `b5dca6c`):** `AuditLog` multi-escritor seguro en `walking-skeleton/aura_skeleton/observability.py`:
+  cerrojo `<audit>.lock` (EX escribir/rotar, SH leer, espera acotada → `AuditBloqueado`), `seq` bajo cerrojo con
+  caché validada e inclusión de huérfanos válidos, escritura única con detección de parcial y `fsync` de fichero y
+  directorio, `O_NOFOLLOW`, cola truncada cerrada con `\n` (sin borrar bytes) y constancia, `_sellar` sin truncado y
+  reanudable, reconciliación validada de huérfanos, cerrojo perezoso (construir o leer no crea ficheros).
+  Formato de eventos y manifiestos sin cambios.
+- **Evidencia `[EJEC]`:** pruebas nuevas `tests/integration/test_audit_multiescritor.py` (procesos reales, R1–R5 y
+  adicionales, con control; RED previo: 13 de 20 fallaban sobre el código anterior). Mutación oficial:
+  `audit-multiescritor.toml` **16/16**; `ui-limpia-y-estado-autonomo.toml` **20/20**. Garantías declaradas 2041/2041
+  vigentes. Quality Gate **PASS** 4316 passed / 5 skipped / 17 xfailed, contratos 8.
+- **Auditoría independiente:** concurrencia/persistencia (APTO CON CONDICIONES: 1 ALTA —`seq` duplicado tras huérfano
+  con escritores vivos— corregida con X12) y seguridad (APTO CON CONDICIONES: `O_NOFOLLOW`, validación de huérfanos,
+  manifiesto 0600 — corregidas).
+- **Riesgos residuales (deuda previa, no introducida aquí):** el motor audita DESPUÉS del efecto, así que un
+  `AuditBloqueado` dentro de un adaptador se registra como error de sistema de archivos con el efecto ya ocurrido;
+  `_capturar_senales` traga excepciones (solo WARN). `flock` es consultivo y exige FS local. Durabilidad de
+  `memoria.json` pendiente.
+- **Siguen BLOQUEADAS:** Fase 2 (cerrojo de instancia), Fase 3 (quitar el aplazamiento del cron y actualizar el
+  PROCEDIMIENTO) y la activación de residencia. Sin cambios en producción, cron, PARADA, `~/.aura`, CM2 ni S3.

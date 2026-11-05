@@ -326,14 +326,31 @@ class AuditLog:
             "registros": len(registros),
             "ts_sellado": time.time(),
         }
-        datos = (json.dumps(entrada) + "\n").encode("utf-8")
-        fd = os.open(_manifiesto(self._path), os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        manifiesto = _manifiesto(self._path)
+        # Una anotacion previa cortada (escritura parcial) deja el manifiesto sin salto final: la cola se
+        # CIERRA en el mismo write (append-only, como el activo). Sin ello la entrada nueva se fusionaria con
+        # el fragmento y seria ilegible: segmento invisible con constancia de exito falsa.
+        cola_abierta = _cola_sin_salto(manifiesto)
+        datos = (b"\n" if cola_abierta else b"") + (json.dumps(entrada) + "\n").encode("utf-8")
+        fd = os.open(manifiesto, os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW, 0o600)
         try:
             if os.write(fd, datos) != len(datos):
-                raise ErrorEscrituraParcial(f"escritura parcial en {_manifiesto(self._path)}")
+                raise ErrorEscrituraParcial(f"escritura parcial en {manifiesto}")
             os.fsync(fd)
         finally:
             os.close(fd)
+        if cola_abierta:
+            self._escribir_registro(
+                {
+                    "level": "WARN",
+                    "module": "AUDIT",
+                    "msg": "linea parcial cerrada",
+                    "trace_id": "-",
+                    "audit": True,
+                    "evento": "audit.linea_parcial_cerrada",
+                    "fichero": os.path.basename(manifiesto),
+                }
+            )
         return entrada
 
     def _reconciliar_huerfanos(self) -> None:
@@ -437,6 +454,19 @@ def _leer_fichero(path: str) -> list[dict]:
             except json.JSONDecodeError:
                 continue
     return out
+
+
+def _cola_sin_salto(path: str) -> bool:
+    """True si `path` existe, no esta vacio y su ultimo byte no es un salto de linea (escritura cortada)."""
+    try:
+        with open(path, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            if f.tell() == 0:
+                return False
+            f.seek(-1, os.SEEK_END)
+            return f.read(1) != b"\n"
+    except FileNotFoundError:
+        return False
 
 
 def _candidatos_huerfanos(path: str) -> list[str]:

@@ -1,0 +1,78 @@
+incremento = "DP-DURABILIDAD-MEMORIA, P1: fsync de memoria.json (anexar y persist), fsync de directorio, disco antes que RAM en write. 2026-11-05."
+# Lo corre el orquestador con `python3 -m herramientas.mutar mutaciones/durabilidad-memoria.toml`, sin nada en paralelo.
+pruebas = ["tests/unit/test_durabilidad_memoria.py", "tests/unit/test_persistent_memory.py", "tests/integration/test_olvido_adversarial.py"]
+timeout_s = 300
+
+[[mutante]]
+id = "DM-1"
+garantia = "quitar el fsync del fichero al anexar: un recuerdo dado por guardado no sobrevive a un corte de energia"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''            f.flush()
+            os.fsync(f.fileno())
+        if not existia or self._dir_pendiente:'''
+sustituir = '''            f.flush()
+        if not existia or self._dir_pendiente:'''
+
+[[mutante]]
+id = "DM-2"
+garantia = "no sincronizar el directorio al crear memoria.json: la entrada del fichero nuevo no es duradera"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''        if not existia or self._dir_pendiente:'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "DM-8"
+garantia = "no reintentar el fsync de directorio que fallo: los write siguientes dan exito con la entrada sin confirmar"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''            _fsync_dir(os.path.dirname(self._path) or ".")
+            self._dir_pendiente = False'''
+sustituir = '''            self._dir_pendiente = False
+            _fsync_dir(os.path.dirname(self._path) or ".")'''
+
+[[mutante]]
+id = "DM-3"
+garantia = "volver a RAM antes que disco en write: un write fallido queda recordado en la sesion (INV-9)"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''        self._anexar(item)  # MA.2a: append O(1), no reescritura del historial completo
+        self._items.append(item)
+        self._indexar(len(self._items) - 1, item)
+        self._conteo_usuario[user_id] = self._conteo_usuario.get(user_id, 0) + 1'''
+sustituir = '''        self._items.append(item)
+        self._indexar(len(self._items) - 1, item)
+        self._conteo_usuario[user_id] = self._conteo_usuario.get(user_id, 0) + 1
+        self._anexar(item)  # MA.2a: append O(1), no reescritura del historial completo'''
+
+[[mutante]]
+id = "DM-4"
+garantia = "tragar el error de escritura en write: se da por guardado un recuerdo que no esta en disco"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''        self._anexar(item)  # MA.2a: append O(1), no reescritura del historial completo'''
+sustituir = '''        try:
+            self._anexar(item)  # MA.2a: append O(1), no reescritura del historial completo
+        except OSError:
+            pass'''
+
+[[mutante]]
+id = "DM-5"
+garantia = "quitar el fsync del .tmp en _persist: un corte tras el rename deja la memoria vacia"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''            os.fsync(f.fileno())  # el contenido en disco ANTES del rename'''
+sustituir = '''            pass  # el contenido en disco ANTES del rename'''
+
+[[mutante]]
+id = "DM-6"
+garantia = "quitar el fsync del directorio tras el rename de _persist: el rename no es duradero"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''        _fsync_dir(os.path.dirname(self._path) or ".")  # el rename, duradero'''
+sustituir = '''        pass  # el rename, duradero'''
+
+[[mutante]]
+id = "DM-7"
+garantia = "_fsync_dir abre el directorio pero no lo sincroniza: ninguna creacion ni rename es duradero"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''    fd = os.open(directorio, os.O_RDONLY)
+    try:
+        os.fsync(fd)'''
+sustituir = '''    fd = os.open(directorio, os.O_RDONLY)
+    try:
+        pass'''

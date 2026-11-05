@@ -369,7 +369,8 @@ def test_cli_iniciar_con_confirmacion_emite_cm2_inicio_en_el_tmp(datos, monkeypa
         "ts",
         "seq",
     }
-    assert sorted(os.listdir(datos)) == ["audit.jsonl", "memoria.json"]  # ningun fichero marcador
+    # DP-RESIDENCIA-MEDICION-CM2 §4.1: cerrojo persistente, creado en la primera escritura; ningun otro marcador.
+    assert sorted(os.listdir(datos)) == ["audit.jsonl", "audit.jsonl.lock", "memoria.json"]
 
 
 def test_segundo_inicio_es_idempotente(datos):

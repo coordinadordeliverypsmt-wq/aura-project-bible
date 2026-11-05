@@ -11783,3 +11783,25 @@ autoriza. Enlazado desde el índice.
   `memoria.json` pendiente.
 - **Siguen BLOQUEADAS:** Fase 2 (cerrojo de instancia), Fase 3 (quitar el aplazamiento del cron y actualizar el
   PROCEDIMIENTO) y la activación de residencia. Sin cambios en producción, cron, PARADA, `~/.aura`, CM2 ni S3.
+
+## 2026-11-05 · Fase 1 — hallazgo posterior: escritura parcial del manifiesto del audit (corregido)
+
+- **Hallazgo (revisión estática) confirmado por RED `[EJEC]`:** si la entrada del manifiesto se escribe a medias
+  (`ErrorEscrituraParcial`), el manifiesto queda sin `\n` final y la siguiente anotación (reconciliación o sellado)
+  se fusiona con el fragmento → ilegible: segmento invisible para `leer_audit_desde`/`segmentos`/`verificar`,
+  constancia `audit.segmento_reconciliado` falsa y repetida en cada arranque; con un corte que deja JSON completo sin
+  `\n`, la siguiente anotación destruye además una entrada válida. Ningún byte se perdía en disco.
+- **Corrección (commit `3e27424`):** `_anotar_segmento` antepone `\n` en el mismo `os.write` si la cola del
+  manifiesto está abierta (`_cola_sin_salto`), sin borrar bytes, y deja constancia `audit.linea_parcial_cerrada`
+  con `fichero=audit.jsonl.manifest`. Formato de entrada sin cambios.
+- **Pruebas y mutación (commit `9ab9fa8`):** `tests/integration/test_audit_manifiesto_parcial.py` 9 pruebas
+  (2 controles). RED sobre `89753e3` (copia exportada): 7 fallan / 2 pasan. GREEN 9/9; suite pertinente (audit,
+  rotación, reloj CM2) en verde. Mutación `audit-multiescritor.toml` **19/19** (X17–X19 nuevos). Quality Gate
+  **PASS**: 4325 passed / 5 skipped / 17 xfailed, contratos 8.
+- **Auditoría independiente:** persistencia/concurrencia APROBADO (0 C/H/M); seguridad APROBADO (0 C/H/M).
+  AgentShield, Codex y OpenCode no instalados.
+- **Riesgos residuales (LOW):** si el corte cae justo tras el `\n` antepuesto, o el proceso muere entre la
+  anotación y la constancia, el cierre queda sin constancia (misma ventana que `_cerrar_cola_truncada`); una FIFO
+  plantada en la ruta del manifiesto bloquearía (igual que antes). `_cola_sin_salto` duplica la lectura del último
+  byte de `_cerrar_cola_truncada` (se dejó así para no alterar el mutante X6).
+- **Siguen BLOQUEADAS:** Fase 2, Fase 3 y residencia. Producción, cron, PARADA, `~/.aura`, CM2 y S3 sin cambios.

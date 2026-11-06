@@ -11877,3 +11877,23 @@ autoriza. Enlazado desde el índice.
 - **Límites (§7.8 del DP):** revisión compuesta sin registro; sin firma criptográfica; directorios sin endurecer;
   olvido lógico; crecimiento sin TTL (promoción a deuda > 10⁴ registros o carga > 1 s); cohesión de `orchestrator.py`.
 - **Sin cambios:** `main`, producción, `~/.aura`, cron, PARADA, CM2/S3, nodos.
+
+## 2026-11-06 · P3 de DP-DURABILIDAD-MEMORIA — olvidar/marcar atómicos respecto a la RAM (rama integracion/m3-entry)
+
+- **Autorización:** CEO Operativo (2026-11-06), P3 del DP (§9 nueva). Cierra el primer punto de §6.
+- **Defecto:** `olvidar`/`marcar` cambiaban la RAM antes de anexar la lápida/marca; un fallo de escritura a mitad dejaba
+  sesión y disco inconsistentes (lo olvidado reaparecía al reiniciar, o lo refutado volvía a darse por cierto).
+- **Corrección:** se anexa todo primero y solo si TODAS las anexiones tienen éxito se toca `self._items`, el índice,
+  `_conteo_usuario` y la procedencia; si una falla, el error se propaga (INV-9) y la RAM queda como antes. `marcar`
+  construye copias con la procedencia ya actualizada en vez de mutar los dicts vivos. Único fichero de producción:
+  `aura_skeleton/modules/memory.py` (`olvidar`, `marcar`). No se tocó `_anexar`, `_proyectar`, `_clave` ni el formato.
+- **Evidencia `[EJEC]`:** `tests/unit/test_durabilidad_memoria_p3.py` (12 pruebas, con control); RED sobre `ff2e9c4`.
+  Mutación `durabilidad-memoria-p3.toml` **6/6** (P3-1..P3-6; P3-6 añadido por la auditoría de corrección). Catálogos
+  previos anclados en `memory.py`, todos sin supervivientes: g7 **7/7** (G7-M6 reanclado al nuevo bucle de `marcar`),
+  olvido-adversarial 4/4, durabilidad-memoria 8/8, durabilidad-memoria-p2 12/12, memoria-cobertura 5/5,
+  d-m-1 3/3, historico-no-recuperable 6/6, correcciones-producto 7/7, olvido-por-entrada 8/8, continuidad-resultados
+  58/58. Quality Gate **PASS** 4562 passed / 3 skipped / 17 xfailed, contratos 8.
+- **Auditorías independientes:** corrección CABE (condición del mutante simétrico P3-6, resuelta); seguridad APROBADO
+  sin CRITICAL ni HIGH (el riesgo de fsync parcial es preexistente de P2-B, documentado; P3 lo reduce).
+- **Sin cambios:** T9, T11, punto D (olvido de acciones vía `ambito="acciones"`), `main`, producción, `~/.aura`, cron,
+  PARADA, CM2/S3, nodos.

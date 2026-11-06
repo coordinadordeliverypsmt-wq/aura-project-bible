@@ -168,3 +168,20 @@ ratificación del CEO; no se edita aquí.
 Corrige una vez, en el único almacén de recuerdos, la pérdida silenciosa por cortes de energía: evita depurar en el
 futuro «AURA olvidó lo que le dije» sin causa visible, y deja escrita la decisión pendiente (P2) con opciones, sin
 reabrir el análisis.
+
+## 9. P3 — olvidar/marcar atómicos respecto a la RAM (autorizada por el CEO, 2026-11-06)
+
+Cierra el primer punto de §6: `olvidar` y `marcar` persistían la lápida/marca DESPUÉS de cambiar la RAM, así que un
+fallo de escritura a mitad dejaba la sesión y el disco inconsistentes (lo olvidado reaparecía al reiniciar, o al revés).
+P3 los hace **atómicos respecto a la RAM**: anexan todas las lápidas/marcas primero y solo tocan `self._items`, el
+índice, `_conteo_usuario` y la procedencia si **todas** las anexiones tuvieron éxito; si una falla, el error se propaga
+(INV-9) y la RAM queda como antes de la llamada. `marcar` construye copias con la procedencia ya actualizada en vez de
+mutar los dicts vivos. No hay rollback de disco (append-only): la lápida/marca que sí llegó a disco se proyecta por su
+clave `(user_id, kind, content)` igual que la RAM tras el fallo, sin resucitar ni olvidar de más. No se tocó `_anexar`,
+`_proyectar`, `_clave` ni el formato de línea; T9, T11 y el olvido de acciones del punto D (vía `ambito="acciones"`)
+intactos. El riesgo de fsync parcial que queda es preexistente de P2-B (documentado), y P3 lo reduce al eliminar la
+mutación prematura de la RAM.
+
+Evidencia: `tests/unit/test_durabilidad_memoria_p3.py` (12 pruebas, con control); RED sobre `ff2e9c4`;
+`mutaciones/durabilidad-memoria-p3.toml` (P3-1..P3-6, incluido P3-6 por la auditoría de corrección). Auditorías
+independientes: corrección CABE (condición del mutante simétrico, resuelta); seguridad APROBADO sin CRITICAL ni HIGH.

@@ -118,6 +118,118 @@ def _terminos(texto: str) -> set[str]:
 _LAPIDA = "_olvidada"
 
 
+def _forma_de_corte(linea: str) -> bool:
+    """True solo si `linea` es un PREFIJO ESTRICTO de un objeto JSON valido: su unico defecto es que la entrada se
+    acaba. Una linea con un token invalido en medio (comilla perdida, bytes cambiados, dos lineas fusionadas) es
+    CORRUPCION, no un corte, y no se tolera aunque quede abierta. Un corte dentro de un escape o de un literal
+    (`\\u00`, `tru`) tampoco es demostrable: falla en alto (prudencia; afecta a disponibilidad, no a integridad)."""
+    if not linea.startswith("{"):
+        return False
+    profundidad, en_cadena, escape = 0, False, False
+    for c in linea:
+        if en_cadena:
+            if escape:
+                escape = False
+            elif c == "\\":
+                escape = True
+            elif c == '"':
+                en_cadena = False
+        elif c == '"':
+            en_cadena = True
+        elif c in "{[":
+            profundidad += 1
+        elif c in "}]":
+            profundidad -= 1
+            if profundidad <= 0:
+                return False  # el objeto raiz se cerro: no es un corte
+    if escape or not (profundidad > 0 or en_cadena):
+        return False
+    candidata = linea + ('"' if en_cadena else "")
+    try:
+        json.loads(candidata)
+    except json.JSONDecodeError as e:
+        return e.pos >= len(candidata)  # el unico error es el FIN de la entrada
+    return False
+
+
+def _prefijos_de_clave(linea: dict) -> list[str] | None:
+    """Como empieza en disco cualquier linea con la clave de `linea` (lapida, marca o reescritura). None si la
+    linea no empieza por `user_id, kind, content` en ese orden: entonces no se puede descartar nada."""
+    if not isinstance(linea, dict):
+        return None  # no es un recuerdo: no se puede descartar nada (fallo cerrado)
+    clave = {"user_id": linea.get("user_id"), "kind": linea.get("kind"), "content": linea.get("content")}
+    prefijos = [json.dumps(clave, ensure_ascii=a)[:-1] for a in (False, True)]
+    if not json.dumps(linea, ensure_ascii=False).startswith(prefijos[0]):
+        return None
+    return prefijos
+
+
+def _fragmento_ambiguo(fragmento: str, prefijos: list[str] | None) -> bool:
+    """True si `fragmento` PODRIA ser el comienzo de una linea con la clave de alguna linea existente (una lapida
+    de `olvidar` o una marca de `marcar`): ignorarlo podria resucitar lo olvidado o des-refutar lo refutado.
+    `prefijos` None = alguna linea con orden de claves desconocido: no se puede descartar nada (fallo cerrado)."""
+    if prefijos is None:
+        return True
+    return any(fragmento.startswith(p) or p.startswith(fragmento) for p in prefijos)
+
+
+# Una interrupcion real deja como mucho UN fragmento (el write en curso); mas de esto en un mismo fichero es
+# corrupcion, no cortes, y ademas acota el coste de la lectura (cada fragmento se compara con todas las claves).
+_MAX_FRAGMENTOS_TOLERADOS = 3
+
+
+def _lineas_legibles(contenido: str) -> tuple[list[dict], list[tuple[int, str]]]:
+    """Lectura de `memoria.json` COMPARTIDA por `PersistentMemory._load` y el reloj de CM2 (DP-DURABILIDAD-MEMORIA,
+    P2-B). Devuelve (lineas, [(posicion, fragmento tolerado)]). Un fragmento solo se tolera si tiene forma de corte
+    Y no es ambiguo, y como mucho `_MAX_FRAGMENTOS_TOLERADOS`; cualquier otra linea ilegible relanza su
+    `JSONDecodeError` (T9: falla en alto)."""
+    # Solo '\n' separa lineas: el escritor no emite otro separador y json.dumps(ensure_ascii=False) NO escapa
+    # U+2028/U+2029/U+0085, en los que str.splitlines() SI corta (partiria un recuerdo valido en dos).
+    crudas = [linea for linea in contenido.split("\n") if linea.strip()]
+    lineas: list[dict] = []
+    ilegibles: list[tuple[int, str, json.JSONDecodeError]] = []
+    for posicion, linea in enumerate(crudas, start=1):
+        try:
+            lineas.append(json.loads(linea))
+        except json.JSONDecodeError as e:
+            ilegibles.append((posicion, linea, e))
+    if not ilegibles:
+        return lineas, []
+    # Prefijos de clave calculados UNA vez (coste O(N) por lectura, no O(N) por fragmento).
+    todos: list[str] = []
+    orden_conocido = True
+    for existente in lineas:
+        propios = _prefijos_de_clave(existente)
+        if propios is None:
+            orden_conocido = False
+            break
+        todos.extend(propios)
+    prefijos = todos if orden_conocido else None
+    tolerados: list[tuple[int, str]] = []
+    for posicion, linea, error in ilegibles:
+        if (
+            len(tolerados) >= _MAX_FRAGMENTOS_TOLERADOS
+            or not _forma_de_corte(linea)
+            or _fragmento_ambiguo(linea, prefijos)
+        ):
+            raise error
+        tolerados.append((posicion, linea))
+    return lineas, tolerados
+
+
+def _cola_abierta(path: str) -> bool:
+    """True si el fichero existe, no esta vacio y no acaba en salto de linea (escritura cortada)."""
+    try:
+        fd = os.open(path, os.O_RDONLY)
+    except FileNotFoundError:
+        return False
+    try:
+        tam = os.fstat(fd).st_size
+        return tam > 0 and os.pread(fd, 1, tam - 1) != b"\n"
+    finally:
+        os.close(fd)
+
+
 def _fsync_dir(directorio: str) -> None:
     """Sincroniza la entrada de directorio (creacion o rename duraderos). Errores: se propagan."""
     fd = os.open(directorio, os.O_RDONLY)
@@ -315,8 +427,11 @@ class PersistentMemory:
         Duradera (DP-DURABILIDAD-MEMORIA): flush + fsync del fichero, y fsync del directorio si el fichero se
         acaba de crear. Cualquier error (ENOSPC, EIO, el propio fsync) se propaga: nunca se da por escrito."""
         existia = os.path.exists(self._path)
+        # P2-B: una cola sin salto de linea (corte previo) se CIERRA en el mismo write, sin borrar bytes: la linea
+        # nueva no se fusiona con el fragmento (que `_lineas_legibles` tolera solo si no es ambiguo).
+        cierre = "\n" if _cola_abierta(self._path) else ""
         with open(self._path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(item, ensure_ascii=False) + "\n")
+            f.write(cierre + json.dumps(item, ensure_ascii=False) + "\n")
             f.flush()
             os.fsync(f.fileno())
         if not existia or self._dir_pendiente:
@@ -351,7 +466,19 @@ class PersistentMemory:
             self._persist()
             obs.log("MEM", "memory", f"memoria migrada a formato incremental ({len(self._items)} items)", "-")
         else:
-            self._items = _proyectar([json.loads(linea) for linea in contenido.splitlines() if linea.strip()])
+            lineas, tolerados = _lineas_legibles(contenido)
+            for posicion, fragmento in tolerados:
+                obs.log(
+                    "WARN",
+                    "memory",
+                    "linea truncada tolerada (no ambigua: no puede ser lapida ni marca)",
+                    "-",
+                    audit=True,
+                    evento="memoria.linea_truncada_tolerada",
+                    linea=posicion,
+                    bytes=len(fragmento.encode("utf-8")),  # sin contenido ni huella: un hash corto es reversible
+                )
+            self._items = _proyectar(lineas)
         self._reconstruir_indice()
 
     # --- backups y recuperacion (3-2-1, prioridad M1) ---
@@ -392,7 +519,7 @@ class PersistentMemory:
         self._items = (
             json.loads(contenido)
             if contenido.startswith("[")
-            else [json.loads(x) for x in contenido.splitlines() if x.strip()]
+            else [json.loads(x) for x in contenido.split("\n") if x.strip()]  # solo '\n' separa (P2-B)
         )
         self._persist()
         self._reconstruir_indice()

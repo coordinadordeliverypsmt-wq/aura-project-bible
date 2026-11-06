@@ -34,7 +34,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from .. import observability as obs
-from ..modules.memory import _proyectar
+from ..modules.memory import _lineas_legibles, _proyectar
 from .identidad_memoria import atributo_declarado, normalizar
 from .modelo_usuario import _TIPOS
 from .orchestrator import Orchestrator
@@ -416,7 +416,7 @@ class _MemoriaSoloLectura:
             return
         # La MISMA proyeccion y la MISMA lectura de linea que `PersistentMemory._load` (sin tolerar lo que
         # ella no tolera): una lectura distinta podria dar por presente un hecho olvidado (lapida `_olvidada`).
-        self._items = _proyectar([json.loads(linea) for linea in contenido.splitlines() if linea.strip()])
+        self._items = _proyectar(_lineas_legibles(contenido)[0])
 
 
 def _eventos_cm2(datos: str) -> list[dict]:

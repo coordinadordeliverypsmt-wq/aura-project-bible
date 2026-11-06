@@ -11832,3 +11832,21 @@ autoriza. Enlazado desde el índice.
 - **Pendiente del CEO:** decisión P2 (enmienda de T9 si P2-B/P2-C). Sin cambios en `main` (`99f2109`), producción,
   `~/.aura`, cron, PARADA (NO VERIFICADO), CM2 ni S3. Observación CM2 del 2026-11-05: tarea de sesión `f914c7bc` a
   las 23:46 (solo si la sesión sigue viva).
+
+## 2026-11-05 · DP-DURABILIDAD-MEMORIA — P2-B implementada y validada (rama integracion/m3-entry)
+
+- **Autorización del CEO (2026-11-05):** iniciar P2, línea de diseño P2-B.
+- **Qué hace:** lectura única `_lineas_legibles` (memoria + `restore` + reloj de CM2, T10). Una línea ilegible solo
+  se tolera si es **prefijo JSON estricto** (corte, no corrupción), **no es ambigua** con la clave
+  `(user_id, kind, content)` de ninguna línea existente (lápidas y marcas siempre lo son) y no se supera el tope de 3.
+  Constancia `memoria.linea_truncada_tolerada` (línea y bytes, sin contenido). `_anexar` cierra una cola sin `\n`.
+  Solo `\n` separa líneas (defecto preexistente: un recuerdo con U+2028 dejaba la memoria sin abrir).
+- **Evidencia `[EJEC]`:** 36 pruebas P2; regresión en verde; mutación P2 12/12, P1 8/8, G-7 7/7, reloj-cm2 32/32
+  (G7-M5 y M23 reanclados), olvido 4/4; Quality Gate PASS 4370 passed / 5 skipped / 17 xfailed. Auditoría de
+  seguridad APROBADO; auditoría adversarial RECHAZADO → corregido → APROBADO (105 032 mutaciones de 1 carácter y 5 219
+  cortes reales de lápidas/marcas: 0 tolerados).
+- **Limitaciones:** un corte anterior a que la clave se distinga, o dentro de un escape/literal, sigue fallando en alto
+  (indistinguible de una lápida); un solo escritor por diseño; el reloj tolera sin constancia (es de solo lectura).
+- **Pendiente del CEO:** ratificar el nuevo texto de la fila T9 de `CONTRATO-OLVIDO-Y-RETENCION.md` (DP §8; las
+  tres pruebas T9 siguen en verde sin cambios). Sin cambios en `main`, producción, `~/.aura`, cron, PARADA, criterios
+  de CM2/S3 ni nodos.

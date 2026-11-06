@@ -369,10 +369,22 @@ class PersistentMemory:
         persiste ANEXANDO una lapida (copia de la entrada con `_LAPIDA`), no reescribiendo el fichero: el
         historial fisico conserva la linea original y la lapida, y el contenido sigue en disco. La purga fisica
         no esta implementada (ver el comentario de abajo y DP-S3-RELOJ-CM2 §4.1).
+
+        DP-DURABILIDAD-MEMORIA P3: atomico respecto a la RAM. Se ANEXAN todas las lapidas PRIMERO; solo si
+        las `len(bajas)` anexiones tienen exito se toca `self._items`/el indice/`_conteo_usuario`. Si
+        `_anexar` falla a mitad (ENOSPC/EIO/fsync), el error se propaga (INV-9) y la RAM queda exactamente
+        como antes de la llamada: no hay rollback de disco (no se puede "desanexar" una lapida ya escrita),
+        pero eso no corrompe nada porque el formato es append-only — la lapida que SI llego a disco sigue
+        siendo la ULTIMA linea de su clave y, al reabrir, esa entrada se proyecta correctamente olvidada; las
+        entradas cuya lapida no llego a anexarse no tienen lapida en disco y se proyectan vivas, igual que en
+        RAM tras el fallo.
         """
         bajas = [i for i in self._items if predicado(i)]
-        self._items = [i for i in self._items if not predicado(i)]
         if bajas:
+            # Anexar TODO antes de tocar la RAM. Si una anexion falla, el error se propaga aqui mismo,
+            # sin haber quitado nada de `self._items`: la sesion sigue mostrando TODO lo olvidable.
+            for baja in bajas:
+                self._anexar({**baja, _LAPIDA: True})
             # G-7 · LAPIDA en vez de reescritura (DP-D-M-8 §5.2). Antes esto llamaba a `_persist()`,
             # que reescribe el JSONL entero: el olvido borraba la historia junto con el dato, y no
             # quedaba forma de saber que se perdio. Ahora se ANEXA una baja logica por entrada, que
@@ -380,8 +392,7 @@ class PersistentMemory:
             # imitar»—. El historial fisico permanece intacto; la proyeccion de `_load` decide.
             #
             # La purga fisica NO se implementa: §5.2 la deja abierta («No lo decido aqui»).
-            for baja in bajas:
-                self._anexar({**baja, _LAPIDA: True})
+            self._items = [i for i in self._items if not predicado(i)]
             self._reconstruir_indice()  # el indice guarda posiciones: hay que rehacerlo tras eliminar
             obs.log("MEM", "memory", f"olvidadas {len(bajas)} entrada(s) del modelo del usuario", "-", audit=True)
         return len(bajas)
@@ -391,18 +402,27 @@ class PersistentMemory:
 
         Lo usa la refutacion del usuario ("eso ya no es cierto"): marcar `refutada` debe sobrevivir al
         reinicio, igual que el olvido — si no, AURA volveria a darlo por cierto al arrancar.
+
+        DP-DURABILIDAD-MEMORIA P3: atomico respecto a la RAM. Se construyen COPIAS de las entradas
+        seleccionadas con la procedencia YA actualizada (sin mutar los dicts vivos de `self._items`), se
+        ANEXAN todas esas copias primero y solo si las `n` anexiones tienen exito se aplican los campos a
+        los objetos en memoria. Si `_anexar` falla a mitad, el error se propaga y ningun objeto vivo queda
+        marcado: la sesion no da por refutado/marcado algo que el disco no confirma.
         """
-        marcadas = []
-        for i in self._items:
-            if predicado(i):
-                i.setdefault("provenance", {}).update(campos)
-                marcadas.append(i)
-        n = len(marcadas)
+        objetivos = [i for i in self._items if predicado(i)]
+        n = len(objetivos)
         if n:
+            # Copias con la procedencia ya actualizada: no se toca el dict vivo todavia.
+            copias = [{**i, "provenance": {**i.get("provenance", {}), **campos}} for i in objetivos]
             # G-7 · §5.2 pide para `marcar` lo mismo que para `olvidar`: **anexar la marca**. La
             # linea nueva gana en la proyeccion por su clave, y la anterior sigue en el historial.
-            for i in marcadas:
-                self._anexar(i)
+            # Anexar TODO antes de aplicar nada a RAM: si una anexion falla, el error se propaga aqui
+            # mismo, sin que ningun objeto vivo haya quedado marcado.
+            for copia in copias:
+                self._anexar(copia)
+            # Solo tras el exito de las `n` anexiones se aplican los campos a los objetos vivos.
+            for i in objetivos:
+                i.setdefault("provenance", {}).update(campos)
         return n
 
     # --- indice invertido (MA.2a) ---

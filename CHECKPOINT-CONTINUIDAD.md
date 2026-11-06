@@ -11850,3 +11850,30 @@ autoriza. Enlazado desde el índice.
 - **Pendiente del CEO:** ratificar el nuevo texto de la fila T9 de `CONTRATO-OLVIDO-Y-RETENCION.md` (DP §8; las
   tres pruebas T9 siguen en verde sin cambios). Sin cambios en `main`, producción, `~/.aura`, cron, PARADA, criterios
   de CM2/S3 ni nodos.
+
+## 2026-11-06 · Punto D — continuidad de resultados y privacidad, implementado y validado (rama integracion/m3-entry)
+
+- **Decisión:** el CEO Operativo aprueba las ocho decisiones de la §7.7 (v2) de
+  `milestones/m3-entry/DECISION-REQUERIDA-CONTINUIDAD-DE-RESULTADOS.md`; acta
+  `decisiones/2026-11-06-acta-continuidad-de-resultados-punto-d.md` (incluye el reconocimiento de la ampliación del
+  residual de ADR-0024); contrato de olvido v4 con la fila T19.
+- **Capacidad:** tras reiniciar, AURA recuerda lo que hizo («¿qué hiciste antes de reiniciarte?») como «registro local,
+  sin verificar ahora», sin volver a ejecutar nada. Registro `resultado_accion` en `memoria.json` (módulo único
+  `core/resultado_accion.py`): solo metadatos con lista blanca de campos y valores validada al escribir y al leer,
+  capacidad contra el catálogo, `evidencia` enum, ts al minuto y no futuro, dominios de seguridad excluidos,
+  deduplicación fallo-cerrado, rechazos auditados, 0600. Fuera de `recall`, del prompt y del modelo del usuario; incluido
+  en `exportar` y `ver_acciones`; olvido de acciones (T19) honesto (sin borrado físico); con PARADA no se persiste ni se
+  olvida. Privacidad: el contenido de `leer_archivo` ya no reentra en el prompt de turnos posteriores (sí se recupera a
+  petición en la misma conversación). Una sola clasificación y una sola redacción de desenlaces (modos vivo/registro/prompt).
+- **Evidencia `[EJEC]`:** pruebas nuevas (`test_resultado_accion.py`, `test_continuidad_resultados.py`,
+  `test_continuidad_resultados_auditoria.py`); RED contra la base; mutación `continuidad-resultados.toml` **58/58** y 23
+  catálogos previos con anclas en zonas tocadas, todos sin supervivientes (anclas reajustadas con la misma garantía:
+  D12, H-M2, OC-M7, OC-M8, OC-M14); Quality Gate **PASS** 4548 passed / 5 skipped / 17 xfailed, contratos 8.
+  Auditorías independientes: arquitectura **CABE**, seguridad **APROBADO** (tras corregir PARADA en «borra…», redacción
+  recuperada vs en vivo, permisos, olvido honesto, capacidad/ts/duplicados).
+- **Correcciones del director durante la integración:** revertido un `getattr` que relajaba `_sistema_detenido` (el
+  helper de la prueba aporta `perm`); CR-M9 era AMBIGUO porque una parametrización construía casos al importar (hecha
+  perezosa); `test_operaciones` admite la marca opcional aprobada sin abrir el esquema.
+- **Límites (§7.8 del DP):** revisión compuesta sin registro; sin firma criptográfica; directorios sin endurecer;
+  olvido lógico; crecimiento sin TTL (promoción a deuda > 10⁴ registros o carga > 1 s); cohesión de `orchestrator.py`.
+- **Sin cambios:** `main`, producción, `~/.aura`, cron, PARADA, CM2/S3, nodos.

@@ -47,8 +47,9 @@ sustituir = '''            self._items = lineas'''
 id = "G7-M6"
 descripcion = "marcar vuelve a reescribir el fichero entero"
 fichero = "aura_skeleton/modules/memory.py"
-buscar = '''            for i in marcadas:
-                self._anexar(i)'''
+# Reanclado 2026-11-06 (P3: marcar anexa COPIAS en vez de mutar dicts vivos); misma garantia.
+buscar = '''            for copia in copias:
+                self._anexar(copia)'''
 sustituir = '''            self._persist()'''
 
 [[mutante]]

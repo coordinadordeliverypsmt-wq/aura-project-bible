@@ -17,9 +17,20 @@ class NatsEventBus:
         self._subs = []
 
     @classmethod
-    async def connect(cls, url="nats://127.0.0.1:4222"):
-        nc = await nats.connect(url)
+    async def connect(cls, url="nats://127.0.0.1:4222", **opciones):
+        """Conecta al servidor. `url` puede ser una URL o una LISTA de URLs (se prueban en orden).
+
+        `opciones` se pasa tal cual a `nats.connect` (user, password, tls, reconexión, etc.).
+        """
+        if isinstance(url, (list, tuple)):
+            nc = await nats.connect(servers=list(url), **opciones)
+        else:
+            nc = await nats.connect(url, **opciones)
         return cls(nc)
+
+    @property
+    def conectado(self) -> bool:
+        return bool(self._nc.is_connected)
 
     def subscribe(self, type_prefix, handler):
         subject = type_prefix if "." in type_prefix else type_prefix
@@ -27,7 +38,7 @@ class NatsEventBus:
         async def _cb(msg):
             d = json.loads(msg.data.decode())
             ev = Event(
-                type=d["type"],
+                type=msg.subject,  # el subject lo impone NATS/la ACL; el cuerpo lo controla el remitente
                 trace_id=d["trace_id"],
                 user_id=d["user_id"],
                 payload=d.get("payload", {}),

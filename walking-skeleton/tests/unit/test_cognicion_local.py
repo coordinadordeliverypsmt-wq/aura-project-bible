@@ -54,7 +54,8 @@ def test_el_detector_de_memoria_NO_se_ha_tocado():
     """
     negativas = [c["texto"] for c in _consultas() if c["esperado"] is None]
     assert all(_es_consulta_de_memoria(t) for t in negativas), (
-        "`_es_consulta_de_memoria` dejó de reconocer alguna negativa: la puerta se estrechó")
+        "`_es_consulta_de_memoria` dejó de reconocer alguna negativa: la puerta se estrechó"
+    )
 
 
 def test_ninguna_consulta_de_la_bateria_se_desvia_a_cognicion():
@@ -66,19 +67,31 @@ def test_ninguna_consulta_de_la_bateria_se_desvia_a_cognicion():
 # ==================================================== LAS SEIS CATEGORÍAS --
 
 
-@pytest.mark.parametrize("texto", [
-    "¿Cómo me llamo?", "¿A qué me dedico?", "¿Cómo se llama mi hija?",
-    "¿Cuál es el nombre de mi abuela?", "¿Qué marca de teléfono tengo?",
-])
+@pytest.mark.parametrize(
+    "texto",
+    [
+        "¿Cómo me llamo?",
+        "¿A qué me dedico?",
+        "¿Cómo se llama mi hija?",
+        "¿Cuál es el nombre de mi abuela?",
+        "¿Qué marca de teléfono tengo?",
+    ],
+)
 def test_MEMORIA_PERSONAL_sigue_yendo_al_nucleo(texto):
     assert _puerta_activa(texto), texto
     assert not I.es_cognicion_general(texto), texto
 
 
-@pytest.mark.parametrize("texto", [
-    "¿Quién es Jesús Cristo?", "¿Qué es la fotosíntesis?", "¿Por qué llueve?",
-    "¿Cuál es la capital de Francia?", "¿Quién escribió el Quijote?",
-])
+@pytest.mark.parametrize(
+    "texto",
+    [
+        "¿Quién es Jesús Cristo?",
+        "¿Qué es la fotosíntesis?",
+        "¿Por qué llueve?",
+        "¿Cuál es la capital de Francia?",
+        "¿Quién escribió el Quijote?",
+    ],
+)
 def test_CONOCIMIENTO_GENERAL_llega_al_modelo(texto):
     assert I.es_cognicion_general(texto), texto
     assert not _puerta_activa(texto), texto
@@ -87,22 +100,29 @@ def test_CONOCIMIENTO_GENERAL_llega_al_modelo(texto):
 def test_MATEMATICA_la_resuelve_el_nucleo_sin_modelo():
     """Una suma no es una inferencia: la contesta el Core, y ni siquiera llega a la cognición."""
     from aura_skeleton.core.aritmetica import resolver
+
     assert resolver("cuanto es 2+2") is not None
 
 
-@pytest.mark.parametrize("texto", [
-    "si tengo 1 caballo y vendo 1, ¿cuántos me quedan?",
-    "si todos los A son B y X es A, ¿qué podemos concluir?",
-])
+@pytest.mark.parametrize(
+    "texto",
+    [
+        "si tengo 1 caballo y vendo 1, ¿cuántos me quedan?",
+        "si todos los A son B y X es A, ¿qué podemos concluir?",
+    ],
+)
 def test_RAZONAMIENTO_llega_al_modelo(texto):
     """El caso que el CEO vio fallar. «tengo» es aquí una PREMISA, no un hecho recordado."""
     assert I.es_cognicion_general(texto), texto
 
 
-@pytest.mark.parametrize("texto", [
-    "supongamos que mañana desaparece Internet, ¿qué consecuencias podría tener?",
-    "¿qué pasaría si la gravedad fuera la mitad?",
-])
+@pytest.mark.parametrize(
+    "texto",
+    [
+        "supongamos que mañana desaparece Internet, ¿qué consecuencias podría tener?",
+        "¿qué pasaría si la gravedad fuera la mitad?",
+    ],
+)
 def test_HIPOTESIS_llega_al_modelo_y_no_se_vuelve_un_hecho(texto):
     assert I.es_cognicion_general(texto), texto
     assert I.destino_de_memoria(texto) is None, "una hipótesis no puede almacenarse como hecho"
@@ -122,18 +142,21 @@ def test_ACCION_sigue_su_ruta_y_no_la_roba_la_cognicion():
 # ====================================== LA SUPOSICIÓN NO ES UN SALVOCONDUCTO --
 
 
-@pytest.mark.parametrize("texto", [
-    "Si hoy es martes, ¿a qué hora ceno?",
-    "Supongamos que olvidé el dato, ¿qué idioma hablo?",
-    "Si me lo preguntan, ¿qué postre preparo en Navidad?",
-    "Si necesito llamar, ¿cuál es el teléfono de la oficina nueva?",
-    "Supongamos que voy al taller, ¿cuál es el número de la factura?",
-    "Si tengo 2 hijos, ¿cómo se llaman?",
-    "Supongamos 3 cosas, ¿cuál es mi altura?",
-    "¿Qué es lo que te conté ayer sobre el presupuesto?",
-    "¿Qué es mi comida favorita?",
-    "¿Quién es mi jefa?",
-])
+@pytest.mark.parametrize(
+    "texto",
+    [
+        "Si hoy es martes, ¿a qué hora ceno?",
+        "Supongamos que olvidé el dato, ¿qué idioma hablo?",
+        "Si me lo preguntan, ¿qué postre preparo en Navidad?",
+        "Si necesito llamar, ¿cuál es el teléfono de la oficina nueva?",
+        "Supongamos que voy al taller, ¿cuál es el número de la factura?",
+        "Si tengo 2 hijos, ¿cómo se llaman?",
+        "Supongamos 3 cosas, ¿cuál es mi altura?",
+        "¿Qué es lo que te conté ayer sobre el presupuesto?",
+        "¿Qué es mi comida favorita?",
+        "¿Quién es mi jefa?",
+    ],
+)
 def test_una_pregunta_personal_DISFRAZADA_no_pasa(texto):
     """Los diez ataques con los que se acotó la regla, y que explican por qué es tan estrecha.
 
@@ -148,11 +171,15 @@ def test_una_pregunta_personal_DISFRAZADA_no_pasa(texto):
 # ============================================= COSTE: EL CATÁLOGO NO VIAJA --
 
 
-@pytest.mark.parametrize("texto", [
-    "¿Quién es Jesús Cristo?", "¿Qué es la fotosíntesis?",
-    "si tengo 1 caballo y vendo 1, ¿cuántos me quedan?",
-    "¿qué opinas de esta idea?",
-])
+@pytest.mark.parametrize(
+    "texto",
+    [
+        "¿Quién es Jesús Cristo?",
+        "¿Qué es la fotosíntesis?",
+        "si tengo 1 caballo y vendo 1, ¿cuántos me quedan?",
+        "¿qué opinas de esta idea?",
+    ],
+)
 def test_una_consulta_COGNITIVA_no_carga_el_catalogo(texto):
     """Requisito de coste: el catálogo de acciones era el 71 % del tiempo de ingesta del turno.
 
@@ -175,9 +202,11 @@ def test_una_ACCION_si_carga_el_catalogo():
 def test_el_prompt_cognitivo_sigue_separado_del_de_accion():
     """La separación ya construida no se sustituye por una mega-prompt."""
     from aura_skeleton.modules.providers_real import _SYSTEM, _SYSTEM_COGNITIVO
+
     assert _SYSTEM_COGNITIVO != _SYSTEM
     assert len(_SYSTEM_COGNITIVO) < len(_SYSTEM), (
-        "el prompt cognitivo dejó de ser el pequeño: ahí estaba la mejora de 441,2 s a 237,0 s")
+        "el prompt cognitivo dejó de ser el pequeño: ahí estaba la mejora de 441,2 s a 237,0 s"
+    )
     assert "NUNCA afirmes recordar" in _SYSTEM_COGNITIVO
 
 
@@ -186,12 +215,29 @@ def test_el_prompt_cognitivo_sigue_separado_del_de_accion():
 
 def test_la_respuesta_del_modelo_NO_se_convierte_en_memoria():
     """`_finalizar_turno` almacena lo que dijo el USUARIO, nunca lo que contestó el modelo."""
+    import ast
     import inspect
+    import textwrap
 
     from aura_skeleton.core.orchestrator import Orchestrator
-    fuente = inspect.getsource(Orchestrator._finalizar_turno)
-    escritura = fuente.split("memory.write")[1][:220]
-    assert "say" not in escritura, "la respuesta del modelo no puede entrar en memoria"
+
+    # Se inspeccionan los ARGUMENTOS reales de cada `memory.write`, no el texto: la versión textual daba
+    # un falso FAIL por un comentario que precisamente explica que el `say` no entra en memoria.
+    arbol = ast.parse(textwrap.dedent(inspect.getsource(Orchestrator._finalizar_turno)))
+    escrituras = [
+        n
+        for n in ast.walk(arbol)
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "write"
+    ]
+    assert escrituras, "el control necesita al menos una escritura de memoria que vigilar"
+    for llamada in escrituras:
+        nombres = {
+            x.id if isinstance(x, ast.Name) else x.attr
+            for a in [*llamada.args, *(k.value for k in llamada.keywords)]
+            for x in ast.walk(a)
+            if isinstance(x, (ast.Name, ast.Attribute))
+        }
+        assert "say" not in nombres, "la respuesta del modelo no puede entrar en memoria"
 
 
 def test_la_cognicion_no_concede_autoridad_de_ejecucion():
@@ -212,6 +258,7 @@ def test_la_cognicion_no_concede_autoridad_de_ejecucion():
 def test_los_marcadores_de_evocacion_tienen_UN_solo_hogar():
     """No hay dos copias: el orquestador aliasa la lista de M-1. Dos copias divergen en una."""
     from aura_skeleton.core.orchestrator import _PATRONES_CONSULTA_MEMORIA
+
     assert _PATRONES_CONSULTA_MEMORIA is I.MARCADORES_DE_EVOCACION
 
 
@@ -247,6 +294,8 @@ def test_el_orquestador_exime_del_catalogo_a_la_consulta_cognitiva():
     import inspect
 
     from aura_skeleton.core.orchestrator import Orchestrator
+
     fuente = inspect.getsource(Orchestrator.on_turn)
     assert 'modo = "accion" if (_pide_accion(text) and not cognicion_general) else "cognitivo"' in fuente, (
-        "el orquestador dejó de eximir del catálogo a la consulta cognitiva")
+        "el orquestador dejó de eximir del catálogo a la consulta cognitiva"
+    )

@@ -151,8 +151,7 @@ class AlmacenDecisiones:
     def _ruta(self, huella: str) -> str:
         return os.path.join(self._dir, f"{huella}.json")
 
-    def _marcar(self, estado: str, huella: str, *, por: str = "", origen: str = "",
-                evidencia: str = "") -> bool:
+    def _marcar(self, estado: str, huella: str, *, por: str = "", origen: str = "", evidencia: str = "") -> bool:
         ruta = self._ruta(huella)
         decision = self._leer(ruta)
         if decision is None:

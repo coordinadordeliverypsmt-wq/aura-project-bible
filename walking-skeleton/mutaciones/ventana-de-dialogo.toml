@@ -1,0 +1,67 @@
+incremento = "DR-4 (CEO, 2026-09-15): la ventana de dialogo descarta por BLOQUES y recorta las respuestas previas de AURA; medido en cuatro conversaciones reales de 12 turnos"
+pruebas = ["tests/integration/test_ventana_de_dialogo.py"]
+timeout_s = 240
+
+# Turnos 8-12 en HC-1: deslizante 6 -> 5 de 5 turnos por encima de 180 s; solo recorte -> 2 de 5; solo
+# bloques -> 0 de 5; ambas -> 0 de 5 con la mediana mas baja. Cada mutante devuelve una pieza al estado
+# medido como peor, o degrada la garantia de memoria por el lado contrario (recortar lo que no se debe).
+
+[[mutante]]
+id = "VD-M1"
+garantia = "vuelve la ventana DESLIZANTE: la cache del modelo se invalida en cada turno desde el octavo, no solo al descartar"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_ventana_de_dialogo.py::test_el_descarte_por_bloques_solo_rompe_el_prefijo_en_el_turno_del_descarte",
+           "tests/integration/test_ventana_de_dialogo.py::test_el_descarte_por_bloques_nunca_recuerda_menos_que_la_ventana_deslizante"]
+buscar = '''        if len(buffer) > self._DIALOG_MAX:'''
+sustituir = '''        if True:'''
+
+[[mutante]]
+id = "VD-M2"
+garantia = "la politica vigente deja de ser la medida: el tope vuelve al de la ventana deslizante"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_ventana_de_dialogo.py::test_LA_POLITICA_VIGENTE_es_la_que_la_medicion_sostiene"]
+buscar = '''        self._DIALOG_MAX = 9'''
+sustituir = '''        self._DIALOG_MAX = 6'''
+
+[[mutante]]
+id = "VD-M3"
+garantia = "desaparece el recorte: el buffer vuelve a crecer sin tope con las respuestas largas del modelo"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_ventana_de_dialogo.py::test_LA_POLITICA_VIGENTE_es_la_que_la_medicion_sostiene"]
+buscar = '''        self._RECORTE_AURA: int | None = 160'''
+sustituir = '''        self._RECORTE_AURA: int | None = None'''
+
+[[mutante]]
+id = "VD-M4"
+# RE-ANCLADO 2026-09-15 (MISION VOZ): `ruff format` reescribio el bloque en el orquestador.
+# La garantia y el efecto del mutante son los mismos; solo cambia como esta escrito el codigo.
+garantia = "se recorta lo que dijo el USUARIO: la conversacion pierde las palabras de la persona, que son justo las que no se pueden perder"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_ventana_de_dialogo.py::test_el_recorte_solo_afecta_a_lo_que_dijo_AURA_y_lo_marca"]
+buscar = '''                linea_de_contexto(t.usuario, _recortar_respuesta_previa(t.aura, self._RECORTE_AURA), t.estatus)'''
+sustituir = '''                linea_de_contexto(_recortar_respuesta_previa(t.usuario, self._RECORTE_AURA), t.aura, t.estatus)'''  # ancla actualizada en M8: la ventana pasó a ser `recuperacion.Turno`; la garantía no cambia.
+
+[[mutante]]
+id = "VD-M5"
+garantia = "el extracto deja de marcarse: el modelo lee una respuesta cortada como si fuera completa"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_ventana_de_dialogo.py::test_el_recorte_solo_afecta_a_lo_que_dijo_AURA_y_lo_marca"]
+buscar = '''    return say[:limite].rstrip() + _MARCA_RECORTE'''
+sustituir = '''    return say[:limite].rstrip()'''
+
+[[mutante]]
+id = "VD-M6"
+garantia = "el recorte se guarda en la memoria de trabajo en vez de aplicarse solo al prompt: se pierde lo que AURA dijo de verdad"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_ventana_de_dialogo.py::test_el_recorte_no_modifica_el_buffer_guardado"]
+buscar = '''            buffer.append(recuperacion.Turno(text, say, e, dominio))'''
+sustituir = '''            buffer.append(recuperacion.Turno(text, _recortar_respuesta_previa(say, self._RECORTE_AURA), e, dominio))'''  # ancla actualizada en M8: la ventana pasó a ser `recuperacion.Turno`; la garantía no cambia.
+
+[[mutante]]
+id = "VD-M7"
+garantia = "baja el suelo de memoria: tras un descarte AURA recuerda menos turnos que con la ventana anterior"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_ventana_de_dialogo.py::test_el_descarte_por_bloques_nunca_recuerda_menos_que_la_ventana_deslizante",
+           "tests/integration/test_ventana_de_dialogo.py::test_la_politica_vigente_recuerda_al_menos_tanto_como_la_anterior"]
+buscar = '''            del buffer[: len(buffer) - self._DIALOG_N]  # conserva las ultimas N (memoria de trabajo)'''
+sustituir = '''            del buffer[: len(buffer) - 3]  # conserva las ultimas N (memoria de trabajo)'''

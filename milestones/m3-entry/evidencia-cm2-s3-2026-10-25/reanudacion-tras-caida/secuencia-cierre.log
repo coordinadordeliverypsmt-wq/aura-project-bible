@@ -1,0 +1,13 @@
+== A. SIGKILL durante la verificacion, DOS supervisores a la vez, segunda ejecucion
+1-3. SIGKILL rc = -9 | ejecutor registrado: True
+4.   estado = interrumpida_reintentable | fichero intacto: True
+5-7. dos supervisores simultaneos: [(0, '1 cola agotada'), (0, '0 cola agotada')] | suma ejecutadas = 1
+8.   estado = completada | intentos = 2 | promociones = 1 | motivos: ['cola agotada', 'cola agotada'] | log integro: True
+9-10. segunda ejecucion: 0 cola agotada | promociones = 1 | intentos = 2
+== B. Muerte ENTRE promover y registrar (§8)
+     SIGKILL rc = -9 | promovido en disco: True | cambio_aplicado en log: 0
+     supervisor nuevo: 0 cola agotada | recuperacion: ['promocion_confirmada'] | promociones = 1 | intentos = 1 | estado = resultado_ambiguo | elegible = False
+== C. Dos interrupciones: AGOTADA y observable
+     dos SIGKILL rc = None -9 | intentos = 2 | estado = agotada
+     supervisor: 0 cola agotada / 0 cola agotada | eventos de agotamiento: 1 -> 1 | {'id': 'TA-7f6ed7a18f3b', 'intentos': 2, 'motivo': 'reintentos agotados sin dejar efecto; hace falta evidencia nueva —otra oportunidad, con otra identidad— para volver', 'origen': 'OP-76b1ac1c5acd'}
+residuos aura-candidato fuera de los tmp de la demo: 0

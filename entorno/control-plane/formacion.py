@@ -100,9 +100,20 @@ def capacidades(raiz) -> list[dict]:
 def formacion(raiz, directorio) -> list:
     """La fuente. **Solo lectura**, y su techo es `DECISION_REQUIRED` por construccion.
 
-    Ni `raiz` ni `directorio` se usan: el plan no esta en la zona de trabajo ni en el historial —esta
-    en la raiz del repositorio, y es el documento que describe a AURA, no uno que AURA edite—. Se
-    aceptan para respetar la firma `(raiz, directorio)` que `descubrir()` invoca en toda fuente."""
+    `raiz` no se usa —se descarta con un `del` explicito al final—: el plan no esta en la zona de
+    trabajo, esta en la raiz del repositorio, y es el documento que describe a AURA, no uno que AURA
+    edite. Se acepta para respetar la firma `(raiz, directorio)` que `descubrir()` invoca en toda
+    fuente.
+
+    **`directorio` SI se usa, y es una barrera.** De el sale `ambito`, y un contrato solo produce
+    oportunidad si su `perimetro.modificables[0]` **cuelga de ese ambito**. Un contrato que apunte
+    fuera se ignora en silencio, que es lo que impide que un descubrimiento montado sobre un arbol
+    acabe proponiendo trabajo sobre otro.
+
+    El docstring decia «ni `raiz` ni `directorio` se usan» (corregido el 2026-09-21). Era falso para
+    el segundo, y lo era sobre una propiedad de CONTENCION: quien leyera solo esta cabecera creeria
+    que el ambito no acota nada. Es el patron «declarado != real» aplicado a la documentacion de una
+    barrera, que es donde mas caro sale."""
     # **El import va dentro y no arriba.** `descubrimiento` enchufa esta fuente en su dict, asi que
     # un import de modulo aqui cierra el ciclo: `import formacion` primero reventaba con
     # `partially initialized module`. La suite no lo veia porque siempre llegaba por `descubrimiento`.

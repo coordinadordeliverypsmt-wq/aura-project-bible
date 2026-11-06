@@ -1,0 +1,121 @@
+{
+ "resumen": {
+  "modo": "base",
+  "turnos": 8,
+  "validos": 4,
+  "p50_validos_ms": 32130.0,
+  "p95_validos_ms": 42011.0,
+  "p50_todos_ms(fallo=inf)": Infinity,
+  "correctas": 0,
+  "oyo_bien": 0,
+  "preguntas": 3
+ },
+ "turnos": [
+  {
+   "n": 0,
+   "persona": "Me llamo Mauricio.",
+   "aura_dijo": null,
+   "oido": null,
+   "valido": false,
+   "motivo": "sin respuesta en 90 s"
+  },
+  {
+   "n": 1,
+   "persona": "¿Cómo me llamo?",
+   "aura_dijo": null,
+   "oido": null,
+   "valido": false,
+   "motivo": "sin respuesta en 90 s"
+  },
+  {
+   "n": 2,
+   "persona": "Mi color favorito es el verde.",
+   "aura_dijo": "Mi última tarea registrada es P-018, sobre estancamiento.py. Resultado: efecto verificado. Autorizada por REVIEW:auditor-consistencia. Ocurrió el 2026-09-08T07:41:07.",
+   "oido": null,
+   "valido": false,
+   "lat_ms": 70,
+   "fin_habla_a_texto_ms": 75868,
+   "texto_a_sonido_ms": -75793,
+   "ruido": 589,
+   "umbral": 2945,
+   "motivo": "el sonido precede a la respuesta de AURA: no es la respuesta",
+   "correcta": null,
+   "oyo_bien": false
+  },
+  {
+   "n": 3,
+   "persona": "¿Cuál es mi color favorito?",
+   "aura_dijo": "No tengo ningun recuerdo registrado sobre eso.",
+   "oido": null,
+   "valido": true,
+   "lat_ms": 42710,
+   "fin_habla_a_texto_ms": 42564,
+   "texto_a_sonido_ms": 156,
+   "ruido": 593,
+   "umbral": 2964,
+   "motivo": "",
+   "correcta": false,
+   "oyo_bien": false
+  },
+  {
+   "n": 4,
+   "persona": "Me llamo Mauricio.",
+   "aura_dijo": "No tengo ningun recuerdo registrado sobre eso.",
+   "oido": null,
+   "valido": true,
+   "lat_ms": 24270,
+   "fin_habla_a_texto_ms": 24082,
+   "texto_a_sonido_ms": 194,
+   "ruido": 346,
+   "umbral": 1732,
+   "motivo": "",
+   "correcta": null,
+   "oyo_bien": false
+  },
+  {
+   "n": 5,
+   "persona": "¿Cómo me llamo?",
+   "aura_dijo": "Todavía no me has dicho cómo te llamas.",
+   "oido": null,
+   "valido": true,
+   "lat_ms": 38050,
+   "fin_habla_a_texto_ms": 37796,
+   "texto_a_sonido_ms": 240,
+   "ruido": 479,
+   "umbral": 2393,
+   "motivo": "",
+   "correcta": false,
+   "oyo_bien": false
+  },
+  {
+   "n": 6,
+   "persona": "Mi color favorito es el verde.",
+   "aura_dijo": "No tengo ningun recuerdo registrado sobre eso.",
+   "oido": null,
+   "valido": false,
+   "lat_ms": 17740,
+   "fin_habla_a_texto_ms": 22612,
+   "texto_a_sonido_ms": -4875,
+   "ruido": 242,
+   "umbral": 1208,
+   "motivo": "el sonido precede a la respuesta de AURA: no es la respuesta",
+   "correcta": null,
+   "oyo_bien": false
+  },
+  {
+   "n": 7,
+   "persona": "¿Cuál es mi color favorito?",
+   "aura_dijo": "Todavía no me has dicho cuál es tu color favorito.",
+   "oido": null,
+   "valido": true,
+   "lat_ms": 26210,
+   "fin_habla_a_texto_ms": 26078,
+   "texto_a_sonido_ms": 141,
+   "ruido": 547,
+   "umbral": 2736,
+   "motivo": "",
+   "correcta": false,
+   "oyo_bien": false
+  }
+ ]
+}

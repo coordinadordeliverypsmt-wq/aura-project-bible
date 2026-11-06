@@ -1,0 +1,94 @@
+#  PRIMER CONTRATO DE INCREMENTO — etiqueta inequívoca del observatorio
+#
+#  Preparado por el CTO el 2026-09-16 bajo la autorización del CEO («PROMPT CEO — DESBLOQUEO», §8).
+#
+#  QUÉ ARREGLA. El observatorio presenta al humano la línea «Trabajo ejecutado (total)», pero el
+#  número que muestra es `len([t for t in _trabajos_en(eventos) if _efecto_real(t)])`
+#  (`observatorio.py:502`): cuenta solo los trabajos cuyo EFECTO quedó acreditado, no los aplicados.
+#  De ahí el 11 frente a 12: P-017 se aplicó y se revirtió, así que cuenta como aplicado pero no como
+#  efecto. No hay ningún error de conteo — la etiqueta es ambigua y el número es correcto.
+#
+#  POR QUÉ ESTE INCREMENTO Y NO OTRO:
+#    · ZONA: `entorno/control-plane/` — la que YA está autorizada. **Cero ampliación de zona.**
+#    · ACCIÓN: `sustituir_texto`, que ya está en `autoconstruccion.OPERACIONES`.
+#    · Una sola aparición en todo el fichero: no hay nada que elegir, luego nada que interpretar.
+#    · No cambia NINGÚN número, ninguna función, ningún evento y ninguna semántica del motor.
+#    · La sustitución EXTIENDE la etiqueta en vez de reemplazarla, de modo que
+#      `test_red_observatorio.py:557` —que comprueba la presencia de «Trabajo ejecutado»— sigue en
+#      verde. Un incremento que rompiera su propia batería sería revertido por el ejecutor, y con
+#      razón; este no la rompe por diseño.
+#    · Reversible por el mecanismo estándar: el ejecutor guarda el original y lo restaura.
+#
+#  ESTE FICHERO NO CONCEDE AUTORIDAD. Vive en `milestones/`, zona donde AURA no puede escribir, y sus
+#  campos `autoridad.acta` y `ejecutor.verbo` son CITAS que el mecanismo verifica contra el historial
+#  (`contrato._acta_consta`) y contra `_EJECUTORES_CONSTRUIDOS`. Mientras el acta DR-E no conste en
+#  `eventos.jsonl`, este contrato evalúa BLOQUEADA y no produce trabajo. Registrar el acta es un acto
+#  del CEO por `review.habilitar(por="ceo", ...)`: el CTO no puede hacerlo sin suplantarlo.
+
+id = "etiqueta-observatorio-efecto"
+nombre = "Etiqueta inequívoca del trabajo con efecto acreditado"
+version = "1"
+estado = "PROPUESTA_AL_CEO"
+
+intencion = """Hacer inequívoca la línea del observatorio que hoy dice «Trabajo ejecutado (total)»
+mientras cuenta únicamente los trabajos cuyo efecto quedó acreditado. No cambia el número ni la
+lógica: cambia lo que la etiqueta promete, para que coincida con lo que el número significa."""
+
+regla_de_transformacion = { operacion = "sustituir_texto", buscar = "\"Trabajo ejecutado (total)\"", sustituir = "\"Trabajo ejecutado con efecto acreditado (total)\"" }
+
+[[entradas]]
+nombre = "observatorio"
+fuente = "/home/majo1230/Documentos/AURA/aura-project-bible/.claude/worktrees/m3-entry/entorno/control-plane/observatorio.py"
+formato = "py"
+
+[[salidas]]
+resultado = "la etiqueta declara que cuenta efectos acreditados, no ejecuciones"
+destino = "/home/majo1230/Documentos/AURA/aura-project-bible/.claude/worktrees/m3-entry/entorno/control-plane/observatorio.py"
+
+[fuentes_de_verdad]
+autoridad = ["/home/majo1230/Documentos/AURA/aura-project-bible/.claude/worktrees/m3-entry/entorno/control-plane/eventos.jsonl"]
+referencia = ["/home/majo1230/Documentos/AURA/aura-project-bible/.claude/worktrees/m3-entry/entorno/control-plane/observatorio.py"]
+
+[perimetro]
+modificables = ["/home/majo1230/Documentos/AURA/aura-project-bible/.claude/worktrees/m3-entry/entorno/control-plane/observatorio.py"]
+fuera_de_alcance = [
+  "cualquier fichero de _INTOCABLES (orquestador.py, politica-orquestador.toml, control_plane.py, conftest.py)",
+  "review.py, contrato.py, autoconstruccion.py y el resto del mecanismo de autoridad",
+  "walking-skeleton/ y aura_skeleton/ (el producto)",
+  "docs/, adr/, decisiones/, actas (la gobernanza)",
+  "kill_switch, permisos, PARADA",
+  "_efecto_real y cualquier funcion que decida QUE se cuenta",
+]
+
+[autoridad]
+nivel = "REVIEW"
+acta = "DR-E · acta del CEO 2026-09-16: alinear la etiqueta del observatorio con lo que el numero cuenta"
+parte_de_aura = "aplicar la sustitucion, verificar el efecto releyendo el fichero y revertir si la bateria falla"
+parte_del_ceo = "autorizar la accion y su alcance registrando el acta en el historial"
+
+[ejecutor]
+verbo = "implementar_incremento_especificado"
+
+[efectos]
+permitidos = ["sustituir una cadena de presentacion por otra mas precisa"]
+prohibidos = [
+  "cambiar cualquier numero o su calculo",
+  "cambiar la clave `trabajo_ejecutado` del informe (tiene consumidores)",
+  "tocar `_efecto_real`, `_trabajos_en` o la semantica del motor",
+  "ampliar la zona o la accion",
+]
+reversible = true
+
+[verificacion]
+invariantes = ["INV-9", "ADR-0023"]
+pruebas_minimas = [
+  "/home/majo1230/Documentos/AURA/aura-project-bible/.claude/worktrees/m3-entry/entorno/control-plane/test_red_observatorio.py",
+]
+criterio_de_aceptacion = """La cadena «Trabajo ejecutado (total)» ya no aparece y sí aparece «Trabajo
+ejecutado con efecto acreditado (total)»; `test_red_observatorio.py` sigue en verde, incluida la
+comprobación de etiquetas de la línea 557; ningún número del informe cambia."""
+evidencia = "evento `cambio_aplicado` con efecto_verificado=true, verificacion_sana=true, revertido=false"
+
+[trazabilidad]
+especificacion = "milestones/m3-entry/DECISIONES-REQUERIDAS-2026-09-15.md (P-019) y el analisis del 2026-09-15"
+autorizacion = "pendiente: acta DR-E del CEO, por registrar en eventos.jsonl"

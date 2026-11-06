@@ -1,0 +1,115 @@
+# BLINDAJE DE EVENTOS DE AUTORIDAD (CEO, 2026-09-20).
+#
+# Que se protege: `review_habilitado` y `propuesta_autorizada` dejan de poder escribirse en crudo.
+# Antes, `cp.registrar_evento(...)` los aceptaba y con eso bastaba para encender REVIEW con el
+# alcance que se quisiera, o para que `esta_autorizada()` pasara de False a True.
+#
+# **Los dos primeros mutantes son los del CABLEADO**: sacan cada evento de `EVENTOS_GOBERNADOS` y
+# dejan las puertas nuevas intactas —escritas, documentadas y probadas— sin que protejan nada. Si
+# alguno sobreviviera, la garantia entera seria decorativa.
+#
+# Los demas degradan una rama cada uno. Uno solo que las tumbara todas moriria con cualquier prueba
+# y no diria nada de las otras.
+#
+# Como se ejecuta (nunca en paralelo con nada):
+#   cd walking-skeleton
+#   python3 -m herramientas.mutar ../entorno/control-plane/mutaciones/eventos-de-autoridad.toml \
+#           --raiz ../entorno/control-plane
+
+incremento = "BLINDAJE DE EVENTOS DE AUTORIDAD (CEO, 2026-09-20): review_habilitado y propuesta_autorizada gobernados"
+pruebas = ["test_red_eventos_de_autoridad.py"]
+timeout_s = 300
+
+
+[[mutante]]
+id = "EA-M1"
+garantia = "EL CABLEADO: `review_habilitado` esta en EVENTOS_GOBERNADOS. Fuera de la lista, la puerta existe y la via cruda sigue abierta al lado"
+fichero = "control_plane.py"
+pruebas = ["test_red_eventos_de_autoridad.py::test_un_review_habilitado_CRUDO_no_enciende_REVIEW",
+           "test_red_eventos_de_autoridad.py::test_los_dos_eventos_de_autoridad_constan_como_gobernados"]
+buscar = '''EVENTOS_GOBERNADOS = frozenset({_EVENTO_DE_ESTADO, "criterio_fijado", "criterio_verificado",
+                                "cuota_observada",
+                                "review_habilitado", "propuesta_autorizada"})'''
+sustituir = '''EVENTOS_GOBERNADOS = frozenset({_EVENTO_DE_ESTADO, "criterio_fijado", "criterio_verificado",
+                                "cuota_observada",
+                                "propuesta_autorizada"})'''
+
+
+[[mutante]]
+id = "EA-M2"
+garantia = "EL CABLEADO: `propuesta_autorizada` esta en EVENTOS_GOBERNADOS"
+fichero = "control_plane.py"
+pruebas = ["test_red_eventos_de_autoridad.py::test_una_propuesta_autorizada_CRUDA_no_autoriza_nada",
+           "test_red_eventos_de_autoridad.py::test_los_dos_eventos_de_autoridad_constan_como_gobernados"]
+buscar = '''EVENTOS_GOBERNADOS = frozenset({_EVENTO_DE_ESTADO, "criterio_fijado", "criterio_verificado",
+                                "cuota_observada",
+                                "review_habilitado", "propuesta_autorizada"})'''
+sustituir = '''EVENTOS_GOBERNADOS = frozenset({_EVENTO_DE_ESTADO, "criterio_fijado", "criterio_verificado",
+                                "cuota_observada",
+                                "review_habilitado"})'''
+
+
+[[mutante]]
+id = "EA-M3"
+garantia = "solo autoridad HUMANA enciende REVIEW: sin esta comprobacion la puerta nueva acepta a cualquiera"
+fichero = "control_plane.py"
+pruebas = ["test_red_eventos_de_autoridad.py::test_la_puerta_de_review_rechaza_autoridad_NO_humana"]
+buscar = '''    if por not in AUTORIDADES_HUMANAS:
+        raise AutoridadNoHumana(
+            f"{por!r} no es autoridad humana registrada {AUTORIDADES_HUMANAS}: elevar el nivel de "'''
+sustituir = '''    if False:
+        raise AutoridadNoHumana(
+            f"{por!r} no es autoridad humana registrada {AUTORIDADES_HUMANAS}: elevar el nivel de "'''
+
+
+[[mutante]]
+id = "EA-M4"
+garantia = "una habilitacion posterior no AMPLIA la autoridad vigente: sin esto, un acta nueva concede verbos que nadie autorizo"
+fichero = "control_plane.py"
+pruebas = ["test_red_eventos_de_autoridad.py::test_una_habilitacion_posterior_NO_puede_AMPLIAR_el_alcance",
+           "test_red_eventos_de_autoridad.py::test_un_alcance_rechazado_no_deja_rastro_en_el_log"]
+buscar = '''        nuevos = sorted(set(pedido) - set(vigente))'''
+sustituir = '''        nuevos = []'''
+
+
+[[mutante]]
+id = "EA-M5"
+garantia = "el rodeo de DOS PASOS: si «alcance vacio» contara como «no hubo habilitacion», vaciar el alcance reiniciaria la monotonicidad"
+fichero = "control_plane.py"
+pruebas = ["test_red_eventos_de_autoridad.py::test_un_alcance_vacio_CUENTA_para_la_monotonicidad"]
+buscar = '''    if _hubo_habilitacion(directorio):'''
+sustituir = '''    if vigente:'''
+
+
+[[mutante]]
+id = "EA-M6"
+garantia = "la autoridad `REVIEW:<revisor>` vale por el ACTA que enciende REVIEW, no por su forma: aceptarla a ciegas seria la nueva via cruda con otro nombre"
+fichero = "control_plane.py"
+pruebas = ["test_red_eventos_de_autoridad.py::test_la_puerta_de_propuesta_rechaza_el_circuito_REVIEW_si_REVIEW_no_esta_habilitado"]
+buscar = '''        if not alcance_de_review(directorio):
+            raise AutoridadNoHumana('''
+sustituir = '''        if False:
+            raise AutoridadNoHumana('''
+
+
+[[mutante]]
+id = "EA-M7"
+garantia = "un alcance MALFORMADO en el log no concede nada: iterar una cadena la desmenuza en letras y cada letra seria un verbo autorizado"
+fichero = "control_plane.py"
+pruebas = ["test_red_eventos_de_autoridad.py::test_un_evento_de_autoridad_MALFORMADO_en_el_log_no_concede_alcance"]
+buscar = '''        if not isinstance(crudo, (list, tuple)):
+            return ()'''
+sustituir = '''        if crudo is None:
+            return ()'''
+
+
+[[mutante]]
+id = "EA-M8"
+garantia = "la puerta no puede convertirse en PARALISIS: `review.habilitar()` y `autoconstruccion.autorizar()` siguen funcionando con autoridad humana"
+fichero = "control_plane.py"
+pruebas = ["test_red_eventos_de_autoridad.py::test_CONTROL_review_habilitar_sigue_funcionando",
+           "test_red_eventos_de_autoridad.py::test_CONTROL_ac_autorizar_sigue_funcionando"]
+buscar = '''    if autorizada_por in AUTORIDADES_HUMANAS:
+        pass'''
+sustituir = '''    if False:
+        pass'''

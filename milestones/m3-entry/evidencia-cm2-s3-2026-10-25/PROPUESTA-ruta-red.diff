@@ -1,0 +1,38 @@
+--- aura_skeleton/__main__.py	2026-10-22 17:44:44.331654581 -0500
++++ walking-skeleton/aura_skeleton/__main__.py	2026-10-25 16:28:56.827113118 -0500
+@@ -469,8 +469,13 @@
+ _USUARIO_RECEPTOR = "receptor"
+ 
+ 
+-def _ruta_red() -> str:
+-    return os.path.expanduser(os.environ.get("AURA_RED") or _RED_POR_DEFECTO)
++def _ruta_red() -> str | None:
++    """La red de nodos del CLI. `AURA_RED` declarado y vacio = «sin red», como `crear_vigia_nodos` y
++    `estado_autonomo_cp`; ausente = `~/.aura-red`."""
++    declarado = os.environ.get("AURA_RED")
++    if declarado is not None and not declarado.strip():
++        return None
++    return os.path.expanduser(declarado or _RED_POR_DEFECTO)
+ 
+ 
+ def _nodos() -> int:
+@@ -480,6 +485,9 @@
+     from .core.nodos import LatidoInvalido
+ 
+     ruta = _ruta_red()
++    if ruta is None:
++        print("AURA: red de nodos desactivada (AURA_RED declarado vacio)")
++        return 0
+     try:
+         registro = leer_registro(ruta)
+         recursos = DetectorHardwareLocal(ruta).detectar().recursos
+@@ -540,6 +548,9 @@
+     from .adapters.receptor_nodos import ReceptorNodos
+ 
+     ruta = _ruta_red()
++    if ruta is None:
++        print("AURA: no se puede arrancar el receptor de nodos: AURA_RED declarado vacio (sin red)", file=sys.stderr)
++        return 2
+     ca = os.path.join(ruta, "pki", "ca.crt")
+     try:
+         password = _leer_credencial(os.path.join(ruta, "receptor.credencial"))

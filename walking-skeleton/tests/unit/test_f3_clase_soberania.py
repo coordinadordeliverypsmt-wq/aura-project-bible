@@ -90,16 +90,17 @@ async def test_sigue_exigiendo_sujeto(operacion):
 async def test_sigue_sometida_al_kill_switch(operacion):
     """El Paso 0 no cambia de sitio ni de orden: F2 intacta."""
     from aura_skeleton.core.kill_switch import KillSwitch
+
     kill = KillSwitch(trigger_file="/tmp/aura-inexistente-soberania")
     kill.engage("prueba")
-    ok, motivo = await PermissionManager(_confirma, kill_switch=kill).authorize(
-        operacion, {"user_id": "mauricio"}, "t")
+    ok, motivo = await PermissionManager(_confirma, kill_switch=kill).authorize(operacion, {"user_id": "mauricio"}, "t")
     assert ok is False and "kill switch" in motivo
 
 
 def test_siguen_exigiendo_dry_run():
     """Reversibilidad: §4.3 la marca «Sí». El plan dice QUÉ se va a borrar antes de borrarlo."""
     from aura_skeleton.core.permissions import ALTERA_ESTADO
+
     for operacion in OPERACIONES:
         assert operacion in ALTERA_ESTADO
 

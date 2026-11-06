@@ -1,0 +1,7 @@
+SUITE walking-skeleton (con parche) rc=0
+3840 passed, 3 skipped, 17 xfailed in 628.30s (0:10:28)
+ruff format --check: rc=0 303 files already formatted
+ruff check: rc=0 All checks passed!
+MUTACION mutaciones/sin-dispositivos-reales.toml rc=0: Total: 9 detectados, 0 sobreviven, 0 no aplicados, 0 ambiguos, 0 en timeout
+MUTACION mutaciones/ruta-red.toml rc=0: Total: 6 detectados, 0 sobreviven, 0 no aplicados, 0 ambiguos, 0 en timeout
+exit=0

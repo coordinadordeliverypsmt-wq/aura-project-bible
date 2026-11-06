@@ -1,7 +1,10 @@
 # Dependencias Python del stack real de AURA (local-first, D24). Verificadas contra PyPI (2026-07-18).
 # Requiere Python >= 3.11 (onnxruntime 1.27 exige 3.11).
 nats-py>=2.15
-faster-whisper>=1.2      # trae ctranslate2 (wheels Linux/macOS/Windows); descarga el modelo al 1er uso
-piper-tts>=1.5           # trae onnxruntime; la VOZ se descarga aparte (ver Entorno de Desarrollo)
+# CORRECCION 2026-09-16: el comentario de faster-whisper decia «descarga el modelo al 1er uso». Ya no:
+# el adaptador usa `local_files_only=True`, asi que un modelo ausente falla y se declara (D24/ADR-0001).
+faster-whisper>=1.2      # trae ctranslate2 (wheels Linux/macOS/Windows); NO descarga: el modelo se provee en HF_HOME
+piper-tts>=1.5           # trae onnxruntime; la VOZ se provee aparte (.onnx + .onnx.json en AURA_PIPER_VOICE)
+vosk>=0.3.45             # palabra de activacion (Bible 6.2), local; el MODELO se provee aparte en AURA_VOSK_MODEL
 qdrant-client>=1.18
 # LLM: Ollama es servicio externo (no pip). BD: sqlite3 (stdlib) / psycopg[binary] si PostgreSQL.

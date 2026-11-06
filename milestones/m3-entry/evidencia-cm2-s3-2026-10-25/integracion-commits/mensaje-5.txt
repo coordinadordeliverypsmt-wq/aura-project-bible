@@ -1,0 +1,6 @@
+feat(control-plane): recuperacion tras caidas (DP-RECUPERACION-TRAS-CAIDAS)
+
+Identidad del ejecutor (pid+starttime+boot_id), supervisor unico por log, recuperar antes de planificar, agotadas con evento, API publica registrar_evento_si (niega eventos gobernados), completada monotona, hidepid/rango de pid, parada benigna 'otro supervisor en curso'. Incluye el ajuste de 3 garantias previas (MOT-M16, MOT-M21, F1-M23). Validado: mutacion 29/29, 4 revisiones independientes, QG en vivo PASS. Particion verificada: PROPUESTA-PARTICION-INTEGRACION.md §8 (commit 5 de 7).
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_018FPxs18b7xW6kGYPWppnL1

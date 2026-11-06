@@ -6,12 +6,13 @@ from __future__ import annotations
 
 import asyncio
 import re
+import time
 from pathlib import Path
 
 from .. import observability as obs
 from ..contracts import HISTORICO, Event, es_escritura_pasiva
 from ..observability import Timer
-from . import intencion
+from . import contexto_memoria, entorno, hogar, intencion, ordenes, percepcion, recuperacion
 from .almacen_senales import AlmacenSenales
 from .aritmetica import resolver_formal
 from .automatizacion import MotorAutomatizacion
@@ -28,9 +29,18 @@ from .estado_autonomo import (
     redactar_ultima_tarea,
 )
 from .estatus import CORE, Estatus, asignar, linea_de_contexto, presentar
-from .identidad_memoria import atributo_declarado, atributo_preguntado
+from .identidad_memoria import (
+    atributo_declarado,
+    atributo_evocado,
+    atributo_preguntado,
+    atributo_preguntado_en_pasado,
+    es_evocacion_generica,
+)
 from .modelo_usuario import describir_conocimiento, explicar_entrada
-from .notificaciones import notificacion_de_accion
+from .nodos import evaluar_avisos_nodos
+from .notificaciones import Notificacion, notificacion_de_accion
+from .operaciones import ESPECIFICACIONES as _ESPECS
+from .operaciones import ErrorDeValidacion
 from .registro import RegistroAdaptadores
 from .reglas import ReglaUsuario, evaluar_condicion, resolver_args
 from .senales import ClaseSenal
@@ -128,11 +138,46 @@ def _es_pregunta(texto: str) -> bool:
 #: el catalogo dice que SABE hacer el sistema; esto dice como lo PIDE alguien, y son dos vocabularios
 #: distintos. Solo decide **que contexto viaja al modelo**, nunca si algo puede ejecutarse: eso lo
 #: siguen resolviendo el catalogo, los permisos y el motor unico.
-_PIDE_ACCION = ("abre", "abrir", "enciende", "encender", "apaga", "apagar", "busca", "buscar",
-                "lista", "listar", "lee ", "leer ", "mueve", "mover", "copia", "copiar",
-                "renombra", "renombrar", "borra", "borrar", "elimina", "eliminar",
-                "ejecuta", "ejecutar", "verifica", "verificar", "audita", "auditar",
-                "diagnostica", "diagnosticar", "recuerdame", "crea ", "crear ", "organiza")
+_PIDE_ACCION = (
+    "abre",
+    "abrir",
+    "enciende",
+    "encender",
+    "apaga",
+    "apagar",
+    "busca",
+    "buscar",
+    "lista",
+    "listar",
+    "lee ",
+    "leer ",
+    "mueve",
+    "mover",
+    "copia",
+    "copiar",
+    "renombra",
+    "renombrar",
+    "borra",
+    "borrar",
+    "elimina",
+    "eliminar",
+    "ejecuta",
+    "ejecutar",
+    "verifica",
+    "verificar",
+    "audita",
+    "auditar",
+    "diagnostica",
+    "diagnosticar",
+    "recuerdame",
+    "crea ",
+    "crear ",
+    "organiza",
+    # Volumen y silencio (acta 2026-10-22 §4): si la gramática del Core no reconoce la frase, el catálogo debe viajar.
+    # La guarda del dispositivo nombrado, el Motor Único y la verificación siguen mandando.
+    "volumen",
+    "silencia",
+)
 
 
 def _es_turno_cognitivo(texto: str) -> bool:
@@ -208,6 +253,79 @@ def _es_consulta_de_notificaciones(texto: str) -> bool:
 
 # Soberania del modelo del usuario: inspeccionar, entender, corregir y olvidar lo que AURA sabe de el.
 _PAT_MODELO_VER = ("que sabes de mi", "que sabes sobre mi", "que sabes acerca de mi", "que informacion tienes de mi")
+# M3.2a opción A (acta 2026-10-11): el usuario se lleva su modelo. Se comprueba ANTES que `_PAT_MODELO_VER`
+# porque «exporta lo que sabes de mi» contiene «que sabes de mi» y caería en ver (`_cae_en` es subcadena).
+#
+# GUARDA DE DOMINIO (hallazgo ECC ALTO 2026-10-11 y su RESIDUAL, mismo precedente que `_PAT_OLVIDO_REFLEXIVO`):
+# «exporta» aislado aparece en frases mundanas que NO piden el modelo —«mi empresa exporta café»—; dispararlas
+# volcaría datos personales. La petición exige VERBO de exportación/entrega **y** un OBJETO que sea una
+# REFERENCIA REFLEXIVA a lo que AURA sabe del usuario. Los objetos genéricos («mis datos», «mi información»,
+# «mi memoria», «mi perfil») se excluyen a propósito: son de uso corriente (datos de ventas, memoria USB,
+# perfil de videojuego) y combinados con «exporta» reintroducían la fuga por otra superficie (ECC residual).
+# Una petición ambigua tipo «quiero mis datos» NO vuelca PII: ante la duda, no se expone (como `_DESAMBIGUAR`).
+_PAT_EXPORTAR_VERBO = (
+    "exporta",
+    "exportar",
+    "descarga",
+    "descargar",
+    "dame",
+    "mandame",
+    "enviame",
+    "quiero una copia",
+    "llevarme",
+)
+_PAT_EXPORTAR_OBJETO = (
+    "lo que sabes de mi",
+    "lo que sabes sobre mi",
+    "lo que sabes acerca de mi",
+    "lo que tienes de mi",
+    "lo que has aprendido de mi",
+    "lo que recuerdas de mi",
+    "mi modelo de usuario",
+)
+
+
+def _es_peticion_de_exportar(t: str) -> bool:
+    return _cae_en(t, _PAT_EXPORTAR_VERBO) and _cae_en(t, _PAT_EXPORTAR_OBJETO)
+
+
+# Confirmación afirmativa e inequívoca de un export pendiente. La garantía de privacidad es el
+# consentimiento, y se compara por IGUALDAD del turno COMPLETO normalizado, NO por subcadena (ECC CRÍTICO
+# 2026-10-11): «exportalo a otro formato de video» o «dale, exporta el informe a PDF» NO confirman, aunque
+# contengan un verbo. La detección de `_es_peticion_de_exportar` puede ser imperfecta —a lo sumo
+# pregunta—; lo que AUTORIZA el volcado es esta coincidencia exacta. Asimetría: ante la duda, NO se
+# exporta (un fallo aquí es un «no exporté», nunca una fuga). La confirmación es un universo pequeño y
+# cerrado; por eso puede acotarse con seguridad sin reabrir la carrera de patrones de la detección.
+_CONFIRMA_EXPORT_EXACTO = frozenset(
+    {
+        "si",
+        "si exporta",
+        "si exportalo",
+        "si exportala",
+        "exporta",
+        "exportalo",
+        "exportala",
+        "confirmo",
+        "si confirmo",
+        "adelante",
+        "adelante exporta",
+        "dale",
+        "dale exporta",
+        "si hazlo",
+        "hazlo",
+        "si quiero",
+        "exporta mi modelo de usuario",
+        "exporta lo que sabes de mi",
+    }
+)
+
+
+def _confirma_export(t: str) -> bool:
+    # El turno COMPLETO (sin puntuación ni espacios extra) debe ser exactamente una frase de confirmación.
+    limpio = " ".join(t.replace(",", " ").replace(".", " ").replace(";", " ").replace("!", " ").split())
+    return limpio in _CONFIRMA_EXPORT_EXACTO
+
+
 _PAT_MODELO_PORQUE = ("por que dices", "por que sabes", "como lo sabes", "como sabes eso", "por que piensas")
 _PAT_MODELO_REFUTA = ("ya no es cierto", "no es cierto", "eso esta mal", "eso es falso", "ya no es verdad")
 _PAT_MODELO_OLVIDA = ("olvida", "olvidate")
@@ -431,9 +549,68 @@ def _nada_que_respaldar(resultado: dict) -> bool:
     return _MOTIVO_ORIGEN_AUSENTE in motivo
 
 
+#: GUARDA DE DECLARACION del disparador de consulta de reglas (defecto §4.6 del CHECKLIST, abierto
+#: desde 2026-08-02 y medido de nuevo el 2026-09-15).
+#:
+#: «Mis reglas de casa son otras» respondia *«No tienes ninguna automatizacion activa»*: `_PAT_REGLAS_VER`
+#: contiene la subcadena «mis reglas», y «regla» es una palabra corriente del español que casi nunca
+#: habla de automatizaciones —reglas de casa, del juego, de la vida—. La frase no PREGUNTA nada: AFIRMA.
+#:
+#: La forma de la guarda copia el precedente que ya vive en este mismo fichero: `_es_cancelacion_de_regla`
+#: dejo de bastarse con un marcador aislado y paso a exigir tambien una mencion de dominio, por esta
+#: misma clase de falso positivo (auditoria del 2026-08-02). Aqui la asimetria que resuelve el caso es
+#: el ORDEN: en una consulta el verbo va DELANTE («¿cuales SON mis reglas?»), y en una declaracion va
+#: DETRAS («mis reglas de casa SON otras»). Solo se exige que el verbo caiga en la misma oracion.
+#:
+#: Sin coincidencia, el turno NO se responde aqui: sigue su flujo normal (declaracion/memoria/LLM), que
+#: es exactamente lo que hace el precedente. No se inventa una respuesta nueva para la frase.
+_DECLARA_SOBRE_SUS_REGLAS = re.compile(r"\bmis? reglas\b[^.?!¿]*\b(?:son|es|eran|fueron)\b")
+
+
 def _es_consulta_de_reglas(texto: str) -> bool:
     """True si el usuario quiere inspeccionar sus automatizaciones ("¿que automatizaciones tengo?")."""
-    return any(p in _normalizar(texto) for p in _PAT_REGLAS_VER)
+    t = _normalizar(texto)
+    if _DECLARA_SOBRE_SUS_REGLAS.search(t):
+        return False
+    return any(p in t for p in _PAT_REGLAS_VER)
+
+
+#: Marca de recorte. Visible a proposito: el modelo tiene que saber que ve un extracto y no la respuesta
+#: entera, igual que la etiqueta de estatus le dice que una propuesta no esta verificada (D-FC-8 = B).
+_MARCA_RECORTE = " [...]"
+
+
+def _recortar_respuesta_previa(say: str, limite: int | None) -> str:
+    """Extracto de una respuesta PREVIA de AURA para el prompt. DR-4.
+
+    Solo se recorta lo que dijo AURA: lo que dijo el USUARIO reentra siempre integro, porque es lo que la
+    conversacion recuerda de el. El recorte no toca el buffer ni ninguna memoria: solo lo que se ensena
+    al modelo en ESTE prompt.
+    """
+    if limite is None or len(say) <= limite:
+        return say
+    return say[:limite].rstrip() + _MARCA_RECORTE
+
+
+#: `k` de la segunda consulta de `recall` cuando los `k=3` por defecto solo trajeron entradas no vigentes.
+#: Solo recorta el resultado (las tres implementaciones de `recall` aceptan `k` y no cambian de semantica):
+#: es «todas las coincidencias» en la practica, y el limite real del contexto lo pone `len(hits)`.
+_K_TODAS_LAS_COINCIDENCIAS = 10_000
+
+
+def _da_por_cierto(entrada: dict) -> bool:
+    """True si el Core sigue afirmando esta entrada de memoria: ni refutada ni superseded.
+
+    Es la misma definicion de «vigente» que ya aplican `_predicado_identidad` (en
+    `core/ejecutor_modelo_usuario.py`) para cerrar versiones y `_responder_hecho` para contestar el
+    presente. **Deuda declarada:** la regla vive ahora escrita en tres sitios —el patron que
+    `CHECKPOINT-CONTINUIDAD.md` §0 identifica como defecto estructural—. No se unifica aqui porque el
+    ejecutor queda fuera de la zona que esta correccion puede tocar.
+    """
+    prov = entrada.get("provenance") or {}
+    # `retirada` (DR-2): el eco episodico de un hecho olvidado o refutado. Sigue existiendo como registro
+    # de lo que se dijo, pero ya no entra al contexto del modelo como si fuera memoria vigente.
+    return not prov.get("refutada") and prov.get("valid_until") is None and not prov.get("retirada")
 
 
 def _detectar_accion_disparadora(t: str) -> tuple[str, str] | None:
@@ -518,7 +695,7 @@ _PAT_CAPACIDADES = (
 _PAT_TAREAS = (
     "que tareas tienes",
     "cuales son tus tareas",
-    "en que estas trabaj",      # trabajando · trabajado · trabajas
+    "en que estas trabaj",  # trabajando · trabajado · trabajas
     "en que trabaj",
     "que estas haciendo",
     "en que andas",
@@ -861,6 +1038,332 @@ _ACLARACION_APRENDIDO_DE_MI = (
 # es literalmente lo que el propio contrato manda cuando el Modelo de Usuario no lo sabe.
 
 
+#: El argumento de ruta de cada capacidad, leido de la especificacion del NUCLEO. No se escribe a
+#: mano: `buscar_archivo` lo llama `patron` y las otras dos `ruta`, y una copia de ese detalle aqui
+#: seria una lista paralela que se desincroniza en silencio.
+_ARG_RUTA = {
+    nombre: (_ESPECS.get(nombre, {}).get("args") or ("ruta",))[0]
+    for nombre in ("listar_directorio", "leer_archivo", "buscar_archivo")
+}
+
+
+def _clasificar_hallazgo(res: dict) -> tuple[str, str]:
+    """`(clase, detalle)` de UNA capacidad dentro de una revisión.
+
+    Las clases se mantienen separadas a propósito —`limpio`, `incidencia`, `bloqueado`, `error`,
+    `sin_datos`—: fundirlas en «bien / mal» perdería justo lo que el usuario necesita para saber si
+    puede fiarse del informe. Un `bloqueado` **no es** un `limpio`, y tampoco es un fallo del
+    sistema: es una barrera que funcionó."""
+    estado = res.get("estado")
+    if estado == "detenida":
+        return ("bloqueado", str(res.get("motivo") or "un control lo impidió"))
+    if estado == "error":
+        return ("error", str(res.get("motivo") or "fallo"))
+    if estado != "ejecutada":
+        return ("error", f"estado desconocido {estado!r}")
+    detalle = res.get("resultado")
+    if not isinstance(detalle, dict):
+        return ("sin_datos", "no devolvió nada que pueda leer")
+    resumen = str(detalle.get("resumen") or "").strip()
+    if detalle.get("ok") is False:
+        return ("incidencia", resumen or "no quedó limpio")
+    if detalle.get("status") == "duplicate":
+        return ("sin_datos", "ya se había ejecutado; no hay resultado nuevo")
+    return ("limpio", resumen)
+
+
+def _redactar_revision(hallazgos) -> str:
+    """El informe de una revisión compuesta, **sin redondear a favor**.
+
+    La regla dura: *«AURA no puede decir "todo está bien" si el diagnóstico devuelve una
+    incidencia»*. Aquí eso se implementa contando, no interpretando — el veredicto sale de cuántas
+    capacidades quedaron en cada clase, así que no hay forma de que la síntesis sea más optimista
+    que sus partes."""
+    if not hallazgos:
+        return "No tengo ninguna capacidad de revisión disponible ahora mismo."
+
+    por_clase: dict[str, list[tuple[str, str]]] = {}
+    for capacidad, res in hallazgos:
+        clase, detalle = _clasificar_hallazgo(res)
+        por_clase.setdefault(clase, []).append((capacidad, detalle))
+
+    incidencias = por_clase.get("incidencia", [])
+    bloqueados = por_clase.get("bloqueado", [])
+    errores = por_clase.get("error", [])
+    sin_datos = por_clase.get("sin_datos", [])
+    limpios = por_clase.get("limpio", [])
+
+    lineas: list[str] = []
+    if incidencias:
+        lineas.append(f"He revisado {len(hallazgos)} cosa(s) y **hay {len(incidencias)} con incidencia**:")
+    elif bloqueados or errores or sin_datos:
+        # `sin_datos` cuenta aquí y no entre los limpios. Lo destapó una prueba: con solo un
+        # `duplicate` —el adaptador NO volvió a ejecutar— la revisión decía «está todo limpio»,
+        # que es afirmar una comprobación que **no ocurrió**. No mirar no es mirar y no encontrar
+        # nada.
+        lineas.append(f"He revisado {len(hallazgos)} cosa(s). No encontré incidencias, pero **no pude mirarlo todo**:")
+    else:
+        lineas.append(f"He revisado {len(hallazgos)} cosa(s) y **está todo limpio**:")
+
+    for capacidad, detalle in incidencias:
+        lineas.append(f"• {capacidad}: {_acotar(detalle, 300)}")
+    for capacidad, detalle in bloqueados:
+        lineas.append(f"• {capacidad}: no lo revisé — {_acotar(detalle, 200)}")
+    for capacidad, detalle in errores:
+        lineas.append(f"• {capacidad}: falló al revisarlo — {_acotar(detalle, 200)}")
+    for capacidad, detalle in sin_datos:
+        lineas.append(f"• {capacidad}: sin datos — {_acotar(detalle, 200)}")
+    for capacidad, detalle in limpios:
+        lineas.append(f"• {capacidad}: sin novedad{(' — ' + _acotar(detalle, 200)) if detalle else ''}")
+    return "\n".join(lineas)
+
+
+def _redactar_resultado_de_orden(capacidad: str, res: dict, nombres: dict[str, str] | None = None) -> str:
+    """Cuenta lo que el motor DEVOLVIÓ, no lo que se esperaba que hiciera.
+
+    **Esto nació de un bug propio, encontrado ejecutando** `[EJEC]`. La primera versión usaba claves
+    que el motor no devuelve (`status`, `reason`), así que caía siempre al caso final y contestaba
+    *«Ejecuté «auditar_garantias» y terminó correctamente»* mientras el adaptador devolvía
+    `ok=False` y *«5 garantías declaradas que NO protegen nada»*. Es «declarado ≠ real» en la
+    superficie que el usuario lee y se cree — la versión más cara del patrón.
+
+    Contrato real de `MotorAutomatizacion.ejecutar`, leído del código y no supuesto:
+      `{"accion", "estado": "ejecutada", "plan", "resultado", "origen"}`
+      `{"accion", "estado": "detenida"|"error", "motivo", "origen"}`
+
+    `detenida` y `error` se distinguen a propósito, porque el propio motor los distingue: lo primero
+    es **el gobierno funcionando** —permisos, dry-run, kill switch— y lo segundo es un fallo. Decirle
+    al usuario «falló» cuando en realidad se le negó el permiso sería confundir una barrera con una
+    avería."""
+    if not isinstance(res, dict):
+        return f"Ejecuté «{capacidad}», pero no me devolvió un resultado que pueda leer."
+
+    estado = res.get("estado")
+    if capacidad in _ACCION_DE_HOGAR and estado in ("detenida", "error"):
+        # Medido `[EJEC]` contra el HA real (2026-10-22): «Intenté ejecutar «subir_volumen» y no pude: el adaptador
+        # rechazo la operacion: …». El motivo era cierto; la forma, técnica. En casa se dice QUÉ no se hizo y por qué.
+        motivo = str(res.get("motivo") or "un control lo impidió").removeprefix("el adaptador rechazo la operacion: ")
+        return f"No he podido {_ACCION_DE_HOGAR[capacidad]}: {_con_nombres_humanos(motivo, nombres)}."
+    if estado == "detenida":
+        motivo = _con_nombres_humanos(str(res.get("motivo") or "un control lo impidió"), nombres)
+        return f"No he ejecutado «{capacidad}»: {motivo}."
+    if estado == "error":
+        return f"Intenté ejecutar «{capacidad}» y no pude: {_con_nombres_humanos(str(res.get('motivo') or 'fallo'), nombres)}."
+    if estado != "ejecutada":
+        return f"Ejecuté «{capacidad}», pero no sé interpretar cómo terminó ({estado!r})."
+
+    detalle = res.get("resultado")
+    if not isinstance(detalle, dict):
+        return f"Ejecuté «{capacidad}» y terminó."
+
+    # `ok` es el veredicto del ADAPTADOR sobre su propio trabajo, y manda sobre el hecho de que la
+    # ejecución llegara a término: una auditoría que corre entera y encuentra cinco garantías rotas
+    # se ejecutó **correctamente** y su resultado es **malo**. Son dos cosas distintas y el usuario
+    # necesita la segunda.
+    resumen = str(detalle.get("resumen") or "").strip()
+    if detalle.get("ok") is False:
+        cuerpo = resumen or "no ha salido bien"
+        return f"Ejecuté «{capacidad}». **No está limpio**: {_acotar(cuerpo)}"
+    if resumen:
+        return f"Ejecuté «{capacidad}». {_acotar(resumen)}"
+
+    # **Los adaptadores NO comparten contrato de salida**, y el redactor tiene que vivir con eso
+    # sin mentir. Medido `[EJEC]`: `qa`, `auditor` y `diagnostico` devuelven `{ok, resumen}`;
+    # `computador` devuelve `{status, entradas}` o `{status, contenido}`. Leer solo el primer
+    # contrato hacía que un listado real se contara como «terminó correctamente» **sin enseñar
+    # nada** — cierto, pero inútil, que es la otra forma de que una respuesta no sirva.
+    estado_adaptador = str(detalle.get("status") or "").strip()
+    if estado_adaptador == "duplicate":
+        # Idempotencia del adaptador: NO se volvió a ejecutar. Contarlo como una ejecución fresca
+        # sería afirmar un trabajo que no se hizo.
+        return (
+            f"«{capacidad}» ya se había ejecutado con esos mismos datos, así que no lo repetí. "
+            f"No tengo resultado nuevo que darte."
+        )
+    if capacidad in _CAPACIDADES_DE_HOGAR:
+        return _redactar_efecto_de_hogar(capacidad, detalle, nombres)
+    if capacidad in _CAPACIDADES_DE_VOLUMEN:
+        return _redactar_efecto_de_volumen(capacidad, detalle, nombres)
+    if estado_adaptador and estado_adaptador != "ok":
+        return f"Ejecuté «{capacidad}» y devolvió el estado {estado_adaptador!r}."
+
+    entradas = detalle.get("entradas")
+    if isinstance(entradas, (list, tuple)):
+        if not entradas:
+            return f"Ejecuté «{capacidad}»: está vacío."
+        cuerpo = ", ".join(str(e) for e in entradas)
+        return f"Ejecuté «{capacidad}». {len(entradas)} entrada(s): {_acotar(cuerpo)}"
+
+    contenido = detalle.get("contenido")
+    if contenido is not None:
+        # **Un fichero binario no se vuelca.** Encontrado auditando `[EJEC]`: un contenido en bytes
+        # salía como `b'\x00\x01…'` — ilegible, y con caracteres de control que pueden desordenar
+        # la terminal del usuario. Decir qué es vale más que enseñar lo que no se puede leer.
+        if isinstance(contenido, (bytes, bytearray)) or _tiene_control(str(contenido)):
+            return (
+                f"Ejecuté «{capacidad}», pero el fichero no parece texto legible "
+                f"({len(contenido)} bytes). No te lo muestro para no ensuciar la pantalla."
+            )
+        texto = str(contenido)
+        if not texto.strip():
+            return f"Ejecuté «{capacidad}»: el fichero está vacío."
+        return f"Ejecuté «{capacidad}». Esto es lo que dice:\n{_acotar(texto)}"
+
+    return f"Ejecuté «{capacidad}» y terminó correctamente."
+
+
+_CAPACIDADES_DE_HOGAR = {"encender_dispositivo": ("encendí", "encender"), "apagar_dispositivo": ("apagué", "apagar")}
+
+#: Lo que AURA dice que NO pudo hacer en casa, sin el nombre técnico de la capacidad.
+_ACCION_DE_HOGAR = {
+    "encender_dispositivo": "encenderlo",
+    "apagar_dispositivo": "apagarlo",
+    "subir_volumen": "subir el volumen",
+    "bajar_volumen": "bajar el volumen",
+    "silenciar": "silenciar",
+    "quitar_silencio": "quitar el silencio",
+}
+
+
+def _con_nombres_humanos(texto: str, nombres: dict[str, str] | None) -> str:
+    """Sustituye en un texto cualquier identificador técnico con nombre humano por ese nombre: lo que la
+    persona lee nunca lleva un entity_id (CEO 2026-10-04). La identidad interna no cambia: esto solo redacta."""
+    for entidad, nombre in (nombres or {}).items():
+        texto = texto.replace(f"«{entidad}»", nombre).replace(entidad, nombre)
+    return texto
+
+
+_ESTADOS_HUMANOS = {
+    "on": "encendida",
+    "off": "apagada",
+    "playing": "encendida (reproduciendo)",
+    "paused": "encendida (en pausa)",
+    "idle": "encendida (en reposo)",
+    "standby": "apagada (en espera)",
+    "unavailable": "no disponible",
+    "unknown": "en estado desconocido",
+    "?": "en estado desconocido",
+}
+
+
+def _estado_humano(valor: object) -> str:
+    """El estado que Home Assistant reporta, en español; si no se conoce, acotado y sin caracteres de control."""
+    return _ESTADOS_HUMANOS.get(str(valor)) or f"«{hogar.texto_seguro(valor)}»"
+
+
+def _sin_efecto_de_hogar(infinitivo: str, objetivo: str, detalle: dict) -> str:
+    """Orden enviada sin estado pedido: dice qué VE Home Assistant, nunca qué ocurrió físicamente."""
+    if detalle.get("evidencia") == "estado_asumido_por_ha":
+        # SmartIR y similares: HA publica un estado optimista (`assumed_state`) porque no lee el aparato.
+        como = "encendida" if detalle.get("estado_despues") in hogar.ESTADOS_ENCENDIDA else "apagada"
+        return (
+            f"Envié la orden de {infinitivo} {objetivo}. Home Assistant la da por {como}, pero es un estado "
+            "asumido (no lee el aparato); no puedo confirmarlo."
+        )
+    antes, despues = detalle.get("estado_antes"), detalle.get("estado_despues")
+    ahora = _estado_humano(despues)
+    if detalle.get("ya_en_estado"):
+        if antes == despues:
+            return f"Home Assistant ya veía {objetivo} {ahora} y la sigue viendo así; no ha cambiado nada."
+        return f"Home Assistant ya veía {objetivo} {_estado_humano(antes)} y ahora la ve {ahora}; no ha cambiado nada."
+    cabecera = f"Envié la orden de {infinitivo} {objetivo}, pero"
+    if detalle.get("evidencia") == "ninguna" or despues in (None, "?"):
+        return f"{cabecera} no pude leer el estado en Home Assistant después. No lo doy por hecho."
+    if antes == despues:
+        return f"{cabecera} no cambió: Home Assistant sigue viendo {objetivo} {ahora}. No lo doy por hecho."
+    return f"{cabecera} Home Assistant ve {objetivo} {ahora}, no el estado pedido. No lo doy por hecho."
+
+
+def _redactar_efecto_de_hogar(capacidad: str, detalle: dict, nombres: dict[str, str] | None = None) -> str:
+    """Solo se dice «hecho» si el adaptador OBSERVÓ el estado pedido releyendo Home Assistant.
+
+    Casos, y ninguno puede contarse como otro: verificado (HA ve el estado pedido tras la orden), sin efecto o
+    «ya estaba» (HA no vio ningún cambio) y sin confirmación posible —el doble del hogar, que contesta `ok` sin
+    tocar nada (deuda D-ADP-1)—. La evidencia es lo que HA reporta, nunca un efecto físico confirmado.
+
+    Si la entidad tiene nombre humano (`nombres`, CEO 2026-10-04) se habla de «la TV de la sala», breve y sin
+    identificadores técnicos; si no, se dice como siempre. El nombre llega aquí, nunca al adaptador."""
+    _hecho, infinitivo = _CAPACIDADES_DE_HOGAR[capacidad]
+    dispositivo = detalle.get("device", "el dispositivo")
+    humano = (nombres or {}).get(dispositivo)
+    objetivo = humano if humano is not None else f"«{hogar.texto_seguro(dispositivo)}»"
+    if detalle.get("verificado") is True and detalle.get("evidencia") != "estado_asumido_por_ha":
+        # Nivel de evidencia: lo que HOME ASSISTANT reporta tras la orden, no un efecto físico confirmado.
+        if humano is not None:
+            return f"Listo: Home Assistant ve {humano} {_estado_humano(detalle.get('estado_despues'))}."
+        return (
+            f"Listo: Home Assistant ve {objetivo} en «{hogar.texto_seguro(detalle.get('estado_despues'))}» "
+            f"(antes «{hogar.texto_seguro(detalle.get('estado_antes'))}»)."
+        )
+    if detalle.get("status") == "sin_efecto":
+        return _sin_efecto_de_hogar(infinitivo, objetivo, detalle)
+    return (
+        f"Envié la orden de {infinitivo} {objetivo}, pero el hogar está en modo simulado: "
+        "no hay ningún dispositivo real conectado y no puedo confirmar que haya pasado nada."
+    )
+
+
+_CAPACIDADES_DE_VOLUMEN = {
+    "subir_volumen": ("subí el volumen de", "subir el volumen de"),
+    "bajar_volumen": ("bajé el volumen de", "bajar el volumen de"),
+    "silenciar": ("silencié", "silenciar"),
+    "quitar_silencio": ("le quité el silencio a", "quitar el silencio a"),
+}
+
+
+def _valor_de_volumen(atributo: object, valor: object) -> str:
+    if atributo == "is_volume_muted":
+        return "silenciada" if valor else "con sonido"
+    return f"en {round(float(valor) * 100)}" if isinstance(valor, (int, float)) else f"en «{valor}»"
+
+
+def _redactar_efecto_de_volumen(capacidad: str, detalle: dict, nombres: dict[str, str] | None = None) -> str:
+    """Volumen y silencio con el mismo criterio que encender/apagar: «hecho» solo si el adaptador RELEYÓ el atributo y
+    cambió en el sentido pedido (acta 2026-10-22 §4). El volumen se dice como HA lo da (0-1) en escala de 0 a 100."""
+    hecho, infinitivo = _CAPACIDADES_DE_VOLUMEN[capacidad]
+    dispositivo = detalle.get("device", "el dispositivo")
+    objetivo = (nombres or {}).get(dispositivo) or f"«{dispositivo}»"
+    atributo = detalle.get("atributo")
+    if detalle.get("evidencia") == "estado_asumido_por_ha":
+        return (
+            f"Envié la orden de {infinitivo} {objetivo}. Home Assistant da el cambio por hecho, pero es un estado "
+            "asumido (no lee el aparato); no puedo confirmarlo."
+        )
+    if detalle.get("ya_en_estado"):
+        # Silenciar lo ya silenciado: HA ya lo veía así y lo sigue viendo; AURA no cambió nada y no dice que lo hizo.
+        ya = _valor_de_volumen(atributo, detalle.get("valor_despues"))
+        return f"Home Assistant ya veía {objetivo} {ya} y la sigue viendo así; no he cambiado nada."
+    if detalle.get("verificado") is True:
+        if atributo == "volume_level":
+            antes = _valor_de_volumen(atributo, detalle.get("valor_antes")).removeprefix("en ")
+            despues = _valor_de_volumen(atributo, detalle.get("valor_despues")).removeprefix("en ")
+            return f"Listo: {hecho} {objetivo} (de {antes} a {despues}); lo he comprobado en Home Assistant."
+        return f"Listo: {hecho} {objetivo}; lo he comprobado en Home Assistant."
+    if detalle.get("status") == "sin_efecto":
+        valor_despues = detalle.get("valor_despues")
+        if not isinstance(valor_despues, (bool, int, float)):
+            que = "el silencio" if atributo == "is_volume_muted" else "el volumen"
+            return f"Envié la orden de {infinitivo} {objetivo}, pero después no pude leer {que}. No lo doy por hecho."
+        sigue = _valor_de_volumen(atributo, valor_despues)
+        return f"Envié la orden de {infinitivo} {objetivo}, pero no cambió: sigue {sigue}. No lo doy por hecho."
+    return (
+        f"Envié la orden de {infinitivo} {objetivo}, pero el hogar está en modo simulado: "
+        "no hay ningún dispositivo real conectado y no puedo confirmar que haya pasado nada."
+    )
+
+
+def _tiene_control(texto: str) -> bool:
+    """Caracteres de control que no son separadores normales. Un fichero con ellos no es texto que
+    quepa enseñar en una conversación."""
+    return any(ord(c) < 32 and c not in "\t\n\r" for c in texto[:4000])
+
+
+def _acotar(texto: str, tope: int = 900) -> str:
+    """La salida de una herramienta puede ser enorme; el turno tiene que seguir siendo legible."""
+    limpio = " ".join(str(texto).split())
+    return limpio if len(limpio) <= tope else limpio[:tope] + " […]"
+
+
 def _sin_vocativo(segmento: str) -> str:
     """Quita "aurora"/"aura" al principio o al final. Asi "buenos dias Aurora" y "buenos dias" son la
     misma entrada de la tabla, sin duplicar ninguna variante."""
@@ -1020,6 +1523,27 @@ def _resumen_formacion() -> str:
 #: `_done` y `wait` expiraba: un fallo silencioso con apariencia de cuelgue.
 _ABSTENCION_SIN_PROVEEDOR = "Mi modelo local no está disponible ahora mismo; inténtalo de nuevo en unos minutos."
 
+#: DR-3 (CEO, 2026-09-15): aviso honesto cuando el modelo SI estaba disponible pero el turno alcanzo un
+#: limite. Ninguno de los dos presenta lo que el modelo llevara escrito: una respuesta a medias no se
+#: entrega como si hubiera terminado. Claves = el atributo `limite` que declara `LimiteDelProveedor`.
+_ABSTENCION_POR_LIMITE = {
+    "tiempo": (
+        "No he podido completar la respuesta dentro del tiempo límite. "
+        "No te doy una respuesta a medias; puedes volver a preguntármelo."
+    ),
+    "longitud": (
+        "Mi respuesta se alargó más de lo que puedo generar de una vez y quedó incompleta. "
+        "No te la doy a medias; puedes pedírmela más concreta."
+    ),
+}
+
+#: MISIÓN VOZ (CEO, 2026-09-15): la transcripción falló, así que NO SE SABE qué dijo el usuario. La única
+#: respuesta honesta es decirlo: adivinar seria inventar un turno que nadie pronuncio, y un adaptador
+#: periferico no puede poner palabras en boca del usuario (frontera de autoridad, §6 de la mision).
+_STT_NO_DISPONIBLE = (
+    "No pude transcribir el audio, así que no voy a adivinar qué dijiste. Puedes repetirlo o escribírmelo."
+)
+
 #: D-FC-6 = A: acuse por voz antes de esperar al modelo. Lo redacta el Core: no afirma nada del mundo.
 _ACUSE_CONSULTA_MODELO = "Déjame consultarlo con mi modelo local; puede tardar un poco."
 
@@ -1042,8 +1566,9 @@ _TEMA_SENSIBLE = {
 
 def _abstencion_sensible(dominio: str) -> str:
     tema = _TEMA_SENSIBLE.get(dominio, "este tema")
-    return (f"Sobre {tema} no te doy respuestas generadas por mi modelo local: no puedo verificarlas "
-            f"y podrían ser falsas.")
+    return (
+        f"Sobre {tema} no te doy respuestas generadas por mi modelo local: no puedo verificarlas y podrían ser falsas."
+    )
 
 
 #: Textos con los que una superficie del Core declara que NO tiene el dato (ADR-0014). **Como distingue
@@ -1054,24 +1579,31 @@ def _abstencion_sensible(dominio: str) -> str:
 #: El riesgo es el de siempre, «declarado != real»: que alguien reescriba un retorno y aqui quede el
 #: antiguo. `test_estatus_epistemico` lo cierra por ejecucion: cada literal debe seguir apareciendo en el
 #: codigo que lo produce, y las ausencias reales de cada superficie deben salir AUSENCIA.
-_AUSENCIAS_DEL_CORE = frozenset({
-    *(ausencia for _, _, _, ausencia in _CONSULTAS_DE_HECHO),
-    describir_conocimiento([]),
-    "Todavía no me has dicho qué prefieres.",
-    "Ahora mismo no estoy afirmando nada sobre ti.",
-    "No he encontrado eso para olvidarlo.",
-    "No he encontrado eso para corregirlo.",
-    "No tengo ningún objetivo activo registrado en el estado operativo ahora mismo.",
-    "No tengo ningún objetivo activo, así que no hay nada bloqueado ahora mismo.",
-    "No me consta ninguna decisión pendiente en mi estado actual.",
-    "No me consta el estado de mi cola de trabajo.",
-    "No me consta mi historial de trabajos.",
-    "No tengo registro de mi propio ciclo de trabajo ahora mismo.",
-    "No me consta ninguna tarea ejecutada en mi historial.",
-    "No encuentro el Plan de Formación en el repositorio; no puedo declarar qué he aprendido.",
-    "El Plan de Formación existe pero no tiene una sección de capacidades aprendidas.",
-    _SIN_PENDIENTES,
-})
+#: DR-1: respuesta de la evocacion generica cuando el Core no conserva ningun hecho DECLARADO y vigente.
+#: Es una ausencia sobre lo que el usuario le DIJO, no sobre toda la memoria: no afirma «no se nada».
+_SIN_HECHOS_DECLARADOS = "No me consta que me hayas dicho nada que siga dando por cierto."
+
+_AUSENCIAS_DEL_CORE = frozenset(
+    {
+        *(ausencia for _, _, _, ausencia in _CONSULTAS_DE_HECHO),
+        _SIN_HECHOS_DECLARADOS,
+        describir_conocimiento([]),
+        "Todavía no me has dicho qué prefieres.",
+        "Ahora mismo no estoy afirmando nada sobre ti.",
+        "No he encontrado eso para olvidarlo.",
+        "No he encontrado eso para corregirlo.",
+        "No tengo ningún objetivo activo registrado en el estado operativo ahora mismo.",
+        "No tengo ningún objetivo activo, así que no hay nada bloqueado ahora mismo.",
+        "No me consta ninguna decisión pendiente en mi estado actual.",
+        "No me consta el estado de mi cola de trabajo.",
+        "No me consta mi historial de trabajos.",
+        "No tengo registro de mi propio ciclo de trabajo ahora mismo.",
+        "No me consta ninguna tarea ejecutada en mi historial.",
+        "No encuentro el Plan de Formación en el repositorio; no puedo declarar qué he aprendido.",
+        "El Plan de Formación existe pero no tiene una sección de capacidades aprendidas.",
+        _SIN_PENDIENTES,
+    }
+)
 
 #: Preguntas con las que el Core pide precision en vez de adivinar (D-FC-4 = A).
 _ACLARACIONES_DEL_CORE = frozenset({_DESAMBIGUAR, _ACLARACION_APRENDIDO_DE_MI})
@@ -1085,6 +1617,9 @@ def _estatus_del_core(respuesta: str) -> Estatus:
     if respuesta in _ACLARACIONES_DEL_CORE:
         return Estatus.ACLARACION
     return Estatus.HECHO
+
+
+NO_TE_OI = "No te he oído. Llámame otra vez («Oye Aurora») y dímelo."
 
 
 class Orchestrator:
@@ -1112,8 +1647,14 @@ class Orchestrator:
         estado_autonomo=None,
         decisiones=None,
         reconocer_declaracion=None,
+        vigia_nodos=None,
     ):
         self.bus, self.memory, self.router = bus, memory, router
+        # Avisos de NODO-01 (acta 2026-10-18, R1). PUERTO opcional `(ahora) -> (RegistroNodos, bool) | None`;
+        # el estado anterior vive SOLO en memoria de la sesion (no se persiste nada). No es tiempo real:
+        # se evalua al abrir y al inicio de cada turno.
+        self.vigia_nodos = vigia_nodos
+        self._estado_nodos: dict[str, str] | None = None
         self.perm, self.voice = permissions, voice
         self.notificaciones = notificaciones  # Centro de Notificaciones (MVP): registra lo que AURA hace
         self.modelo_usuario = modelo_usuario  # Soberania (MVP): ver/entender/corregir/olvidar lo que sabe de ti
@@ -1132,6 +1673,10 @@ class Orchestrator:
         # conversacion no abre una segunda via de autorizacion, se asoma a la que ya existe.
         self.decisiones = decisiones
         self._foco_modelo: dict[str, dict] = {}  # a que afirmacion se refiere "eso" por usuario
+        # M3.2a opción A: export del modelo PENDIENTE DE CONFIRMAR, por usuario. Vive UN turno: el
+        # siguiente turno lo consume (si confirma) o lo descarta (cualquier otra cosa). La garantía de
+        # privacidad es esta confirmación, no la detección de texto (CLAUDE.md §C: consentimiento, no lista).
+        self._export_pendiente: set[str] = set()
         # M3.0 — captura de senales. OPCIONAL y PASIVA: si no hay registro de contexto, el sistema
         # se comporta exactamente igual que en M2. La captura observa el turno; no participa en
         # ninguna decision (restriccion 2 del gate del CEO).
@@ -1153,8 +1698,10 @@ class Orchestrator:
             # operaciones fallarian por «ninguna capacidad atiende», no por un control de gobierno:
             # un fallo indistinguible de una denegacion legitima. Cuando el motor viene inyectado
             # —produccion, `composicion.py`— los ejecutores ya estan inscritos alli y no se tocan.
-            for ejecutor in (EjecutorModeloUsuario(memory),
-                             EjecutorReglas(automatizaciones) if automatizaciones is not None else None):
+            for ejecutor in (
+                EjecutorModeloUsuario(memory),
+                EjecutorReglas(automatizaciones) if automatizaciones is not None else None,
+            ):
                 if ejecutor is not None and self.registro.para(ejecutor.capabilities[0]) is None:
                     self.registro.registrar(ejecutor)
             self.motor = MotorAutomatizacion(self.registro, permissions)
@@ -1169,19 +1716,90 @@ class Orchestrator:
         self._results: dict[str, dict] = {}
         # Memoria de trabajo por usuario: (usuario, say SIN marca, estatus). D-FC-8 = B: el estatus viaja
         # con el turno para que una propuesta del modelo nunca pueda reentrar desnuda en el prompt.
-        self._dialogue: dict[str, list[tuple[str, str, Estatus]]] = {}
+        # M8: cada turno retenido lleva ademas DE QUE SUPERFICIE salio. No es una memoria nueva ni
+        # retiene nada mas: es la metadata minima para encontrar el ultimo turno de EJECUCION sin
+        # tener que deducirlo releyendo el texto —adivinar sobre la propia salida es justo lo que
+        # hace que dos implementaciones del mismo dato acaben divergiendo—.
+        self._dialogue: dict[str, list[recuperacion.Turno]] = {}
+        # Semana 2: la orden de hogar que AURA PROPUSO y espera confirmar, por usuario. Vive UN turno:
+        # un «sí» que llega más tarde no puede ejecutar algo que ya nadie tiene delante.
+        self._propuestas_de_hogar: dict[str, tuple[str, dict]] = {}
+        # Semana 2: FRONTERA DE GOBIERNO. Que una orden HABLADA cambie el mundo es una decisión del CEO, y
+        # desde 2026-10-04 (DP-VOZ-ACCION, opción C) es una llave POR ENTIDAD: la voz solo puede accionar las
+        # entidades de este conjunto. Vacío por defecto = cerrada. A propósito NO la enciende ninguna variable
+        # de entorno: la abre la composición (`composicion.VOZ_ACTUA_EN`), tras una decisión.
+        self.voz_actua_en: frozenset[str] = frozenset()
+        # Cómo se NOMBRA cada entidad de `voz_actua_en` ante la persona (CEO 2026-10-04): la abre la composición
+        # (`composicion.NOMBRE_HUMANO_DE_VOZ`). Solo redacta; el entity_id sigue siendo la identidad interna.
+        self.nombres_de_voz: dict[str, str] = {}
+        # Semana 2: lo que AURA sabe de su entorno físico. Lo cablea la composición; sin él, la pregunta
+        # sigue su camino de siempre.
+        self.entorno = None
+        self.percepcion_visual = None  # PercepcionBajoDemanda | None (DP FRAME→OBSERVACION, bajo demanda)
+        # Bloque multimodal (acta CEO 2026-09-28): ESCUCHAR y PERCIBIR EVENTO, bajo demanda, gated, sin
+        # persistencia. Los cablea la composición; sin ellos, la pregunta sigue su camino de siempre.
+        self.percepcion_auditiva = None  # PercepcionAuditivaBajoDemanda | None
+        self.percepcion_evento = None  # PercepcionDeEventoBajoDemanda | None
+        # DR-4 (CEO, 2026-09-15). Politica de la ventana de trabajo, en tres parametros:
+        #   _DIALOG_N   turnos que se CONSERVAN siempre tras un descarte: el suelo de lo que AURA recuerda.
+        #   _DIALOG_MAX turnos a partir de los cuales se descarta. Con MAX == N la ventana desliza turno a
+        #               turno; con MAX > N descarta por BLOQUES y la cache de prefijo de Ollama solo se
+        #               rompe en el turno del descarte.
+        #   _RECORTE_AURA caracteres de cada respuesta PREVIA de AURA que reentran en el prompt (None: integra).
+        # **VALORES MEDIDOS, NO ELEGIDOS** (campana 4, `milestones/m3-entry/evidencia-cognicion-local/`).
+        # Cuatro conversaciones reales de 12 turnos en HC-1, comparando los turnos 8-12:
+        #
+        #   politica                 ingesta mediana   turno mediana   turnos >180 s   recuerda
+        #   deslizante 6 (antes)          219,6 s          299,7 s         5 de 5         6
+        #   solo recorte 160              128,7 s          178,0 s         2 de 5         6
+        #   solo bloques 9->6              28,6 s           93,1 s         0 de 5        6-9
+        #   ambas (esta)                   22,1 s           75,9 s         0 de 5        6-9
+        #
+        # El descarte por BLOQUES es lo decisivo: la cache de prefijo del modelo solo se invalida en el
+        # turno del descarte, no en todos. El recorte aporta encima y, sobre todo, ACOTA el buffer, que
+        # con respuestas largas crecia sin tope (2.609 -> 1.925 caracteres de maximo).
+        #
+        # **La memoria conversacional no se sacrifica: aumenta.** Antes se recordaban 6 turnos fijos;
+        # ahora entre 6 y 9. Lo que dijo el USUARIO reentra siempre integro; solo las respuestas previas
+        # de la propia AURA entran como extracto, y marcado como tal.
         self._DIALOG_N = 6
+        self._DIALOG_MAX = 9
+        self._RECORTE_AURA: int | None = 160
         # D-FC-6: turnos que ahora mismo esperan al modelo. Lo lee `__main__._esperar_con_acuse`.
         self._en_modelo: set[str] = set()
         bus.subscribe("perception.turn_end", self.on_turn)
 
-    async def handle_utterance(self, user_id, audio_text, trace_id):
+    async def handle_utterance(self, user_id, audio_text, trace_id, activado: bool = False):
         t = Timer()
         self._timers[trace_id] = t
         self._done[trace_id] = asyncio.Event()
-        text = await self.voice.stt(audio_text, trace_id)
+        # **UN PERIFERICO ROTO NO DESTRUYE EL TURNO (MISION VOZ, CEO 2026-09-15).** Sin esto, un fallo
+        # del transcriptor —modelo ausente, USB desmontada, Whisper caido— salia por `handle_utterance`
+        # y el turno se quedaba sin `_done`: la superficie esperaba una respuesta que no iba a llegar.
+        # Se cierra por el Core, diciendo la verdad, sin transcripcion inventada y SIN llamar al modelo.
+        try:
+            text = await self.voice.stt(audio_text, trace_id)
+        except Exception as e:
+            obs.log("WARN", "voice", f"transcripcion fallida; el Core cierra el turno: {e}", trace_id, audit=True)
+            # `text=""` es deliberado: no hubo texto del usuario. `destino_de_memoria("")` es None, de
+            # modo que no se persiste un turno que nadie pronuncio.
+            await self._finalizar_turno(
+                user_id, trace_id, "", _STT_NO_DISPONIBLE, "core", t, dominio="voz", estatus=Estatus.ABSTENCION
+            )
+            return
         t.mark("stt")
-        await self.bus.publish(Event("perception.turn_end", trace_id, user_id, {"text": text}))
+        # `voz` (semana 2): el turno fue HABLADO si el transcriptor cambió la entrada. No depende de cómo
+        # se llame el fichero ni de qué adaptador de voz haya: solo de que hubo transcripción.
+        # `activado` (C1, DP-VOZ-ACCION §8): el turno siguió a la palabra de activación. Lo declara quien
+        # escucha (la escucha continua), no el texto: lo que se dice no puede darse a sí mismo la llave.
+        await self.bus.publish(
+            Event(
+                "perception.turn_end",
+                trace_id,
+                user_id,
+                {"text": text, "voz": text != audio_text, "activado": activado},
+            )
+        )
 
     async def wait(self, trace_id, timeout=10):
         await asyncio.wait_for(self._done[trace_id].wait(), timeout)
@@ -1192,11 +1810,55 @@ class Orchestrator:
         Permite a la superficie decir «estoy consultando mi modelo» solo cuando es verdad."""
         return trace_id in self._en_modelo
 
+    def evaluar_nodos(self) -> int:
+        """Entrega al Centro los avisos de NODO-01 que hayan cambiado desde la ultima evaluacion.
+
+        Devuelve cuantos avisos ACEPTO el Centro (no los suprimidos por duplicados). Nunca lanza: un fallo del vigia no puede
+        romper la apertura ni un turno (se registra WARN).
+        """
+        if self.vigia_nodos is None or self.notificaciones is None:
+            return 0
+        try:
+            ahora = time.time()
+            lectura = self.vigia_nodos(ahora)
+            if lectura is None:
+                return 0
+            registro, receptor_vivo = lectura
+            avisos, nuevo_estado = evaluar_avisos_nodos(registro, ahora, receptor_vivo, self._estado_nodos)
+            aceptados = sum(
+                1 for a in avisos if self.notificaciones.recibir(Notificacion("aura", a.titulo, prioridad=a.prioridad))
+            )
+            # El estado se adopta DESPUES de entregar: si la entrega falla, el aviso se reintenta.
+            self._estado_nodos = nuevo_estado
+            return aceptados
+        except Exception as e:
+            obs.log(
+                "WARN", "nodos", f"no se pudo evaluar el estado de los nodos: {type(e).__name__}: {str(e)[:120]}", "-"
+            )
+            return 0
+
     async def on_turn(self, ev: Event):
         tid = ev.trace_id
+        self.evaluar_nodos()  # avisos de nodos por turno (nunca rompe el turno)
         uid = ev.user_id
         text = ev.payload["text"]
         t = self._timers.get(tid) or Timer()
+        # La propuesta de hogar del turno ANTERIOR se consume AQUÍ, al empezar, sea cual sea la
+        # superficie que acabe respondiendo. Encontrado por su prueba de caducidad: consumida a mitad de
+        # la cascada, un turno atendido antes («¿cómo me llamo?») la dejaba viva y un «sí» tardío
+        # ejecutaba una acción que ya nadie tenía delante.
+        propuesta = self._propuestas_de_hogar.pop(uid, None)
+        por_voz = bool(ev.payload.get("voz"))
+        activado = bool(ev.payload.get("activado"))
+        if por_voz:
+            # Traza del E2E: sin esto, «¿la segunda frase quedó asociada al turno activado?» no se podía demostrar.
+            obs.log("CORE", "voz", f"turno hablado: activado={activado}", tid)
+        # Un turno HABLADO sin habla (el STT no oyó nada) no es una pregunta: no va a memoria ni al modelo.
+        # Medido por el aire el 2026-10-04: el silencio tras «Oye Aurora» se contestaba «No tengo ningún
+        # recuerdo registrado sobre eso».
+        if por_voz and not text.strip():
+            await self._finalizar_turno(uid, tid, text, NO_TE_OI, "core", t, dominio="voz", estatus=Estatus.ABSTENCION)
+            return
         # FRONTERA COGNITIVA (D-FC-1..8): de quien habla el turno. Se calcula UNA vez y se registra al
         # principio para que la auditoria vea el referente aunque el turno lo atienda una superficie
         # anterior. No decide nada por si solo: las ramas de abajo lo consultan.
@@ -1206,13 +1868,16 @@ class Orchestrator:
         if self.modelo_usuario is not None:
             resp = await self._atender_modelo_usuario(uid, text)
             if resp is not None:
-                await self._finalizar_turno(uid, tid, text, resp, "core", t, dominio="modelo_usuario",
-                                            estatus=_estatus_del_core(resp))
+                await self._finalizar_turno(
+                    uid, tid, text, resp, "core", t, dominio="modelo_usuario", estatus=_estatus_del_core(resp)
+                )
                 return
         # Superficie del Centro de Notificaciones: "¿que ha pasado mientras no estaba?" se responde con
         # lo que AURA hizo, sin consultar memoria ni LLM (es un hecho del sistema, no una inferencia).
         if self.notificaciones is not None and _es_consulta_de_notificaciones(text):
-            await self._finalizar_turno(uid, tid, text, self._resumen_notificaciones(), "core", t, dominio="notificaciones")
+            await self._finalizar_turno(
+                uid, tid, text, self._resumen_notificaciones(), "core", t, dominio="notificaciones"
+            )
             return
         # Automatizaciones del usuario (MVP capacidad 5): inspeccionar y crear reglas. Deterministas como el
         # resto de superficies; el LLM no interviene (definir o listar una regla es un hecho, no una inferencia).
@@ -1221,13 +1886,17 @@ class Orchestrator:
                 await self._finalizar_turno(uid, tid, text, self._describir_reglas(uid), "core", t, dominio="reglas")
                 return
             if _es_creacion_de_regla(text):
-                await self._finalizar_turno(uid, tid, text, await self._crear_regla(uid, text), "core", t, dominio="reglas")
+                await self._finalizar_turno(
+                    uid, tid, text, await self._crear_regla(uid, text), "core", t, dominio="reglas"
+                )
                 return
             # Desactivar una automatizacion (M3 entry): se responde SIEMPRE aqui, tenga o no el
             # usuario alguna activa, para que la frase no caiga en otra superficie (memoria, LLM)
             # y produzca una respuesta enganosa o un efecto no pedido.
             if _es_cancelacion_de_regla(text):
-                await self._finalizar_turno(uid, tid, text, await self._desactivar_regla(uid, text), "core", t, dominio="reglas")
+                await self._finalizar_turno(
+                    uid, tid, text, await self._desactivar_regla(uid, text), "core", t, dominio="reglas"
+                )
                 return
         # Ventana del SO Interno (M3 entry): "¿que capacidades tienes?" / "¿en que estas trabajando?" /
         # "¿por que estas bloqueada?" / "¿que aprendiste?" se responden desde el propio sistema, nunca
@@ -1239,6 +1908,45 @@ class Orchestrator:
         # como "buenos dias Aurora, ¿que puedes hacer?" es UNA SECUENCIA: si capacidades lo
         # interceptara primero, el saludo se perderia. Cuando no reconoce el turno entero devuelve
         # None y todo sigue exactamente igual que antes de este incremento.
+        # **RESPUESTA A UNA PROPUESTA DE HOGAR (semana 2).** Va ANTES de la conversación general porque
+        # «sí» es también un turno social que aquella se quedaría. No puede robar ninguna frase: solo
+        # actúa si en el turno ANTERIOR se propuso una acción, y la propuesta se consume en cualquier caso.
+        if propuesta is not None:
+            decision = hogar.confirmacion(text)
+            if decision is True:
+                capacidad, args = propuesta
+                rechazo = self._rechazo_de_voz(por_voz, activado, tid, "confirmacion hablada")
+                if rechazo is not None:
+                    await self._finalizar_turno(
+                        uid, tid, text, rechazo, "core", t, dominio="hogar", estatus=Estatus.ABSTENCION
+                    )
+                    return
+                if args.get("device") not in self.voz_actua_en:
+                    obs.log(
+                        "CORE",
+                        "hogar",
+                        f"{capacidad} por voz confirmado y DETENIDO: la entidad {args.get('device')!r} no esta en "
+                        "voz_actua_en (DP-VOZ-ACCION C2)",
+                        tid,
+                        audit=True,
+                    )
+                    await self._finalizar_turno(
+                        uid,
+                        tid,
+                        text,
+                        hogar.pendiente_de_decision(capacidad, args, self.nombres_de_voz.get(args.get("device", ""))),
+                        "core",
+                        t,
+                        dominio="hogar",
+                        estatus=Estatus.ABSTENCION,
+                    )
+                    return
+                resp = await self._despachar_orden(uid, capacidad, {"device": args["device"]}, tid)
+                await self._finalizar_turno(uid, tid, text, resp, "core", t, dominio="orden_de_capacidad")
+                return
+            if decision is False:
+                await self._finalizar_turno(uid, tid, text, "De acuerdo, no lo hago.", "core", t, dominio="hogar")
+                return
         resp = await self._atender_conversacion_general(uid, text)
         if resp is not None:
             await self._finalizar_turno(uid, tid, text, resp, "core", t, dominio="conversacion_general")
@@ -1246,23 +1954,225 @@ class Orchestrator:
         if _es_consulta_de_capacidades(text):
             await self._finalizar_turno(uid, tid, text, self._describir_capacidades(), "core", t, dominio="capacidades")
             return
+        # Ordenes de capacidad. Van DESPUES de todas las superficies conversacionales -no pueden
+        # robarles ninguna frase- y ANTES del modelo, porque el modelo no decide que se ejecuta
+        # (ADR-0014 §4). Cuando no reconocen el turno, devuelven None y todo sigue igual que antes.
+        resp = await self._atender_orden_de_capacidad(uid, text, tid)
+        if resp is not None:
+            await self._finalizar_turno(uid, tid, text, resp, "core", t, dominio="orden_de_capacidad")
+            return
+        # **ÓRDENES DE HOGAR (semana 2).** Medido `[EJEC]`: «enciende la tele» la interpretaba el MODELO,
+        # que «encendía la luz de la sala». Aquí la reconoce el Core, la PROPONE y no la ejecuta hasta un
+        # «sí» en el turno siguiente —más estricto que la lista verde, que ni siquiera pregunta—.
+        # Ejecutar es `_despachar_orden`: el mismo Motor Único que cualquier otra orden.
+        orden_de_hogar = hogar.reconocer(text) if self.motor is not None else None
+        if orden_de_hogar is not None:
+            capacidad, dispositivo = orden_de_hogar
+            if por_voz and capacidad not in hogar.CAPACIDADES_DE_VOZ:
+                # Opción C (DP-VOZ-ACCION §8): la voz solo enciende o apaga. Ni propone ni ejecuta (acta 2026-10-22 §5).
+                obs.log("CORE", "hogar", f"{capacidad} hablado: fuera de la opcion C, no se propone", tid, audit=True)
+                await self._finalizar_turno(
+                    uid,
+                    tid,
+                    text,
+                    hogar.VOLUMEN_POR_VOZ_PENDIENTE,
+                    "core",
+                    t,
+                    dominio="hogar",
+                    estatus=Estatus.ABSTENCION,
+                )
+                return
+            if not por_voz:
+                # POR TEXTO rige la regla aprobada de M1: la lista verde ejecuta sin preguntar (el catálogo
+                # lo decidió así a propósito para encender/apagar). Lo nuevo es QUIÉN interpreta: el Core,
+                # con el dispositivo que la persona nombró, y la confirmación del efecto por el adaptador.
+                # «la tele de la sala» es la entidad cuyo nombre humano lo dice; si no casa, la resolución de siempre.
+                dispositivo = hogar.entidad_por_nombre_humano(dispositivo, self.nombres_de_voz) or dispositivo
+                resp = await self._despachar_orden(uid, capacidad, {"device": dispositivo}, tid)
+                await self._finalizar_turno(uid, tid, text, resp, "core", t, dominio="orden_de_capacidad")
+                return
+            objetivo = self._rechazo_de_voz(por_voz, activado, tid, "orden hablada")
+            if objetivo is None:
+                objetivo = await self._entidad_para_voz(capacidad, dispositivo, tid)
+            if isinstance(objetivo, str):
+                await self._finalizar_turno(
+                    uid, tid, text, objetivo, "core", t, dominio="hogar", estatus=Estatus.ABSTENCION
+                )
+                return
+            entidad, nombre = objetivo
+            humano = self.nombres_de_voz.get(entidad)
+            self._propuestas_de_hogar[uid] = (capacidad, {"device": entidad, "nombre": nombre})
+            obs.log("CORE", "hogar", f"propuesta {capacidad} sobre {entidad!r}: espera confirmacion", tid, audit=True)
+            await self._finalizar_turno(
+                uid,
+                tid,
+                text,
+                hogar.proponer_humano(capacidad, humano) if humano else hogar.proponer(capacidad, nombre),
+                "core",
+                t,
+                dominio="hogar",
+                estatus=Estatus.ACLARACION,
+            )
+            return
+        # **CONSULTA DEL ESTADO DE LA TV (acta 2026-10-22 §4).** «¿Está encendida la tele?» es una LECTURA de Home
+        # Assistant, sin el modelo y sin el Motor (no cambia nada). Va ANTES de la orden no entendida, que si no se la
+        # tragaría por nombrar la TV.
+        consulta = hogar.reconocer_consulta(text) if self.motor is not None else None
+        if consulta is not None:
+            resp, estatus_consulta = await self._consultar_estado_de_hogar(consulta, por_voz, tid)
+            await self._finalizar_turno(uid, tid, text, resp, "core", t, dominio="hogar", estatus=estatus_consulta)
+            return
+        # **ORDEN PARA LA TV NO ENTENDIDA (E2E físico, 2026-10-04).** Una orden hablada y activada que nombra la
+        # TV pero no se reconoce (Whisper: «¿No fiende la televisión?») seguía la cascada y, por llegar como
+        # pregunta, acababa en la puerta de memoria: «No tengo ningún recuerdo». Ni actúa ni adivina: lo dice.
+        # Una PREGUNTA por lo que se hizo con la TV («¿apagaste la tele?») no es una orden mal oída: sigue hacia la
+        # recuperación, que repite lo ocurrido sin ejecutar nada (2026-10-21).
+        if (
+            por_voz
+            and activado
+            and self.motor is not None
+            and hogar.menciona_tv_sin_orden(text)
+            and recuperacion.reconocer(text) is None
+        ):
+            obs.log("CORE", "hogar", "orden hablada para la TV no reconocida: no se actúa ni se consulta memoria", tid)
+            await self._finalizar_turno(
+                uid, tid, text, hogar.ORDEN_NO_ENTENDIDA, "core", t, dominio="hogar", estatus=Estatus.ABSTENCION
+            )
+            return
+        # **EL ENTORNO FÍSICO (semana 2).** «¿Qué hay conectado?» se responde DESCUBRIENDO la red en ese
+        # momento —vecinos, mDNS, SSDP—, no con una lista escrita a mano ni con el modelo. Cada dispositivo
+        # sale con su nivel: descubierto, identificado, integrado o controlable.
+        if self.entorno is not None and entorno.es_consulta_de_entorno(text):
+            resp = await asyncio.to_thread(self.entorno.explorar, tid)
+            await self._finalizar_turno(uid, tid, text, resp, "core", t, dominio="entorno")
+            return
+        # ORDEN DE ESPECIFICIDAD (fix auditoría 2026-09-28): EVENTO y AUDIO se evalúan ANTES que VISUAL. El
+        # reconocedor visual incluye «que hay» (genérico), que colisiona con «hay movimiento»/«hay alguien»
+        # del evento; evaluar primero los específicos evita que la rama visual enmascare una consulta de
+        # movimiento/audio. VISUAL queda como fallback general.
+        # PERCIBIR EVENTO — detección PROPIA de movimiento bajo demanda (no ONVIF Events, rotos en .110).
+        # «¿Hay movimiento en la cámara X?» -> señal (detectado+magnitud), gated por política VISUAL; sin
+        # persona/identidad/intención.
+        pe = getattr(self, "percepcion_evento", None)
+        if pe is not None and percepcion.es_consulta_evento_sin_camara(text):
+            # Sin decir cuál: se pregunta y se enumeran las autorizadas para VÍDEO; no se procesa ninguna.
+            resp = percepcion.pedir_camara(pe.superficies_autorizadas(), "vigilar", "hay movimiento")
+            await self._finalizar_turno(
+                uid, tid, text, resp, "core", t, dominio="percepcion_evento", estatus=Estatus.ACLARACION
+            )
+            return
+        superficie_evento = percepcion.es_consulta_evento(text) if pe is not None else None
+        if pe is not None and superficie_evento is not None:
+            evento = await asyncio.to_thread(pe.observar_evento, superficie_evento, tid)
+            if evento is None:
+                resp = (
+                    f"No puedo vigilar «{superficie_evento}»: no la tengo registrada o no está "
+                    "autorizada para procesar vídeo."
+                )
+            else:
+                resp = percepcion.describir_evento(evento)
+            await self._finalizar_turno(
+                uid,
+                tid,
+                text,
+                resp,
+                "core",
+                t,
+                dominio="percepcion_evento",
+                estatus=Estatus.HECHO if (evento and evento.detectado) else Estatus.ABSTENCION,
+            )
+            return
+        # ESCUCHAR — audio de cámara bajo demanda (bloque multimodal, acta 2026-09-28). «¿Qué se oye en la
+        # cámara X?» -> observación auditiva efímera (transcripción opcional), gated por política de AUDIO;
+        # sin persistir audio, sin identidad, sin escucha continua.
+        pa = getattr(self, "percepcion_auditiva", None)
+        if pa is not None and percepcion.es_consulta_auditiva_sin_camara(text):
+            # Sin decir cuál: se pregunta y se enumeran las autorizadas para AUDIO; no se escucha ninguna.
+            resp = percepcion.pedir_camara(pa.superficies_autorizadas(), "escuchar", "qué oyes")
+            await self._finalizar_turno(
+                uid, tid, text, resp, "core", t, dominio="percepcion_auditiva", estatus=Estatus.ACLARACION
+            )
+            return
+        superficie_audio = percepcion.es_consulta_auditiva(text) if pa is not None else None
+        if pa is not None and superficie_audio is not None:
+            obs_audio = await asyncio.to_thread(pa.observar_audio, superficie_audio, tid)
+            if obs_audio is None:
+                resp = (
+                    f"No puedo escuchar «{superficie_audio}»: no la tengo registrada o no está autorizada para audio."
+                )
+            else:
+                resp = percepcion.describir_observacion_auditiva(obs_audio)
+            await self._finalizar_turno(
+                uid,
+                tid,
+                text,
+                resp,
+                "core",
+                t,
+                dominio="percepcion_auditiva",
+                estatus=Estatus.HECHO if (obs_audio and obs_audio.audio_recibido) else Estatus.ABSTENCION,
+            )
+            return
+        # **FRAME → OBSERVACIÓN (DP aprobado 2026-09-28, Alt B / bajo demanda / imagen-cero).** «¿Qué ves en
+        # la cámara X?» produce una observación EFÍMERA (fuente+dimensiones), gobernada por política; sin
+        # persona/identidad/evento, sin guardar imagen, sin escribir memoria. `getattr`: superficie de prueba
+        # con `__new__` puede no tener el atributo.
+        pv = getattr(self, "percepcion_visual", None)
+        if pv is not None and percepcion.es_consulta_visual_sin_camara(text):
+            # Sin decir cuál: se pregunta y se enumeran las AUTORIZADAS; no se mira ninguna (2026-10-22).
+            resp = percepcion.pedir_camara(pv.superficies_autorizadas())
+            await self._finalizar_turno(
+                uid, tid, text, resp, "core", t, dominio="percepcion_visual", estatus=Estatus.ACLARACION
+            )
+            return
+        superficie_visual = percepcion.es_consulta_visual(text) if pv is not None else None
+        if pv is not None and superficie_visual is not None:
+            observacion = await asyncio.to_thread(pv.observar, superficie_visual, tid)
+            if observacion is None:
+                resp = f"No puedo mirar «{superficie_visual}»: no la tengo registrada o no está autorizada para ver."
+                autorizadas = pv.superficies_autorizadas()
+                if autorizadas:
+                    resp += " Puedo mirar: " + ", ".join(f"«{s}»" for s in autorizadas) + "."
+            else:
+                resp = percepcion.describir_observacion(observacion)
+            await self._finalizar_turno(
+                uid,
+                tid,
+                text,
+                resp,
+                "core",
+                t,
+                dominio="percepcion_visual",
+                estatus=Estatus.HECHO if (observacion and observacion.frame_recibido) else Estatus.ABSTENCION,
+            )
+            return
         # La consulta de tareas ya no exige `estado_operativo`: con el ciclo autonomo cableado
         # tiene fuente propia, y sin ninguna de las dos NO se desvia (cae al camino de siempre).
         # Las superficies de estado declaran AUSENCIA con su propio texto de «no me consta» (D-FC-1).
         if (self.estado_operativo is not None or self.estado_autonomo is not None) and _es_consulta_de_tareas(text):
             resp = self._describir_tareas()
-            await self._finalizar_turno(uid, tid, text, resp, "core", t, dominio="estado_autonomo",
-                                        estatus=_estatus_del_core(resp))
+            await self._finalizar_turno(
+                uid, tid, text, resp, "core", t, dominio="estado_autonomo", estatus=_estatus_del_core(resp)
+            )
             return
         if self.estado_autonomo is not None and _es_consulta_de_evolucion(text):
             resp = self._describir_evolucion(text)
-            await self._finalizar_turno(uid, tid, text, resp, "core", t,
-                                        dominio="evolucion", estatus=_estatus_del_core(resp))
+            await self._finalizar_turno(
+                uid, tid, text, resp, "core", t, dominio="evolucion", estatus=_estatus_del_core(resp)
+            )
+            return
+        # «¿Qué hiciste?» tras actuar en ESTA conversación es por esa acción, no por el historial del ciclo
+        # autónomo (semana 2, encontrado `[EJEC]` con la TV real: contestaba «mi última tarea es P-018»).
+        # Sin ninguna acción en la ventana, el historial responde igual que antes.
+        clase_en_conversacion = recuperacion.reconocer(text)
+        if clase_en_conversacion is not None and recuperacion.hubo_ejecucion(self._dialogue.get(uid, [])):
+            await self._responder_recuperacion(uid, tid, text, t, clase_en_conversacion)
             return
         if self.estado_autonomo is not None and _es_consulta_de_ultima_tarea(text):
             resp = self._describir_ultima_tarea()
-            await self._finalizar_turno(uid, tid, text, resp, "core", t,
-                                        dominio="historial", estatus=_estatus_del_core(resp))
+            await self._finalizar_turno(
+                uid, tid, text, resp, "core", t, dominio="historial", estatus=_estatus_del_core(resp)
+            )
             return
         # Autorizacion humana (CEO, 2026-09-01). Va ANTES de la ausencia de memoria y del LLM porque
         # conceder un permiso es un HECHO del sistema, no una inferencia (ADR-0014). Y lo unico que
@@ -1275,24 +2185,28 @@ class Orchestrator:
         # Los dos dominios que caian en la memoria del usuario, que no sabe nada de ellos.
         if self.estado_autonomo is not None and _es_consulta_de_decisiones(text):
             resp = self._describir_decisiones(text)
-            await self._finalizar_turno(uid, tid, text, resp, "core", t,
-                                        dominio="decisiones", estatus=_estatus_del_core(resp))
+            await self._finalizar_turno(
+                uid, tid, text, resp, "core", t, dominio="decisiones", estatus=_estatus_del_core(resp)
+            )
             return
         if self.estado_autonomo is not None and _es_consulta_de_oportunidades(text):
             resp = self._describir_oportunidades()
-            await self._finalizar_turno(uid, tid, text, resp, "core", t,
-                                        dominio="oportunidades", estatus=_estatus_del_core(resp))
+            await self._finalizar_turno(
+                uid, tid, text, resp, "core", t, dominio="oportunidades", estatus=_estatus_del_core(resp)
+            )
             return
         if self.estado_operativo is not None:
             if _es_consulta_de_gobierno(text):
                 resp = self._describir_bloqueo()
-                await self._finalizar_turno(uid, tid, text, resp, "core", t, dominio="gobierno",
-                                            estatus=_estatus_del_core(resp))
+                await self._finalizar_turno(
+                    uid, tid, text, resp, "core", t, dominio="gobierno", estatus=_estatus_del_core(resp)
+                )
                 return
         if _es_consulta_de_formacion(text):
             resp = _resumen_formacion()
-            await self._finalizar_turno(uid, tid, text, resp, "core", t, dominio="formacion",
-                                        estatus=_estatus_del_core(resp))
+            await self._finalizar_turno(
+                uid, tid, text, resp, "core", t, dominio="formacion", estatus=_estatus_del_core(resp)
+            )
             return
         # **AURA SOBRE SI MISMA (D-FC-3 = A).** «que desarrollas en este momento?» (T8) no nombraba
         # ninguna de las superficies de arriba y caia en la pared: «No tengo ningun recuerdo» para una
@@ -1305,11 +2219,13 @@ class Orchestrator:
         # orquestador construido a mano sin estado operativo sigue el camino que ya existia -la pared,
         # que tambien es el Core, AUSENCIA y 0 llamadas- y `test_conversacion_ventana_so` lo fija. En
         # produccion `composicion.py` cablea siempre el estado operativo, asi que T8 llega aqui.
-        if (self.estado_operativo is not None or self.estado_autonomo is not None) \
-                and intencion.es_consulta_sobre_aura(text):
+        if (self.estado_operativo is not None or self.estado_autonomo is not None) and intencion.es_consulta_sobre_aura(
+            text
+        ):
             resp = self._describir_aura()
-            await self._finalizar_turno(uid, tid, text, resp, "core", t, dominio="aura",
-                                        estatus=_estatus_del_core(resp))
+            await self._finalizar_turno(
+                uid, tid, text, resp, "core", t, dominio="aura", estatus=_estatus_del_core(resp)
+            )
             return
         # Aritmetica determinista (CEO, 2026-09-01). «cuanto es 1+1» no tenia superficie, recorria la
         # cascada entera y la contestaba el enrutador con su respuesta enlatada: «Entendido.». Una
@@ -1330,12 +2246,14 @@ class Orchestrator:
             clase, respuesta = formal
             if clase == Estatus.HECHO.value:
                 obs.log("CORE", "aritmetica", f"resuelta en el nucleo, sin LLM: {text[:40]!r}", tid)
-                await self._finalizar_turno(uid, tid, text, respuesta, "core", t, dominio="aritmetica",
-                                            estatus=Estatus.HECHO)
+                await self._finalizar_turno(
+                    uid, tid, text, respuesta, "core", t, dominio="aritmetica", estatus=Estatus.HECHO
+                )
             else:
                 obs.log("CORE", "formal", f"infradeterminado -> aclaracion, sin LLM: {text[:40]!r}", tid)
-                await self._finalizar_turno(uid, tid, text, respuesta, "core", t, dominio="formal",
-                                            estatus=Estatus.ACLARACION)
+                await self._finalizar_turno(
+                    uid, tid, text, respuesta, "core", t, dominio="formal", estatus=Estatus.ACLARACION
+                )
             return
         # **SUPERFICIE COGNITIVA (M3, 2026-09-09).** `_es_consulta_de_memoria` NO se toca: sigue
         # diciendo que toda interrogativa es una consulta de memoria, y por eso la garantia de 24/24
@@ -1351,19 +2269,52 @@ class Orchestrator:
         #
         # D-FC: la excepcion de cognicion exige ADEMAS que el referente sea el MUNDO. La compuerta vive en
         # `_es_turno_cognitivo` para que se pruebe por si misma y no por el orden de la cascada.
+        # **PREGUNTA POR UNA EJECUCION ANTERIOR (M8, CEO 2026-09-22).** Medido antes de cablearlo
+        # `[EJEC]`: en 8 de 12 escenarios el usuario preguntaba por el resultado del turno anterior
+        # —«¿cuántas entradas encontraste?»— y recibia «No tengo ningun recuerdo registrado sobre
+        # eso» MIENTRAS la ventana de trabajo lo contenia entero. El problema nunca fue de
+        # almacenamiento: `DR-4` ya retiene el turno. Era que la pregunta buscaba en la memoria
+        # PERSONAL, donde un resultado de ejecucion no esta —ni debe estar (`Bible 4.1 §1`)—.
+        #
+        # VA AQUI, y no antes, por la disciplina que esta cascada se aplica desde hace diez
+        # superficies: lo nuevo se evalua DESPUES de todo lo que ya existia, para que no pueda
+        # quitarle ninguna frase. Y antes de la pared, que es lo que el defecto pedia.
+        #
+        # NO se toca la puerta de `ADR-0014` ni `_es_consulta_de_memoria`: siguen sosteniendo el
+        # 24/24 intactas, y una prueba parametrizada comprueba que este reconocedor no se queda
+        # NINGUNA de esas 24. Son dos gramaticas distintas —el mundo del usuario frente a algo que
+        # hizo AURA— y por eso pueden separarse sin ensanchar nada.
+        #
+        # **No ejecuta nada.** Lee la ventana y repite lo que AURA ya dijo, diciendo que lo repite.
+        # El Motor Unico no se llama: no hay segunda ruta de ejecucion (`ALERTA-005`).
+        clase_de_recuperacion = recuperacion.reconocer(text)
+        if clase_de_recuperacion is not None:
+            await self._responder_recuperacion(uid, tid, text, t, clase_de_recuperacion)
+            return
         cognicion_general = _es_turno_cognitivo(text)
         hits = await self.memory.recall(uid, text)
         t.mark("memory")
+        # La puerta decide con lo que AURA da por cierto HOY, no con `hits` crudos (Director Tecnico, por orden ejecutiva del CEO, 2026-10-06,
+        # `milestones/m3-entry/RESOLUCION-S3-CM2-ORDEN-CEO-2026-10-06.md` §1 y §2): `recall` devuelve
+        # tambien ecos retirados, refutadas y superseded, y si NO queda ninguna vigente la ausencia es un
+        # hecho. `recall` no cambia: solo cambia con que se decide. El mismo `vigentes` alimenta el `ctx`.
+        vigentes = [h for h in hits if _da_por_cierto(h)]
+        if hits and not vigentes:
+            # `recall` trunca a k y desempata por antiguedad: con varias versiones de un atributo, las
+            # superseded y los ecos pueden ocupar todos los huecos y dejar fuera a la vigente. Antes de
+            # afirmar ausencia se mira la consulta ANCHA; solo en este caso (una sola llamada extra).
+            # Se conserva el presupuesto de contexto: como mucho `len(hits)` vigentes.
+            amplios = await self.memory.recall(uid, text, k=_K_TODAS_LAS_COINCIDENCIAS)
+            vigentes = [h for h in amplios if _da_por_cierto(h)][: len(hits)]
         # ADR-0014: la ausencia de memoria es un HECHO, no una inferencia. Si el usuario
         # pregunta por un recuerdo y no existe registro, responde el nucleo y NO se consulta
         # al LLM: no se le da ocasion de inferir, completar ni reformular lo inexistente.
-        if not hits and _es_consulta_de_memoria(text) and not cognicion_general:
+        if not vigentes and _es_consulta_de_memoria(text) and not cognicion_general:
             say = "No tengo ningun recuerdo registrado sobre eso."
             obs.log(
                 "CORE", "grounding", "memoria vacia -> respuesta determinista (sin llamada al LLM)", tid, audit=True
             )
-            await self._finalizar_turno(uid, tid, text, say, "core", t, dominio="memoria",
-                                        estatus=Estatus.AUSENCIA)
+            await self._finalizar_turno(uid, tid, text, say, "core", t, dominio="memoria", estatus=Estatus.AUSENCIA)
             return
         # **DECLARACION DE HECHO PROPIO (2026-09-13).** «me llamo Mauricio» no es pregunta ni orden: no
         # tocaba ninguna superficie y caia aqui, al modelo, que en modo cognitivo solo puede devolver un
@@ -1374,19 +2325,46 @@ class Orchestrator:
         # El criterio es el de la captura, INYECTADO (una sola definicion). Va despues de todas las
         # superficies existentes -no les roba ninguna frase- y exige que el turno no pida ademas una
         # accion: «me llamo Mauricio y enciende la luz» conserva su camino hacia el router.
-        if (self.reconocer_declaracion is not None and self.reconocer_declaracion(text)
-                and not _pide_accion(text)):
+        if self.reconocer_declaracion is not None and self.reconocer_declaracion(text) and not _pide_accion(text):
             obs.log("CORE", "declaracion", "hecho propio declarado -> acuse del Core, sin llamada al LLM", tid)
-            await self._finalizar_turno(uid, tid, text, _ACUSE_DECLARACION, "core", t, dominio="declaracion",
-                                        estatus=Estatus.HECHO)
+            await self._finalizar_turno(
+                uid, tid, text, _ACUSE_DECLARACION, "core", t, dominio="declaracion", estatus=Estatus.HECHO
+            )
             return
 
-        ctx = " | ".join(h["content"] for h in hits) if hits else "(sin recuerdos relevantes)"
+        # **SOLO LO QUE AURA DA POR CIERTO HOY ENTRA COMO MEMORIA (D-M-5, 2026-09-15).** `recall` devuelve
+        # tambien entradas que el Core ya NO afirma: las REFUTADAS («eso ya no es cierto») y las
+        # SUPERSEDED por una redeclaracion (`valid_until`, AMP-AURA etapas 1-2). Unirlas aqui era contarle
+        # al modelo, como recuerdo vigente, justo lo que el usuario desmintio o corrigio: medido, tras
+        # redeclarar el cumpleaños el contexto llevaba la fecha antigua DOS veces.
+        #
+        # RESUELTO (Director Tecnico, por orden ejecutiva del CEO, 2026-10-06, `milestones/m3-entry/RESOLUCION-S3-CM2-ORDEN-CEO-2026-10-06.md` §1 y
+        # §2, fila «Puerta ADR-0014»): `vigentes` se calcula ANTES de la puerta de ADR-0014 y es lo que
+        # esta evalua (`not vigentes`), asi que el filtro ya no se limita al contexto. Antes la puerta
+        # decidia con `hits` crudos y, si TODOS eran no vigentes, no disparaba: el turno llegaba al modelo
+        # con la memoria vacia en vez de recibir la ausencia determinista. Esa consecuencia se declaro y se
+        # elevo como decision; la decision fue tocar la puerta, y `recall` NO cambia.
+        # (`DP-COGNICION-LOCAL-Y-RENDIMIENTO.md` §9 / §10 describen el estado anterior.)
+        #
+        # RESIDUO DECLARADO: el eco episodico «usuario dijo: ...» de una declaracion no lleva ni
+        # `refutada` ni `valid_until` —es el registro de lo que se DIJO, que sigue siendo cierto como
+        # registro—, asi que este filtro no lo alcanza. Enlazarlo con su version exige tocar el modelo de
+        # memoria, y tampoco se hace aqui.
+        # Memory Context Builder (D-AMP-2): filtra la MEMORIA RECUPERADA antes del prompt. `vigentes`
+        # ya está filtrado por vigencia; el Builder excluye además los ecos de terceros. NO cubre el
+        # buffer `recent` de abajo (otra vía al prompt, continuidad conversacional) — límite declarado.
+        ctx = contexto_memoria.construir_contexto(vigentes)
         buffer = self._dialogue.get(uid, [])
         # D-FC-8 = B: cada turno previo reentra CON su estatus. Una propuesta del modelo aparece como
         # `AURA [PROPUESTA_NO_VERIFICADA]: ...` y nunca desnuda: sin la etiqueta, el modelo leeria su
         # propia salida anterior como si AURA la hubiera afirmado, y la reforzaria turno a turno.
-        recent = "\n".join(linea_de_contexto(u, a, e) for u, a, e in buffer) or "(inicio de la conversacion)"
+        recent = (
+            "\n".join(
+                linea_de_contexto(t.usuario, _recortar_respuesta_previa(t.aura, self._RECORTE_AURA), t.estatus)
+                for t in buffer
+            )
+            or "(inicio de la conversacion)"
+        )
         prompt = f"[contexto memoria: {ctx}]\n[conversacion reciente:\n{recent}]\nUsuario: {text}"
         # **El catalogo solo si hay accion que pedir.** Ante la duda, `_pide_accion` es generoso:
         # perder una accion seria peor que pagar contexto de mas.
@@ -1401,8 +2379,16 @@ class Orchestrator:
         sensible = intencion.dominio_sensible(text) if modo == "cognitivo" else None
         if sensible is not None:
             obs.log("CORE", "sensible", f"dominio={sensible} -> abstencion, sin llamada al LLM", tid, audit=True)
-            await self._finalizar_turno(uid, tid, text, _abstencion_sensible(sensible), "core", t,
-                                        dominio="sensible", estatus=Estatus.ABSTENCION)
+            await self._finalizar_turno(
+                uid,
+                tid,
+                text,
+                _abstencion_sensible(sensible),
+                "core",
+                t,
+                dominio="sensible",
+                estatus=Estatus.ABSTENCION,
+            )
             return
         obs.log("LLM", "routing", f"modo={modo}", tid)
         # D-FC-6: acuse inmediato por voz antes de la espera. Es accesorio: si la voz falla, el turno
@@ -1420,13 +2406,43 @@ class Orchestrator:
                 # El modo es una mejora de contexto, no un cambio de contrato.
                 prov, out = await self.router.route(prompt, tid)
         except RuntimeError as e:
+            # **LIMITE ALCANZADO != PROVEEDOR CAIDO (DR-3, CEO 2026-09-15).** Antes un timeout llegaba aqui
+            # como cualquier fallo y AURA respondia «Mi modelo local no esta disponible» —falso: estaba
+            # disponible, solo tardo—. Un limite se dice como lo que es, y el turno NO se rellena con lo
+            # que el modelo llevara escrito: una respuesta a medias no se presenta como terminada. Se lee
+            # por atributo, igual que la subclase de abajo, para que el nucleo no importe `modules`.
+            limite = getattr(e, "limite", None)
+            if limite in _ABSTENCION_POR_LIMITE:
+                obs.log(
+                    "WARN", "router", f"limite '{limite}' alcanzado -> aviso honesto del Core: {e}", tid, audit=True
+                )
+                self._en_modelo.discard(tid)
+                await self._finalizar_turno(
+                    uid,
+                    tid,
+                    text,
+                    _ABSTENCION_POR_LIMITE[limite],
+                    CORE,
+                    t,
+                    dominio=f"limite_{limite}",
+                    estatus=Estatus.ABSTENCION,
+                )
+                return
             # `ProveedoresNoDisponibles` es subclase de RuntimeError: se captura por la base para que el
             # nucleo no importe `modules.router` (core no depende de modules). Sin esto el turno moria
             # sin `_done` y `wait` expiraba: el usuario veia un cuelgue, no una respuesta.
             obs.log("WARN", "router", f"sin proveedor utilizable -> abstencion del Core: {e}", tid, audit=True)
             self._en_modelo.discard(tid)
-            await self._finalizar_turno(uid, tid, text, _ABSTENCION_SIN_PROVEEDOR, CORE, t,
-                                        dominio="proveedor_no_disponible", estatus=Estatus.ABSTENCION)
+            await self._finalizar_turno(
+                uid,
+                tid,
+                text,
+                _ABSTENCION_SIN_PROVEEDOR,
+                CORE,
+                t,
+                dominio="proveedor_no_disponible",
+                estatus=Estatus.ABSTENCION,
+            )
             return
         finally:
             self._en_modelo.discard(tid)
@@ -1440,6 +2456,36 @@ class Orchestrator:
         if modo == "cognitivo" and action != "consulta":
             obs.log("CORE", "cognitivo", f"accion propuesta {action} descartada", tid, audit=True)
             action, args = "consulta", {}
+        # **EL MODELO NO ELIGE EL DISPOSITIVO (semana 2).** Medido `[EJEC]`: ante «enciende la tele» el
+        # modelo «encendió la luz de la sala». Cuando la superficie de hogar no reconoce la orden (p. ej. un
+        # error de transcripción: «Apaga la tele» se oyó «Para la tene»), el turno llega aquí, y el modelo
+        # puede proponer encender o apagar. ADR-0014 §4: el modelo no decide QUÉ se toca. Si el dispositivo
+        # que propone no lo nombró la persona, no se actúa. No retira la garantía de M1 («lista verde
+        # ejecuta»): la limita a lo que el usuario dijo.
+        # **POR VOZ, EL MODELO NUNCA ACTÚA EN CASA (opción C, C1-C3).** Medido `[EJEC]` 2026-10-22: una frase hablada sin
+        # activación que la gramática del Core no reconocía bajaba aquí y el Motor APAGABA la TV sin propuesta ni «sí».
+        # Por voz, la casa solo cambia por la rama del Core: reconocer → proponer nombrando → «sí» activado.
+        if por_voz and action in hogar.CAPACIDADES:
+            obs.log(
+                "CORE", "hogar", f"accion {action} del modelo en turno HABLADO descartada (opcion C)", tid, audit=True
+            )
+            rechazo = (
+                hogar.ORDEN_NO_ENTENDIDA if action in hogar.CAPACIDADES_DE_VOZ else hogar.VOLUMEN_POR_VOZ_PENDIENTE
+            )
+            await self._finalizar_turno(uid, tid, text, rechazo, CORE, t, dominio="hogar", estatus=Estatus.ABSTENCION)
+            return
+        if action in hogar.CAPACIDADES and not hogar.dispositivo_nombrado(args.get("device", ""), text):
+            obs.log(
+                "CORE",
+                "hogar",
+                f"accion {action} del modelo descartada: {args.get('device')!r} no lo nombro el usuario",
+                tid,
+                audit=True,
+            )
+            await self._finalizar_turno(
+                uid, tid, text, hogar.SIN_DISPOSITIVO_CLARO, CORE, t, dominio="hogar", estatus=Estatus.ACLARACION
+            )
+            return
         if action != "consulta":
             evento = {"action": action, "args": args}
             # Las automatizaciones del usuario reaccionan al evento ANTES de ejecutar la accion que lo
@@ -1475,19 +2521,84 @@ class Orchestrator:
         con el foco: la ultima afirmacion en discusion, o la que el texto mencione explicitamente.
         """
         t = _normalizar(text)
+        # M3.2a opción A: resolver primero un export PENDIENTE DE CONFIRMAR. Vive un turno y por `uid`:
+        # SOLO una confirmación inequívoca de este usuario lo ejecuta; cualquier otra cosa lo descarta
+        # (negativa, cambio de tema, nueva solicitud, afirmación ajena, otro usuario). Exportar es lectura
+        # pura: la PARADA no la bloquea (como `ver`). Sin pendiente, una confirmación suelta no hace nada.
+        if uid in self._export_pendiente:
+            self._export_pendiente.discard(uid)
+            if _confirma_export(t):
+                obs.log("CORE", "export", "export del modelo CONFIRMADO por el usuario", "-", audit=True)
+                return await self.modelo_usuario.exportar(uid)
+            # No confirmado: el pendiente queda descartado y el turno sigue su curso normal.
         if self._sistema_detenido() and (_es_peticion_de_olvido(t) or _cae_en(t, _PAT_MODELO_REFUTA)):
             # Inspeccionar sigue permitido: leer no muta nada. Lo que la parada impide es MODIFICAR.
             obs.log("KILL", "orchestrator", "soberania: mutacion bloqueada por kill switch", "-", audit=True)
             return "Ahora mismo no puedo modificar lo que sé de ti: el sistema está detenido."
         entradas = await self.modelo_usuario.ver(uid)
         vivas = [e for e in entradas if not e.get("refutada")]
+        # **PRESENTES: lo que AURA afirma HOY (2026-09-15).** `vivas` incluye las versiones SUPERSEDED de
+        # AMP-AURA etapas 1-2, y tiene que incluirlas: el historial se lee de ahi. Pero el foco de «eso»
+        # y el blanco de olvidar/refutar NO pueden salir de ellas. Medido: tras redeclarar el cumpleaños,
+        # «olvida mi cumpleaños» BORRABA LA VERSION ANTIGUA, respondia «Hecho» y AURA seguia afirmando la
+        # vigente —la clase de defecto de ALERTA-006, y una confirmacion falsa (INV-9)—. Aqui se separa lo
+        # que se LEE como historial de lo que se PRESENTA y se MODIFICA como presente.
+        #
+        # Que debe hacer «olvidar» con el historial de un atributo es `D-AMP-3`, SIN DECIDIR: esta
+        # separacion no lo decide, solo evita que el olvido caiga sobre una version que ya no era vigente.
+        presentes = [e for e in vivas if e.get("valid_until") is None]
+
+        if _es_peticion_de_exportar(t):
+            # M3.2a opción A (acta `decisiones/2026-10-11-M3.2a-exportar-confirmacion-opcion-A.md`): la
+            # detección NUNCA vuelca el modelo —tres bypass léxicos demostrados (ECC 2026-10-11)—. Pide
+            # CONFIRMACIÓN: marca el pendiente y pregunta. Un falso positivo produce a lo sumo esta
+            # pregunta, jamás una fuga de PII. El volcado ocurre arriba, solo tras `_confirma_export`.
+            self._export_pendiente.add(uid)
+            return (
+                "Puedo darte una copia de todo lo que sé de ti, en un archivo legible sin AURA. "
+                "¿Quieres que la exporte? Dime «sí, exporta» para confirmarlo."
+            )
 
         if _cae_en(t, _PAT_MODELO_VER):
             # Foco por defecto para el "eso" siguiente: la primera observada (la cuestionable); si no,
-            # la primera declarada. La declarada no suele necesitar explicacion ("me lo dijiste").
-            if vivas:
-                self._foco_modelo[uid] = next((e for e in vivas if e.get("origen") != "declarada"), vivas[0])
+            # la primera declarada. La declarada no suele necesitar explicacion ("me lo dijiste"). Sale
+            # de lo que el listado MUESTRA: un «eso» no puede señalar algo que no se ha dicho en voz alta.
+            if presentes:
+                self._foco_modelo[uid] = next((e for e in presentes if e.get("origen") != "declarada"), presentes[0])
             return describir_conocimiento(entradas)
+
+        # **EVOCACION DE HECHOS (DR-1 = A, CEO 2026-09-15).** «¿te acuerdas de lo que te dije?» llegaba a
+        # la puerta de ADR-0014, que decide con la busqueda LEXICA: sin terminos en comun, 0 resultados y
+        # «No tengo ningun recuerdo» —con el modelo de usuario lleno—. Aqui responde el Core desde el
+        # modelo de usuario, sin modelo de lenguaje: la existencia de un recuerdo no la decide nunca el
+        # LLM (ADR-0014 §2). Solo lo DECLARADO y VIGENTE: ni lo refutado, ni lo superseded, ni lo observado
+        # —«lo que te dije» no incluye lo que AURA dedujo—. La puerta de ADR-0014 no se toca.
+        if es_evocacion_generica(t):
+            declaradas = [e for e in presentes if e.get("origen") == "declarada"]
+            if not declaradas:
+                return _SIN_HECHOS_DECLARADOS
+            # «eso» solo queda enfocado si lo mostrado es UNA sola cosa: con varias, un «olvida eso»
+            # posterior seria ambiguo, y ante la duda se pregunta (contencion de ALERTA-006).
+            if len(declaradas) == 1:
+                self._foco_modelo[uid] = declaradas[0]
+            lineas = "\n".join(f"• {e['contenido']}" for e in declaradas)
+            return f"Sí. Esto es lo que me has dicho y sigo dando por cierto:\n{lineas}"
+
+        # «¿te acuerdas de mi X?» nombra un atributo: se responde EXACTAMENTE como «¿cual es mi X?», por la
+        # misma superficie y con las mismas guardas. Si no hay hecho que dar, cae a la ruta de siempre.
+        evocado = atributo_evocado(t)
+        if evocado is not None:
+            respuesta = self._responder_hecho(f"¿cual es mi {evocado}?", vivas)
+            if respuesta is not None:
+                return respuesta
+
+        # Consulta de HISTORIAL ("¿cual era mi X?"), ANTES que la del presente. Una pregunta de
+        # historial tambien nombra el atributo posesivo, asi que si `_responder_hecho` corriera
+        # primero respondiera con el valor VIGENTE y le robaria el turno a esta superficie mas
+        # especifica -el usuario pregunto por lo que ERA, no por lo que ES-.
+        respuesta = self._responder_historial(t, vivas)
+        if respuesta is not None:
+            return respuesta
 
         # Consulta de un ATRIBUTO concreto (incremento A). Va aqui, dentro de la soberania del Modelo
         # de Usuario, porque la fuente es la misma: no se crea ninguna ruta nueva (regla 3 del acta).
@@ -1497,32 +2608,96 @@ class Orchestrator:
             return respuesta
 
         if _es_peticion_de_olvido(t):  # antes que refutar/porque: "olvida" es inequivoco
-            foco = self._foco(uid, t, vivas, entradas)
+            foco = self._foco(uid, t, presentes, entradas, vivas)
             if foco is None:
                 # ALERTA-006: antes se elegia `vivas[0]` y se confirmaba el borrado. Ante la duda se
                 # pregunta; destruir el dato equivocado no es soberania del usuario, es perdida.
                 return _DESAMBIGUAR
-            n = await self.modelo_usuario.borrar(uid, foco["contenido"])
+            # DR-2: se olvida LA entrada señalada, no todo lo que contenga su texto.
+            n = await self.modelo_usuario.olvidar_entrada(uid, foco)
             return (
                 "Hecho. Ya no lo consideraré parte de lo que sé de ti." if n else "No he encontrado eso para olvidarlo."
             )
 
         if _cae_en(t, _PAT_MODELO_REFUTA):
-            foco = self._foco(uid, t, vivas, entradas)
+            foco = self._foco(uid, t, presentes, entradas, vivas)
             if foco is None:
                 return _DESAMBIGUAR
             # Se comprueba el retorno: `refutar` puede no mutar nada (p.ej. si ya estaba refutada), y
             # narrar exito sin efecto viola INV-9 / ALERTA-005 punto 4. `borrar` ya lo comprobaba.
-            n = await self.modelo_usuario.refutar(uid, foco["contenido"])
+            n = await self.modelo_usuario.refutar_entrada(uid, foco)
             if n:
                 return "Entendido, lo corrijo. Dejo de darlo por cierto."
             return "No he encontrado eso para corregirlo."
 
         if _cae_en(t, _PAT_MODELO_PORQUE):
-            foco = self._foco(uid, t, vivas, entradas)
+            foco = self._foco(uid, t, presentes, entradas, vivas)
             return explicar_entrada(foco) if foco else "Ahora mismo no estoy afirmando nada sobre ti."
 
         return None
+
+    @staticmethod
+    def _responder_historial(t: str, vivas: list[dict]) -> str | None:
+        """Responde una consulta de HISTORIAL sobre un atributo declarado, o None si no aplica.
+
+        AMP-AURA etapas 1-2: el Core ya versiona un atributo redeclarado -`version`, `valid_until`-,
+        pero eso solo se podia INSPECCIONAR con `ModeloUsuario.ver()`, nunca preguntar en conversacion.
+        Esta es la superficie de LECTURA de ese historial, simetrica a `_responder_hecho` y con las
+        mismas dos guardas: solo `HECHO_DECLARADO` (una observacion no es una declaracion del usuario)
+        y solo entradas VIVAS (un hecho refutado dejo de darse por cierto, regla 5 del acta).
+
+        INV-9: sin ninguna entrada del atributo, se devuelve None -no un texto de ausencia propio, que
+        le robaria el turno a la puerta de ADR-0014, exactamente el mismo criterio que documenta
+        `_responder_hecho`-.
+        """
+        atributo = atributo_preguntado_en_pasado(t)
+        if atributo is None:
+            return None
+        atributo_norm = _normalizar(atributo)
+
+        # (version, atributo_escrito, valor, vigente). Los VALORES y el nombre del atributo se toman
+        # de la frase del propio usuario via `_atributo_declarado`, con SU ortografia (ADR-0017): no
+        # se reformula ni se normaliza lo que el usuario dijo.
+        pares = []
+        for entrada in vivas:
+            if entrada.get("clase") != ClaseSenal.HECHO_DECLARADO.value:
+                continue
+            par = _atributo_declarado(str(entrada.get("contenido", "")))
+            if par is None or _normalizar(par[0]) != atributo_norm:
+                continue
+            version = int(entrada.get("version") or 1)
+            pares.append((version, par[0], par[1], entrada.get("valid_until") is None))
+
+        if not pares:
+            return None
+
+        anteriores = sorted((p for p in pares if not p[3]), key=lambda p: p[0])
+        actuales = [p for p in pares if p[3]]
+        # Si hubiera mas de una vigente -no deberia, el ejecutor cierra la anterior al escribir-, la
+        # de version mayor es la que manda: mismo criterio de "la ultima declaracion gana" que ya usa
+        # `_responder_hecho`.
+        actual = max(actuales, key=lambda p: p[0]) if actuales else None
+
+        # La ortografia sale de la entrada de la que sale la respuesta: la actual si existe, si no la
+        # ultima anterior.
+        atributo_escrito = (actual or anteriores[-1])[1]
+
+        # Una redeclaracion IDENTICA no es otro valor anterior: medido `[EJEC]` el 2026-09-27, «me llamo
+        # Mauricio» dicho dos veces daba «Antes me dijiste: Mauricio, Mauricio». Se colapsan solo las
+        # repeticiones CONSECUTIVAS, en orden de version: Valencia -> Sevilla -> Valencia SI son tres
+        # estados y se cuentan los tres. Es proyeccion (`ADR-0023`): el historial conserva cada
+        # declaracion.
+        sin_repetir = [p[2] for i, p in enumerate(anteriores) if i == 0 or p[2] != anteriores[i - 1][2]]
+        if actual is not None and anteriores:
+            valores_anteriores = ", ".join(sin_repetir)
+            return f"Ahora tu {atributo_escrito} es {actual[2]}. Antes me dijiste: {valores_anteriores}."
+        if actual is None:
+            valores_anteriores = ", ".join(sin_repetir)
+            return (
+                f"Antes me dijiste que tu {atributo_escrito} era {valores_anteriores}. "
+                "Ahora mismo no tengo ninguno vigente."
+            )
+        return f"Solo me has dicho una cosa sobre tu {atributo_escrito}: {actual[2]}. No me habías dicho otra antes."
 
     @staticmethod
     def _responder_hecho(t: str, vivas: list[dict]) -> str | None:
@@ -1539,8 +2714,9 @@ class Orchestrator:
         # correcta dependeria del ORDEN de llegada —el `reversed` de abajo—, que es una coincidencia
         # afortunada, no una garantia: basta que el almacen devuelva otro orden para que AURA afirme
         # un hecho caducado. Las entradas heredadas no tienen el campo, valen None y siguen vigentes.
-        hechos = [e for e in vivas
-                  if e.get("clase") == ClaseSenal.HECHO_DECLARADO.value and e.get("valid_until") is None]
+        hechos = [
+            e for e in vivas if e.get("clase") == ClaseSenal.HECHO_DECLARADO.value and e.get("valid_until") is None
+        ]
         for preguntas, patron, plantilla, ausencia in _CONSULTAS_DE_HECHO:
             if not _cae_en(t, preguntas):
                 continue
@@ -1575,7 +2751,14 @@ class Orchestrator:
             return "Esto es lo que me has dicho que prefieres:\n" + "\n".join(f"• {d}" for d in declaradas)
         return None
 
-    def _foco(self, uid: str, t: str, vivas: list[dict], existentes: list[dict] | None = None) -> dict | None:
+    def _foco(
+        self,
+        uid: str,
+        t: str,
+        vivas: list[dict],
+        existentes: list[dict] | None = None,
+        historial: list[dict] | None = None,
+    ) -> dict | None:
         """Resuelve "eso": la entrada que el texto menciona, o la ultima en discusion. None si es ambiguo.
 
         Contencion de ALERTA-006. Antes terminaba en `vivas[0]`: si el texto no mencionaba nada
@@ -1591,17 +2774,56 @@ class Orchestrator:
         refutada y sale de `vivas`, pero el "olvida eso" siguiente se refiere justamente a ella
         —refutar no es borrar—. Validar contra `vivas` rompia esa secuencia legitima; validar contra
         las existentes solo descarta el foco cuando apunta a algo que ya no esta en el modelo.
+
+        **VIGENCIA (AMP-AURA etapas 1-2, auditoria independiente del 2026-09-15).** Dos reglas mas, ambas
+        medidas contra un defecto real:
+
+        1. Al NOMBRAR, lo vigente tiene preferencia y el `historial` va despues. Tras redeclarar un
+           atributo las dos versiones comparten palabras; recorrerlas juntas hacia que «olvida mi
+           cumpleaños» cayera sobre la version antigua. Pero el historial no puede quedar fuera de alcance:
+           si nada vigente coincide y una version superseded si («olvida lo de Bangkok»), se atiende
+           —en `6dad6af` se podia, y quitarlo seria una regresion de soberania (ADR-0017)—.
+        2. El foco CACHEADO solo vale si su entrada sigue VIGENTE. Si entre el turno que lo fijo y este
+           el usuario redeclaro el atributo, «eso» ya no señala nada vigente, y actuar sobre la version
+           recien cerrada es la clase de defecto de ALERTA-006. Las refutadas SIGUEN valiendo —refutar no
+           cierra la vigencia—, que es lo que mantiene la secuencia «refutar → olvidar eso».
+
+        **SIN AMBIGUEDAD (auditoria independiente del 2026-09-15; defectos preexistentes en `6dad6af`).**
+        Se coincide por PALABRA COMPLETA y gana la entrada con MAS palabras coincidentes; un empate se
+        pregunta (None). Antes se comparaba por SUBCADENA (`w in t`) y ganaba la primera coincidencia:
+        «olvida lo de valenciana» borraba «mi ciudad favorita es Valencia» —«valencia» esta dentro de
+        «valenciana»— y «olvida lo de cartagena», con dos entradas que la nombraban, borraba una
+        cualquiera. Las dos respondian «Hecho». Un empate DENTRO de lo vigente no cae al historial: la
+        ambiguedad no se resuelve buscando en otra parte.
         """
-        for e in vivas:
-            palabras = [w for w in _normalizar(e["contenido"]).split() if len(w) > 4]
-            if any(w in t for w in palabras):
-                self._foco_modelo[uid] = e
-                return e
+        # Palabras reales, no trozos separados por espacios: «Olvida lo de las facturas.» dejaba «facturas.»
+        # con el punto pegado, y la coincidencia por palabra completa fallaba (lo detectaron cuatro pruebas
+        # de la contencion de ALERTA-006 en cuanto se cambio la regla).
+        palabras_texto = set(re.findall(r"\w+", t))
+        for grupo in (vivas, historial or ()):
+            puntuadas = []
+            for e in grupo:
+                palabras = {w for w in re.findall(r"\w+", _normalizar(e["contenido"])) if len(w) > 4}
+                coincidencias = len(palabras & palabras_texto)
+                if coincidencias:
+                    puntuadas.append((coincidencias, e))
+            if not puntuadas:
+                continue
+            mejor = max(p for p, _ in puntuadas)
+            ganadoras = [e for p, e in puntuadas if p == mejor]
+            if len(ganadoras) > 1:
+                return None
+            self._foco_modelo[uid] = ganadoras[0]
+            return ganadoras[0]
         cacheado = self._foco_modelo.get(uid)
         if cacheado is None:
             return None
         universo = vivas if existentes is None else existentes
-        return cacheado if any(x["contenido"] == cacheado["contenido"] for x in universo) else None
+        return (
+            cacheado
+            if any(x["contenido"] == cacheado["contenido"] and x.get("valid_until") is None for x in universo)
+            else None
+        )
 
     def _resumen_notificaciones(self) -> str:
         """Lo que AURA hizo desde la ultima vez, en lenguaje natural (comunicable, no un log).
@@ -1704,6 +2926,178 @@ class Orchestrator:
 
     # ----------------------------------------- ventana del SO Interno (M3 entry) --
 
+    async def _atender_orden_de_capacidad(self, uid: str, text: str, tid: str) -> str | None:
+        """El usuario PIDE una capacidad registrada: se ejecuta de verdad. `None` si no la pide.
+
+        EL HUECO QUE CIERRA, medido antes de escribirlo `[EJEC]`: AURA declaraba 21 operaciones con
+        sus adaptadores montados, y a *«ejecuta las pruebas»* respondía *«Esto lo genera mi modelo
+        local y no está verificado: Entendido.»*. Capacidad registrada, ejecutor construido, permiso
+        clasificado, Motor Único funcionando — y ninguna ruta desde la conversación hasta ellos.
+
+        **Toda la ejecución pasa por el motor** (`ALERTA-005`): este método no llama a ningún
+        adaptador. Reconoce, delega y cuenta el resultado. Si mañana el motor niega la capacidad
+        —kill switch, permisos, lista roja—, aquí no hay forma de saltárselo, porque no hay otra
+        puerta.
+
+        **Va DESPUÉS de las superficies conversacionales** por la misma razón que ellas van después
+        de las de soberanía: una superficie nueva no puede robarle frases a las que ya existían. Y
+        cuando no reconoce, devuelve `None` y el turno sigue **exactamente** el camino de antes.
+        """
+        if self.motor is None or self.registro is None:
+            return None
+        # **Primero las ordenes CON ruta, y sobre el texto ORIGINAL.** `_partir_en_partes` normaliza
+        # —minusculas, sin tildes, partiendo por el punto—, y una ruta que pase por ahi deja de
+        # existir: `Documentos` se vuelve `documentos` y `~/Musica/notas.TXT` se parte en dos.
+        con_ruta = ordenes.reconocer_con_ruta(text, self.registro.capacidades())
+        if con_ruta is not None:
+            capacidad, ruta = con_ruta
+            return await self._despachar_orden(uid, capacidad, {_ARG_RUTA[capacidad]: ruta}, tid)
+
+        partes = _partir_en_partes(text)
+        if len(partes) != 1:
+            # Un turno con varias frases no es una orden limpia. Ante la duda, no se ejecuta: es la
+            # misma regla que el resto del plano (`ADR-0003`), aplicada a la puerta de entrada.
+            return None
+        compuesta = ordenes.reconocer_compuesta(partes[0], self.registro.capacidades())
+        if compuesta is not None:
+            return await self._despachar_revision(uid, compuesta, tid)
+
+        simple = ordenes.reconocer(partes[0], self.registro.capacidades())
+        if simple is None:
+            return None
+        return await self._despachar_orden(uid, simple, ordenes.argumentos_de(simple), tid)
+
+    async def _responder_recuperacion(self, uid: str, tid: str, text: str, t, clase: str) -> None:
+        """Recupera de la ventana de trabajo lo que AURA hizo, sin volver a ejecutarlo (M8). Un solo sitio
+        para los dos puntos de la cascada que lo usan."""
+        turno_previo = recuperacion.ultima_ejecucion(self._dialogue.get(uid, []))
+        resp, estatus_rec = recuperacion.redactar(clase, turno_previo)
+        obs.log(
+            "CORE",
+            "recuperacion",
+            f"pregunta por ejecucion anterior ({clase}): "
+            f"{'recuperada' if turno_previo else 'sin ejecucion en la ventana'}, sin LLM",
+            tid,
+            audit=True,
+        )
+        await self._finalizar_turno(uid, tid, text, resp, "core", t, dominio="recuperacion", estatus=estatus_rec)
+
+    async def _despachar_revision(self, uid: str, capacidades, tid: str) -> str:
+        """Varias capacidades reales, una respuesta. **Cada una por su propia puerta.**
+
+        `Componer no concede autoridad`: no hay un despacho «de revisión» que ejecute en bloque, sino
+        el mismo `_despachar_orden` repetido. Si una capacidad queda bloqueada —kill switch,
+        permisos—, se bloquea sola y **la revisión lo dice**: presentar un informe completo cuando
+        una parte no llegó a mirarse sería «declarado ≠ real» con la firma de AURA debajo."""
+        hallazgos: list[tuple[str, dict]] = []
+        for capacidad in capacidades:
+            ev = Event("action.command", tid, uid, {"action": capacidad, "args": {}})
+            res = await self.motor.ejecutar(
+                capacidad, ordenes.argumentos_de(capacidad), tid, ev.event_id, origen="conversacion"
+            )
+            hallazgos.append((capacidad, res if isinstance(res, dict) else {}))
+        obs.log("CORE", "orden", f"revision compuesta de {len(hallazgos)} capacidad(es)", tid, audit=True)
+        return _redactar_revision(hallazgos)
+
+    def _rechazo_de_voz(self, por_voz: bool, activado: bool, tid: str, que: str) -> str | None:
+        """La frontera voz -> accion (DP-VOZ-ACCION C1 y C4): el texto del rechazo, o None si el turno pasa.
+
+        Un turno ESCRITO no pasa por aqui (rige la regla M1). Uno hablado exige que haya seguido a la
+        palabra de activacion y que el STT no haya dudado de lo que oyo."""
+        if not por_voz:
+            return None
+        if not activado:
+            obs.log("CORE", "hogar", f"{que} sin activacion: no actua ni propone", tid, audit=True)
+            return hogar.PIDE_ACTIVACION
+        if hogar.confianza_baja(getattr(self.voice, "ultima_confianza", None)):
+            obs.log("CORE", "hogar", f"{que} con confianza de STT baja: se pide repetir", tid, audit=True)
+            return hogar.PIDE_REPETIR
+        return None
+
+    async def _consultar_estado_de_hogar(self, consulta: tuple[str, str], por_voz: bool, tid: str):
+        """(respuesta, estatus) de una consulta de estado de la TV. Solo lectura por el puerto del adaptador, como
+        `entidades()`; responde también con la PARADA echada, porque leer no muta nada, y lo dice. El título de lo
+        que se ve NO va al audit log (rastro del consumo de la familia)."""
+        aspecto, dispositivo = consulta
+        leer = getattr(self.registro.para("encender_dispositivo"), "estado_actual", None)
+        if leer is None:
+            return hogar.CONSULTA_SIN_HOGAR_REAL, Estatus.ABSTENCION
+        objetivo = hogar.entidad_por_nombre_humano(dispositivo, self.nombres_de_voz) or dispositivo
+        try:
+            estado = await asyncio.to_thread(leer, objetivo)
+        except ErrorDeValidacion as e:  # dispositivo ambiguo o inexistente, credencial rechazada
+            return f"No he podido consultarlo: {e}.", Estatus.ABSTENCION
+        except Exception as e:
+            obs.log("WARN", "hogar", f"Home Assistant no respondio a la consulta de estado: {e}", tid, audit=True)
+            return "No he podido consultar Home Assistant (no respondió); no sé cómo está.", Estatus.ABSTENCION
+        nombre = self.nombres_de_voz.get(estado["entity_id"]) or estado["nombre"]
+        obs.log(
+            "CORE",
+            "hogar",
+            f"consulta {aspecto} de {estado['entity_id']}: {estado.get('state')} (lectura)",
+            tid,
+            audit=True,
+        )
+        resp = hogar.describir_estado(aspecto, nombre, estado, por_voz)
+        if self._sistema_detenido():
+            resp += " La parada de emergencia está echada: no ejecuto acciones, pero leer el estado sí puedo."
+        return resp, Estatus.HECHO
+
+    async def _entidad_para_voz(self, capacidad: str, dispositivo: str, tid: str):
+        """(entity_id, nombre) sobre el que actuaria una orden HABLADA, resuelto ANTES de proponer y SOLO
+        dentro de `voz_actua_en` (C2/C3); o el texto del rechazo. Usa la resolucion del adaptador de hogar:
+        no hay un segundo resolutor de Home Assistant."""
+        resolver = getattr(self.registro.para(capacidad), "resolver_dispositivo", None)
+        if resolver is None or not self.voz_actua_en:
+            obs.log("CORE", "hogar", f"{dispositivo!r} fuera de voz_actua_en: no se propone", tid, audit=True)
+            return hogar.FUERA_DE_ALCANCE
+        try:
+            return await asyncio.to_thread(resolver, dispositivo, self.voz_actua_en)
+        except ErrorDeValidacion as e:
+            obs.log("CORE", "hogar", f"{dispositivo!r} fuera de voz_actua_en ({e}): no se propone", tid, audit=True)
+            return hogar.FUERA_DE_ALCANCE
+        except Exception as e:
+            obs.log("WARN", "hogar", f"Home Assistant no respondio al resolver {dispositivo!r}: {e}", tid, audit=True)
+            return hogar.HA_NO_RESPONDE
+
+    async def _despachar_orden(self, uid: str, capacidad: str, args: dict, tid: str) -> str:
+        """El despacho, en UN solo sitio para las dos formas de orden —con ruta y sin ella—.
+
+        Tenerlo duplicado habria sido la clase de cableado que se olvida en una rama: la leccion de
+        ALERTA-005 y la de `AI-M2`, que sobrevivio justamente porque cada camino conectaba su propia
+        proteccion. Aqui hay una puerta y las dos formas pasan por ella."""
+        ev = Event("action.command", tid, uid, {"action": capacidad, "args": args})
+        res = await self.motor.ejecutar(capacidad, args, tid, ev.event_id, origen="conversacion")
+        # **El registro forense cuenta lo que PASO, no lo que se pidio.** Esta linea decia
+        # «ejecutada» siempre, incluso sobre ordenes que el motor habia DETENIDO o que habian dado
+        # ERROR. Encontrado leyendo el audit log real `[EJEC]` el 2026-09-21, dos lineas seguidas
+        # del mismo turno:
+        #     seq 1047  ERROR ejecutor  ERROR leer_archivo: ruta fuera del ambito permitido
+        #     seq 1048  CORE  orden     capacidad leer_archivo ejecutada por orden del usuario
+        # Al usuario ya se le contaba bien —`_redactar_resultado_de_orden` distingue los tres
+        # estados—, asi que el defecto vivia SOLO en la prueba forense: el sitio donde nadie mira
+        # hasta que hay que reconstruir que ocurrio, y donde una mentira dura para siempre.
+        # Es `ALERTA-005` punto 4 («nunca informa exito sin resultado real») e `INV-9` aplicados al
+        # registro que AURA escribe sobre si misma.
+        estado = res.get("estado") if isinstance(res, dict) else None
+        desenlace = {"ejecutada": "ejecutada", "detenida": "detenida", "error": "error"}.get(
+            str(estado), f"con desenlace no reconocido ({estado!r})"
+        )
+        obs.log("CORE", "orden", f"capacidad {capacidad} {desenlace} por orden del usuario", tid, audit=True)
+        # El efecto real realimenta la capa de conocimiento del entorno (misión CEO 2026-09-27): lo que
+        # AURA comprobó que puede afectar sube a EFECTO_VERIFICADO. Solo el efecto real lo fija.
+        detalle = res.get("resultado") if isinstance(res, dict) else None
+        # `getattr`: una prueba de superficie construye el orquestador con `__new__`, sin `entorno`.
+        entorno_vivo = getattr(self, "entorno", None)
+        if (
+            entorno_vivo is not None
+            and (capacidad in _CAPACIDADES_DE_HOGAR or capacidad in _CAPACIDADES_DE_VOLUMEN)
+            and isinstance(detalle, dict)
+            and detalle.get("device")
+        ):
+            entorno_vivo.registrar_efecto(detalle["device"], bool(detalle.get("verificado")))
+        return _redactar_resultado_de_orden(capacidad, res, getattr(self, "nombres_de_voz", None))
+
     def _describir_capacidades(self) -> str:
         """Responde "¿que capacidades tienes?" / "¿que puedes hacer?" con el registro de
         adaptadores REAL (`self.registro`), la misma fuente que `--verificar` imprime al arrancar.
@@ -1790,54 +3184,72 @@ class Orchestrator:
         estaba aprobada o si pertenece a otra autoridad, se responde lo que el estado permite decir —
         nunca un mensaje tranquilizador escrito de antemano."""
         if self.decisiones is None:
-            return ("No tengo buzón de decisiones conectado, así que no puedo registrar ninguna "
-                    "autorización desde aquí.")
+            return "No tengo buzón de decisiones conectado, así que no puedo registrar ninguna autorización desde aquí."
 
-        decision, motivo = resolver(identificador, self.decisiones.pendientes(),
-                                    self.decisiones.aprobadas())
+        decision, motivo = resolver(identificador, self.decisiones.pendientes(), self.decisiones.aprobadas())
         if motivo == "ambiguo":
-            return (f"«{identificador}» coincide con más de una decisión pendiente. No registré "
-                    f"ninguna autorización: elegir por ti sería autorizar una acción que no me "
-                    f"pediste. Dime la huella completa.")
+            return (
+                f"«{identificador}» coincide con más de una decisión pendiente. No registré "
+                f"ninguna autorización: elegir por ti sería autorizar una acción que no me "
+                f"pediste. Dime la huella completa."
+            )
 
         if decision is None:
             # Puede ser una decision de GOBERNANZA elevada al CEO. Existe de verdad, pero no se
             # resuelve con un «autorizo»: tiene opciones, y ninguna se elige sola. Decir «registrada»
             # aqui seria afirmar que algo queda desbloqueado cuando no lo queda.
-            gobernanza = [d for d in self._decisiones_de_gobernanza()
-                          if isinstance(d, dict) and str(d.get("id", "")).lower() == identificador.lower()]
+            gobernanza = [
+                d
+                for d in self._decisiones_de_gobernanza()
+                if isinstance(d, dict) and str(d.get("id", "")).lower() == identificador.lower()
+            ]
             if gobernanza:
                 opciones = gobernanza[0].get("opciones") or []
                 detalle = ("\n" + "\n".join(f"  • {o}" for o in opciones)) if opciones else ""
-                return (f"No puedo registrar esa autorización con la autoridad disponible. "
-                        f"{identificador} es una decisión de gobernanza elevada, y no se resuelve "
-                        f"con un permiso: hay que elegir una de sus opciones.{detalle}")
-            return (f"No encuentro una decisión llamada {identificador} en mi estado actual. "
-                    f"No registré ninguna autorización.")
+                return (
+                    f"No puedo registrar esa autorización con la autoridad disponible. "
+                    f"{identificador} es una decisión de gobernanza elevada, y no se resuelve "
+                    f"con un permiso: hay que elegir una de sus opciones.{detalle}"
+                )
+            return (
+                f"No encuentro una decisión llamada {identificador} en mi estado actual. "
+                f"No registré ninguna autorización."
+            )
 
         if decision.get("estado") == "aprobada":
-            return (f"{identificador} ya estaba autorizada. No registré una segunda autorización.")
+            return f"{identificador} ya estaba autorizada. No registré una segunda autorización."
 
         huella = str(decision.get("huella", ""))
         marcada = self.decisiones.aprobar(huella, por=uid, origen="conversacion", evidencia=texto)
         if not marcada:
-            return (f"No pude registrar la autorización de {identificador}: su solicitud ya no está "
-                    f"en el buzón.")
-        obs.log("HITL", "autorizacion", f"{decision.get('accion')} autorizada por {uid} desde la "
-                f"conversacion ({huella[:8]}): pendiente -> aprobada", tid, audit=True)
-        return (f"Autorización registrada para {identificador} ({decision.get('accion')}). "
-                f"No ejecuto la tarea desde la conversación: queda disponible para mi próximo "
-                f"ciclo autónomo, que volverá a comprobar el permiso antes de actuar.")
+            return f"No pude registrar la autorización de {identificador}: su solicitud ya no está en el buzón."
+        obs.log(
+            "HITL",
+            "autorizacion",
+            f"{decision.get('accion')} autorizada por {uid} desde la "
+            f"conversacion ({huella[:8]}): pendiente -> aprobada",
+            tid,
+            audit=True,
+        )
+        return (
+            f"Autorización registrada para {identificador} ({decision.get('accion')}). "
+            f"No ejecuto la tarea desde la conversación: queda disponible para mi próximo "
+            f"ciclo autónomo, que volverá a comprobar el permiso antes de actuar."
+        )
 
     def _describir_decisiones(self, texto: str) -> str:
         """Las decisiones elevadas, o LA que se nombre. Fuente: el estado autónomo real."""
         identificador = identificador_de_decision(texto)
-        return (redactar_decisiones(self.estado_autonomo.instantanea(), identificador)
-                or "No me consta ninguna decisión pendiente en mi estado actual.")
+        return (
+            redactar_decisiones(self.estado_autonomo.instantanea(), identificador)
+            or "No me consta ninguna decisión pendiente en mi estado actual."
+        )
 
     def _describir_oportunidades(self) -> str:
-        return (redactar_oportunidades(self.estado_autonomo.instantanea())
-                or "No me consta el estado de mi cola de trabajo.")
+        return (
+            redactar_oportunidades(self.estado_autonomo.instantanea())
+            or "No me consta el estado de mi cola de trabajo."
+        )
 
     def _describir_evolucion(self, texto: str) -> str:
         """Qué ha hecho de verdad. «hoy» acota por fecha; el resto, el historial reciente."""
@@ -1846,15 +3258,16 @@ class Orchestrator:
             import datetime as _dt
 
             dia = _dt.date.today().isoformat()
-        return (redactar_evolucion(self.estado_autonomo.instantanea(), dia)
-                or "No me consta mi historial de trabajos.")
+        return redactar_evolucion(self.estado_autonomo.instantanea(), dia) or "No me consta mi historial de trabajos."
 
     def _describir_ultima_tarea(self) -> str:
         """La ultima tarea REALMENTE ejecutada, leida del historial del ciclo autonomo."""
         if self.estado_autonomo is None:
             return "No tengo registro de mi propio ciclo de trabajo ahora mismo."
-        return (redactar_ultima_tarea(self.estado_autonomo.instantanea())
-                or "No me consta ninguna tarea ejecutada en mi historial.")
+        return (
+            redactar_ultima_tarea(self.estado_autonomo.instantanea())
+            or "No me consta ninguna tarea ejecutada en mi historial."
+        )
 
     def _describir_bloqueo(self) -> str:
         """Responde "¿por que estas bloqueada?" / "¿que esta pasando?" reutilizando el MISMO
@@ -2018,6 +3431,17 @@ class Orchestrator:
         """
         estado = res.get("estado")
         if estado == "ejecutada":
+            if action in _CAPACIDADES_DE_HOGAR:
+                # Mismo criterio que el camino del Core (semana 2): encender/apagar solo se cuenta como
+                # hecho si el adaptador VERIFICÓ el efecto. Cierra la deuda D-ADP-1 también aquí: el doble
+                # del hogar contestaba `ok` sin tocar nada y AURA anunciaba «[accion … ejecutada]».
+                return _redactar_efecto_de_hogar(
+                    action, res.get("resultado") or {}, getattr(self, "nombres_de_voz", None)
+                )
+            if action in _CAPACIDADES_DE_VOLUMEN:
+                return _redactar_efecto_de_volumen(
+                    action, res.get("resultado") or {}, getattr(self, "nombres_de_voz", None)
+                )
             return f"{say_llm} [accion {action} ejecutada]"
         if estado == "detenida":
             return f"No ejecute la accion. [accion {action} detenida: {res.get('motivo')}]"
@@ -2043,8 +3467,7 @@ class Orchestrator:
         except Exception as e:
             obs.log("WARN", "senales", f"captura fallida (turno no afectado): {e}", tid)
 
-    async def _finalizar_turno(self, uid, tid, text, say, prov, t, dominio: str = "",
-                               estatus: Estatus | None = None):
+    async def _finalizar_turno(self, uid, tid, text, say, prov, t, dominio: str = "", estatus: Estatus | None = None):
         """Cierre comun del turno: persistencia, memoria de trabajo, voz, metricas y resultado.
 
         `dominio` dice QUE FUENTE respondio. `provider` solo distingue nucleo de modelo, y con nueve
@@ -2064,6 +3487,17 @@ class Orchestrator:
         # Lo que ve y oye el usuario. La marca de propuesta la escribe el Core (D-FC-2 = B).
         visible = presentar(say, e)
         destino = intencion.destino_de_memoria(text)
+        if dominio == "modelo_usuario":
+            # **T11 (CONTRATO-OLVIDO-Y-RETENCION.md §2, 2026-10-07): el eco de un turno de soberania
+            # NO se persiste.** Inspeccionar, olvidar, refutar y corregir terminan aqui, y el eco
+            # `usuario dijo: olvida que mi ciudad favorita es Valencia` se escribia DESPUES de la
+            # lapida como `episodica` vigente: el dato olvidado volvia al contexto del modelo y
+            # anulaba la ausencia determinista de ADR-0014. Tampoco se guarda como `historico`: seria
+            # otra copia en claro del contenido olvidado (contrato §5). G-6 queda cubierto por el
+            # audit de la propia operacion. Por la misma regla («un turno de soberania no aporta nada a
+            # la memoria») la CAPTURA DE SENALES tampoco corre aqui: «olvidalo, mi cumpleanos es el 3
+            # de junio» la guardaba como `semantica` vigente y volvia al contexto del modelo (A1).
+            destino = None
         if destino is not None:
             # **M-1, eje 2 (DP-D-M-7) + HISTORICO NO RECUPERABLE (CEO, 2026-09-09).** Antes la
             # condicion era `not _es_pregunta(text)`: un detector SINTACTICO decidiendo una cuestion
@@ -2084,30 +3518,79 @@ class Orchestrator:
             # whitelist, así que un `kind` nuevo queda bloqueado hasta que alguien lo declare. El
             # olvido no concede: ése es el sentido de fail-closed.
             if self._sistema_detenido() and not es_escritura_pasiva(kind):
-                obs.log("CORE", "parada", f"escritura NO pasiva bloqueada por PARADA: {kind}", tid,
-                        audit=True)
+                obs.log("CORE", "parada", f"escritura NO pasiva bloqueada por PARADA: {kind}", tid, audit=True)
                 destino = None
             if destino is not None:
-                await self.memory.write(
-                    uid, kind, f"usuario dijo: {text}", {"trace_id": tid, "fuente": "conversacion"}
-                )
+                await self.memory.write(uid, kind, f"usuario dijo: {text}", {"trace_id": tid, "fuente": "conversacion"})
         # D-FC-8 = B: la captura de senales y la memoria ven SOLO el texto del usuario (arriba y aqui);
         # el `say` del modelo no alimenta ninguna de las dos por ningun camino.
-        await self._capturar_senales(uid, tid, text)
+        if dominio != "modelo_usuario":  # T11/A1: ver el comentario de arriba
+            await self._capturar_senales(uid, tid, text)
         buffer = self._dialogue.setdefault(uid, [])
         # Se guarda el say SIN marca y con su estatus: la etiqueta de contexto la pone
         # `linea_de_contexto` al construir el prompt, y una marca duplicada no aportaria nada.
-        buffer.append((text, say, e))
-        del buffer[: max(0, len(buffer) - self._DIALOG_N)]  # conserva las ultimas N (memoria de trabajo)
-        await self.voice.tts(visible, tid)
+        #
+        # **SIN TEXTO DEL USUARIO NO HAY TURNO QUE RECORDAR (auditoria del 2026-09-15).** Cuando la
+        # transcripcion falla, `text` es "" — y aunque `destino_de_memoria("")` ya impedia PERSISTIRLO,
+        # el buffer de trabajo si lo recibia y reentraba al prompt como un «Usuario:» vacio en los turnos
+        # siguientes. Un fallo del microfono no puede ensuciar el contexto de la conversacion.
+        if text:
+            buffer.append(recuperacion.Turno(text, say, e, dominio))
+            if len(buffer) > self._DIALOG_MAX:
+                del buffer[: len(buffer) - self._DIALOG_N]  # conserva las ultimas N (memoria de trabajo)
+            # **LO QUE SE RETIENE DEJA RASTRO.** Hasta M7 la ventana de trabajo era el unico almacen
+            # del sistema del que NADA constaba: se podia demostrar que una capacidad se ejecuto,
+            # pero no que su resultado quedo retenido ni cuantos turnos seguiria ahi. Y `DR-4` —que
+            # gobierna esta ventana— se aprobo por latencia y cache, antes de que `leer_archivo`
+            # fuera una orden conversacional: hoy lo retenido puede ser contenido de ficheros del
+            # usuario, y eso merece constar.
+            #
+            # Se registra el METADATO, nunca el payload: cuantos turnos hay y cual es el tope. Meter
+            # aqui el texto retenido convertiria el registro forense en la copia persistente que la
+            # ventana precisamente NO es, y tomaria por accidente la decision que esta elevada.
+            if dominio == "orden_de_capacidad":
+                obs.log(
+                    "CORE",
+                    "memoria-trabajo",
+                    f"resultado retenido en la ventana de trabajo: {len(buffer)}/{self._DIALOG_MAX} "
+                    f"turnos (DR-4); no persiste fuera del proceso",
+                    tid,
+                    audit=True,
+                )
+        # **LA RESPUESTA YA ESTA PAGADA CUANDO HABLA EL SINTETIZADOR (MISION VOZ, CEO 2026-09-15).**
+        # Esta llamada estaba desnuda y ocurre DESPUES de la inferencia: un fallo de Piper —modelo
+        # ausente, USB desmontada— tumbaba el turno entero y tiraba un `say` que habia costado minutos.
+        # Medido el 2026-09-10 en HC-1: tres turnos reales, cero completados. La voz es periferica; la
+        # respuesta es el producto. Se degrada a texto y el fallo queda AUDITADO y observable en el
+        # resultado: degradar en silencio seria fingir una capacidad que no se tuvo (INV-9).
+        # La RUTA del audio sintetizado se devuelve con el turno (campaña, 2026-09-27). Se generaba y se
+        # tiraba: el WAV existia en disco y nadie que conversara por voz podia saber cual reproducir.
+        audio: str | None = None
+        voz = "ok"
+        try:
+            audio = await self.voice.tts(visible, tid)
+        except Exception as ex:
+            voz = "no_disponible"
+            obs.log("WARN", "voice", f"sintesis no emitida; la respuesta se entrega en texto: {ex}", tid, audit=True)
         t.mark("tts")
         total = t.total_ms()
         obs.log("LAT", "orchestrator", f"latencia total {total:.1f} ms (proveedor={prov})", tid, audit=True)
         # `dominio` es ADITIVO: quien ya leia `provider` sigue leyendo lo mismo. Se declara siempre,
         # y vale "llm" cuando respondio el proveedor, para que no haya un hueco silencioso.
         # `estatus` es igual de aditivo (D-FC-1): nadie que leyera las claves anteriores las pierde.
-        self._results[tid] = {"say": visible, "provider": prov, "latency_ms": total,
-                              "marks": dict(t.marks), "dominio": dominio or ("llm" if prov != "core" else ""),
-                              "estatus": e.value}
+        # `voz` es ADITIVO, como lo fueron `dominio` y `estatus`: quien ya leia las claves anteriores
+        # sigue leyendo lo mismo. Dice si la respuesta ademas SONO, que es una propiedad del turno y no
+        # de la respuesta -- por eso no contamina el `say` (ADR-0017: lo que se entrega es lo que se dijo).
+        self._results[tid] = {
+            "say": visible,
+            "provider": prov,
+            "latency_ms": total,
+            "marks": dict(t.marks),
+            "dominio": dominio or ("llm" if prov != "core" else ""),
+            "estatus": e.value,
+            "voz": voz,
+            # `audio` es ADITIVO como `voz`: la ruta del WAV de la respuesta, o None si no sono.
+            "audio": audio if voz == "ok" else None,
+        }
         if tid in self._done:
             self._done[tid].set()

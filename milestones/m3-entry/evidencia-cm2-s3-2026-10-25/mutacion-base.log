@@ -1,0 +1,22 @@
+Arnes de mutacion: /home/majo1230/.claude/jobs/d6cb894c/tmp/cm2-mut/cm2-cableado-base.toml
+Base en verde. Mutantes evaluados: 4
+  [!!] C1 (SOBREVIVE): la composicion de produccion audita en otro fichero: --medir-cm2 no ve ningun hecho real
+        garantia NO verificada por ninguna prueba declarada
+  [OK] C2 (detectado): la composicion no inscribe el ejecutor del modelo de usuario: ningun hecho se registra
+        FAILED tests/integration/test_declaracion_sin_llm.py::test_A_me_llamo_se_acusa_en_el_core_sin_modelo_y_el_hecho_se_captura
+        FAILED tests/integration/test_declaracion_sin_llm.py::test_B_despues_como_me_llamo_es_HECHO_sin_modelo
+        FAILED tests/integration/test_declaracion_sin_llm.py::test_C_cumpleanos_se_acusa_sin_modelo_se_responde_y_se_versiona
+  [OK] C3 (detectado): el reloj lee otro audit distinto del de la composicion
+        FAILED tests/unit/test_reloj_cm2.py::test_un_inicio_sin_ts_numerico_no_cuenta_como_inicio
+        FAILED tests/integration/test_reloj_cm2_integracion.py::test_sin_evento_de_inicio_medir_no_emite_sondas_e_informa_no_iniciado
+        FAILED tests/integration/test_reloj_cm2_integracion.py::test_con_evento_de_inicio_emite_sondas_vigentes_y_es_idempotente
+  [OK] C4 (detectado): el ejecutor emite el registro del hecho con otro nombre de evento
+        FAILED tests/integration/test_reloj_cm2_integracion.py::test_hecho_registrado_lleva_hecho_id_version_y_valid_from
+        FAILED tests/integration/test_reloj_cm2_integracion.py::test_los_eventos_cm2_no_contienen_el_texto_declarado
+        FAILED tests/integration/test_reloj_cm2_integracion.py::test_sin_evento_de_inicio_medir_no_emite_sondas_e_informa_no_iniciado
+
+Total: 3 detectados, 1 sobreviven, 0 no aplicados, 0 ambiguos, 0 en timeout
+exit=2
+aura_skeleton/composicion.py: La suma coincide
+aura_skeleton/core/reloj_cm2.py: La suma coincide
+aura_skeleton/core/ejecutor_modelo_usuario.py: La suma coincide

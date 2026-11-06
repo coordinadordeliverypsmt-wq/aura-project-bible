@@ -14,6 +14,7 @@ plan aprobado sitúa dos fases más adelante.
 **fuera del alcance**: no se modifica ni se le añade comportamiento. · 17.4 — F2 se adelanta a la
 auditoría de F0, que sigue `WAITING_FOR_QUOTA`.
 """
+
 from __future__ import annotations
 
 import pathlib
@@ -46,7 +47,7 @@ class AdaptadorQueEscribe:
         self.ejecutadas: list[str] = []
         self.simuladas: list[str] = []
 
-    def para(self, accion):          # hace de RegistroAdaptadores
+    def para(self, accion):  # hace de RegistroAdaptadores
         return self
 
     async def simular(self, accion, args, trace_id):
@@ -160,7 +161,8 @@ async def test_f2_la_detencion_por_kill_switch_queda_en_el_audit(tmp_path, monke
     de_auditoria = [(a, k) for a, k in registros if k.get("audit") is True]
     assert de_auditoria, f"ningun registro con audit=True: {registros}"
     assert any("kill switch" in " ".join(str(x) for x in a).lower() for a, _ in de_auditoria), (
-        f"el audit no identifica el bloqueo por kill switch: {de_auditoria}")
+        f"el audit no identifica el bloqueo por kill switch: {de_auditoria}"
+    )
 
 
 # ============================= 17.3 · simular queda FUERA DE ALCANCE, y se fija --

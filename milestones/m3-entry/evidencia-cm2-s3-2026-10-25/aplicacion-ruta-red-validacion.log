@@ -1,0 +1,11 @@
+$ pytest tests/unit/test_ruta_red.py
+14 passed in 0.40s
+$ pytest regresion nodos/red/aislamiento
+299 passed in 34.28s
+$ ruff format --check / ruff check
+303 files already formatted
+All checks passed!
+$ herramientas.mutar mutaciones/ruta-red.toml
+Arnés: muta una copia aislada (/tmp/aura-mutar-ro8scw_a/m3-entry/walking-skeleton); el árbol original solo se lee.
+Total: 6 detectados, 0 sobreviven, 0 no aplicados, 0 ambiguos, 0 en timeout
+exit_mutacion=0

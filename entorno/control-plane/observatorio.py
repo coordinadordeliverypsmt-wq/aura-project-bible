@@ -259,6 +259,57 @@ def _resumir_ciclo(numero: int, crudo: dict, integro: bool) -> dict:
     }
 
 
+def _eventos_post_ciclo(eventos: list) -> list:
+    """Los eventos que llegan sin un ciclo abierto que los enmarque, porque el ultimo se cerro y no
+    se abrio uno nuevo despues -el kill switch es la causa observada el 2026-09-20, pero esta funcion
+    no la asume: solo describe el hueco temporal-.
+
+    Recorre el log con la MISMA definicion de apertura/cierre que `ciclos()` -`APERTURAS` y `CIERRES`
+    son la unica fuente de esa regla; duplicar la logica con datos propios seria el riesgo real, y
+    por eso se reusan las mismas constantes- pero, a diferencia de `ciclos()`, no los descarta con un
+    `continue`: los acumula. No son un ciclo -no tienen apertura propia- pero tampoco son ruido: AURA
+    los registro, y perderlos en silencio es exactamente lo que prohibe ADR-0023.
+
+    La lista se reinicia cada vez que se abre un ciclo nuevo: los huerfanos de ANTES de esa apertura
+    ya quedaron dentro de algun ciclo cerrado anterior (o fueron huerfanos de una foto ya superada);
+    lo que importa aqui es la cola de eventos sueltos al FINAL del log, que es donde vive el defecto
+    medido: 453 `descubrimiento_realizado` posteriores al cierre del ciclo 368."""
+    huerfanos: list = []
+    apertura_tipo = None
+    for evento in eventos:
+        tipo = evento.get("tipo")
+        if tipo in APERTURAS:
+            apertura_tipo = tipo
+            huerfanos = []
+            continue
+        if apertura_tipo is None:
+            huerfanos.append(evento)
+            continue
+        if tipo in CIERRES and CIERRES[tipo] == apertura_tipo:
+            apertura_tipo = None
+    return huerfanos
+
+
+def _ultimo_descubrimiento_del_log(eventos: list, huerfanos: list) -> tuple[dict, str]:
+    """El `descubrimiento_realizado` mas reciente de TODO el historial, con su procedencia.
+
+    `_resumir_ciclo` solo ve el que cae dentro del ultimo ciclo cerrado -`ultimo_ciclo["por_clase"]`-.
+    Si nada abre un ciclo nuevo despues, todo lo que AURA descubre queda fuera de esa foto y
+    `estado()` informaria de una cola que ya no es la real, mientras el motor -que si lee el log
+    entero- ya vio la nueva.
+
+    La procedencia devuelta (`'post_ciclo'` o `'ciclo'`) es el dato que distingue explicitamente un
+    hecho huerfano de uno ocurrido dentro de un ciclo real: ninguno de los dos se inventa, ninguno se
+    descarta, y ninguno se hace pasar por el otro. `NO_DISPONIBLE` cuando el log no registra ningun
+    `descubrimiento_realizado`."""
+    for evento in reversed(eventos):
+        if evento.get("tipo") != "descubrimiento_realizado":
+            continue
+        origen = "post_ciclo" if any(evento is h for h in huerfanos) else "ciclo"
+        return evento.get("datos") or {}, origen
+    return {}, NO_DISPONIBLE
+
+
 # --------------------------------------------------------------- proximo despertar --
 
 def _lineas_de_cron() -> list:
@@ -454,8 +505,16 @@ def _sospecha_de_ciclo_muerto(ciclo: dict, ahora: dt.datetime | None = None) -> 
 
 # --------------------------------------------------------------- estado --
 
-def _estado_actual(directorio: pathlib.Path, lista_de_ciclos: list, integro: bool) -> str:
-    """En orden de fuerza del hecho, no de gravedad aparente."""
+def _estado_actual(directorio: pathlib.Path, lista_de_ciclos: list, integro: bool,
+                   por_clase_global: dict | str | None = None) -> str:
+    """En orden de fuerza del hecho, no de gravedad aparente.
+
+    `por_clase_global` es opcional y, cuando se pasa, sustituye al reparto del ultimo ciclo cerrado
+    por el del ultimo `descubrimiento_realizado` de TODO el log (`_ultimo_descubrimiento_del_log`).
+    Sin esto, un log con eventos posteriores al cierre -el kill switch los produce desde 2026-09-08-
+    haria que la cabecera («ESPERANDO»/«DECISION_REQUIRED») y la cola mostrada tres lineas mas abajo
+    hablaran de dos fotos distintas del mismo historial: el mismo defecto que este ajuste corrige,
+    aparecido en un segundo sitio. `None` mantiene el comportamiento anterior para quien no lo pase."""
     if orq.parada_solicitada(directorio):
         # Alguien paro el sistema a mano: es el hecho mas fuerte que hay, y cualquier otra lectura
         # del historial es secundaria.
@@ -475,7 +534,7 @@ def _estado_actual(directorio: pathlib.Path, lista_de_ciclos: list, integro: boo
     import aura
     if ultimo_ciclo["motivo_de_parada"] not in aura.PARADAS_NORMALES:
         return "ERROR"
-    por_clase = ultimo_ciclo["por_clase"]
+    por_clase = ultimo_ciclo["por_clase"] if por_clase_global is None else por_clase_global
     elevadas = _dato(por_clase, "DECISION_REQUIRED") if isinstance(por_clase, dict) else NO_DISPONIBLE
     if elevadas == NO_DISPONIBLE:
         # No consta el reparto por clase, asi que no se puede distinguir «no hay nada pendiente» de
@@ -497,16 +556,24 @@ def estado(directorio) -> dict:
     integridad = cp.verificar_integridad_log(directorio)
     integro = bool(integridad.get("integro"))
     lista = ciclos(directorio, eventos, integro)
-    actual = _estado_actual(directorio, lista, integro)
     ultimo_ciclo = lista[-1] if lista else None
     trabajos = [t for t in _trabajos_en(eventos) if _efecto_real(t)]
     proyeccion = _proyeccion(directorio)
+
+    # La cola se lee del ultimo `descubrimiento_realizado` de TODO el log, dentro de un ciclo o
+    # despues de que cerrara -no de `ultimo_ciclo["por_clase"]`, que solo ve lo que cayo DENTRO del
+    # ultimo ciclo cerrado-. `ciclos()` no cambia: sigue troceando el log exactamente igual: lo que
+    # cambia es que los eventos que quedan fuera de todo ciclo ya no se pierden en silencio.
+    huerfanos = _eventos_post_ciclo(eventos)
+    ultimo_descubrimiento, origen_descubrimiento = _ultimo_descubrimiento_del_log(eventos, huerfanos)
+    actual = _estado_actual(directorio, lista, integro,
+                            por_clase_global=ultimo_descubrimiento.get("por_clase", NO_DISPONIBLE))
 
     ultima = NO_DISPONIBLE
     if trabajos:
         ultima = _detalle_de_trabajo(trabajos[-1], eventos, integro)
 
-    por_clase = ultimo_ciclo["por_clase"] if ultimo_ciclo else NO_DISPONIBLE
+    por_clase = ultimo_descubrimiento.get("por_clase", NO_DISPONIBLE)
     def _nivel(clase):
         return por_clase.get(clase, NO_DISPONIBLE) if isinstance(por_clase, dict) else NO_DISPONIBLE
 
@@ -518,9 +585,9 @@ def estado(directorio) -> dict:
         "ciclos": len(lista),
         "despertares": sum(1 for e in eventos
                            if e.get("tipo") in ("aura_despertada", "despertar_rechazado")),
-        # Niveles: se leen del ultimo descubrimiento. Acumularlos sumaria las mismas seis
-        # oportunidades noventa veces.
-        "trabajo_descubierto": ultimo_ciclo["descubiertas"] if ultimo_ciclo else NO_DISPONIBLE,
+        # Niveles: se leen del ultimo descubrimiento **de todo el log**, no solo del ultimo ciclo
+        # cerrado. Acumularlos sumaria las mismas seis oportunidades noventa veces.
+        "trabajo_descubierto": _dato(ultimo_descubrimiento, "encontradas"),
         "trabajo_bloqueado": _nivel("BLOQUEADA"),
         "trabajo_elevado": _nivel("DECISION_REQUIRED"),
         # Flujos: se acumulan sobre toda la historia.
@@ -540,6 +607,15 @@ def estado(directorio) -> dict:
         "trabajos_recientes": [_detalle_de_trabajo(x, eventos, integro)
                                for x in trabajos[-LIMITE_HISTORIAL:]],
         "cola": por_clase,
+        # Distincion explicita: de donde viene la cola que se acaba de enseñar. 'ciclo' -> el ultimo
+        # descubrimiento cayo dentro de un ciclo real emparejado. 'post_ciclo' -> es un evento
+        # huerfano, registrado despues de que el ultimo ciclo cerrara y sin que se abriera uno nuevo
+        # -no es un ciclo, y no se etiqueta como si lo fuera-. NO_DISPONIBLE -> el log no registra
+        # ningun `descubrimiento_realizado`.
+        "origen_de_la_cola": origen_descubrimiento,
+        # Cuantos eventos hay en ese tramo huerfano, para que "post_ciclo" no sea una palabra sin
+        # cifra detras.
+        "eventos_post_ciclo": len(huerfanos),
         "antiguedad_del_ciclo_abierto": (_antiguedad(ultimo_ciclo["inicio"])
                                          if ultimo_ciclo and ultimo_ciclo["abierto"]
                                          else NO_DISPONIBLE),
@@ -586,8 +662,10 @@ def ultimo(directorio) -> dict:
     La tentacion es enterrar un ciclo vacio y ensenar el anterior «porque tiene mas contenido». Eso
     convierte el informe en una seleccion editorial."""
     directorio = pathlib.Path(directorio)
+    eventos = cp.leer_eventos(directorio)
     integridad = cp.verificar_integridad_log(directorio)
-    lista = ciclos(directorio, integro=bool(integridad.get("integro")))
+    integro = bool(integridad.get("integro"))
+    lista = ciclos(directorio, eventos, integro)
     if not lista:
         return {"estado": NO_DISPONIBLE, "inicio": NO_DISPONIBLE, "fin": NO_DISPONIBLE,
                 "motivo_de_parada": NO_DISPONIBLE, "descubiertas": NO_DISPONIBLE,
@@ -600,7 +678,15 @@ def ultimo(directorio) -> dict:
         errores.append(f"historial: {integridad.get('motivo')}")
     if ciclo["abierto"]:
         errores.append(_sospecha_de_ciclo_muerto(ciclo))
-    ciclo["estado"] = _estado_actual(directorio, lista, bool(integridad.get("integro")))
+    # Mismo ajuste que en `estado()`: el estado "en vivo" que se cuelga de este ciclo tiene que leer
+    # la cola del ultimo `descubrimiento_realizado` de TODO el log, no solo la del ciclo que se esta
+    # mostrando -si no, este mismo informe podria decir "ESPERANDO" aqui y, a la vez, dejar ver en
+    # otro informe que ya hay una OPORTUNIDAD_REAL sin ejecutar.
+    huerfanos = _eventos_post_ciclo(eventos)
+    ultimo_descubrimiento, _ = _ultimo_descubrimiento_del_log(eventos, huerfanos)
+    ciclo["estado"] = _estado_actual(directorio, lista, integro,
+                                     por_clase_global=ultimo_descubrimiento.get("por_clase",
+                                                                                NO_DISPONIBLE))
     ciclo["errores"] = errores
     return ciclo
 

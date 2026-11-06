@@ -1,0 +1,3 @@
+3814 passed, 3 skipped, 17 xfailed in 533.84s (0:08:53)
+QUALITY GATE: PASS — listo para integrar/ejecutar
+EXIT=0

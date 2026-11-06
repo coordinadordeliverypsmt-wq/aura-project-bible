@@ -1,0 +1,7 @@
+(a) durante la verificación el fichero contiene: 'VALOR = 2\n'
+(a) resultado: {'efecto_verificado': True, 'verificacion_sana': True, 'revertido': False}
+(b) verificando (PID 580071 )
+(b) código de salida del hijo: -9
+(b) fichero tras la muerte: 'VALOR = 2\n'
+(b) ficheros en el directorio: ['.control-plane.lock', 'eventos.jsonl', 's.py']
+(b) eventos registrados: ['propuesta_registrada', 'propuesta_autorizada']

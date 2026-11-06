@@ -1,0 +1,2 @@
+huella sha de todos los .py vivos antes/despues de baterias y suites en copia: IGUAL (429 ficheros)
+huella mtime (.py + PARADA + estado.json): IGUAL

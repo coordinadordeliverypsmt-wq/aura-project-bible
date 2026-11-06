@@ -1,0 +1,22 @@
+{
+  "caso": "explicacion",
+  "tipo": "conocimiento",
+  "variante": "actual",
+  "texto": "por que el cielo es azul?",
+  "reloj_s": 31.07,
+  "total_s": 31.02,
+  "carga_s": 0.59,
+  "ingesta_tokens": 150,
+  "ingesta_s": 7.69,
+  "generacion_tokens": 29,
+  "generacion_s": 22.73,
+  "generacion_tok_s": 1.276,
+  "motivo_fin": "stop",
+  "json_valido": true,
+  "claves": [
+    "action",
+    "say"
+  ],
+  "say": "El cielo se ve azul porque es un reflejo del sol en nuestro espacio.",
+  "respuesta_cruda": "{\"say\": \"El cielo se ve azul porque es un reflejo del sol en nuestro espacio.\",\"action\":\"consulta\"}"
+}

@@ -118,8 +118,8 @@ garantia = "TRAZABILIDAD: la planificacion queda registrada ANTES de ejecutar"
 fichero = "motor_autonomia.py"
 pruebas = ["test_red_motor_autonomia.py::test_cada_tarea_del_encadenado_deja_su_RASTRO",
            "test_red_motor_autonomia.py::test_no_se_planifica_DOS_VECES_la_misma_tarea"]
-buscar = '''        plan.registrar_planificada(directorio, tarea)'''
-sustituir = '''        pass'''
+buscar = '''            planificada = plan.registrar_planificada(directorio, tarea)'''
+sustituir = '''            planificada = {"seq": 0}'''
 
 # --------- PARADA OBLIGATORIA ---------
 
@@ -167,8 +167,10 @@ fichero = "motor_autonomia.py"
 pruebas = ["test_red_motor_autonomia.py::test_TRES_tareas_encadenadas_sin_UN_SOLO_acto_humano",
            "test_red_motor_autonomia.py::test_la_segunda_vuelta_encuentra_la_cola_AGOTADA"]
 buscar = '''        oportunidades = des.descubrir(raiz, directorio)
+        _registrar_agotadas(directorio, oportunidades)
         informe["vueltas"] += 1'''
 sustituir = '''        oportunidades = [] if informe["vueltas"] else des.descubrir(raiz, directorio)
+        _registrar_agotadas(directorio, oportunidades)
         informe["vueltas"] += 1'''
 
 [[mutante]]
@@ -221,7 +223,7 @@ garantia = "COLA AGOTADA SALE 0: si saliera con error, quien lo automatice fabri
 fichero = "aura.py"
 pruebas = ["test_red_motor_autonomia.py::test_la_cola_agotada_SALE_CON_CERO",
            "test_red_motor_autonomia.py::test_una_parada_que_alguien_debe_MIRAR_no_sale_con_cero"]
-buscar = '''PARADAS_NORMALES = ("cola agotada", "limite de seguridad")'''
+buscar = '''PARADAS_NORMALES = ("cola agotada", "limite de seguridad", "otro supervisor en curso")'''
 sustituir = '''PARADAS_NORMALES = ()'''
 
 [[mutante]]

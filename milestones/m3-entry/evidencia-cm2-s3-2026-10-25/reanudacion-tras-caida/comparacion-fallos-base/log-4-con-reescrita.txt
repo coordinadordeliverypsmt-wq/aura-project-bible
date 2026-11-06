@@ -1,0 +1,38 @@
+...........FF..........................                                  [100%]
+=================================== FAILURES ===================================
+_____________ test_el_descubrimiento_ya_NO_la_propone_como_trabajo _____________
+
+    def test_el_descubrimiento_ya_NO_la_propone_como_trabajo():
+        ops = {o.detalle["numero"]: o for o in fm.formacion(PLANO, PLANO)}
+        op = ops["sexta-fuente-estancamiento"]
+>       assert op.estado != des.OPORTUNIDAD_REAL
+E       AssertionError: assert 'OPORTUNIDAD_REAL' != 'OPORTUNIDAD_REAL'
+E        +  where 'OPORTUNIDAD_REAL' = Oportunidad(id='OP-67f99f07b87b', fuente='/home/majo1230/.claude/jobs/d6cb894c/tmp/base-comparacion/copia-4/milestones...LEMENTABLE', 'operacion': 'sustituir_texto', 'buscar': 'K_ESTANCAMIENTO = None', 'sustituir': 'K_ESTANCAMIENTO = 100'}).estado
+E        +  and   'OPORTUNIDAD_REAL' = des.OPORTUNIDAD_REAL
+
+../../../copia-con/entorno/control-plane/test_red_capacidad_completada.py:132: AssertionError
+_____ test_la_capacidad_COMPLETADA_no_reaparece_en_el_siguiente_despertar ______
+
+    def test_la_capacidad_COMPLETADA_no_reaparece_en_el_siguiente_despertar():
+        """Idempotencia: la capacidad completada permanece completada.
+    
+        **Antes esto afirmaba que la cola estaba VACIA**, y era cierto mientras la sexta fuente era el
+        unico contrato del plano. Dejo de serlo cuando el CEO registro `DR-E` y aparecio un contrato
+        nuevo con trabajo legitimo pendiente: la cola paso a tener un elemento y la prueba se puso en
+        rojo **por un cambio de mundo, no por un defecto**.
+    
+        Lo que esta prueba mide —y lo que da nombre al fichero— es que lo ya completado NO vuelve.
+        Afirmar «la cola esta vacia» lo decia por casualidad; afirmar «lo completado no esta en la cola,
+        y la cola no cambia entre despertares» lo dice de verdad y sobrevive a que haya trabajo nuevo.
+        """
+        completadas = [o.detalle["numero"] for o in fm.formacion(PLANO, PLANO)
+                       if o.estado == des.FALSO_HUECO]
+>       assert completadas, "sin ninguna capacidad completada esta prueba no mide nada"
+E       AssertionError: sin ninguna capacidad completada esta prueba no mide nada
+E       assert []
+
+../../../copia-con/entorno/control-plane/test_red_capacidad_completada.py:150: AssertionError
+=========================== short test summary info ============================
+FAILED test_red_capacidad_completada.py::test_el_descubrimiento_ya_NO_la_propone_como_trabajo
+FAILED test_red_capacidad_completada.py::test_la_capacidad_COMPLETADA_no_reaparece_en_el_siguiente_despertar
+2 failed, 37 passed in 7.37s

@@ -1,0 +1,14 @@
+Arnés: muta una copia aislada (/tmp/aura-mutar-nzt7mf6l/m3-entry/walking-skeleton); el árbol original solo se lee.
+Arnes de mutacion: mutaciones/arnes-timeout.toml
+Base en verde. Mutantes evaluados: 4
+  [OK] M1 (detectado): un mutante en TIMEOUT se reporta como 'detectado': la mentira exacta que este incremento existe para evitar
+        FAILED tests/unit/test_arnes_mutacion.py::test_mutante_que_cuelga_se_reporta_como_timeout_y_no_bloquea_el_arnes
+  [OK] M2 (detectado): al vencer el timeout solo se mata el proceso de pytest, no el ARBOL completo: deja huerfanos (el dano ya medido en produccion)
+        FAILED tests/unit/test_arnes_ciclo_de_vida.py::test_el_timeout_mata_tambien_al_proceso_del_grupo_que_ya_cuelga_de_init
+  [OK] M3 (detectado): 'concluyente' deja de exigir timeouts==0: un mutante en TIMEOUT se colaria como exito del conjunto
+        FAILED tests/unit/test_arnes_mutacion.py::test_mutante_que_cuelga_se_reporta_como_timeout_y_no_bloquea_el_arnes
+  [OK] M4 (detectado): el 'timeout_s' declarado en el TOML se ignora: 'ejecutar()' siempre usaria el plazo por defecto sin que nadie se entere
+        FAILED tests/unit/test_arnes_mutacion.py::test_timeout_s_del_toml_se_pasa_a_ejecutar_pytest
+
+Total: 4 detectados, 0 sobreviven, 0 no aplicados, 0 ambiguos, 0 en timeout
+exit=0

@@ -1,0 +1,244 @@
+incremento = "ORDENES DE CAPACIDAD (CEO, 2026-09-21): el usuario pide una capacidad registrada y AURA la EJECUTA de verdad, por el Motor Unico"
+pruebas = ["tests/integration/test_ordenes_de_capacidad.py"]
+timeout_s = 600
+
+# POR QUE ESTE CATALOGO.
+#
+# Esta superficie es la primera que convierte una frase del usuario en una EJECUCION real sin pasar
+# por el modelo. Sus barreras no son de comodidad: deciden que se ejecuta y que no. Una que
+# estuviera declarada y no protegiera seria una puerta abierta en el sitio por donde entra todo.
+#
+# Se muta tambien el CABLEADO —que la orden llegue al motor y no a un adaptador— porque esa es la
+# garantia de ALERTA-005, y porque el mutante «la composicion no enciende las automatizaciones»
+# enseno que el cableado se olvida antes que la logica.
+
+[[mutante]]
+id = "OC-M1"
+garantia = "SE RECONOCE POR SEGMENTO COMPLETO, NUNCA POR SUBCADENA: con `in` bastaria que la frase CONTUVIERA la variante, y «no ejecutes las pruebas» ejecutaria exactamente lo contrario de lo que pide el usuario"
+fichero = "aura_skeleton/core/ordenes.py"
+pruebas = ["tests/integration/test_ordenes_de_capacidad.py::test_NO_reconoce_lo_que_no_es_una_orden_limpia", "tests/integration/test_ordenes_de_capacidad.py::test_reconoce_las_ordenes_escritas"]
+buscar = '''        if nombre in servidas and segmento in _VARIANTES[nombre]:'''
+sustituir = '''        if nombre in servidas and any(v in segmento for v in _VARIANTES[nombre]):'''
+
+[[mutante]]
+id = "OC-M2"
+garantia = "SOLO SE RECONOCE LO QUE EL REGISTRO SIRVE DE VERDAD (INV-9): una capacidad declarada sin adaptador montado acabaria en «ninguna capacidad atiende», que el usuario leeria como una averia en vez de como algo no construido"
+fichero = "aura_skeleton/core/ordenes.py"
+pruebas = ["tests/integration/test_ordenes_de_capacidad.py::test_una_capacidad_que_el_registro_NO_sirve_no_se_reconoce", "tests/integration/test_ordenes_de_capacidad.py::test_reconoce_las_ordenes_escritas"]
+buscar = '''        if nombre in servidas and segmento in _VARIANTES[nombre]:'''
+sustituir = '''        if segmento in _VARIANTES[nombre]:'''
+
+[[mutante]]
+id = "OC-M3"
+garantia = "EL FILTRO VERDE+LECTURA SE CALCULA DEL CATALOGO: esta superficie ejecuta SIN confirmacion, asi que alcanzar una capacidad roja o de escritura seria saltarse ADR-0003 por la puerta de entrada"
+fichero = "aura_skeleton/core/ordenes.py"
+pruebas = ["tests/integration/test_ordenes_de_capacidad.py::test_AISLADO_una_capacidad_RECLASIFICADA_deja_de_reconocerse", "tests/integration/test_ordenes_de_capacidad.py::test_solo_se_reconocen_capacidades_VERDES_y_de_LECTURA"]
+buscar = '''            and ficha.get("lista") == "verde"
+            and ficha.get("efecto") == "lectura"
+        )
+    )'''
+sustituir = '''        )
+    )  # deja de filtrarse por lista y efecto'''
+
+[[mutante]]
+id = "OC-M4"
+garantia = "UNA ORDEN NO LLEVA ARGUMENTOS DEL USUARIO: si los llevara, la superficie ejecutable dejaria de ser cerrada y el llamante podria influir en QUE se ejecuta"
+fichero = "aura_skeleton/core/ordenes.py"
+pruebas = ["tests/integration/test_ordenes_de_capacidad.py::test_una_orden_no_lleva_argumentos_del_usuario", "tests/integration/test_ordenes_de_capacidad.py::test_la_orden_se_ejecuta_POR_EL_MOTOR_UNICO_y_no_por_un_atajo"]
+buscar = '''_SIN_ARGUMENTOS: dict = {}'''
+sustituir = '''_SIN_ARGUMENTOS: dict = {"ruta": "."}  # la orden empieza a llevar argumentos'''
+
+[[mutante]]
+id = "OC-M5"
+garantia = "ALERTA-005 · LA EJECUCION PASA POR EL MOTOR UNICO: sin esta llamada la superficie no ejecuta nada, y con un atajo a un adaptador seria la segunda ruta de ejecucion que este proyecto ya pago dos veces"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_ordenes_de_capacidad.py::test_la_orden_se_ejecuta_POR_EL_MOTOR_UNICO_y_no_por_un_atajo"]
+buscar = '''        res = await self.motor.ejecutar(capacidad, args, tid, ev.event_id, origen="conversacion")'''
+sustituir = '''        res = {"accion": capacidad, "estado": "ejecutada", "origen": "conversacion",
+               "resultado": {"ok": True, "resumen": "hecho"}}  # se salta el motor'''
+
+[[mutante]]
+id = "OC-M6"
+garantia = "UN TURNO CON VARIAS FRASES NO SE EJECUTA: ante la duda, no (ADR-0003). Adivinar cual de las frases manda seria decidir por el usuario en la puerta de la ejecucion"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_ordenes_de_capacidad.py::test_un_turno_con_VARIAS_frases_no_se_ejecuta", "tests/integration/test_ordenes_de_capacidad.py::test_la_orden_se_ejecuta_POR_EL_MOTOR_UNICO_y_no_por_un_atajo"]
+buscar = '''        if len(partes) != 1:'''
+sustituir = '''        if not partes:'''
+
+[[mutante]]
+id = "OC-M7"
+garantia = "UN RESULTADO MALO NO SE CUENTA COMO BUENO: el adaptador devuelve `ok=False` con su motivo, y decir «termino correctamente» seria «declarado != real» en la superficie que el usuario lee y se cree"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_ordenes_de_capacidad.py::test_un_resultado_MALO_no_se_cuenta_como_bueno", "tests/integration/test_ordenes_de_capacidad.py::test_CONTROL_un_resultado_BUENO_si_se_cuenta_como_bueno"]
+buscar = '''    if detalle.get("ok") is False:
+        cuerpo = resumen or "no ha salido bien"'''
+sustituir = '''    if False:  # el veredicto del adaptador deja de mirarse
+        cuerpo = resumen or "no ha salido bien"'''
+
+[[mutante]]
+id = "OC-M8"
+garantia = "UNA DENEGACION DE GOBIERNO NO ES UNA AVERIA: el motor distingue `detenida` de `error`, y confundirlas le contaria al usuario que el sistema falla cuando lo que pasa es que una barrera funciono"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_ordenes_de_capacidad.py::test_una_capacidad_DETENIDA_por_el_gobierno_no_se_cuenta_como_fallo", "tests/integration/test_ordenes_de_capacidad.py::test_el_KILL_SWITCH_detiene_la_orden_porque_pasa_por_el_motor"]
+buscar = '''    if estado == "detenida":
+        motivo = _con_nombres_humanos(str(res.get("motivo") or "un control lo impidió"), nombres)
+        return f"No he ejecutado «{capacidad}»: {motivo}."'''
+sustituir = '''    if False:  # `detenida` deja de distinguirse de un error
+        motivo = _con_nombres_humanos(str(res.get("motivo") or "un control lo impidió"), nombres)
+        return f"No he ejecutado «{capacidad}»: {motivo}."'''
+
+[[mutante]]
+id = "OC-M9"
+garantia = "SIN MOTOR NO HAY SUPERFICIE: inventar un camino de ejecucion cuando falta la puerta por la que tendria que pasar es exactamente lo que ALERTA-005 prohibe"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_ordenes_de_capacidad.py::test_sin_motor_no_hay_superficie"]
+buscar = '''        if self.motor is None or self.registro is None:'''
+sustituir = '''        if False:  # se atiende aunque no haya motor ni registro'''
+
+# --- ORDENES CON RUTA (2026-09-21) ---
+#
+# El salto a un argumento del usuario. Sus barreras deciden QUE ruta llega al nucleo, asi que una
+# que estuviera declarada y no protegiera seria una via hacia ficheros que el ambito no concede.
+
+[[mutante]]
+id = "OC-M10"
+garantia = "LA RUTA SE TOMA DEL TEXTO ORIGINAL: la normalizacion pasa a minusculas y parte por el punto, asi que `Documentos` se volveria `documentos` y `~/Musica/notas.TXT` se partiria en dos — un «no existe» sobre ficheros que si estan"
+fichero = "aura_skeleton/core/ordenes.py"
+pruebas = ["tests/integration/test_ordenes_de_capacidad.py::test_reconoce_la_orden_y_CONSERVA_la_ruta_literal"]
+buscar = '''            resto = " ".join(palabras[len(trozos) :]).strip()'''
+sustituir = '''            resto = " ".join(comparables[len(trozos) :]).strip()  # la ruta pasa por el normalizador'''
+
+[[mutante]]
+id = "OC-M11"
+garantia = "SIN RUTA NO HAY ORDEN: «lista el directorio» a secas no dice cual, y adivinarlo seria decidir por el usuario donde mirar"
+fichero = "aura_skeleton/core/ordenes.py"
+pruebas = ["tests/integration/test_ordenes_de_capacidad.py::test_sin_ruta_no_hay_orden", "tests/integration/test_ordenes_de_capacidad.py::test_reconoce_la_orden_y_CONSERVA_la_ruta_literal"]
+buscar = '''            if not resto:
+                return None'''
+sustituir = '''            if False:
+                return None'''
+
+[[mutante]]
+id = "OC-M12"
+garantia = "SOLO CAPACIDADES DE UN UNICO ARGUMENTO: `buscar_archivo` pide `patron` Y `raiz`, y pasar medio contrato daria un error del nucleo que el usuario leeria como averia de AURA"
+fichero = "aura_skeleton/core/ordenes.py"
+pruebas = ["tests/integration/test_ordenes_de_capacidad.py::test_AISLADO_anadir_buscar_archivo_a_la_tabla_NO_basta_para_colarla"]
+buscar = '''    return args[0] if len(args) == 1 else None'''
+sustituir = '''    return args[0] if args else None  # deja pasar capacidades de varios argumentos'''
+
+[[mutante]]
+id = "OC-M13"
+garantia = "SOLO SE RECONOCE LO QUE EL REGISTRO SIRVE, tambien en las ordenes con ruta (INV-9)"
+fichero = "aura_skeleton/core/ordenes.py"
+pruebas = ["tests/integration/test_ordenes_de_capacidad.py::test_una_capacidad_con_ruta_que_el_registro_NO_sirve_no_se_reconoce", "tests/integration/test_ordenes_de_capacidad.py::test_reconoce_la_orden_y_CONSERVA_la_ruta_literal"]
+buscar = '''        if capacidad not in servidas or capacidad not in capacidades_reconocibles(_PREFIJOS_CON_RUTA):'''
+sustituir = '''        if capacidad not in capacidades_reconocibles(_PREFIJOS_CON_RUTA):'''
+
+[[mutante]]
+id = "OC-M14"
+garantia = "UN `duplicate` NO ES UNA EJECUCION: el adaptador NO volvio a ejecutar, y contarlo como trabajo hecho seria afirmar algo que no ocurrio"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_ordenes_de_capacidad.py::test_un_resultado_DUPLICATE_no_se_cuenta_como_ejecucion_fresca", "tests/integration/test_ordenes_de_capacidad.py::test_un_LISTADO_se_enseña_en_vez_de_decir_solo_que_termino"]
+buscar = '''    if estado_adaptador == "duplicate":'''
+sustituir = '''    if False:  # `duplicate` deja de distinguirse de una ejecucion fresca'''
+
+[[mutante]]
+id = "OC-M15"
+garantia = "EL LISTADO SE ENSENA: decir «termino correctamente» sin mostrar las entradas es cierto e inutil — la otra forma de que una respuesta no sirva"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_ordenes_de_capacidad.py::test_un_LISTADO_se_enseña_en_vez_de_decir_solo_que_termino", "tests/integration/test_ordenes_de_capacidad.py::test_un_directorio_VACIO_se_dice_que_esta_vacio"]
+buscar = '''    if isinstance(entradas, (list, tuple)):'''
+sustituir = '''    if False:  # el listado deja de ensenarse'''
+
+[[mutante]]
+id = "OC-M16"
+garantia = "LA RUTA LLEGA AL NUCLEO CON SU NOMBRE DE ARGUMENTO CORRECTO, leido de la especificacion y no cableado en la superficie"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_ordenes_de_capacidad.py::test_el_nombre_del_argumento_se_lee_del_NUCLEO_no_se_cablea", "tests/integration/test_ordenes_de_capacidad.py::test_la_orden_con_ruta_tambien_pasa_por_el_MOTOR_UNICO"]
+buscar = '''    nombre: (_ESPECS.get(nombre, {}).get("args") or ("ruta",))[0]'''
+sustituir = '''    nombre: "ruta"  # el nombre del argumento se cablea en la superficie'''
+
+# --- LO QUE LA AUDITORIA DE CASOS LIMITE DESTAPO (2026-09-21) ---
+
+[[mutante]]
+id = "OC-M17"
+garantia = "LA RUTA NO SE TRAGA EL RESTO DE LA FRASE: sin esto, «lista el directorio ~/Documentos, gracias» pedia al nucleo una ruta que nadie escribio, y el usuario leia «no existe» sobre algo que no pidio"
+fichero = "aura_skeleton/core/ordenes.py"
+pruebas = ["tests/integration/test_ordenes_de_capacidad.py::test_la_ruta_no_se_traga_el_RESTO_de_la_frase", "tests/integration/test_ordenes_de_capacidad.py::test_CONTROL_una_ruta_con_ESPACIOS_sigue_siendo_valida"]
+buscar = '''            if _la_frase_sigue(resto):
+                return None'''
+sustituir = '''            if False:
+                return None'''
+
+[[mutante]]
+id = "OC-M18"
+garantia = "UN FICHERO BINARIO NO SE VUELCA A LA CONVERSACION: bytes crudos son ilegibles y sus caracteres de control pueden desordenar la terminal de quien lee"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_ordenes_de_capacidad.py::test_un_fichero_BINARIO_no_se_vuelca_a_la_conversacion", "tests/integration/test_ordenes_de_capacidad.py::test_CONTROL_un_texto_NORMAL_si_se_enseña"]
+buscar = '''        if isinstance(contenido, (bytes, bytearray)) or _tiene_control(str(contenido)):'''
+sustituir = '''        if False:  # el binario vuelve a volcarse crudo'''
+
+# --- COMPOSICION: LA REVISION (2026-09-21) ---
+#
+# Varias capacidades reales, una respuesta. La barrera que mas importa aqui no es de ejecucion sino
+# de VERACIDAD: una sintesis que redondee a favor le cuenta al usuario que algo se reviso cuando no
+# se reviso, o que esta limpio cuando no lo esta.
+
+[[mutante]]
+id = "OC-M19"
+garantia = "UNA INCIDENCIA IMPIDE DECIR QUE TODO ESTA LIMPIO: el veredicto sale de CONTAR, no de interpretar, para que la sintesis no pueda ser mas optimista que sus partes"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_ordenes_de_capacidad.py::test_una_INCIDENCIA_impide_decir_que_todo_esta_limpio", "tests/integration/test_ordenes_de_capacidad.py::test_CONTROL_si_TODO_esta_limpio_se_dice_que_esta_limpio"]
+buscar = '''    if incidencias:
+        lineas.append(f"He revisado {len(hallazgos)} cosa(s) y **hay {len(incidencias)} con incidencia**:")'''
+sustituir = '''    if False:
+        lineas.append(f"He revisado {len(hallazgos)} cosa(s) y **hay {len(incidencias)} con incidencia**:")'''
+
+[[mutante]]
+id = "OC-M20"
+garantia = "UN BLOQUEO NO SE COMPENSA CON LOS ACIERTOS: componer no concede autoridad, y presentar una revision completa cuando una parte no llego a mirarse seria «declarado != real» con la firma de AURA debajo"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_ordenes_de_capacidad.py::test_una_capacidad_BLOQUEADA_no_se_compensa_con_las_demas", "tests/integration/test_ordenes_de_capacidad.py::test_un_DUPLICATE_se_cuenta_como_sin_datos_no_como_limpio", "tests/integration/test_ordenes_de_capacidad.py::test_CONTROL_si_TODO_esta_limpio_se_dice_que_esta_limpio"]
+buscar = '''    elif bloqueados or errores or sin_datos:'''
+sustituir = '''    elif False:  # lo no revisado deja de avisarse'''
+
+[[mutante]]
+id = "OC-M21"
+garantia = "UN BLOQUEO NO ES UNA INCIDENCIA: una barrera que funciono no es un problema del sistema, y confundirlas le contaria al usuario que AURA esta rota cuando esta protegida"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_ordenes_de_capacidad.py::test_un_bloqueo_NO_se_cuenta_como_incidencia", "tests/integration/test_ordenes_de_capacidad.py::test_una_capacidad_BLOQUEADA_no_se_compensa_con_las_demas"]
+buscar = '''    if estado == "detenida":
+        return ("bloqueado", str(res.get("motivo") or "un control lo impidió"))'''
+sustituir = '''    if estado == "detenida":
+        return ("incidencia", str(res.get("motivo") or "un control lo impidió"))'''
+
+[[mutante]]
+id = "OC-M22"
+garantia = "UN `duplicate` NO ES UNA REVISION: el adaptador NO volvio a ejecutar, asi que contarlo como revisado afirma una comprobacion que no ocurrio"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_ordenes_de_capacidad.py::test_un_DUPLICATE_se_cuenta_como_sin_datos_no_como_limpio", "tests/integration/test_ordenes_de_capacidad.py::test_CONTROL_si_TODO_esta_limpio_se_dice_que_esta_limpio"]
+buscar = '''    if detalle.get("status") == "duplicate":
+        return ("sin_datos", "ya se había ejecutado; no hay resultado nuevo")'''
+sustituir = '''    if False:
+        return ("sin_datos", "ya se había ejecutado; no hay resultado nuevo")'''
+
+[[mutante]]
+id = "OC-M23"
+garantia = "CADA CAPACIDAD DE LA REVISION PASA POR SU PROPIA PUERTA (ALERTA-005): no hay despacho «de revision» en bloque, sino el mismo camino repetido"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_ordenes_de_capacidad.py::test_cada_capacidad_de_la_revision_pasa_POR_SU_PROPIA_puerta"]
+buscar = '''            res = await self.motor.ejecutar(
+                capacidad, ordenes.argumentos_de(capacidad), tid, ev.event_id, origen="conversacion"
+            )
+            hallazgos.append((capacidad, res if isinstance(res, dict) else {}))'''
+sustituir = '''            hallazgos.append((capacidad, {"accion": capacidad, "estado": "ejecutada",
+                                          "origen": "conversacion",
+                                          "resultado": {"ok": True, "resumen": ""}}))'''
+
+[[mutante]]
+id = "OC-M24"
+garantia = "SOLO SE COMPONEN CAPACIDADES QUE EL REGISTRO SIRVE (INV-9): un informe sobre capacidades no montadas seria inventado"
+fichero = "aura_skeleton/core/ordenes.py"
+pruebas = ["tests/integration/test_ordenes_de_capacidad.py::test_solo_se_componen_capacidades_que_el_registro_SIRVE", "tests/integration/test_ordenes_de_capacidad.py::test_reconoce_una_peticion_COMPUESTA"]
+buscar = '''        partes = tuple(c for c in _COMPUESTAS[nombre] if c in servidas and c in reconocibles)'''
+sustituir = '''        partes = tuple(_COMPUESTAS[nombre])  # se componen aunque no esten servidas'''

@@ -1,0 +1,184 @@
+{
+ "resumen": {
+  "modo": "rapido",
+  "turnos": 16,
+  "validos": 0,
+  "p50_validos_ms": null,
+  "p95_validos_ms": null,
+  "p50_todos_ms(fallo=inf)": Infinity,
+  "correctas": 0,
+  "oyo_bien": 3,
+  "preguntas": 0
+ },
+ "turnos": [
+  {
+   "n": 0,
+   "persona": "¿Cómo me llamo?",
+   "aura_dijo": "No te oí.",
+   "oido": null,
+   "valido": false,
+   "motivo": "persona no oída por el observador",
+   "ruido": 3222.120849609375,
+   "correcta": null,
+   "oyo_bien": false
+  },
+  {
+   "n": 1,
+   "persona": "¿Cuál es mi color favorito?",
+   "aura_dijo": "No tengo ningun recuerdo registrado sobre eso.",
+   "oido": "tú (oído)> cuál es dije",
+   "valido": false,
+   "lat_ms": 220,
+   "fin_habla_a_texto_ms": 13381,
+   "texto_a_sonido_ms": -13170,
+   "ruido": 601,
+   "umbral": 3007,
+   "motivo": "el sonido precede a la respuesta de AURA: no es la respuesta",
+   "correcta": null,
+   "oyo_bien": false
+  },
+  {
+   "n": 2,
+   "persona": "¿Cómo me llamo?",
+   "aura_dijo": null,
+   "oido": "tú (oído)> hago",
+   "valido": false,
+   "motivo": "sin respuesta en 20 s"
+  },
+  {
+   "n": 3,
+   "persona": "¿Cuál es mi color favorito?",
+   "aura_dijo": "No tengo ningun recuerdo registrado sobre eso.",
+   "oido": "tú (oído)> cuál mi color favorito cuál es en qué",
+   "valido": false,
+   "motivo": "persona no oída por el observador",
+   "ruido": 2265.7618408203125,
+   "correcta": null,
+   "oyo_bien": true
+  },
+  {
+   "n": 4,
+   "persona": "¿Cómo me llamo?",
+   "valido": false,
+   "motivo": "la palabra de activación no despertó a AURA"
+  },
+  {
+   "n": 5,
+   "persona": "¿Cuál es mi color favorito?",
+   "aura_dijo": null,
+   "oido": "tú (oído)> acuerdas color favorito",
+   "valido": false,
+   "motivo": "sin respuesta en 20 s"
+  },
+  {
+   "n": 6,
+   "persona": "¿Cómo me llamo?",
+   "aura_dijo": "No te oí.",
+   "oido": null,
+   "valido": false,
+   "lat_ms": 210,
+   "fin_habla_a_texto_ms": -2095,
+   "texto_a_sonido_ms": 2301,
+   "ruido": 1122,
+   "umbral": 5609,
+   "motivo": "AURA contestó antes de que terminara la persona (corte prematuro)",
+   "correcta": null,
+   "oyo_bien": false
+  },
+  {
+   "n": 7,
+   "persona": "¿Cuál es mi color favorito?",
+   "aura_dijo": null,
+   "oido": "tú (oído)> doce",
+   "valido": false,
+   "motivo": "sin respuesta en 20 s"
+  },
+  {
+   "n": 8,
+   "persona": "¿Cómo me llamo?",
+   "aura_dijo": "No te oí.",
+   "oido": null,
+   "valido": false,
+   "lat_ms": 100,
+   "fin_habla_a_texto_ms": 190,
+   "texto_a_sonido_ms": -87,
+   "ruido": 1214,
+   "umbral": 6068,
+   "motivo": "el sonido precede a la respuesta de AURA: no es la respuesta",
+   "correcta": null,
+   "oyo_bien": false
+  },
+  {
+   "n": 9,
+   "persona": "¿Cuál es mi color favorito?",
+   "aura_dijo": "Todavía no me has dicho cuál es tu color favorito.",
+   "oido": "tú (oído)> cuál es mi cuál es mi color favorito mi",
+   "valido": false,
+   "motivo": "persona no oída por el observador",
+   "ruido": 2201.185546875,
+   "correcta": null,
+   "oyo_bien": true
+  },
+  {
+   "n": 10,
+   "persona": "¿Cómo me llamo?",
+   "valido": false,
+   "motivo": "la palabra de activación no despertó a AURA"
+  },
+  {
+   "n": 11,
+   "persona": "¿Cuál es mi color favorito?",
+   "aura_dijo": "No tengo ningun recuerdo registrado sobre eso.",
+   "oido": "tú (oído)> sabes de lo cuál color favorito",
+   "valido": false,
+   "lat_ms": 410,
+   "fin_habla_a_texto_ms": 2229,
+   "texto_a_sonido_ms": -1814,
+   "ruido": 1314,
+   "umbral": 6572,
+   "motivo": "el sonido precede a la respuesta de AURA: no es la respuesta",
+   "correcta": null,
+   "oyo_bien": true
+  },
+  {
+   "n": 12,
+   "persona": "¿Cómo me llamo?",
+   "aura_dijo": "No tengo ningun recuerdo registrado sobre eso.",
+   "oido": "tú (oído)> cuál hago",
+   "valido": false,
+   "motivo": "persona no oída por el observador",
+   "ruido": 2634.5777587890625,
+   "correcta": null,
+   "oyo_bien": false
+  },
+  {
+   "n": 13,
+   "persona": "¿Cuál es mi color favorito?",
+   "aura_dijo": null,
+   "oido": "tú (oído)> es mi qué",
+   "valido": false,
+   "motivo": "sin respuesta en 20 s"
+  },
+  {
+   "n": 14,
+   "persona": "¿Cómo me llamo?",
+   "valido": false,
+   "motivo": "la palabra de activación no despertó a AURA"
+  },
+  {
+   "n": 15,
+   "persona": "¿Cuál es mi color favorito?",
+   "aura_dijo": "No te oí.",
+   "oido": null,
+   "valido": false,
+   "lat_ms": 950,
+   "fin_habla_a_texto_ms": -356,
+   "texto_a_sonido_ms": 1315,
+   "ruido": 1948,
+   "umbral": 9738,
+   "motivo": "AURA contestó antes de que terminara la persona (corte prematuro)",
+   "correcta": null,
+   "oyo_bien": false
+  }
+ ]
+}

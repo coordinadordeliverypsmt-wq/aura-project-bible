@@ -1,0 +1,662 @@
+{
+ "actualizado": "2026-10-22 (estado operativo PS5 por DDP; niveles sin cambios)",
+ "escala": "0 inexistente · 1 concepto · 2 prototipo · 3 implementada · 4 integrada · 5 demostrada E2E · 6 operativa",
+ "capacidades": [
+  {
+   "dim": "A",
+   "capacidad": "AURA describe su estado real (D-FC-3)",
+   "nivel": 4,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/aura_skeleton/core/orchestrator.py _describir_aura; composicion.py fuente_autonoma",
+   "bloqueo": ""
+  },
+  {
+   "dim": "A",
+   "capacidad": "Estado operativo persistente que sobrevive al reinicio",
+   "nivel": 6,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/core/estado_operativo.py; mutaciones/estado-operativo.toml; ~/.aura/estado_operativo.jsonl real; tests/integration/test_estado_operativo_reinicio.py",
+   "bloqueo": ""
+  },
+  {
+   "dim": "A",
+   "capacidad": "No finge: estatus epistémico HECHO/PROPUESTA/AUSENCIA",
+   "nivel": 6,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/core/estatus.py asignar; mutaciones/hecho-declarado-sin-llm.toml, frontera-cognitiva.toml; audit.jsonl real",
+   "bloqueo": ""
+  },
+  {
+   "dim": "A",
+   "capacidad": "Personalidad/identidad estable expresada (D6, vía avatar)",
+   "nivel": 1,
+   "alcance": "MVP",
+   "evidencia": "docs/libro-06/6.5-avatar-interactivo-presencia.md:25,41",
+   "bloqueo": "Avatar bloqueado por plataforma de despliegue (D33)"
+  },
+  {
+   "dim": "A",
+   "capacidad": "Conoce su sobre de hardware (DetectorHardware real, ADR-0021/0020)",
+   "nivel": 5,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/aura_skeleton/adapters/detector_hardware.py; composicion.py (desde_entorno -> detector; BOOT auditado); [EJEC] 2026-09-29 --verificar en HC-1: ram_mb=3719, nucleos=2, isa_avx2=0, isa_sse4_2=1, gpu_render=1 (contrastado con /proc por auditoría independiente); ampliación automática 16 GB -> memoria ACTIVA probada con detector simulado; mutaciones/detector-hardware.toml 17/17",
+   "bloqueo": "El catálogo solo adapta la memoria: voz y razonamiento por hardware exigen DP-CAPACIDADES-POR-HARDWARE (DECISION_REQUIRED, D46); la ampliación con hardware real mejor no se ha podido medir (no hay equipo)"
+  },
+  {
+   "dim": "B",
+   "capacidad": "Memoria personal declarada y persistente",
+   "nivel": 6,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/modules/memory.py; core/modelo_usuario.py; mutaciones/hechos-declarados.toml 10/10; ~/.aura/memoria.json real",
+   "bloqueo": ""
+  },
+  {
+   "dim": "B",
+   "capacidad": "Corrección y versionado (incl. «me llamo X»)",
+   "nivel": 5,
+   "alcance": "MVP",
+   "evidencia": "[EJEC] CHECKPOINT campaña 2026-09-27; mutaciones/historial-y-vigencia.toml 14/14, campana-presencia CP-M1..M4",
+   "bloqueo": ""
+  },
+  {
+   "dim": "B",
+   "capacidad": "Supervivencia al reinicio del proceso",
+   "nivel": 5,
+   "alcance": "MVP",
+   "evidencia": "[EJEC] 2026-09-27: dos procesos sobre el mismo directorio responden «Te llamas Mauro»",
+   "bloqueo": ""
+  },
+  {
+   "dim": "B",
+   "capacidad": "Memoria de trabajo entre turnos (DR-4)",
+   "nivel": 6,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/core/orchestrator.py _DIALOG_N/_MAX/_RECORTE_AURA; mutaciones/ventana-de-dialogo.toml 7/7; DR-4 aprobada CEO 2026-09-15",
+   "bloqueo": ""
+  },
+  {
+   "dim": "B",
+   "capacidad": "Recuperación de resultados de ejecución (M8)",
+   "nivel": 5,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/core/recuperacion.py; tests/integration/test_recuperacion_en_conversacion.py; mutaciones/recuperacion-de-resultados.toml 10/10; [EJEC] 12 escenarios; [EJEC] 2026-09-27 «¿qué hiciste?» recupera la acción física real sobre la TV sin reejecutarla, también con una pregunta en medio; S2-M24, M25, M33; camino HABLADO: tests/integration/test_umbral_una_conversacion_voz.py («¿apagaste la tele?» recupera sin reejecutar; 2026-10-21), mutaciones/umbral-una-conversacion-voz.toml 5/5",
+   "bloqueo": "Punto D de privacidad sin decidir"
+  },
+  {
+   "dim": "B",
+   "capacidad": "Olvido por entrada (DR-2)",
+   "nivel": 4,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/core/ejecutor_modelo_usuario.py olvidar; mutaciones/olvido-por-entrada.toml (sin versionar)",
+   "bloqueo": "D-AMP-3 (FORGET vs DELETE) sin firmar"
+  },
+  {
+   "dim": "B",
+   "capacidad": "Recuerdo a ≥4 semanas con ≥90 % (CM2)",
+   "nivel": 3,
+   "alcance": "MVP",
+   "evidencia": "Persistencia implementada; CM2 exige medición en uso real (Bible 2.5) nunca realizada",
+   "bloqueo": "Requiere 4 semanas de uso real instrumentado"
+  },
+  {
+   "dim": "B",
+   "capacidad": "Exclusión por sensibilidad del contenido retenido",
+   "nivel": 1,
+   "alcance": "MVP",
+   "evidencia": "milestones/m3-entry/DECISION-REQUERIDA-CONTINUIDAD-DE-RESULTADOS.md punto D",
+   "bloqueo": "Decisión del CEO (punto D)"
+  },
+  {
+   "dim": "B",
+   "capacidad": "Memoria semántica vectorial (N2, ADR-0020)",
+   "nivel": 3,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/modules/memory.py SemanticMemory; arranque declara memoria -> N1 en HC-1, decidido desde 2026-09-29 sobre RAM MEDIDA (ram_mb=3719 < 8000) y no sobre un perfil vacío",
+   "bloqueo": "Hardware: HC-1 no alcanza N2"
+  },
+  {
+   "dim": "C",
+   "capacidad": "Inferencia local (Ollama qwen2.5:0.5b)",
+   "nivel": 4,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/modules/providers_real.py OllamaProvider; [EJEC] 110 s por turno cognitivo en HC-1",
+   "bloqueo": "Latencia en HC-1 (CM1)"
+  },
+  {
+   "dim": "C",
+   "capacidad": "Razonamiento formal/aritmética sin LLM",
+   "nivel": 6,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/core/aritmetica.py; mutaciones/aritmetica-determinista.toml",
+   "bloqueo": ""
+  },
+  {
+   "dim": "C",
+   "capacidad": "Frontera cognitiva y abstención en dominios sensibles (D-FC)",
+   "nivel": 5,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/core/intencion.py dominio_sensible; mutaciones/frontera-cognitiva.toml 25/25; [EJEC] MEDICION-TURNO-COGNITIVO-2026-09-15",
+   "bloqueo": ""
+  },
+  {
+   "dim": "C",
+   "capacidad": "Tres LLM / multi-modelo (capacidad 6)",
+   "nivel": 1,
+   "alcance": "MVP",
+   "evidencia": "docs/libro-04/4.2; D24 prohíbe claves de terceros",
+   "bloqueo": "Conflicto D24 frente a capacidad 6 (R2 «políglota»)"
+  },
+  {
+   "dim": "C",
+   "capacidad": "Planificación de tareas",
+   "nivel": 4,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/core/planificacion.py; mutaciones/planificacion.toml; composicion.py oyente_de_transiciones",
+   "bloqueo": ""
+  },
+  {
+   "dim": "D",
+   "capacidad": "Captura del micrófono (pulsar para hablar, con tope)",
+   "nivel": 5,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/adapters/microfono.py; [EJEC] bucle acústico 2026-09-27; CP-M7/M8",
+   "bloqueo": ""
+  },
+  {
+   "dim": "D",
+   "capacidad": "Transcripción local Whisper (margen + vocabulario)",
+   "nivel": 5,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/adapters/voice_real.py; [EJEC] 12/15 órdenes cortas exactas, frases por el aire exactas; CP-M5/M6, VZ 14/14",
+   "bloqueo": ""
+  },
+  {
+   "dim": "D",
+   "capacidad": "Palabra de activación / escucha continua (Bible 6.2)",
+   "nivel": 5,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/aura_skeleton/adapters/escucha.py; __main__.py --escuchar --continuo; [EJEC] por el aire 22/24, 0 falsos positivos en 15; [EJEC] bucle completo «Oye Aurora» -> «¿Sí?» -> «¿Cómo me llamo?» -> «Te llamas Mauricio»; CP-M23..M26, M30; [EJEC] 2026-09-28 robustez bajo RUIDO CONTINUO: causa (code-grounded) = la detección solo evaluaba al cerrar frase por silencio; con ruido continuo la frase no cierra y quedaba sorda. Fix: se evalúa también el resultado PARCIAL con la misma exactitud es_llamada (0 FP preservados). Reproducción determinista RED→GREEN; por el aire activa limpio 2,4 s y con ruido 4,2 s; mutaciones/escucha-ruido-continuo.toml 3/3",
+   "bloqueo": ""
+  },
+  {
+   "dim": "E",
+   "capacidad": "Síntesis Piper con voz precargada",
+   "nivel": 5,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/aura_skeleton/adapters/voice_real.py _voz_cargada; [EJEC] TTS 5,9 s -> 0,8 s; turno de voz 25 s -> 7,4 s; CP-M27/M28",
+   "bloqueo": ""
+  },
+  {
+   "dim": "E",
+   "capacidad": "Reproducción por el altavoz",
+   "nivel": 5,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/adapters/microfono.py reproducir; [EJEC] la respuesta sonó por el aire",
+   "bloqueo": ""
+  },
+  {
+   "dim": "E",
+   "capacidad": "Conversación bidireccional por voz",
+   "nivel": 5,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/__main__.py --escuchar; entorno/scripts/aura-voz.sh; [EJEC] 7,4 s por turno con modelos cargados; [EJEC] 2026-10-06 E2E por el aire: fin de habla→respuesta P50 ≈ 7,9 s (n=4), «¿Sí?»→respuesta 12,3 s; cuello de botella STT Whisper base ≈ 5,5 s (evidencia-latencia-voz/RESULTADO-LATENCIA-Y-MODELO.md)",
+   "bloqueo": "CM1 exige ≤800 ms"
+  },
+  {
+   "dim": "E",
+   "capacidad": "Audio efímero: grabación y respuesta se borran",
+   "nivel": 5,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/aura_skeleton/__main__.py _turno_de_voz; adapters/microfono.py descartar_audio (también en modo texto, encontrado en demo física); CP-M9, M20, M29",
+   "bloqueo": ""
+  },
+  {
+   "dim": "E",
+   "capacidad": "Degradación honesta sin voz",
+   "nivel": 6,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/mutaciones/voz-degrada-con-honestidad.toml 14/14; arranque declara voz DISPONIBLE/NO",
+   "bloqueo": ""
+  },
+  {
+   "dim": "E",
+   "capacidad": "Interrupción (barge-in ≤300 ms, CM1)",
+   "nivel": 0,
+   "alcance": "MVP",
+   "evidencia": "",
+   "bloqueo": "Requiere escucha continua (bloque 2) y latencia"
+  },
+  {
+   "dim": "F",
+   "capacidad": "Captura de cámara",
+   "nivel": 5,
+   "alcance": "R4",
+   "evidencia": "CORREGIDO 2026-10-22 (estaba en 2, «fuera de AURA», desfasado): la captura la hace AURA: adapters/vision_local.py CamaraLocal + core/percepcion.py PercepcionBajoDemanda; [EJEC] 2026-09-27 frame REAL 640x480 por el código de AURA (0 ficheros); [EJEC] 2026-09-28 «¿qué ves en la cámara local?» E2E (ver «Visión como proveedor de contexto»). Medición original: ~/aura-medicion/medir_camara.py /dev/video0 640x480 en 0,12 s",
+   "bloqueo": "Solo la cámara LOCAL demostrada. Cámara de red .110: identificada (ONVIF, EYEPLUS 3.5.1.1108) y flujo RTSP H264 confirmado por DESCRIBE sin credencial [EJEC 2026-10-22]; la zona es METADATO (acta 2026-10-22); la captura requiere que el propietario la active (AURA_CAMARA_RTSP + AURA_CAMARA_NOMBRE/ZONA) y no se ha hecho. DVR .80: no tocar"
+  },
+  {
+   "dim": "F",
+   "capacidad": "Detección de presencia",
+   "nivel": 2,
+   "alcance": "R4",
+   "evidencia": "[EJEC] Haar local 85 ms/fotograma a 320x240; 0 imágenes en disco",
+   "bloqueo": "Decisión A APROBADA (acta 2026-09-27); la grada de PERSONA quedó elevada al CEO en la misma acta (§Frontera: ALERTA-002, terceros, retención): sin decisión de diseño no se implementa"
+  },
+  {
+   "dim": "F",
+   "capacidad": "Visión como proveedor de contexto (ADR-0015)",
+   "nivel": 5,
+   "alcance": "R4",
+   "evidencia": "acta decisiones/2026-09-27-acta-percepcion-visual-e-identidad.md ratifica Decisión A; walking-skeleton/aura_skeleton/core/percepcion.py + adapters/vision_local.py (import perezoso de cv2, sin almacenar); [EJEC] 2026-09-27 frame REAL 640x480 por el código de AURA, persona=None identidad=None, 0 ficheros; tests/unit/test_percepcion_visual.py; mutaciones/percepcion-visual.toml 4/4; adaptador RTSP walking-skeleton/aura_skeleton/adapters/camara_rtsp.py (enchufa en el puerto de percepción; import perezoso cv2; contraseña nunca en log/str/error; libera por captura); tests/unit/test_camara_rtsp.py + mutaciones/camara-rtsp.toml 5/5. Diagnóstico [EJEC]: .110 (RTSP TAS-Tech) y .80 (RTSP H264DVR) REACHABLE; DESCRIBE/PLAY exige credencial del propietario; [EJEC] 2026-09-28 FRAME→OBSERVACIÓN conectada (DP aprobado): PercepcionBajoDemanda + superficie en orchestrator; «¿qué ves en la cámara local?» → observación real 640×480, efímera, imagen-cero, sin persona/identidad/evento, sin memoria; tests test_observacion_visual + test_observacion_en_conversacion; mutaciones/observacion-visual.toml 6/6",
+   "bloqueo": "Detección de evento/persona/identidad: gradas posteriores, cada una con su DP; cámaras de red: superficie por autorizar por el propietario"
+  },
+  {
+   "dim": "F",
+   "capacidad": "Reconocimiento visual",
+   "nivel": 1,
+   "alcance": "R4",
+   "evidencia": "adr/0015:29 «mañana… biometría»",
+   "bloqueo": "DECISIÓN B"
+  },
+  {
+   "dim": "G",
+   "capacidad": "No perfilar a terceros (Bible 2.4:116)",
+   "nivel": 6,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/core/senales.py SenalDeTercero; mutaciones/hechos-posesivos-generales.toml HP-M2/M3; auditoría 2026-09-27 lo verificó con frases compuestas",
+   "bloqueo": ""
+  },
+  {
+   "dim": "G",
+   "capacidad": "Multiusuario / perfiles familiares",
+   "nivel": 1,
+   "alcance": "R3",
+   "evidencia": "docs/libro-02/2.2:106; 2.4:117",
+   "bloqueo": "Release 3"
+  },
+  {
+   "dim": "G",
+   "capacidad": "Identificación por voz",
+   "nivel": 1,
+   "alcance": "R3",
+   "evidencia": "docs/libro-02/2.4:118 (sesión KCM autorizada)",
+   "bloqueo": "DECISIÓN B; KCM fuera del MVP"
+  },
+  {
+   "dim": "G",
+   "capacidad": "Conocido / desconocido / incierto",
+   "nivel": 0,
+   "alcance": "R3",
+   "evidencia": "",
+   "bloqueo": "DECISIÓN B"
+  },
+  {
+   "dim": "H",
+   "capacidad": "Conversación general v1",
+   "nivel": 5,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/tests/integration/test_conversacion_general_v1.py; mutaciones/conversacion-general-v1.toml",
+   "bloqueo": ""
+  },
+  {
+   "dim": "H",
+   "capacidad": "Superficies deterministas antes del modelo",
+   "nivel": 6,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/core/orchestrator.py cascada; múltiples catálogos de mutación; audit.jsonl real",
+   "bloqueo": ""
+  },
+  {
+   "dim": "H",
+   "capacidad": "Continuidad multiturno",
+   "nivel": 5,
+   "alcance": "MVP",
+   "evidencia": "[EJEC] M7/M8; tests/integration/test_frontera_continuidad.py",
+   "bloqueo": ""
+  },
+  {
+   "dim": "H",
+   "capacidad": "Avatar interactivo (capacidad 3)",
+   "nivel": 1,
+   "alcance": "MVP",
+   "evidencia": "docs/libro-06/6.5; ADR-0009 Live2D",
+   "bloqueo": "Plataforma de despliegue (D33)"
+  },
+  {
+   "dim": "I",
+   "capacidad": "Home Assistant como hub (Bible 6.3)",
+   "nivel": 5,
+   "alcance": "MVP",
+   "evidencia": "~/aura-hogar HA 2026.2.3 en 127.0.0.1; walking-skeleton/composicion.py _hogar: arranque «hogar: REAL»; [EJEC] 2026-09-27 cierre S2: TV sala emparejada (Permitir pulsado por la persona), entidad media_player.tv_sala_… leída y actuada por AURA con relectura; credencial rechazada (401/403) y HA caído se nombran como tales, nunca «sistema de archivos» (S2-M38..M40)",
+   "bloqueo": ""
+  },
+  {
+   "dim": "I",
+   "capacidad": "Encender/apagar con verificación del efecto",
+   "nivel": 5,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/adapters/home_assistant_real.py; tests/unit/test_home_assistant_real.py; CP-M13..M19; [EJEC] 2026-09-27 TV sala real por texto (M1): on→off 1,2 s, off→on 5,2 s y 9,2 s, on→off 8,6 s y 10,1 s, releído en HA; un «no cambió» contado con honestidad con espera 5 s → ESPERA_CONFIRMACION_S=15; S2-M30..M32; 2026-10-22 veredicto veraz (solo dobles): estados equivalentes por operación (playing/standby), unavailable/unknown sin enviar ni esperar, HTTP 4xx/5xx distinto de «no respondió», estado asumido de HA no verifica, la respuesta nombra a Home Assistant como fuente y nunca afirma efecto físico; tests/unit/test_home_assistant_real.py, mutaciones/veredicto-hogar.toml 24/24. Pendiente físico: estados reales de la samsungtv; [EJEC] 2026-10-22 18:56:54-18:57:05 TV sala REAL vía AURA (Core→permisos→Motor Único→HA real; modelo 0 consultas): «enciende la tele de la sala» off→on releído en HA en 10,6 s, respuesta «Home Assistant ve la TV de la sala encendida»; la TV real reporta «on» (no «playing»); efecto verificado por estado de HA, sin inspección visual; milestones/m3-entry/evidencia-tv-real-2026-10-22/",
+   "bloqueo": "Segunda TV (.20) sin emparejar: no era necesaria para demostrar el efecto"
+  },
+  {
+   "dim": "I",
+   "capacidad": "Volumen y silencio de la TV con verificación del efecto",
+   "nivel": 4,
+   "alcance": "MVP",
+   "evidencia": "decisiones/2026-10-22-acta-ecosistema-domestico.md §4; walking-skeleton/adapters/home_assistant_real.py _ATRIBUTO/_actuar_atributo/_legible; core/hogar.py _ORDENES_DE_VOLUMEN; core/orchestrator.py _redactar_efecto_de_volumen; tests/integration/test_volumen_tv.py, tests/unit/test_hogar_volumen.py, tests/unit/test_home_assistant_real.py; mutaciones/volumen-tv.toml 17/17; solo dobles; [EJEC] 2026-10-22 contra HA real con TV apagada: la orden no se envía (0 servicios) y se dice; 2026-10-22 veredicto veraz (solo dobles): estados equivalentes por operación (playing/standby), unavailable/unknown sin enviar ni esperar, HTTP 4xx/5xx distinto de «no respondió», estado asumido de HA no verifica, la respuesta nombra a Home Assistant como fuente y nunca afirma efecto físico; tests/unit/test_home_assistant_real.py, mutaciones/veredicto-hogar.toml 24/24. Pendiente físico: estados reales de la samsungtv",
+   "bloqueo": "Efecto REAL pendiente: verificar con la TV de la sala encendida que HA expone volume_level/is_volume_muted legibles. Por voz: decisión del CEO (acta 2026-10-22 §5)"
+  },
+  {
+   "dim": "I",
+   "capacidad": "Consulta del estado de la TV (encendida, volumen, contenido) sin el modelo",
+   "nivel": 4,
+   "alcance": "MVP",
+   "evidencia": "decisiones/2026-10-22-acta-ecosistema-domestico.md §4; walking-skeleton/aura_skeleton/core/hogar.py reconocer_consulta/describir_estado; adapters/home_assistant_real.py estado_actual; core/orchestrator.py _consultar_estado_de_hogar; tests/unit/test_hogar_consulta.py, tests/integration/test_consulta_estado_tv.py; mutaciones/consulta-estado-tv.toml 16/16; [EJEC] 2026-10-22 06:4x contra el HA real: «¿está encendida la tele de la sala?» -> «No: … apagada (según Home Assistant, desde las 17:38 del 20-10)»; volumen/contenido con TV apagada -> «no lo sé»; sin decir cuál -> pregunta cuál; 3 lecturas, 0 acciones",
+   "bloqueo": "Nivel 5 cuando se lea en real con la TV ENCENDIDA (volumen, fuente, aplicación): hoy, el camino real solo se ha demostrado con la TV apagada. El título no se dice por voz ni se audita (privacidad, punto D)"
+  },
+  {
+   "dim": "I",
+   "capacidad": "Computador: listar/leer ficheros (capacidad 4)",
+   "nivel": 6,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/adapters/computador.py; ~/.aura/audit.jsonl uso real; mutaciones/ordenes-de-capacidad.toml",
+   "bloqueo": ""
+  },
+  {
+   "dim": "I",
+   "capacidad": "Descubrimiento de dispositivos",
+   "nivel": 5,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/aura_skeleton/adapters/red_local.py (ARP, mDNS, SSDP; anti-SSRF sin redirecciones; XML sin entidades); core/entorno.py; [EJEC] red real 5,1 s: router + 2 televisores Samsung identificados, 1 equipo descubierto; [EJEC] «Oye Aurora» -> «¿Qué hay conectado?» por el aire; S2-M8..M14, M20..M22; [EJEC] 2026-09-27 diagnóstico: el pipeline no pierde nada; las fuentes son pasivas (ARP=caché, mDNS/SSDP=anuncios) y dejan fuera DVR (.80), PS5 (.36), cámara ONVIF (.110), iOS (.93) y otros; Spotify Connect ya no se clasifica como «altavoz» (S2-M41/42); fuentes tratadas como evidencia, no verdad; router y Bluetooth como fuentes preparadas pero bloqueadas (estado_de_fuentes); 2026-10-22: + WS-Discovery/ONVIF y DDP de PlayStation dirigidos (red_local observacion_wsd/observacion_ddp; sin seguir XAddrs; sin running-app; solo LAN privada; tope global 64; anti-envenenamiento en entorno._conflicto); tests/unit/test_red_local.py; mutaciones/descubrimiento-onvif-ddp.toml 17/17; [EJEC] 07:12 encontró la cámara .110 por ONVIF (identidad = MAC del censo); 2026-10-22 (tarde): fusión INDEPENDIENTE DEL ORDEN dentro de la ronda (core/entorno.py _fusionar/_juntar: primero se deduce el tipo de las fuentes no declarativas; una declaración que lo contradice, u otra declaración distinta, es conflicto y no se adopta); un nombre solo declarado por UDP (ONVIF/DDP) no casa con una entidad de HA; tests/unit/test_conocimiento_entorno.py; mutaciones/fusion-inventario.toml 12/12; [EJEC] red real: .110 cámara sin conflicto; 2026-10-22 (mediodía): + GetDeviceInformation ONVIF en la MISMA IP sin credenciales (red_local informacion_onvif): solo fabricante/modelo/firmware, nunca serie; anti-SSRF (IP privada no propia/loopback/link-local, puertos ONVIF cerrados, sin proxy, sin redirecciones), exclusión explícita del DVR «no tocar» (AURA_RED_NO_TOCAR), plazo de lectura y enriquecimiento paralelo con plazo total; mutaciones/onvif-informacion.toml 24/24; [EJEC] .110 = EYEPLUS/EYEPLUS_DEV/3.5.1.1108 (= captura del propietario)",
+   "bloqueo": "Descubrir lo que no se anuncia exige elegir método: registro manual, descubrimiento propio de HA o lista de clientes del router (decisión CEO); CERRADA 2026-10-22 la limitación MEDIA de la primera ronda. Observaciones (no deuda): un conflicto marcado no se borra hasta reiniciar (DoS de etiqueta, solo texto); el primero en declarar sobre una IP solo-ARP fija el tipo"
+  },
+  {
+   "dim": "I",
+   "capacidad": "Orden por voz -> dispositivo sin pasar por el modelo",
+   "nivel": 5,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/aura_skeleton/core/hogar.py; orchestrator.py superficie de hogar (texto: ejecuta según M1; voz: propone, confirma y se DETIENE en la frontera); tests/integration/test_hogar_en_conversacion.py; S2-M1..M6, M15..M18, M23; [EJEC] 2026-09-27 cierre S2 por el aire con HA y TV reales, llave apagada: la TV no se movió (off→off). Síntesis Piper: «Apaga la tele» mal transcrita en 2/2 intentos; Whisper inventa frases del vocabulario ante audio confuso («Sí.» → «¿Qué hiciste?»); vocabulario de Whisper sin órdenes ni confirmaciones, comprobado con los reconocedores reales del Core (S2-M37); DP-VOZ-ACCION opción C (CEO 2026-10-04); [EJEC] 2026-10-04 voz humana por el aire: TV sala off→on y on→off con «Oye Aurora» + «sí», efecto releído en HA (evidencia-voz-accion/e2e-fisico-2026-10-04.jsonl); [EJEC] 2026-10-06 on→off verificado, «¿Sí?»→respuesta 12,3 s (evidencia-latencia-voz/e2e-latencia-2026-10-06.jsonl); mutaciones voz-accion-opcion-c 16/16, voz-e2e-fisico 9/9, voz-robustez-cierre 4/4; 2026-10-22: cerrado el camino del MODELO por voz (antes un turno hablado sin activación apagaba la TV por esa vía): tests/integration/test_voz_no_actua_por_el_modelo.py, mutante volumen-tv M17",
+   "bloqueo": "Solo la TV de la sala y solo encender/apagar (lista verde de voz por decisión del CEO); CM1"
+  },
+  {
+   "dim": "I",
+   "capacidad": "Teléfono / Android / wearables",
+   "nivel": 1,
+   "alcance": "R2",
+   "evidencia": "docs/libro-02/2.2 R2",
+   "bloqueo": "Release 2"
+  },
+  {
+   "dim": "I",
+   "capacidad": "Presencia multi-dispositivo",
+   "nivel": 1,
+   "alcance": "R4",
+   "evidencia": "docs/libro-02/2.2:123",
+   "bloqueo": "Release 4"
+  },
+  {
+   "dim": "J",
+   "capacidad": "Motor Único (dry-run, permisos, auditoría)",
+   "nivel": 6,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/core/automatizacion.py; ALERTA-005; uso real en audit.jsonl",
+   "bloqueo": ""
+  },
+  {
+   "dim": "J",
+   "capacidad": "Catálogo de permisos y listas verde/roja (D4)",
+   "nivel": 6,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/core/permissions.py CATALOGO 36; kill-switch-cableado.toml",
+   "bloqueo": ""
+  },
+  {
+   "dim": "J",
+   "capacidad": "Kill switch del producto",
+   "nivel": 6,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/core/kill_switch.py; f2-kill-switch-universal.toml; [EJEC] órdenes detenidas",
+   "bloqueo": ""
+  },
+  {
+   "dim": "J",
+   "capacidad": "Órdenes de capacidad desde la conversación",
+   "nivel": 5,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/core/ordenes.py; mutaciones/ordenes-de-capacidad.toml; [EJEC] M5-M8",
+   "bloqueo": ""
+  },
+  {
+   "dim": "J",
+   "capacidad": "Confirmación diferida de lista roja (buzón HITL)",
+   "nivel": 4,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/core/decisiones.py; composicion.py confirmador diferido en --servir",
+   "bloqueo": ""
+  },
+  {
+   "dim": "K",
+   "capacidad": "Personalización por preferencias declaradas",
+   "nivel": 5,
+   "alcance": "MVP",
+   "evidencia": "[EJEC] «me gusta el color verde» se guarda y se lista 2026-09-27",
+   "bloqueo": ""
+  },
+  {
+   "dim": "K",
+   "capacidad": "Memoria familiar multiusuario",
+   "nivel": 1,
+   "alcance": "R3",
+   "evidencia": "docs/libro-02/2.4:117",
+   "bloqueo": "Release 3"
+  },
+  {
+   "dim": "K",
+   "capacidad": "Historias y experiencias compartidas",
+   "nivel": 0,
+   "alcance": "MVP",
+   "evidencia": "",
+   "bloqueo": "Sin concepto dedicado en la Bible"
+  },
+  {
+   "dim": "K",
+   "capacidad": "Personalidad y humor (D6)",
+   "nivel": 1,
+   "alcance": "MVP",
+   "evidencia": "docs/libro-02/2.4",
+   "bloqueo": "Ligado al avatar (D33)"
+  },
+  {
+   "dim": "L",
+   "capacidad": "Seguridad activa del ecosistema (5.6 «guardián»)",
+   "nivel": 1,
+   "alcance": "R3",
+   "evidencia": "docs/libro-05/5.6 nivel stub",
+   "bloqueo": "Release 3"
+  },
+  {
+   "dim": "L",
+   "capacidad": "Detección de anomalías del hogar",
+   "nivel": 0,
+   "alcance": "R3",
+   "evidencia": "",
+   "bloqueo": "Release 3"
+  },
+  {
+   "dim": "L",
+   "capacidad": "Respuesta a emergencias",
+   "nivel": 0,
+   "alcance": "R3",
+   "evidencia": "",
+   "bloqueo": "Release 3"
+  },
+  {
+   "dim": "M",
+   "capacidad": "Automatizaciones definidas por el usuario (capacidad 5)",
+   "nivel": 6,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/core/reglas.py; mutaciones/cap5-*.toml; reglas.jsonl",
+   "bloqueo": ""
+  },
+  {
+   "dim": "M",
+   "capacidad": "Centro de notificaciones (capacidad 9)",
+   "nivel": 4,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/core/notificaciones.py cableado en composicion.py",
+   "bloqueo": ""
+  },
+  {
+   "dim": "M",
+   "capacidad": "Anticipación / sugerencias (capacidad 8, CM4)",
+   "nivel": 1,
+   "alcance": "MVP",
+   "evidencia": "docs/libro-04/4.4; reglas.py:18 «fuera del MVP»",
+   "bloqueo": "Contradicción reglas.py frente a 2.2; datos de uso real"
+  },
+  {
+   "dim": "N",
+   "capacidad": "Descubrimiento de oportunidades",
+   "nivel": 6,
+   "alcance": "H",
+   "evidencia": "entorno/control-plane/descubrimiento.py; 508 eventos descubrimiento_realizado",
+   "bloqueo": ""
+  },
+  {
+   "dim": "N",
+   "capacidad": "Ciclo autónomo planificar-ejecutar-verificar",
+   "nivel": 5,
+   "alcance": "H",
+   "evidencia": "entorno/control-plane/orquestador.py; 12 cambio_aplicado acreditados",
+   "bloqueo": "PARADA armada desde 2026-09-08"
+  },
+  {
+   "dim": "N",
+   "capacidad": "Puerta de autoconstrucción (zona, intocables, PARADA)",
+   "nivel": 6,
+   "alcance": "H",
+   "evidencia": "entorno/control-plane/autoconstruccion.py",
+   "bloqueo": ""
+  },
+  {
+   "dim": "N",
+   "capacidad": "Proyector automático de estado.json",
+   "nivel": 2,
+   "alcance": "H",
+   "evidencia": "observatorio.py detecta el atraso; no lo corrige",
+   "bloqueo": "DECISIÓN pendiente"
+  },
+  {
+   "dim": "N",
+   "capacidad": "Política tras verificación fallida (ADR-0025)",
+   "nivel": 1,
+   "alcance": "H",
+   "evidencia": "milestones/m3-entry/DP-POLITICA-POST-ROLLBACK.md",
+   "bloqueo": "DECISIÓN pendiente"
+  },
+  {
+   "dim": "O",
+   "capacidad": "Delegación a subagentes",
+   "nivel": 3,
+   "alcance": "H",
+   "evidencia": "entorno/control-plane/delegacion.py; 63 tests; ningún import desde el ciclo",
+   "bloqueo": "6 decisiones de gobierno; crear_autoridad reservada (D22)"
+  },
+  {
+   "dim": "O",
+   "capacidad": "Aislamiento Landlock de misiones",
+   "nivel": 5,
+   "alcance": "H",
+   "evidencia": "entorno/control-plane/aislamiento.py; 19 pruebas de ataque; 10/10 mutantes",
+   "bloqueo": ""
+  },
+  {
+   "dim": "O",
+   "capacidad": "Revisión delegada (REVIEW_HABILITADO)",
+   "nivel": 2,
+   "alcance": "H",
+   "evidencia": "entorno/control-plane/review.py:66 = False",
+   "bloqueo": "Acta del CEO"
+  },
+  {
+   "dim": "P",
+   "capacidad": "Captura de señales del usuario",
+   "nivel": 5,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/core/senales.py, almacen_senales.py; mutaciones/f4-reglas-y-senales.toml; [EJEC] frases compuestas 2026-09-27",
+   "bloqueo": ""
+  },
+  {
+   "dim": "P",
+   "capacidad": "Soberanía del modelo de usuario (ver/exportar/olvidar)",
+   "nivel": 5,
+   "alcance": "MVP",
+   "evidencia": "milestones/m3-entry/ROADMAP-CAPACIDADES-FUNCIONALES.md: capacidad 8-soberanía completada",
+   "bloqueo": ""
+  },
+  {
+   "dim": "P",
+   "capacidad": "Inferencia de patrones y preferencias (M3.2b)",
+   "nivel": 1,
+   "alcance": "MVP",
+   "evidencia": "docs/libro-04/4.4",
+   "bloqueo": "Requiere datos de uso real"
+  },
+  {
+   "dim": "Q",
+   "capacidad": "Audit log forense inmutable y veraz",
+   "nivel": 6,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/observability.py AuditLog; M7 desenlace veraz; 1209+ entradas reales",
+   "bloqueo": ""
+  },
+  {
+   "dim": "Q",
+   "capacidad": "Quality Gate + mutación + vigilante de garantías",
+   "nivel": 6,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/quality-gate.sh; tests/unit/test_garantias_vigentes.py; 1205 garantías declaradas",
+   "bloqueo": ""
+  },
+  {
+   "dim": "Q",
+   "capacidad": "PARADA, _INTOCABLES y materia reservada",
+   "nivel": 6,
+   "alcance": "MVP",
+   "evidencia": "entorno/control-plane/PARADA; orquestador._INTOCABLES=8; review.py crear_autoridad",
+   "bloqueo": ""
+  },
+  {
+   "dim": "Q",
+   "capacidad": "Registro de decisiones al día",
+   "nivel": 4,
+   "alcance": "MVP",
+   "evidencia": "decisiones/pendientes.md reanudado 2026-09-21 tras 66 días sin mantener",
+   "bloqueo": ""
+  },
+  {
+   "dim": "I",
+   "capacidad": "Capa de conocimiento del entorno (fuentes→evidencia→conocimiento)",
+   "nivel": 4,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/aura_skeleton/core/entorno.py InventarioEntorno/ConocimientoDelEntorno; transiciones al audit log; tests/unit/test_entorno.py; S2-M9..M12; [EJEC] 2026-09-27 red real: .29 pasa a «controlable» (nombre + modelo de HA, entidad media_player preferida a remote) y lo conserva apagada; S2-M26..M29; nivel CARACTERIZADO, capacidades de audio/vídeo, identidad declarada que sobrevive a DHCP, superficies de presencia (solo el equipo local disponible) y límites declarados; demo real «¿Qué hay conectado?» 5,2 s; S2-M43..M51; [EJEC] 2026-09-27 capa de conocimiento: estados DESCUBIERTO→…→EFECTO_VERIFICADO (NIVELES); efecto real del Motor realimenta el conocimiento (registrar_efecto); conflictos entre fuentes marcados sin adivinar; fuentes preparadas-pero-bloqueadas declaradas (router no_autorizada, Bluetooth bloqueada); demo real «¿Qué hay conectado?» 4,6 s; S2-M52..M60 (60/60); 2026-10-22 estado operativo de consolas por DDP (D23/IE-005, orden del CEO): 200→despierta, 620→en_reposo, otro→sin observación; sin respuesta conserva el último estado con su hora; contradicción o conflicto no se adopta; «último estado conocido» si >15 min o ausente; nunca «apagada»; solo SRCH. tests/unit/test_entorno.py, test_red_local.py; mutaciones/estado-operativo-ps5.toml 16/16. Despierta: real (200 Ok, evidencia-tv-real-2026-10-22); en_reposo: solo simulado",
+   "bloqueo": "En memoria del proceso: no sobrevive al reinicio (ADR-0023: la historia está en el audit log)"
+  },
+  {
+   "dim": "J",
+   "capacidad": "El modelo no actúa sobre un dispositivo que la persona no nombró",
+   "nivel": 4,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/aura_skeleton/core/orchestrator.py + hogar.dispositivo_nombrado; tests/integration/test_hogar_en_conversacion.py; S2-M19",
+   "bloqueo": ""
+  },
+  {
+   "dim": "I",
+   "capacidad": "Política por superficie de cámara (por canal/zona, deny-by-default)",
+   "nivel": 5,
+   "alcance": "MVP",
+   "evidencia": "walking-skeleton/aura_skeleton/core/politica_superficie.py; PercepcionVisual la aplica ANTES de capturar (no toca la cámara si la superficie no está autorizada); [EJEC] 2026-09-28 DVR .80 autenticado por RTSP DESCRIBE (8 canales responden, sin decodificar imagen); tests/unit/test_politica_superficie.py (10); mutaciones/politica-superficie.toml 5/5 (incluye PS-M5: no reaparece bloqueo global); 2026-10-22: tests/unit/test_zona_como_metadato.py (ninguna zona —habitacion, dormitorio, recamara, sala, garaje, privada— cambia ningún permiso; sin activación no hay superficie)",
+   "bloqueo": "Rectificado por el CEO 2026-10-22 (decisiones/2026-10-22-acta-camaras-zona-como-metadato.md): la ZONA es metadato y nunca deniega; el propietario NOMBRA la cámara de red (AURA_CAMARA_NOMBRE) y declara su zona como etiqueta (AURA_CAMARA_ZONA); la activación sigue siendo la URL (AURA_CAMARA_RTSP)"
+  }
+ ]
+}

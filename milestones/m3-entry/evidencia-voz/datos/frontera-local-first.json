@@ -1,0 +1,8 @@
+{
+  "proposito": "Demostrar que con el modelo fuera de alcance AURA NO descarga: falla y lo dice.",
+  "hf_home": "/tmp/hf-vacio-46710",
+  "hf_hub_offline": "1",
+  "resultado": "VozNoDisponible (correcto)",
+  "mensaje_exacto": "no hay modelo de transcripcion utilizable ('base'); no se descarga nada: Cannot find an appropriate cached snapshot folder for the specified revision on the local disk and outgoing traffic has been disabled. To enable repo look-ups and downloads online, pass 'local_files_only=False' as input.",
+  "dice_que_no_hay_trafico_saliente": true
+}

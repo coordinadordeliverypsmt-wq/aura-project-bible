@@ -10,6 +10,16 @@ import os
 import urllib.error
 import urllib.request
 
+from .router import LimiteDelProveedor
+
+#: DR-3 (CEO, 2026-09-15): tope de tokens generados en un turno cognitivo. **No es una propiedad de la
+#: arquitectura**: es un valor derivado de la medicion en HC-1 con `qwen2.5:0.5b` y depende de ese
+#: modelo y de ese hardware (regla del CEO, 2026-08-04). Medido sobre n = 54 generaciones reales: p95 = 146
+#: tokens; 160 corta 3 de 54 turnos (5,6 %) y, a la peor tasa sana observada (1,19 tok/s), cabe en el
+#: timeout de 180 s. Derivacion y datos:
+#: `milestones/m3-entry/evidencia-cognicion-local/MEDICION-TURNO-COGNITIVO-2026-09-15.md`.
+LIMITE_GENERACION_COGNITIVA = 160
+
 
 def _catalogo_para_prompt() -> str:
     """Construye la lista de acciones DESDE el catalogo del nucleo (M2.5).
@@ -108,6 +118,35 @@ class OllamaProvider:
         self.url = url.rstrip("/")
         self.timeout_s = timeout_s or int(os.getenv("AURA_OLLAMA_TIMEOUT_S", self.DEFAULT_TIMEOUT_S))
 
+    #: Tope de espera al leer el catalogo local en el ARRANQUE. Corto a proposito: saber que modelos hay
+    #: no puede retrasar el arranque de AURA, y menos aun colgarlo si el servicio no contesta.
+    LIMITE_CATALOGO_S = 3
+
+    def comprobar(self) -> tuple[bool, str]:
+        """¿Esta el modelo declarado realmente instalado? Devuelve `(disponible, detalle)`.
+
+        **Solo LEE** el catalogo local (`GET /api/tags`): no descarga, no instala y no cambia el modelo.
+        Su unico trabajo es hacer VISIBLE en el arranque una discrepancia que hasta ahora se descubria en
+        el primer turno — medido en HC-1 el 2026-09-15: con el defecto `qwen2.5:3b` y solo `qwen2.5:0.5b`
+        instalado, AURA anunciaba «stack=real, 21 capacidades», recibia un `HTTP 404`, **abria el
+        circuito** y respondia «Mi modelo local no esta disponible ahora mismo; intentalo de nuevo en unos
+        minutos»: falso dos veces, porque el modelo local estaba disponible —otro— y porque eso no se
+        arregla en unos minutos. Es el patron «declarado != real» (INV-9), el mismo que la MISION VOZ
+        corrigio para el sintetizador.
+
+        No saber NO impide arrancar: si Ollama no responde se dice y se sigue (degradacion honesta).
+        """
+        req = urllib.request.Request(self.url + "/api/tags")
+        try:
+            with urllib.request.urlopen(req, timeout=self.LIMITE_CATALOGO_S) as r:  # noqa: S310 (local, D24)
+                datos = json.load(r)
+        except (urllib.error.URLError, TimeoutError, ValueError, OSError) as e:
+            return False, f"catalogo sin comprobar: Ollama no responde ({type(e).__name__})"
+        instalados = [str(m.get("name", "")) for m in datos.get("models", [])]
+        if self.model in instalados:
+            return True, ""
+        return False, f"NO INSTALADO en ollama; instalados: {', '.join(instalados) or '(ninguno)'}"
+
     async def infer(self, prompt: str, modo: str = "accion") -> str:
         """`modo` es opcional y por defecto conserva el comportamiento anterior.
 
@@ -128,16 +167,13 @@ class OllamaProvider:
         # autoridad en un segundo sitio —el error que D-M-8 diagnostica en el propio sistema—. Ahi se
         # conserva `format: "json"` byte a byte.
         formato = _ESQUEMA_COGNITIVO if modo == "cognitivo" else "json"
-        body = json.dumps(
-            {"model": self.model, "prompt": prompt, "system": system, "stream": False,
-             "format": formato}
-        ).encode()
-        req = urllib.request.Request(
-            self.url + "/api/generate", data=body, headers={"Content-Type": "application/json"}
-        )
+        cuerpo: dict = {"model": self.model, "prompt": prompt, "system": system, "stream": False, "format": formato}
+        # DR-3: tope de generacion SOLO en modo cognitivo. En modo accion la salida es una decision corta
+        # del catalogo y cortarla no tiene sentido.
+        if modo == "cognitivo":
+            cuerpo["options"] = {"num_predict": LIMITE_GENERACION_COGNITIVA}
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout_s) as r:  # noqa: S310 (local, D24)
-                resp = json.load(r)
+            resp = self._pedir(cuerpo)
         except urllib.error.HTTPError:
             # DEGRADACION, no operacion normal. El esquema necesita Ollama >= 0.5; si el runtime local
             # es mas antiguo lo rechaza con 4xx. Antes de dejar el turno sin respuesta se reintenta con
@@ -145,10 +181,33 @@ class OllamaProvider:
             # pero el sistema sigue conversando. Nunca se reintenta mas de una vez.
             if formato == "json":
                 raise
-            body = json.dumps({"model": self.model, "prompt": prompt, "system": system,
-                               "stream": False, "format": "json"}).encode()
-            req = urllib.request.Request(
-                self.url + "/api/generate", data=body, headers={"Content-Type": "application/json"})
-            with urllib.request.urlopen(req, timeout=self.timeout_s) as r:  # noqa: S310 (local, D24)
-                resp = json.load(r)
+            resp = self._pedir({**cuerpo, "format": "json"})
+        # **UNA RESPUESTA CORTADA NO SE ENTREGA COMO TERMINADA (DR-3).** Con decodificado restringido por
+        # esquema, un corte por `num_predict` deja JSON invalido; sin esto `_parse_decision` respondia
+        # «No entendi bien; ¿puedes reformularlo?», que es falso: el modelo entendio y se extendio.
+        if modo == "cognitivo" and resp.get("done_reason") == "length":
+            raise LimiteDelProveedor(
+                "longitud", f"la generacion alcanzo {LIMITE_GENERACION_COGNITIVA} tokens sin terminar"
+            )
         return str(resp["response"])  # con format JSON/esquema, ya es un JSON string
+
+    def _pedir(self, cuerpo: dict) -> dict:
+        """Una llamada a `/api/generate`. Un timeout se declara como LIMITE, no como fallo (DR-3).
+
+        `HTTPError` hereda de `URLError` y se deja pasar tal cual: es el camino de degradacion del esquema.
+        Solo un `URLError` cuya causa es un timeout se convierte, junto con el `TimeoutError` directo.
+        """
+        req = urllib.request.Request(
+            self.url + "/api/generate",
+            data=json.dumps(cuerpo).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout_s) as r:  # noqa: S310 (local, D24)
+                return json.load(r)
+        except TimeoutError as e:
+            raise LimiteDelProveedor("tiempo", f"sin respuesta en {self.timeout_s} s") from e
+        except urllib.error.URLError as e:
+            if isinstance(e.reason, TimeoutError):
+                raise LimiteDelProveedor("tiempo", f"sin respuesta en {self.timeout_s} s") from e
+            raise

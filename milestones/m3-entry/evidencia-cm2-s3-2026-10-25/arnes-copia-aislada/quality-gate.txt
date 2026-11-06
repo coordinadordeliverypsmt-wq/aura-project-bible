@@ -1,0 +1,9 @@
+3836 passed, 3 skipped, 19 xfailed in 631.06s (0:10:31)
+QUALITY GATE: PASS — listo para integrar/ejecutar
+EXIT=0
+../CHECKPOINT-CONTINUIDAD.md: La suma coincide
+../milestones/mapa-maestro/AURA_MASTER_DEVELOPMENT_MAP.md: La suma coincide
+herramientas/mutar.py: La suma coincide
+tests/unit/test_arnes_mutacion.py: La suma coincide
+tests/unit/test_arnes_ciclo_de_vida.py: La suma coincide
+../entorno/control-plane/test_red_aislamiento_estricto.py: La suma coincide

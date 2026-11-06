@@ -1,0 +1,47 @@
+Arnés: muta una copia aislada (/tmp/aura-mutar-1dvsyrus/m3-entry/walking-skeleton); el árbol original solo se lee.
+Arnes de mutacion: mutaciones/arnes-ciclo-de-vida.toml
+Base en verde. Mutantes evaluados: 18
+  [OK] AL-M1 (detectado): una interrupción vuelve a dejar el pytest del mutante huérfano
+        FAILED tests/unit/test_arnes_ciclo_de_vida.py::test_una_interrupcion_restaura_el_fichero_y_no_deja_descendientes
+        FAILED tests/unit/test_arnes_ciclo_de_vida.py::test_sigterm_al_arnes_restaura_el_fichero_y_termina_todo_su_arbol
+  [OK] AL-M2 (detectado): sin la foto de descendientes, el que abrió su propia sesión sobrevive al killpg
+        FAILED tests/unit/test_arnes_ciclo_de_vida.py::test_el_timeout_mata_tambien_al_descendiente_que_abrio_su_propia_sesion
+        FAILED tests/unit/test_arnes_ciclo_de_vida.py::test_una_interrupcion_restaura_el_fichero_y_no_deja_descendientes
+        FAILED tests/unit/test_arnes_ciclo_de_vida.py::test_sigterm_al_arnes_restaura_el_fichero_y_termina_todo_su_arbol
+  [OK] AL-M3 (detectado): el descendiente fotografiado no llega a recibir la señal
+        FAILED tests/unit/test_arnes_ciclo_de_vida.py::test_el_timeout_mata_tambien_al_descendiente_que_abrio_su_propia_sesion
+        FAILED tests/unit/test_arnes_ciclo_de_vida.py::test_una_interrupcion_restaura_el_fichero_y_no_deja_descendientes
+        FAILED tests/unit/test_arnes_ciclo_de_vida.py::test_sigterm_al_arnes_restaura_el_fichero_y_termina_todo_su_arbol
+  [OK] AL-M6 (detectado): ejecutar() no recupera lo que dejó mutado una ejecución anterior
+        FAILED tests/unit/test_arnes_ciclo_de_vida.py::test_ejecutar_restaura_primero_lo_que_dejo_mutado_una_ejecucion_anterior
+  [OK] AL-M7 (detectado): pytest no muere con el arnés: tras un SIGKILL queda huérfano
+        FAILED tests/unit/test_arnes_ciclo_de_vida.py::test_tras_un_sigkill_el_proyecto_real_sigue_intacto_y_pytest_no_queda_huerfano
+  [OK] AL-M8 (detectado): main no instala la parada limpia: SIGTERM mata al arnés sin restaurar
+        FAILED tests/unit/test_arnes_ciclo_de_vida.py::test_sigterm_al_arnes_restaura_el_fichero_y_termina_todo_su_arbol
+  [OK] AL-M9 (detectado): la escritura deja de ser atómica: un fallo a mitad trunca el fuente
+        FAILED tests/unit/test_arnes_ciclo_de_vida.py::test_la_escritura_atomica_no_deja_el_fichero_a_medias_si_falla
+  [OK] AL-M10 (detectado): la restauración corre con las señales de parada desbloqueadas
+        FAILED tests/unit/test_arnes_ciclo_de_vida.py::test_la_restauracion_corre_con_las_senales_de_parada_bloqueadas
+  [OK] AL-M11 (detectado): el manejador no ignora las señales siguientes
+        FAILED tests/unit/test_arnes_ciclo_de_vida.py::test_tras_la_primera_senal_las_siguientes_se_ignoran
+  [OK] AL-M12 (detectado): la recuperación pisa la mutación en curso de otro arnés vivo
+        FAILED tests/unit/test_arnes_ciclo_de_vida.py::test_la_recuperacion_se_niega_si_el_arnes_dueno_sigue_vivo
+  [OK] AL-M13 (detectado): la recuperación restaura a ciegas y pisa un fichero que la persona ya editó
+        FAILED tests/unit/test_arnes_ciclo_de_vida.py::test_la_recuperacion_no_pisa_un_fichero_que_ya_no_es_el_mutado
+  [OK] AL-M14 (detectado): el arnés convierte en parada una señal que el llamador ignoraba (nohup)
+        FAILED tests/unit/test_arnes_ciclo_de_vida.py::test_no_se_sobrescribe_una_senal_que_el_llamador_ignoraba
+  [OK] AL-M15 (detectado): al terminar la restauración se desbloquean señales que el llamador tenía bloqueadas
+        FAILED tests/unit/test_arnes_ciclo_de_vida.py::test_bloquear_y_desbloquear_restaura_la_mascara_del_llamador
+  [OK] AL-M16 (detectado): una escritura fallida deja el temporal .mutar-tmp en el árbol
+        FAILED tests/unit/test_arnes_ciclo_de_vida.py::test_la_escritura_atomica_no_deja_temporales_y_respeta_los_enlaces
+  [OK] AL-M17 (detectado): escribir sobre un enlace simbólico lo convierte en fichero regular
+        FAILED tests/unit/test_arnes_ciclo_de_vida.py::test_la_escritura_atomica_no_deja_temporales_y_respeta_los_enlaces
+  [OK] AL-M18 (detectado): sin pidfd (ENOSYS) el descendiente ya no se mata
+        FAILED tests/unit/test_arnes_ciclo_de_vida.py::test_si_pidfd_no_esta_disponible_se_mata_igualmente_y_solo_al_mismo_proceso
+  [OK] AL-M19 (detectado): un diario corrupto revienta con un JSONDecodeError en vez de un error claro
+        FAILED tests/unit/test_arnes_ciclo_de_vida.py::test_un_diario_corrupto_da_un_error_claro
+  [OK] AL-M20 (detectado): se mata un PID sin comprobar que sigue siendo el mismo proceso (PID reutilizado)
+        FAILED tests/unit/test_arnes_ciclo_de_vida.py::test_con_pidfd_real_un_pid_cuyo_starttime_no_coincide_no_se_mata
+
+Total: 18 detectados, 0 sobreviven, 0 no aplicados, 0 ambiguos, 0 en timeout
+exit=0

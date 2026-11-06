@@ -66,8 +66,15 @@ MAX_DIGITOS = 15
 #: Formas de pedirlo en castellano. La lista es POSITIVA y CERRADA: se retiran del principio de la
 #: frase y lo que queda tiene que ser una expresion por si mismo.
 ENTRADILLAS = (
-    "cuanto es", "cuanto son", "cuanto da", "cuantos son", "cuanto vale",
-    "calcula", "calculame", "resultado de", "dime cuanto es",
+    "cuanto es",
+    "cuanto son",
+    "cuanto da",
+    "cuantos son",
+    "cuanto vale",
+    "calcula",
+    "calculame",
+    "resultado de",
+    "dime cuanto es",
 )
 
 #: Operadores dichos con palabras. El orden importa: «dividido entre» antes que «entre», o la
@@ -86,8 +93,7 @@ PALABRAS = (
 #: impide que «borra 2 archivos» o «gracias por todo» se cuelen como aritmetica.
 _SEGURO = re.compile(r"^[\d\s+\-*/().]+$")
 
-_OPERADORES = {ast.Add: lambda a, b: a + b, ast.Sub: lambda a, b: a - b,
-               ast.Mult: lambda a, b: a * b}
+_OPERADORES = {ast.Add: lambda a, b: a + b, ast.Sub: lambda a, b: a - b, ast.Mult: lambda a, b: a * b}
 
 
 class NoEsAritmetica(Exception):
@@ -114,7 +120,7 @@ def expresion_en(texto: str) -> str | None:
     t = _normalizar(texto)
     for entradilla in ENTRADILLAS:
         if t.startswith(entradilla):
-            t = t[len(entradilla):].strip()
+            t = t[len(entradilla) :].strip()
             break
     # Se rodea de espacios para que las palabras-operador casen tambien al principio y al final.
     t = f" {t} "
@@ -244,8 +250,18 @@ def resolver(texto: str) -> str | None:
 #: numeral que no este aqui no se interpreta -y por construccion del cierre (ver mas abajo) eso
 #: hace fallar la extraccion y termina en ACLARACION, nunca en una cifra inventada.
 _NUMERALES = {
-    "un": 1, "uno": 1, "una": 1, "dos": 2, "tres": 3, "cuatro": 4, "cinco": 5,
-    "seis": 6, "siete": 7, "ocho": 8, "nueve": 9, "diez": 10,
+    "un": 1,
+    "uno": 1,
+    "una": 1,
+    "dos": 2,
+    "tres": 3,
+    "cuatro": 4,
+    "cinco": 5,
+    "seis": 6,
+    "siete": 7,
+    "ocho": 8,
+    "nueve": 9,
+    "diez": 10,
 }
 
 #: Verbos que RESTAN de la posesion inicial. Lista positiva y cerrada -igual que `ENTRADILLAS`
@@ -342,9 +358,7 @@ def _forma_cuantitativa(texto: str, plegado: str) -> bool:
     premisa sobre la que razonar. A partir de aqui, `resolver_formal` ya no puede devolver `None`
     -es la condicion que hace que la rama numerica de `intencion.es_cognicion_general` quede
     cubierta por completo: lo que ella acepta, esta funcion lo detecta primero."""
-    tiene_cifra = any(ch.isdigit() for ch in texto) or any(
-        f" {n} " in f" {plegado} " for n in _NUMERALES
-    )
+    tiene_cifra = any(ch.isdigit() for ch in texto) or any(f" {n} " in f" {plegado} " for n in _NUMERALES)
     pide_cantidad = any(p in plegado for p in _PIDE_CANTIDAD_COGNITIVA)
     tiene_premisa = any(marca in plegado for marca in _MARCA_PREMISA)
     return tiene_cifra and pide_cantidad and tiene_premisa
@@ -394,7 +408,7 @@ def resolver_formal(texto: str) -> tuple[str, str] | None:
     cantidad = _numero(m_premisa.group("cifra"))
     if cantidad is None:
         return (Estatus.ACLARACION.value, _PREGUNTA_ACLARACION)
-    sustantivo = texto[m_premisa.start("obj"):m_premisa.end("obj")]
+    sustantivo = texto[m_premisa.start("obj") : m_premisa.end("obj")]
 
     # 4. Exactamente UNA clausula de operacion, buscada solo DESPUES de la premisa -para que la
     # propia cifra de «tengo N» nunca se cuente a si misma como si fuera una operacion.
@@ -424,6 +438,17 @@ def resolver_formal(texto: str) -> tuple[str, str] | None:
     return (Estatus.HECHO.value, f"Te quedan {resultado} {sustantivo}.")
 
 
-__all__ = ["resolver", "resolver_formal", "expresion_en", "evaluar", "formatear",
-           "NoEsAritmetica", "DivisionPorCero", "ENTRADILLAS", "PALABRAS",
-           "MAX_CARACTERES", "MAX_OPERADORES", "MAX_DIGITOS"]
+__all__ = [
+    "resolver",
+    "resolver_formal",
+    "expresion_en",
+    "evaluar",
+    "formatear",
+    "NoEsAritmetica",
+    "DivisionPorCero",
+    "ENTRADILLAS",
+    "PALABRAS",
+    "MAX_CARACTERES",
+    "MAX_OPERADORES",
+    "MAX_DIGITOS",
+]

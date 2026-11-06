@@ -34,8 +34,12 @@ sustituir = '''    if False:
 id = "COG-M4"
 garantia = "la suposicion se vuelve un salvoconducto: basta un «si» para esquivar la memoria"
 fichero = "aura_skeleton/core/intencion.py"
-buscar = '''            and any(q in n for q in _PIDE_CANTIDAD):'''
-sustituir = '''            and True:'''
+buscar = '''    if (
+        any(p in n for p in _SUPOSICION_COGNITIVA)
+        and any(ch.isdigit() for ch in texto)
+        and any(q in n for q in _PIDE_CANTIDAD)
+    ):'''
+sustituir = '''    if any(p in n for p in _SUPOSICION_COGNITIVA) and any(ch.isdigit() for ch in texto) and True:'''
 
 [[mutante]]
 id = "COG-M5"

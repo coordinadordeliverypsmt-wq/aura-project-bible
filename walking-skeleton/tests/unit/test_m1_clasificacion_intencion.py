@@ -20,8 +20,7 @@ from aura_skeleton.core import intencion as I
 from aura_skeleton.core.orchestrator import _es_consulta_de_memoria, _es_pregunta
 
 DATOS = pathlib.Path(__file__).resolve().parents[1] / "datos" / "bateria_memoria.json"
-INTENCION = (pathlib.Path(__file__).resolve().parents[3]
-             / "milestones" / "m3-entry" / "bateria-intencion.json")
+INTENCION = pathlib.Path(__file__).resolve().parents[3] / "milestones" / "m3-entry" / "bateria-intencion.json"
 
 
 def _bateria_memoria() -> dict:
@@ -65,13 +64,16 @@ def test_M1_NO_PUEDE_anadir_escrituras_que_antes_no_ocurrian():
     assert not nuevas, f"M-1 escribiria {len(nuevas)} turnos que antes no se escribian: {nuevas[:5]}"
 
 
-@pytest.mark.parametrize("texto", [
-    "¿Cuál es el nombre de mi abuela?",
-    "¿A qué hora ceno normalmente?",
-    "¿Qué marca de teléfono tengo?",
-    "¿Cuál es la dirección y el teléfono de la oficina nueva?",
-    "¿Dónde dejé las llaves de mi coche nuevo?",
-])
+@pytest.mark.parametrize(
+    "texto",
+    [
+        "¿Cuál es el nombre de mi abuela?",
+        "¿A qué hora ceno normalmente?",
+        "¿Qué marca de teléfono tengo?",
+        "¿Cuál es la dirección y el teléfono de la oficina nueva?",
+        "¿Dónde dejé las llaves de mi coche nuevo?",
+    ],
+)
 def test_una_pregunta_personal_NUNCA_se_convierte_en_memoria(texto):
     """Aunque la pregunta CONTENGA un hecho personal, el acto manda para escribir: no se almacena.
 
@@ -86,30 +88,33 @@ def test_una_pregunta_personal_NUNCA_se_convierte_en_memoria(texto):
 # ================================================================= EJE 1 · ACTO DE HABLA --
 
 
-@pytest.mark.parametrize("texto,acto", [
-    # PREGUNTA
-    ("¿Cómo me llamo?", I.PREGUNTA),
-    ("¿Sabes que me mudé a Alcalá el año pasado?", I.PREGUNTA),
-    # AFIRMACION -- incluida la negacion sobre uno mismo, que fue el agujero del 56,2 % del DP
-    ("Trabajo en logística", I.AFIRMACION),
-    ("No soy alérgico a los frutos secos", I.AFIRMACION),
-    ("No tengo hermanos", I.AFIRMACION),
-    ("No trabajo los viernes", I.AFIRMACION),
-    ("Cuando llego a casa siempre me hago un té", I.AFIRMACION),
-    ("Mi profesora recomienda leer más", I.AFIRMACION),
-    # ORDEN -- afirmativa, negada, y con contenido personal incrustado
-    ("Apaga la luz del salón", I.ORDEN),
-    ("No borres nada", I.ORDEN),
-    ("No enciendas la luz", I.ORDEN),
-    ("Anota que el viernes viajo a Lisboa", I.ORDEN),
-    ("Si llueve avísame antes de salir", I.ORDEN),
-    # CORRECCION
-    ("Ya no trabajo en logística", I.CORRECCION),
-    ("Mi apellido no es Pérez, es Peres", I.CORRECCION),
-    # SOCIAL
-    ("gracias", I.SOCIAL),
-    ("Hola", I.SOCIAL),
-])
+@pytest.mark.parametrize(
+    "texto,acto",
+    [
+        # PREGUNTA
+        ("¿Cómo me llamo?", I.PREGUNTA),
+        ("¿Sabes que me mudé a Alcalá el año pasado?", I.PREGUNTA),
+        # AFIRMACION -- incluida la negacion sobre uno mismo, que fue el agujero del 56,2 % del DP
+        ("Trabajo en logística", I.AFIRMACION),
+        ("No soy alérgico a los frutos secos", I.AFIRMACION),
+        ("No tengo hermanos", I.AFIRMACION),
+        ("No trabajo los viernes", I.AFIRMACION),
+        ("Cuando llego a casa siempre me hago un té", I.AFIRMACION),
+        ("Mi profesora recomienda leer más", I.AFIRMACION),
+        # ORDEN -- afirmativa, negada, y con contenido personal incrustado
+        ("Apaga la luz del salón", I.ORDEN),
+        ("No borres nada", I.ORDEN),
+        ("No enciendas la luz", I.ORDEN),
+        ("Anota que el viernes viajo a Lisboa", I.ORDEN),
+        ("Si llueve avísame antes de salir", I.ORDEN),
+        # CORRECCION
+        ("Ya no trabajo en logística", I.CORRECCION),
+        ("Mi apellido no es Pérez, es Peres", I.CORRECCION),
+        # SOCIAL
+        ("gracias", I.SOCIAL),
+        ("Hola", I.SOCIAL),
+    ],
+)
 def test_eje1_acto_de_habla(texto, acto):
     assert I.acto_de_habla(texto) == acto, f"{texto!r}"
 
@@ -124,15 +129,18 @@ def test_la_precedencia_es_explicita_y_ese_orden_es_la_regla():
 # ============================================================ EJE 2 · CONTENIDO Y ESCRITURA --
 
 
-@pytest.mark.parametrize("texto,contenido,almacena", [
-    ("Trabajo en logística", I.HECHO_USUARIO, True),
-    ("Mi cumpleaños es el 14 de marzo", I.HECHO_USUARIO, True),
-    ("No soy alérgico a los frutos secos", I.HECHO_USUARIO, True),
-    ("Para el café uso la italiana", I.CONOCIMIENTO_PROCEDURAL, True),
-    ("gracias", I.NADA_PROPOSICIONAL, False),
-    ("¿Quién escribió el Quijote?", I.INCIERTO, False),
-    ("Si tengo dos caballos y vendo uno, ¿cuántos quedan?", I.HECHO_USUARIO, False),
-])
+@pytest.mark.parametrize(
+    "texto,contenido,almacena",
+    [
+        ("Trabajo en logística", I.HECHO_USUARIO, True),
+        ("Mi cumpleaños es el 14 de marzo", I.HECHO_USUARIO, True),
+        ("No soy alérgico a los frutos secos", I.HECHO_USUARIO, True),
+        ("Para el café uso la italiana", I.CONOCIMIENTO_PROCEDURAL, True),
+        ("gracias", I.NADA_PROPOSICIONAL, False),
+        ("¿Quién escribió el Quijote?", I.INCIERTO, False),
+        ("Si tengo dos caballos y vendo uno, ¿cuántos quedan?", I.HECHO_USUARIO, False),
+    ],
+)
 def test_eje2_contenido_y_decision_de_escritura(texto, contenido, almacena):
     assert I.contenido_proposicional(texto) == contenido, f"{texto!r}"
     assert I.debe_almacenarse(texto) is almacena, f"{texto!r}"
@@ -148,8 +156,13 @@ def test_ante_la_duda_NO_se_almacena():
 
 def test_conocimiento_general_e_hipotesis_no_son_hechos_del_usuario():
     """Ni el conocimiento del mundo ni una suposicion se convierten en memoria personal."""
-    for t in ("¿Qué color es el cielo?", "¿Por qué llueve?", "¿Cuál es la capital de Francia?",
-              "Supongamos que el agua fuera roja", "¿Qué pasaría si la gravedad fuera la mitad?"):
+    for t in (
+        "¿Qué color es el cielo?",
+        "¿Por qué llueve?",
+        "¿Cuál es la capital de Francia?",
+        "Supongamos que el agua fuera roja",
+        "¿Qué pasaría si la gravedad fuera la mitad?",
+    ):
         assert not I.debe_almacenarse(t), t
 
 
@@ -171,6 +184,7 @@ def test_una_etiqueta_no_es_una_autorizacion():
     se trajera el motor, los permisos o la memoria, esta prueba cae antes de que llegue a usarlos.
     """
     import ast
+
     arbol = ast.parse(pathlib.Path(I.__file__).read_text(encoding="utf-8"))
     modulos = set()
     for nodo in ast.walk(arbol):
@@ -180,7 +194,8 @@ def test_una_etiqueta_no_es_una_autorizacion():
             modulos.add(nodo.module or "")
             modulos.update(a.name for a in nodo.names)
     assert modulos <= {"__future__", "annotations", "re", "unicodedata", "dataclasses", "dataclass"}, (
-        f"intencion.py importa algo que no le corresponde: {modulos}")
+        f"intencion.py importa algo que no le corresponde: {modulos}"
+    )
 
 
 def test_M1_no_usa_el_modelo_para_clasificar():
@@ -191,10 +206,10 @@ def test_M1_no_usa_el_modelo_para_clasificar():
     ADR-0014 elimina.
     """
     import ast
+
     arbol = ast.parse(pathlib.Path(I.__file__).read_text(encoding="utf-8"))
     llamadas = {ast.unparse(n.func) for n in ast.walk(arbol) if isinstance(n, ast.Call)}
-    prohibidas = [c for c in llamadas
-                  if any(p in c.lower() for p in ("infer", "provider", "router", "llm", "model"))]
+    prohibidas = [c for c in llamadas if any(p in c.lower() for p in ("infer", "provider", "router", "llm", "model"))]
     assert not prohibidas, f"M-1 no puede llamar al modelo: {prohibidas}"
 
 
@@ -207,11 +222,14 @@ def test_R7_servir_no_pasa_por_el_clasificador_y_eso_esta_bien():
     saltandose el motor, esto lo detecta.
     """
     from aura_skeleton.core import motor_ciclo
+
     fuente = pathlib.Path(motor_ciclo.__file__).read_text(encoding="utf-8")
     assert "intencion" not in fuente, "R7 no debe convertirse en una ruta conversacional"
     from aura_skeleton.core import director
+
     assert "motor" in pathlib.Path(director.__file__).read_text(encoding="utf-8"), (
-        "R7 llega al efecto por el Director: si dejara de usar el motor, seria un bypass")
+        "R7 llega al efecto por el Director: si dejara de usar el motor, seria un bypass"
+    )
 
 
 def test_R6_el_bus_de_red_no_esta_cableado():
@@ -221,6 +239,7 @@ def test_R6_el_bus_de_red_no_esta_cableado():
     sostiene: si alguien cableara NATS, la premisa deja de valer y hay que revisar la frontera.
     """
     from aura_skeleton import composicion
+
     fuente = pathlib.Path(composicion.__file__).read_text(encoding="utf-8")
     assert "InProcessEventBus()" in fuente
     assert "NatsEventBus" not in fuente, "cablear NATS exige revisar R6: es DECISION_REQUIRED"

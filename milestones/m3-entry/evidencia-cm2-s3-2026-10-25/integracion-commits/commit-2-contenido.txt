@@ -1,0 +1,6 @@
+646a9cebb3ac6f71617b36a3df2959645e85a5d2 test(red): red de _ruta_red v2 y aislamiento de dispositivos reales
+
+A	walking-skeleton/mutaciones/ruta-red.toml
+A	walking-skeleton/mutaciones/sin-dispositivos-reales.toml
+A	walking-skeleton/tests/unit/test_ruta_red.py
+A	walking-skeleton/tests/unit/test_sin_dispositivos_reales.py

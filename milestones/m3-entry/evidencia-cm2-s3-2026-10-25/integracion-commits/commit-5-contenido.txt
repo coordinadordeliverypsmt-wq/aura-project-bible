@@ -1,0 +1,11 @@
+9f13935455ac89025a233ce78db024b7cde5c489 feat(control-plane): recuperacion tras caidas (DP-RECUPERACION-TRAS-CAIDAS)
+
+M	entorno/control-plane/.gitignore
+M	entorno/control-plane/aura.py
+M	entorno/control-plane/control_plane.py
+M	entorno/control-plane/motor_autonomia.py
+A	entorno/control-plane/mutaciones/reanudacion-tras-caida.toml
+M	entorno/control-plane/planificador.py
+A	entorno/control-plane/test_red_reanudacion_tras_caida.py
+M	walking-skeleton/mutaciones/f1-orquestador.toml
+M	walking-skeleton/mutaciones/motor-autonomia.toml

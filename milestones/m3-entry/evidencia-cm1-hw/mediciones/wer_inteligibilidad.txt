@@ -1,0 +1,12 @@
+# comparar12.py — 2026-09-29T09:38:52-05:00 — WER ida y vuelta TTS->Vosk small (reconocimiento libre), 12 frases, en memoria
+espeak es 175 0.349
+espeak es 190 0.433
+espeak es 205 0.374
+piper es_MX medium 0.181
+# sweep_espeak.py — mismas 12 frases, voz x velocidad
+('es-419', 130, 0.537)
+('es-419', 150, 0.541)
+('es-419', 175, 0.51)
+('es', 130, 0.41)
+('es', 150, 0.461)
+('es', 175, 0.328)

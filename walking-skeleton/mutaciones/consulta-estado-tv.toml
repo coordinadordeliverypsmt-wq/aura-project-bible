@@ -1,0 +1,140 @@
+incremento = "Consulta del estado de la TV, solo lectura (acta 2026-10-22 s4)"
+pruebas = [
+    "tests/unit/test_hogar_consulta.py",
+    "tests/integration/test_consulta_estado_tv.py",
+    "tests/integration/test_voz_accion_opcion_c.py",
+    "tests/integration/test_umbral_una_conversacion_voz.py",
+]
+
+[[mutante]]
+id = "C1"
+garantia = "con la TV apagada se da el volumen/contenido guardado"
+fichero = "aura_skeleton/core/hogar.py"
+buscar = '''    if not encendida:
+        que = '''
+sustituir = '''    if False:
+        que = '''
+
+[[mutante]]
+id = "C2"
+garantia = "un volumen None/no numerico se trata como numero"
+fichero = "aura_skeleton/core/hogar.py"
+buscar = '''        if not isinstance(nivel, (int, float)) or isinstance(nivel, bool):'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "C3"
+garantia = "el titulo se dice por voz"
+fichero = "aura_skeleton/core/hogar.py"
+buscar = '''    if titulo and not por_voz:'''
+sustituir = '''    if titulo:'''
+
+[[mutante]]
+id = "C4"
+garantia = "el titulo entra en el audit log"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''f"consulta {aspecto} de {estado['entity_id']}: {estado.get('state')} (lectura)",'''
+sustituir = '''f"consulta {aspecto} de {estado['entity_id']}: {estado.get('state')} {estado['attributes'].get('media_title')} (lectura)",'''
+
+[[mutante]]
+id = "C5"
+garantia = "por voz la consulta no se reconoce (la traga la orden no entendida)"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        consulta = hogar.reconocer_consulta(text) if self.motor is not None else None'''
+sustituir = '''        consulta = hogar.reconocer_consulta(text) if (self.motor is not None and not por_voz) else None'''
+
+[[mutante]]
+id = "C6"
+garantia = "estado desconocido (unavailable) se dice como apagada"
+fichero = "aura_skeleton/core/hogar.py"
+buscar = '''    if valor not in _ENCENDIDOS | _APAGADOS:'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "C7"
+garantia = "la gramatica acepta un dispositivo que no es TV"
+fichero = "aura_skeleton/core/hogar.py"
+buscar = '''        if _NO_ES_UNA_SOLA.search(f" {dispositivo} ") or "tv" not in _rasgos(dispositivo):'''
+sustituir = '''        if _NO_ES_UNA_SOLA.search(f" {dispositivo} ") or False:'''
+
+[[mutante]]
+id = "C8"
+garantia = "la gramatica acepta varios dispositivos (la tele y la luz)"
+fichero = "aura_skeleton/core/hogar.py"
+buscar = '''        if _NO_ES_UNA_SOLA.search(f" {dispositivo} ") or "tv" not in _rasgos(dispositivo):'''
+sustituir = '''        if "tv" not in _rasgos(dispositivo):'''
+
+[[mutante]]
+id = "C9"
+garantia = "la consulta pasa a EJECUTAR por el motor"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            estado = await asyncio.to_thread(leer, objetivo)
+        except ErrorDeValidacion as e:  # dispositivo ambiguo o inexistente, credencial rechazada'''
+sustituir = '''            await self.motor.ejecutar("encender_dispositivo", {"device": objetivo}, tid, "c9", origen="conversacion")
+            estado = await asyncio.to_thread(leer, objetivo)
+        except ErrorDeValidacion as e:  # dispositivo ambiguo o inexistente, credencial rechazada'''
+
+[[mutante]]
+id = "C10"
+garantia = "con la PARADA echada no se avisa"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        if self._sistema_detenido():
+            resp += " La parada de emergencia está echada'''
+sustituir = '''        if False:
+            resp += " La parada de emergencia está echada'''
+
+[[mutante]]
+id = "C11"
+garantia = "con la PARADA echada la consulta no responde"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        aspecto, dispositivo = consulta
+        leer = getattr('''
+sustituir = '''        aspecto, dispositivo = consulta
+        if self._sistema_detenido():
+            return "Parada echada.", Estatus.ABSTENCION
+        leer = getattr('''
+
+[[mutante]]
+id = "C12"
+garantia = "el alias por nombre humano se ignora"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        objetivo = hogar.entidad_por_nombre_humano(dispositivo, self.nombres_de_voz) or dispositivo
+        try:
+            estado = await asyncio.to_thread(leer, objetivo)'''
+sustituir = '''        objetivo = dispositivo
+        try:
+            estado = await asyncio.to_thread(leer, objetivo)'''
+
+[[mutante]]
+id = "C13"
+garantia = "HA caido (Exception) no se captura en la consulta"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        except Exception as e:
+            obs.log("WARN", "hogar", f"Home Assistant no respondio a la consulta de estado: {e}", tid, audit=True)'''
+sustituir = '''        except KeyError as e:
+            obs.log("WARN", "hogar", f"Home Assistant no respondio a la consulta de estado: {e}", tid, audit=True)'''
+
+[[mutante]]
+id = "C14"
+garantia = "ambiguo/credencial (ErrorDeValidacion) no se captura con su mensaje"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        except ErrorDeValidacion as e:  # dispositivo ambiguo o inexistente, credencial rechazada
+            return f"No he podido consultarlo'''
+sustituir = '''        except KeyError as e:  # dispositivo ambiguo o inexistente, credencial rechazada
+            return f"No he podido consultarlo'''
+
+[[mutante]]
+id = "C15"
+garantia = "el adaptador pierde last_changed (no se dice desde cuando)"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''            "last_changed": entidad.get("last_changed"),'''
+sustituir = '''            "last_changed": None,'''
+
+[[mutante]]
+id = "C16"
+garantia = "«¿está apagada la tele?» se contesta como «¿está encendida?»: el Sí/No contradice la pregunta (revisión ECC, ALTO)"
+fichero = "aura_skeleton/core/hogar.py"
+buscar = '''        if aspecto == "encendida" and "apagad" in limpio:
+            aspecto = "apagada"'''
+sustituir = '''        if False:
+            aspecto = "apagada"'''

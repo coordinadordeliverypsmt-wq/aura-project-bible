@@ -97,10 +97,12 @@ def test_control_el_verificador_detecta_una_llamada_ilegitima(tmp_path):
         "        self.mem = mem\n"
         "    def f(self):\n"
         "        return self.mem.olvidar(lambda i: True)\n",
-        encoding="utf-8")
+        encoding="utf-8",
+    )
     hallazgos = verificador.analizar_fichero(fuente, autorizado_para=frozenset())
     assert any(h.regla == "R-A" and h.operacion == "olvidar" for h in hallazgos), (
-        "el verificador NO detecta una llamada ilegítima: cualquier verde suyo sería decorativo")
+        "el verificador NO detecta una llamada ilegítima: cualquier verde suyo sería decorativo"
+    )
 
 
 def test_control_el_verificador_no_acusa_a_un_modulo_autorizado(tmp_path):
@@ -111,7 +113,8 @@ def test_control_el_verificador_no_acusa_a_un_modulo_autorizado(tmp_path):
         "        self.mem = mem\n"
         "    def f(self):\n"
         "        return self.mem.olvidar(lambda i: True)\n",
-        encoding="utf-8")
+        encoding="utf-8",
+    )
     hallazgos = verificador.analizar_fichero(fuente, autorizado_para=frozenset({"olvidar"}))
     assert not [h for h in hallazgos if h.regla == "R-A"], "FP-5: un módulo autorizado no se acusa"
 
@@ -120,14 +123,9 @@ def test_control_la_homonimia_de_write_no_genera_falso_positivo(tmp_path):
     """FP-1 y FP-6 · `f.write()` sobre un fichero abierto no es una mutación de almacén. Es
     exactamente el caso que hundía la resolución al 40 % (§4.4)."""
     fuente = tmp_path / "escribe_fichero.py"
-    fuente.write_text(
-        "def f(ruta):\n"
-        "    with open(ruta, 'w') as fh:\n"
-        "        fh.write('hola')\n",
-        encoding="utf-8")
+    fuente.write_text("def f(ruta):\n    with open(ruta, 'w') as fh:\n        fh.write('hola')\n", encoding="utf-8")
     hallazgos = verificador.analizar_fichero(fuente, autorizado_para=frozenset())
-    assert not [h for h in hallazgos if h.regla == "R-A"], (
-        "`fh.write()` no puede acusarse como mutación de almacén")
+    assert not [h for h in hallazgos if h.regla == "R-A"], "`fh.write()` no puede acusarse como mutación de almacén"
 
 
 def test_control_un_receptor_no_resoluble_no_se_reporta_como_violacion(tmp_path):
@@ -135,10 +133,7 @@ def test_control_un_receptor_no_resoluble_no_se_reporta_como_violacion(tmp_path)
     cuenta. Prefiere un falso negativo declarado y contable a un falso positivo que bloquee el
     desarrollo."""
     fuente = tmp_path / "receptor_opaco.py"
-    fuente.write_text(
-        "def f(cosa):\n"
-        "    return cosa.olvidar(lambda i: True)\n",
-        encoding="utf-8")
+    fuente.write_text("def f(cosa):\n    return cosa.olvidar(lambda i: True)\n", encoding="utf-8")
     hallazgos = verificador.analizar_fichero(fuente, autorizado_para=frozenset())
     assert not [h for h in hallazgos if h.regla == "R-A"], "no se acusa a un receptor no resoluble"
     assert verificador.no_resueltos(fuente) >= 1, "pero SÍ se cuenta: el silencio no es olvido"
@@ -147,14 +142,10 @@ def test_control_un_receptor_no_resoluble_no_se_reporta_como_violacion(tmp_path)
 def test_control_rc_detecta_un_metodo_publico_sin_clasificar(tmp_path):
     fuente = tmp_path / "almacen_con_metodo_nuevo.py"
     fuente.write_text(
-        "class Almacen:\n"
-        "    def guardar(self):\n"
-        "        pass\n"
-        "    def _interno(self):\n"
-        "        pass\n",
-        encoding="utf-8")
-    sin_clasificar = verificador.publicos_sin_clasificar(
-        fuente, mutantes=frozenset(), neutros=frozenset())
+        "class Almacen:\n    def guardar(self):\n        pass\n    def _interno(self):\n        pass\n",
+        encoding="utf-8",
+    )
+    sin_clasificar = verificador.publicos_sin_clasificar(fuente, mutantes=frozenset(), neutros=frozenset())
     assert "guardar" in sin_clasificar, "R-C debe exigir clasificar todo `def` público"
     assert "_interno" not in sin_clasificar, "los privados no entran en R-C"
 
@@ -173,8 +164,7 @@ def test_g1_el_criterio_de_fallo_no_tiene_severidades():
 
 def test_g1_el_mensaje_de_fallo_dice_que_hacer():
     """§2.4 · el mensaje debe nombrar fichero, línea, operación y **qué hacer**."""
-    h = verificador.Hallazgo(regla="R-A", fichero="x.py", linea=1, operacion="olvidar",
-                             detalle="prueba")
+    h = verificador.Hallazgo(regla="R-A", fichero="x.py", linea=1, operacion="olvidar", detalle="prueba")
     texto = verificador.explicar([h])
     for exigido in ("x.py", "1", "olvidar", "R-A"):
         assert exigido in texto
@@ -193,6 +183,7 @@ def test_g1_el_ambito_excluye_tests_y_arneses():
 
 def _arbol_del_verificador():
     import ast
+
     return ast.parse((AQUI / "verificador_g1.py").read_text(encoding="utf-8"))
 
 
@@ -210,14 +201,15 @@ def test_el_verificador_no_implementa_lo_no_aprobado():
 
     # R-D prohibiría `getattr` sobre almacenes. No está aprobada: no puede haber detección de
     # `getattr` en ninguna forma.
-    llamadas = {n.func.id for n in ast.walk(arbol)
-                if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
+    llamadas = {n.func.id for n in ast.walk(arbol) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
     assert "getattr" not in llamadas, "R-D NO está aprobada: el verificador no inspecciona getattr"
 
-    definidos = {n.name for n in ast.walk(arbol)
-                 if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))}
-    constantes = {n.targets[0].id for n in ast.walk(arbol)
-                  if isinstance(n, ast.Assign) and isinstance(n.targets[0], ast.Name)}
+    definidos = {
+        n.name for n in ast.walk(arbol) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+    }
+    constantes = {
+        n.targets[0].id for n in ast.walk(arbol) if isinstance(n, ast.Assign) and isinstance(n.targets[0], ast.Name)
+    }
     for simbolo in definidos | constantes:
         bajo = simbolo.lower()
         assert "getattr" not in bajo, f"{simbolo!r} implementaría R-D"
@@ -284,10 +276,9 @@ def test_capa5_no_reintroduce_los_falsos_positivos_conocidos(tmp_path):
     sin acusarse, y un receptor opaco sigue callando."""
     fuente = tmp_path / "homonimos.py"
     fuente.write_text(
-        "def f(texto, cosa):\n"
-        "    texto = texto.replace('a', 'b')\n"
-        "    return cosa.olvidar(lambda i: True)\n",
-        encoding="utf-8")
+        "def f(texto, cosa):\n    texto = texto.replace('a', 'b')\n    return cosa.olvidar(lambda i: True)\n",
+        encoding="utf-8",
+    )
     hallazgos = verificador.analizar_fichero(fuente, autorizado_para=frozenset())
     assert not hallazgos, "la capa 5 no puede introducir falsos positivos"
 
@@ -312,21 +303,34 @@ def test_las_cuatro_rutas_de_alerta_006_ALCANZAN_el_motor():
     fuente = (verificador.PAQUETE / "core" / "modelo_usuario.py").read_text(encoding="utf-8")
     arbol = ast.parse(fuente)
     for metodo in ("borrar", "refutar"):
-        cuerpo = next((n for n in ast.walk(arbol)
-                       if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == metodo), None)
+        cuerpo = next(
+            (n for n in ast.walk(arbol) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == metodo),
+            None,
+        )
         assert cuerpo is not None, f"modelo_usuario.{metodo} desapareció"
         llamadas = {ast.unparse(n.func) for n in ast.walk(cuerpo) if isinstance(n, ast.Call)}
         assert any("_por_el_motor" in c for c in llamadas), (
-            f"modelo_usuario.{metodo} dejó de pasar por el motor: {sorted(llamadas)}")
+            f"modelo_usuario.{metodo} dejó de pasar por el motor: {sorted(llamadas)}"
+        )
 
     # (c) Y `_por_el_motor` llega de verdad al motor -- sin esto, (b) solo probaría que se llama a una
     #     función con un nombre tranquilizador.
-    por = next((n for n in ast.walk(arbol)
-                if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == "_por_el_motor"), None)
+    por = next(
+        (
+            n
+            for n in ast.walk(arbol)
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == "_por_el_motor"
+        ),
+        None,
+    )
     assert por is not None and any(
-        isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "ejecutar"
-        and isinstance(n.func.value, ast.Attribute) and n.func.value.attr.lstrip("_") == "motor"
-        for n in ast.walk(por)), "_por_el_motor no llama al motor"
+        isinstance(n, ast.Call)
+        and isinstance(n.func, ast.Attribute)
+        and n.func.attr == "ejecutar"
+        and isinstance(n.func.value, ast.Attribute)
+        and n.func.value.attr.lstrip("_") == "motor"
+        for n in ast.walk(por)
+    ), "_por_el_motor no llama al motor"
 
 
 def test_la_exencion_por_alcance_de_autoridad_es_ESTRECHA():
@@ -349,6 +353,7 @@ def test_solo_EL_MOTOR_concede_la_exencion_no_cualquier_cosa_con_ejecutar():
     quedaría exento sin haber pasado por ninguna autoridad — el mismo error nominal que D-A006-3
     corrige, cometido en el otro sentido.
     """
+
     def _fn(codigo: str):
         return ast.parse(codigo).body[0]
 

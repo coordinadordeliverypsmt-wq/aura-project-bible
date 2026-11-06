@@ -19,6 +19,8 @@ LLM, sin inferencia, sin componentes nuevos.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from aura_skeleton.core.decisiones import (
@@ -177,6 +179,40 @@ def test_una_tarea_escalada_no_impide_reabrir_las_demas(estado, almacen):
     assert _tarea(estado, "t-agotada").estado == "bloqueada"
 
 
+def _auditor_del_sistema(sistema):
+    """El auditor REAL que la composición encendió, alcanzado por el registro público.
+
+    Se exige que exista: si un día `auditar_garantias` dejara de estar cableada, esta prueba debe
+    caer con ese motivo y no seguir midiendo en silencio otra cosa -que es el patrón «declarado ≠
+    real» que ya costó ocho incidentes-."""
+    auditor = sistema.registro_adaptadores.para("auditar_garantias")
+    assert auditor is not None, "la composición ya no enciende el auditor: esta prueba mide otra cosa"
+    return auditor
+
+
+def _catalogo_de_garantias_vigente(tmp_path) -> Path:
+    """Una raíz con UNA garantía declarada que de verdad sigue aplicando.
+
+    No es un doble del auditor: el auditor corre entero -lee el TOML, abre el fichero objetivo,
+    cuenta apariciones y comprueba que `buscar` degrada algo-. Lo que se controla es el catálogo,
+    para que «el trabajo sano sale adelante» dependa del ciclo y no de cuántas anclas de mutación
+    del repositorio estén al día hoy."""
+    raiz = tmp_path / "repo-hermetico"
+    (raiz / "mutaciones").mkdir(parents=True, exist_ok=True)
+    (raiz / "objetivo.py").write_text("def sano():\n    return 1 + 1\n", encoding="utf-8")
+    # Cadenas literales ''' … ''' : con "…" el TOML interpretaría los escapes y el patrón dejaría de
+    # coincidir -- la trampa que el protocolo del proyecto documenta como ya pagada.
+    (raiz / "mutaciones" / "hermetico.toml").write_text(
+        "[[mutante]]\n"
+        "id = 'H1'\n"
+        "fichero = 'objetivo.py'\n"
+        "buscar = '''    return 1 + 1'''\n"
+        "sustituir = '''    return 0'''\n",
+        encoding="utf-8",
+    )
+    return raiz
+
+
 @pytest.mark.asyncio
 async def test_e2e_una_tarea_que_falla_siempre_no_detiene_el_resto_del_backlog(tmp_path):
     """E2E exigida por el acta (condición 9), sobre el sistema COMPUESTO y su latido real.
@@ -194,8 +230,19 @@ async def test_e2e_una_tarea_que_falla_siempre_no_detiene_el_resto_del_backlog(t
     )
     # `diagnostico` y no `auditor`: el auditor mide las garantías REALES del repositorio, así que un
     # mutante desapuntado en cualquier arnés hacía fallar esta prueba por una razón ajena -pasó, y
-    # AURORA hizo lo correcto: detectó las garantías rotas y bloqueó la tarea-. El diagnóstico no
-    # depende del estado del repo, así que aquí mide lo que dice medir.
+    # AURORA hizo lo correcto: detectó las garantías rotas y bloqueó la tarea-.
+    #
+    # PERO CAMBIAR DE RESPONSABLE NO BASTABA, y esa es la causa por la que esta prueba llevaba
+    # semanas en rojo: `composicion.py` cablea el auditor DENTRO del ejecutor de diagnóstico
+    # (`EjecutorDiagnostico(ruta_audit=..., auditor=_aud)`), así que el veredicto del diagnóstico
+    # sigue midiendo el repositorio. Con 13 anclas de mutación desapuntadas, el diagnóstico dice
+    # -correctamente- «con incidencias», el director bloquea t-sana y la prueba concluía que el
+    # backlog se había detenido cuando lo que había fallado era el termómetro.
+    #
+    # Se hace hermético el trabajo sano SIN debilitar nada: el auditor real sigue corriendo, con su
+    # algoritmo real, sobre un catálogo de garantías real -escrito aquí, vigente por construcción-.
+    # Lo único que deja de viajar a la prueba es el estado accidental del repositorio.
+    _auditor_del_sistema(s)._raiz = _catalogo_de_garantias_vigente(tmp_path)
     s.estado_operativo.registrar(
         Tarea(objetivo_id="obj", tarea_id="t-sana", descripcion="diagnosticar", responsable="diagnostico")
     )

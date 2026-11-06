@@ -25,7 +25,12 @@ sustituir = '''            estado = _DETECTADO'''
 id = "M2"
 garantia = "al vencer el timeout solo se mata el proceso de pytest, no el ARBOL completo: deja huerfanos (el dano ya medido en produccion)"
 fichero = "herramientas/mutar.py"
-pruebas = ["tests/unit/test_arnes_mutacion.py::test_no_deja_procesos_huerfanos_tras_el_timeout"]
+# 2026-10-06: con la foto de descendientes, el arbol directo ya lo cubre otra via; lo que SOLO alcanza el
+# killpg es el proceso del grupo que ya cuelga de init (doble fork). Esa es la prueba que protege esta linea.
+pruebas = [
+    "tests/unit/test_arnes_mutacion.py::test_no_deja_procesos_huerfanos_tras_el_timeout",
+    "tests/unit/test_arnes_ciclo_de_vida.py::test_el_timeout_mata_tambien_al_proceso_del_grupo_que_ya_cuelga_de_init",
+]
 buscar = '''        os.killpg(os.getpgid(proceso.pid), signal.SIGKILL)'''
 sustituir = '''        proceso.kill()'''
 

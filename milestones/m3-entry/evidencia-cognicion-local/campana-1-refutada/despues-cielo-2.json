@@ -1,0 +1,23 @@
+{
+  "etiqueta": "DESPUES-cielo-2",
+  "modelo": "qwen2.5:0.5b",
+  "options": null,
+  "keep_alive": null,
+  "casos": [
+    {
+      "reloj_s": 118.91,
+      "total_s": 118.62,
+      "carga_modelo_s": 1.31,
+      "ingesta_tokens": 162,
+      "ingesta_s": 2.59,
+      "ingesta_tok_s": 62.48,
+      "generacion_tokens": 53,
+      "generacion_s": 114.71,
+      "generacion_tok_s": 0.46,
+      "pct_generacion": 96.7,
+      "respuesta": "{ \"say\": \"El cielo se ve azulado debido a los colores de luz y el reflejo en las águilas del cielo. Por lo tanto, el color del cielo es azul.\",\"action\":\"consulta\"}",
+      "motivo_fin": "stop",
+      "caso": "cielo"
+    }
+  ]
+}

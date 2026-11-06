@@ -1,0 +1,21 @@
+{
+  "etiqueta": "D-sin-entorno",
+  "fecha": "2026-09-15 21:52:39",
+  "usb_montada": true,
+  "voz_declarada": "(sin declarar)",
+  "voz_existe": false,
+  "hf_home": "(sin declarar)",
+  "pid": 40211,
+  "boot_voz": [
+    "BOOT composicion voz: NO DISPONIBLE (no hay ninguna voz declarada (AURA_PIPER_VOICE esta vacia): AURA no puede sintetizar); los turnos se entregaran solo en texto -"
+  ],
+  "turno_texto": {
+    "say": "Todavía no sé nada sobre ti.",
+    "provider": "core",
+    "dominio": "modelo_usuario",
+    "estatus": "ausencia",
+    "voz": "no_disponible",
+    "total_s": 0.01
+  },
+  "audios": []
+}

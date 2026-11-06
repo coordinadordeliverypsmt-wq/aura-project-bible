@@ -23,9 +23,11 @@ garantia = "la puerta interna no se abre a estado_de_tarea ni anadiendolo a su l
 fichero = "control_plane.py"
 pruebas = ["test_red_auditoria_3.py::test_la_puerta_interna_NO_escribe_un_estado_de_tarea"]
 buscar = '''_EVENTOS_DE_ESTA_PUERTA = frozenset({"criterio_fijado", "criterio_verificado",
-                                     "cuota_observada"})'''
+                                     "cuota_observada",
+                                     "review_habilitado", "propuesta_autorizada"})'''
 sustituir = '''_EVENTOS_DE_ESTA_PUERTA = frozenset({"criterio_fijado", "criterio_verificado",
-                                     "cuota_observada", "estado_de_tarea"})'''
+                                     "cuota_observada", "estado_de_tarea",
+                                     "review_habilitado", "propuesta_autorizada"})'''
 
 [[mutante]]
 id = "A3-M3"

@@ -78,8 +78,14 @@ def _trabajo_real(d, ident, fichero, simbolo, *, efecto=True, sana=True, reverti
     cp.registrar_evento(d, "propuesta_registrada", {
         "id": ident, "fichero": fichero, "simbolo": simbolo, "forma": "funcion",
         "estado": "PROPUESTA", "autorizada": False, "linea": None, "motivo": "bajo REVIEW"})
-    cp.registrar_evento(d, "propuesta_autorizada", {
-        "id": ident, "autorizada_por": "REVIEW:auditor", "acta": "acta del CEO"})
+    # Por la puerta gobernada (acta del CEO, 2026-09-20): el evento dejo de aceptarse en
+    # crudo. Encender REVIEW antes no es andamiaje: es lo que hace produccion, y sin ello la
+    # autoridad `REVIEW:<revisor>` no vale — vale por el acta que la enciende.
+    if not cp.alcance_de_review(d):
+        cp.registrar_review_habilitado(d, por="ceo", acta="acta del CEO",
+                                       alcance=("eliminar_codigo_muerto",))
+    cp.registrar_propuesta_autorizada(d, ident, autorizada_por="REVIEW:auditor",
+                                      acta="acta del CEO")
     cp.registrar_evento(d, "cambio_aplicado", {
         "id": ident, "fichero": fichero, "simbolo": simbolo, "autoridad": "orquestador",
         "efecto_verificado": efecto, "verificacion_sana": sana, "revertido": revertido})
@@ -156,8 +162,10 @@ def test_AUTORIZADO_no_es_EJECUTADO(tmp_path):
     cp.registrar_evento(tmp_path, "propuesta_registrada", {
         "id": "P-1", "fichero": "x.py", "simbolo": "_m", "forma": "funcion",
         "estado": "PROPUESTA", "autorizada": False, "linea": None, "motivo": "bajo REVIEW"})
-    cp.registrar_evento(tmp_path, "propuesta_autorizada", {
-        "id": "P-1", "autorizada_por": "REVIEW:auditor", "acta": "acta"})
+    if not cp.alcance_de_review(tmp_path):
+        cp.registrar_review_habilitado(tmp_path, por="ceo", acta="acta",
+                                       alcance=("eliminar_codigo_muerto",))
+    cp.registrar_propuesta_autorizada(tmp_path, "P-1", autorizada_por="REVIEW:auditor", acta="acta")
     informe = obs.estado(tmp_path)
     assert informe["trabajo_autorizado"] == 1
     assert informe["trabajo_ejecutado"] == 0, "autorizar no es ejecutar"
@@ -290,12 +298,26 @@ def test_un_acto_HUMANO_no_se_cuenta_como_trabajo_de_AURA(tmp_path):
 
 
 def test_los_ACTOS_HUMANOS_del_ciclo_NO_se_ignoran(tmp_path):
-    """Si el informe los callara, un ciclo asistido sería indistinguible de uno autónomo."""
+    """Si el informe los callara, un ciclo asistido sería indistinguible de uno autónomo.
+
+    **OBSERVACIÓN TÉCNICA registrada el 2026-09-20, no corregida aquí.** Esta prueba usaba un
+    `propuesta_autorizada` al que el fixture le añadía a mano la clave `autoridad`. Producción
+    **nunca** la escribe en ese evento —sus claves son `id`, `autorizada_por` y `acta`, comprobado
+    en el historial real—, y `_actos_humanos_en()` cuenta precisamente por `autoridad`. Es decir:
+    **una autorización humana de propuesta no se ha contado nunca como acto humano**, y la prueba
+    verdeaba por una forma que no existe fuera de ella.
+
+    Se cambia al evento que producción sí escribe con `autoridad` —`cambio_aplicado`—, con lo que la
+    garantía queda ejercida sobre una forma real. Corregir el CONTEO es otro asunto: toca
+    `observatorio.py` y decidir si `autorizada_por` debe contar, lo que cambia cifras publicadas.
+    Se promovería a deuda si alguien usara `actos_humanos` para decidir algo, no solo para informar.
+    """
     _ciclo(tmp_path, ejecutadas=0)
     assert obs.ultimo(tmp_path)["actos_humanos"] == 0
     cp.registrar_evento(tmp_path, "motor_iniciado", {"raiz": str(tmp_path), "tope": 3})
-    cp.registrar_evento(tmp_path, "propuesta_autorizada", {"id": "P-2", "autoridad": "ceo",
-                                                           "autorizada_por": "ceo", "acta": "a"})
+    cp.registrar_evento(tmp_path, "cambio_aplicado", {
+        "id": "P-2", "fichero": "x.py", "simbolo": "_m", "autoridad": "ceo",
+        "efecto_verificado": True, "verificacion_sana": True, "revertido": False})
     cp.registrar_evento(tmp_path, "ciclo_detenido", {"ejecutadas": 0, "bloqueadas": 0,
                                                      "elevadas": 0, "motivo": "cola agotada"})
     assert obs.ultimo(tmp_path)["actos_humanos"] == 1
@@ -581,6 +603,34 @@ def test_un_cambio_FUERA_DE_TODO_CICLO_no_se_adopta(tmp_path):
     # Pero el trabajo **existió**, y el total no lo esconde: no pertenecer a un ciclo no es no haber
     # ocurrido. Que las dos cifras discrepen es información, no un fallo del informe.
     assert obs.estado(tmp_path)["trabajo_ejecutado"] == 1
+
+
+def test_un_DESCUBRIMIENTO_posterior_al_cierre_no_se_pierde(tmp_path):
+    """El defecto medido en producción (2026-09-20): el kill switch impide abrir un ciclo nuevo desde
+    2026-09-08, y todo lo que AURA descubre después del último cierre queda fuera de `ciclos()` — el
+    `if abierto is None: continue` de `ciclos()` lo descarta en silencio. El motor calculó
+    OPORTUNIDAD_REAL=1 sobre el MISMO log que lee `aura.py estado`, y la cola que se enseña tiene que
+    decir lo mismo que el último `descubrimiento_realizado` real, no la foto del último ciclo
+    cerrado — eso es exactamente la pérdida que prohíbe ADR-0023: un hecho registrado no desaparece
+    porque el observatorio lo trocee después en ciclos."""
+    _ciclo(tmp_path, encontradas=2, por_clase={"OPORTUNIDAD_REAL": 0, "BLOQUEADA": 0,
+                                               "DECISION_REQUIRED": 2, "FALSO_HUECO": 0})
+    # Un descubrimiento posterior al cierre, sin que se abra un ciclo nuevo — exactamente lo que
+    # produce el kill switch en el log real.
+    cp.registrar_evento(tmp_path, "descubrimiento_realizado", {
+        "encontradas": 1, "fuentes": ["codigo_muerto"], "fuentes_con_error": [],
+        "por_clase": {"OPORTUNIDAD_REAL": 1, "BLOQUEADA": 0, "DECISION_REQUIRED": 0,
+                     "FALSO_HUECO": 0},
+        "raiz": str(tmp_path)})
+    informe = obs.estado(tmp_path)
+    assert informe["cola"]["OPORTUNIDAD_REAL"] == 1, (
+        f"el último descubrimiento del log dice OPORTUNIDAD_REAL=1 y la cola informa "
+        f"{informe['cola']}")
+    assert informe["trabajo_descubierto"] == 1
+    # El ciclo NO se fabrica ni se reabre, y el trabajo ejecutado histórico no se toca por esto.
+    assert informe["ciclos"] == 1
+    assert informe["ultimo_ciclo"] == 1
+    assert informe["trabajo_ejecutado"] == 0
 
 
 def test_las_DECISIONES_PENDIENTES_se_resumen_sin_perderse(tmp_path):

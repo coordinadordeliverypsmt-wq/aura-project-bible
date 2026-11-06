@@ -173,7 +173,7 @@ def test_circuito_REVIEW_completo_cuando_el_CEO_lo_habilita(tmp_path):
         d, {"id": "T-R", "accion": "eliminar_codigo_muerto", "fichero": str(objetivo),
             "simbolo": "_muerta", "cambia_alcance": False, "respeta_decisiones": True,
             "d21_afirmativas": True, "materia_reservada": False},
-        propuesto_por="aura", autoridad="orquestador", verificacion=lambda: True)
+        propuesto_por="aura", autoridad="orquestador", verificacion=lambda raiz: True)
 
     assert resultado["ejecutado"] is True and resultado["efecto_verificado"] is True
     assert resultado["revisor"] != "aura", "revisor independiente del proponente"
@@ -196,7 +196,7 @@ def test_bajo_REVIEW_el_cambio_sigue_siendo_REVERSIBLE(tmp_path):
         d, {"id": "T", "accion": "eliminar_codigo_muerto", "fichero": str(objetivo),
             "simbolo": "_muerta", "cambia_alcance": False, "respeta_decisiones": True,
             "d21_afirmativas": True, "materia_reservada": False},
-        propuesto_por="aura", autoridad="orquestador", verificacion=lambda: False)
+        propuesto_por="aura", autoridad="orquestador", verificacion=lambda raiz: False)
     assert resultado["revertido"] is True
     assert objetivo.read_text(encoding="utf-8") == fuente
 
@@ -205,10 +205,12 @@ def test_bajo_REVIEW_la_gobernanza_SIGUE_intocable(tmp_path):
     """La frontera dura no se mueve porque `REVIEW` esté encendido."""
     d = pathlib.Path(tmp_path)
     rv.habilitar(d, por="ceo", acta="DEC-ORCH-2", alcance=rv.TODO_LO_DELEGABLE)
-    for prohibido in ("CLAUDE.md", "adr/0003.md", "docs/libro-01/1.1.md", "ROADMAP.md"):
+    for i, prohibido in enumerate(("CLAUDE.md", "adr/0003.md", "docs/libro-01/1.1.md", "ROADMAP.md")):
         with pytest.raises((ac.ZonaProhibida, rv.MateriaReservada)):
+            # Un id por intento: el review manual registra su `tarea_planificada` (C3) y repetir `T` seria
+            # `TareaNoElegible` (en_curso), que es la otra garantia.
             rv.ejecutar_bajo_review(
-                d, {"id": "T", "accion": "eliminar_codigo_muerto", "fichero": prohibido,
+                d, {"id": f"T-{i}", "accion": "eliminar_codigo_muerto", "fichero": prohibido,
                     "simbolo": "_x", "cambia_alcance": False, "respeta_decisiones": True,
                     "d21_afirmativas": True, "materia_reservada": False},
                 propuesto_por="aura", autoridad="orquestador")

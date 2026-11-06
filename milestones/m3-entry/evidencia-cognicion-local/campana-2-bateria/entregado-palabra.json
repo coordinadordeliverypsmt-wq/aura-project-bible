@@ -1,0 +1,22 @@
+{
+  "caso": "palabra",
+  "tipo": "conocimiento",
+  "variante": "actual",
+  "texto": "que significa la palabra resiliencia?",
+  "reloj_s": 48.7,
+  "total_s": 48.65,
+  "carga_s": 0.55,
+  "ingesta_tokens": 149,
+  "ingesta_s": 4.01,
+  "generacion_tokens": 80,
+  "generacion_s": 44.09,
+  "generacion_tok_s": 1.815,
+  "motivo_fin": "stop",
+  "json_valido": true,
+  "claves": [
+    "action",
+    "say"
+  ],
+  "say": "Resiliencia es una habilidad que nos permite lidiar con situaciones adversas, adaptarse rápidamente y continuar apegados al que somos. Ese equilibrio entre alegría y dolor, victoria y tristeza, puede ser un valor vital para vivir y aprender.",
+  "respuesta_cruda": "{\n  \"say\": \"Resiliencia es una habilidad que nos permite lidiar con situaciones adversas, adaptarse rápidamente y continuar apegados al que somos. Ese equilibrio entre alegría y dolor, victoria y tristeza, puede ser un valor vital para vivir y aprender.\",\n  \"action\": \"consulta\"\n}"
+}

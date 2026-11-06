@@ -1,0 +1,12 @@
+sep 29 08:09:05 majo1230-Lenovo-100e-2nd-Gen kernel: i915 0000:00:02.0: [drm] Resetting rcs0 for preemption time out
+sep 29 08:09:05 majo1230-Lenovo-100e-2nd-Gen kernel: i915 0000:00:02.0: [drm] python3[10477] context reset due to GPU hang
+sep 29 08:09:05 majo1230-Lenovo-100e-2nd-Gen kernel: i915 0000:00:02.0: [drm] GPU HANG: ecode 9:1:e757fefe, in python3 [10477]
+sep 29 08:09:27 majo1230-Lenovo-100e-2nd-Gen kernel: i915 0000:00:02.0: [drm] Resetting rcs0 for CS error
+sep 29 08:09:27 majo1230-Lenovo-100e-2nd-Gen kernel: i915 0000:00:02.0: [drm] python3[10582] context reset due to GPU hang
+sep 29 08:09:27 majo1230-Lenovo-100e-2nd-Gen kernel: i915 0000:00:02.0: [drm] GPU HANG: ecode 9:1:002fbfff, in python3 [10582]
+sep 29 08:10:30 majo1230-Lenovo-100e-2nd-Gen kernel: i915 0000:00:02.0: [drm] Resetting rcs0 for CS error
+sep 29 08:10:30 majo1230-Lenovo-100e-2nd-Gen kernel: i915 0000:00:02.0: [drm] python3[10826] context reset due to GPU hang
+sep 29 08:10:30 majo1230-Lenovo-100e-2nd-Gen kernel: i915 0000:00:02.0: [drm] GPU HANG: ecode 9:1:002fbfff, in python3 [10826]
+sep 29 08:10:50 majo1230-Lenovo-100e-2nd-Gen kernel: i915 0000:00:02.0: [drm] Resetting rcs0 for CS error
+sep 29 08:10:50 majo1230-Lenovo-100e-2nd-Gen kernel: i915 0000:00:02.0: [drm] python3[10922] context reset due to GPU hang
+sep 29 08:10:50 majo1230-Lenovo-100e-2nd-Gen kernel: i915 0000:00:02.0: [drm] GPU HANG: ecode 9:1:a6b1efff, in python3 [10922]

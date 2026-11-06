@@ -1,0 +1,22 @@
+{
+  "caso": "hipotesis",
+  "tipo": "abierta",
+  "variante": "actual",
+  "texto": "que pasaria si la luna desapareciera?",
+  "reloj_s": 131.95,
+  "total_s": 131.89,
+  "carga_s": 0.53,
+  "ingesta_tokens": 154,
+  "ingesta_s": 5.36,
+  "generacion_tokens": 199,
+  "generacion_s": 126.0,
+  "generacion_tok_s": 1.579,
+  "motivo_fin": "stop",
+  "json_valido": true,
+  "claves": [
+    "action",
+    "say"
+  ],
+  "say": "Si la luna se despareció, las actividades diarias como dormir, comer y moverse serían mucho más difíciles y menos interesantes para nosotros. Podríamos estar ocupados en buscar refugio en la atmósfera del cielo, esperar el reanudado de la luz lunar o simplemente pensar en algo que quiera ver en el nuevo día. Puede que también se encuentre en desacuerdos con nuestros amigos y familiares debido a las distancias que se verían durante la falta de luz solar. Pero si la luna se despareció, los cielos podrían ser un oasis para muchas cosas únicas y divertidas. En su lugar, podríamos estar más centrados en el planeta alrededor del sol o en el descubrimiento de nuevas teorías sobre la astronomía y la cosmología. }",
+  "respuesta_cruda": "{\n  \"say\": \"Si la luna se despareció, las actividades diarias como dormir, comer y moverse serían mucho más difíciles y menos interesantes para nosotros. Podríamos estar ocupados en buscar refugio en la atmósfera del cielo, esperar el reanudado de la luz lunar o simplemente pensar en algo que quiera ver en el nuevo día. Puede que también se encuentre en desacuerdos con nuestros amigos y familiares debido a las distancias que se verían durante la falta de luz solar. Pero si la luna se despareció, los cielos podrían ser un oasis para muchas cosas únicas y divertidas. En su lugar, podríamos estar más centrados en el planeta alrededor del sol o en el descubrimiento de nuevas teorías sobre la astronomía y la cosmología. }\",\"action\": \"consulta\"}"
+}

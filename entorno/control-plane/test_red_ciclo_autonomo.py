@@ -64,7 +64,7 @@ def test_el_ciclo_encadena_TRES_tareas_sin_intervencion(tmp_path):
     d = pathlib.Path(tmp_path)
     _habilitar(d)
     ficheros = _preparar(d, 3)
-    informe = ca.ciclo_autonomo(d, ficheros, verificacion=lambda: True, max_tareas=10)
+    informe = ca.ciclo_autonomo(d, ficheros, verificacion=lambda raiz: True, max_tareas=10)
 
     assert informe["ejecutadas"] == 3, informe
     assert informe["actos_humanos_durante_el_ciclo"] == 0
@@ -77,7 +77,7 @@ def test_el_ciclo_encadena_TRES_tareas_sin_intervencion(tmp_path):
 def test_cada_tarea_deja_su_EVIDENCIA_en_el_log(tmp_path):
     d = pathlib.Path(tmp_path)
     _habilitar(d)
-    ca.ciclo_autonomo(d, _preparar(d, 2), verificacion=lambda: True, max_tareas=10)
+    ca.ciclo_autonomo(d, _preparar(d, 2), verificacion=lambda raiz: True, max_tareas=10)
     tipos = [e["tipo"] for e in cp.leer_eventos(d)]
     assert tipos.count("veredicto_emitido") == 2
     assert tipos.count("cambio_aplicado") == 2
@@ -88,7 +88,7 @@ def test_cada_tarea_deja_su_EVIDENCIA_en_el_log(tmp_path):
 def test_el_revisor_es_INDEPENDIENTE_en_cada_tarea(tmp_path):
     d = pathlib.Path(tmp_path)
     _habilitar(d)
-    ca.ciclo_autonomo(d, _preparar(d, 2), verificacion=lambda: True, max_tareas=10)
+    ca.ciclo_autonomo(d, _preparar(d, 2), verificacion=lambda raiz: True, max_tareas=10)
     for e in cp.leer_eventos(d):
         if e["tipo"] == "veredicto_emitido":
             assert e["datos"]["revisor"] != e["datos"]["propuesto_por"]
@@ -102,7 +102,7 @@ def test_se_detiene_con_la_COLA_VACIA(tmp_path):
     _habilitar(d)
     limpio = d / "limpio.py"
     limpio.write_text("def a():\n    return _b()\n\n\ndef _b():\n    return 1\n", encoding="utf-8")
-    informe = ca.ciclo_autonomo(d, [limpio], verificacion=lambda: True)
+    informe = ca.ciclo_autonomo(d, [limpio], verificacion=lambda raiz: True)
     assert informe["ejecutadas"] == 0 and informe["motivo_de_parada"] == "cola agotada"
     assert informe["propuestas"] == 0, "no se inventa trabajo donde no lo hay"
 
@@ -116,7 +116,7 @@ def test_una_tarea_HUMAN_DETIENE_el_ciclo_y_queda_registrada(tmp_path):
     # resultado y la prueba no distingue. Hace falta trabajo DESPUÉS de la parada para comprobar
     # que de verdad se paró.
     ficheros = _preparar(d, 3)
-    informe = ca.ciclo_autonomo(d, ficheros, verificacion=lambda: True, max_tareas=10,
+    informe = ca.ciclo_autonomo(d, ficheros, verificacion=lambda raiz: True, max_tareas=10,
                                 inyectar_human=True)
     assert informe["motivo_de_parada"] == "tarea HUMAN"
     assert informe["detenida_en"] is not None
@@ -137,7 +137,7 @@ def test_una_tarea_FUERA_DE_ZONA_nunca_se_ejecuta(tmp_path):
     prohibido = d / "CLAUDE.md"
     prohibido.write_text("# gobernanza\n", encoding="utf-8")
     antes = prohibido.read_bytes()
-    informe = ca.ciclo_autonomo(d, [prohibido], verificacion=lambda: True)
+    informe = ca.ciclo_autonomo(d, [prohibido], verificacion=lambda raiz: True)
     assert informe["ejecutadas"] == 0
     assert prohibido.read_bytes() == antes
 
@@ -147,7 +147,7 @@ def test_una_VERIFICACION_fallida_detiene_el_ciclo_y_revierte(tmp_path):
     _habilitar(d)
     ficheros = _preparar(d, 3)
     originales = [f.read_bytes() for f in ficheros]
-    informe = ca.ciclo_autonomo(d, ficheros, verificacion=lambda: False, max_tareas=10)
+    informe = ca.ciclo_autonomo(d, ficheros, verificacion=lambda raiz: False, max_tareas=10)
     assert informe["ejecutadas"] == 0
     assert informe["motivo_de_parada"] == "verificacion fallida"
     assert ficheros[0].read_bytes() == originales[0], "revertido"
@@ -157,7 +157,7 @@ def test_una_VERIFICACION_fallida_detiene_el_ciclo_y_revierte(tmp_path):
 def test_el_LIMITE_DE_SEGURIDAD_acota_el_ciclo(tmp_path):
     d = pathlib.Path(tmp_path)
     _habilitar(d)
-    informe = ca.ciclo_autonomo(d, _preparar(d, 8), verificacion=lambda: True, max_tareas=2)
+    informe = ca.ciclo_autonomo(d, _preparar(d, 8), verificacion=lambda raiz: True, max_tareas=2)
     assert informe["ejecutadas"] == 2
     assert informe["motivo_de_parada"] == "limite de seguridad"
 
@@ -166,7 +166,7 @@ def test_sin_REVIEW_habilitado_el_ciclo_no_ejecuta_nada(tmp_path):
     d = pathlib.Path(tmp_path)
     ficheros = _preparar(d, 2)
     originales = [f.read_bytes() for f in ficheros]
-    informe = ca.ciclo_autonomo(d, ficheros, verificacion=lambda: True)
+    informe = ca.ciclo_autonomo(d, ficheros, verificacion=lambda raiz: True)
     assert informe["ejecutadas"] == 0
     assert informe["motivo_de_parada"] == "tarea HUMAN"
     assert [f.read_bytes() for f in ficheros] == originales
@@ -183,7 +183,7 @@ def test_un_EJECUTOR_NO_DISPONIBLE_no_produce_exito_fingido(tmp_path):
     ficheros = _preparar(d, 2)
     originales = [f.read_bytes() for f in ficheros]
 
-    def revienta():
+    def revienta(raiz):
         raise RuntimeError("You've hit your monthly spend limit")
 
     informe = ca.ciclo_autonomo(d, ficheros, verificacion=revienta, max_tareas=10)
@@ -208,17 +208,17 @@ def test_al_terminar_queda_escrito_el_SIGUIENTE_TRABAJO(tmp_path):
     d = pathlib.Path(tmp_path)
     _habilitar(d)
     ficheros = _preparar(d, 3)
-    informe = ca.ciclo_autonomo(d, ficheros, verificacion=lambda: True, max_tareas=1)
+    informe = ca.ciclo_autonomo(d, ficheros, verificacion=lambda raiz: True, max_tareas=1)
     assert informe["siguiente"] is not None, "quedaban 2: el siguiente trabajo debe constar"
     assert informe["pendientes"] == 2
 
-    informe2 = ca.ciclo_autonomo(d, ficheros, verificacion=lambda: True, max_tareas=10)
+    informe2 = ca.ciclo_autonomo(d, ficheros, verificacion=lambda raiz: True, max_tareas=10)
     assert informe2["siguiente"] is None and informe2["pendientes"] == 0
 
 
 def test_el_informe_no_declara_trabajo_que_no_existe(tmp_path):
     d = pathlib.Path(tmp_path)
     _habilitar(d)
-    informe = ca.ciclo_autonomo(d, [], verificacion=lambda: True)
+    informe = ca.ciclo_autonomo(d, [], verificacion=lambda raiz: True)
     assert informe["propuestas"] == 0 and informe["siguiente"] is None
     assert informe["pendientes"] == 0

@@ -1,0 +1,137 @@
+incremento = "Volumen y silencio de la TV (acta 2026-10-22 s4)"
+pruebas = [
+    "tests/integration/test_volumen_tv.py",
+    "tests/unit/test_hogar_volumen.py",
+    "tests/unit/test_home_assistant_real.py",
+    "tests/integration/test_voz_accion_opcion_c.py",
+    "tests/integration/test_hogar_en_conversacion.py",
+    "tests/integration/test_voz_no_actua_por_el_modelo.py",
+]
+
+[[mutante]]
+id = "M1"
+garantia = "se envia la orden con la TV apagada"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''        entidad, antes, atributos = self._leer_entidad(dispositivo)'''
+sustituir = '''        entidad, antes, atributos = self._leer_entidad(dispositivo)
+        antes = "on"'''
+
+[[mutante]]
+id = "M2"
+garantia = "se envia sin atributo legible (no se podria verificar)"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''        if not _legible(atributo, atributos.get(atributo)):'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "M3"
+garantia = "'sin cambio' se da por verificado al subir"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''        return despues > antes'''
+sustituir = '''        return despues >= antes'''
+
+[[mutante]]
+id = "M4"
+garantia = "sentido invertido: bajar acepta una subida"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''        return despues < antes'''
+sustituir = '''        return despues > antes'''
+
+[[mutante]]
+id = "M5"
+garantia = "un dominio que no es media_player se acepta"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''        if dominio != "media_player":'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "M6"
+garantia = "silenciar se da por verificado sin comprobar el valor"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''    return despues == esperado'''
+sustituir = '''    return True'''
+
+[[mutante]]
+id = "M7"
+garantia = "la voz puede proponer/ejecutar volumen"
+fichero = "aura_skeleton/core/hogar.py"
+buscar = '''CAPACIDADES_DE_VOZ = frozenset(_VERBOS)'''
+sustituir = '''CAPACIDADES_DE_VOZ = CAPACIDADES'''
+
+[[mutante]]
+id = "M8"
+garantia = "el bloqueo de volumen por voz en el orquestador desaparece"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            if por_voz and capacidad not in hogar.CAPACIDADES_DE_VOZ:'''
+sustituir = '''            if False:'''
+
+[[mutante]]
+id = "M9"
+garantia = "el alias elige por coincidencia parcial de palabras"
+fichero = "aura_skeleton/core/hogar.py"
+buscar = '''_rasgos(nombre) == buscado]'''
+sustituir = '''buscado <= _rasgos(nombre)]'''
+
+[[mutante]]
+id = "M10"
+garantia = "el alias elige la primera cuando casan varias"
+fichero = "aura_skeleton/core/hogar.py"
+buscar = '''halladas[0] if len(halladas) == 1 else None'''
+sustituir = '''halladas[0] if halladas else None'''
+
+[[mutante]]
+id = "M11"
+garantia = "el camino de texto no aplica el alias por nombre humano"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''dispositivo = hogar.entidad_por_nombre_humano(dispositivo, self.nombres_de_voz) or dispositivo'''
+sustituir = '''dispositivo = dispositivo'''
+
+[[mutante]]
+id = "M12"
+garantia = "el redactor dice hecho sin que el adaptador verifique"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''    if detalle.get("verificado") is True:
+        if atributo == "volume_level":'''
+sustituir = '''    if True:
+        if atributo == "volume_level":'''
+
+[[mutante]]
+id = "M13"
+garantia = "'ya estaba' se omite y se dice que se hizo"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''    if detalle.get("ya_en_estado"):
+        # Silenciar'''
+sustituir = '''    if False:
+        # Silenciar'''
+
+[[mutante]]
+id = "M14"
+garantia = "el camino del modelo no redacta el efecto de volumen"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            if action in _CAPACIDADES_DE_VOLUMEN:
+                return _redactar'''
+sustituir = '''            if False:
+                return _redactar'''
+
+[[mutante]]
+id = "M15"
+garantia = "cableado: el adaptador real no anuncia las 4 capacidades de atributo"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''    capabilities = ["encender_dispositivo", "apagar_dispositivo", *_ATRIBUTO]'''
+sustituir = '''    capabilities = ["encender_dispositivo", "apagar_dispositivo"]'''
+
+[[mutante]]
+id = "M16"
+garantia = "un volumen releido ilegible (None) cuenta como cambio y se da por hecho"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''    if not _legible(atributo, despues):
+        return False'''
+sustituir = '''    if despues is None:
+        return True'''
+
+[[mutante]]
+id = "M17"
+garantia = "por VOZ, una accion de hogar propuesta por el modelo vuelve a ejecutarse (opcion C esquivada)"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        if por_voz and action in hogar.CAPACIDADES:'''
+sustituir = '''        if False:'''

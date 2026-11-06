@@ -25,8 +25,12 @@ sustituir = '''KINDS_NO_RECUPERABLES = frozenset()'''
 id = "H-M3"
 garantia = "PersistentMemory deja de filtrar: el historico compite por el hueco `k` y desplaza memoria real"
 fichero = "aura_skeleton/modules/memory.py"
-buscar = '''                     for idx in sorted(candidatos) if es_recuperable(self._items[idx])]'''
-sustituir = '''                     for idx in sorted(candidatos)]'''
+buscar = '''        puntuados = [
+            (idx, len(consulta & self._terminos_item(idx)))
+            for idx in sorted(candidatos)
+            if es_recuperable(self._items[idx])
+        ]'''
+sustituir = '''        puntuados = [(idx, len(consulta & self._terminos_item(idx))) for idx in sorted(candidatos)]'''
 
 [[mutante]]
 id = "H-M4"

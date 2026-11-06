@@ -1,0 +1,34 @@
+incremento = "Wake word robusto bajo ruido continuo (2026-09-28): la frase que no cierra por silencio se detecta por resultado PARCIAL, con la misma exactitud (0 falsos positivos)"
+pruebas = ["tests/unit/test_escucha_continua.py"]
+timeout_s = 300
+
+[[mutante]]
+id = "ERC-M1"
+garantia = "con ruido continuo (frase sin cerrar) AURA vuelve a quedarse sorda: no se mira el parcial"
+fichero = "aura_skeleton/adapters/escucha.py"
+pruebas = ["tests/unit/test_escucha_continua.py::test_activa_por_resultado_PARCIAL_cuando_el_ruido_impide_cerrar_la_frase"]
+buscar = '''                parcial = getattr(rec, "PartialResult", None)
+                if parcial is not None and es_llamada(json.loads(parcial()).get("partial", "")):
+                    return True'''
+sustituir = '''                parcial = getattr(rec, "PartialResult", None)
+                if parcial is not None and False:
+                    return True'''
+
+[[mutante]]
+id = "ERC-M2"
+garantia = "el parcial deja de exigir exactitud (`es_llamada`): «la aurora boreal» despertaría (reaparecen falsos positivos)"
+fichero = "aura_skeleton/adapters/escucha.py"
+pruebas = ["tests/unit/test_escucha_continua.py::test_CONTROL_un_parcial_que_NO_es_llamada_no_despierta",
+           "tests/unit/test_escucha_continua.py::test_CONTROL_parcial_incompleto_no_dispara_antes_de_tiempo"]
+buscar = '''                if parcial is not None and es_llamada(json.loads(parcial()).get("partial", "")):'''
+sustituir = '''                if parcial is not None and "aurora" in json.loads(parcial()).get("partial", ""):'''
+
+[[mutante]]
+id = "ERC-M3"
+garantia = "la detección por frase cerrada (silencio) se rompe: el camino normal deja de activar"
+fichero = "aura_skeleton/adapters/escucha.py"
+pruebas = ["tests/unit/test_escucha_continua.py::test_espera_hasta_oir_su_nombre"]
+buscar = '''                if rec.AcceptWaveform(datos) and es_llamada(json.loads(rec.Result()).get("text", "")):
+                    return True'''
+sustituir = '''                if rec.AcceptWaveform(datos) and False:
+                    return True'''

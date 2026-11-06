@@ -135,3 +135,102 @@ modulo = "aura_skeleton/core/decisiones.py"
 opera  = ["open", "replace"]
 motivo = "Buzon de aprobacion DIFERIDA de lista roja (acta del CEO 2026-08-10). Escritura atomica via temporal + `os.replace` porque el CEO puede estar leyendolo mientras AURORA anexa. Es el mecanismo POR EL QUE se pide autorizacion humana, no una via para saltarsela: someterlo al Motor seria circular, como el kill switch."
 desde  = "2026-09-09"
+
+# --- Campaña de presencia (mandato del CEO, 2026-09-26) · exclusión POR OPERACIÓN, mismo criterio
+# que D-A006-4: exime SOLO `remove` en este módulo; cualquier otra escritura se sigue acusando.
+[[mutaciones.excluido]]
+modulo = "aura_skeleton/adapters/microfono.py"
+opera  = ["remove"]
+motivo = "Borra audio EFIMERO del usuario: su grabacion del microfono tras transcribirla y el WAV de la respuesta tras reproducirlo. No es persistencia cuya destruccion deba gobernar G-1: es justo lo contrario, la proteccion de privacidad (Bible 5.5, lo oido no se archiva). Someter el borrado al Motor Unico no protegeria ningun dato y retrasaria la eliminacion de la voz."
+desde  = "2026-09-27"
+
+# --- NODO-01 (mision del CEO 2026-09-30, DP-NODO-01; declaraciones G-1 R-B APROBADAS por el CEO el
+# 2026-10-04) · exclusiones POR OPERACION, mismo criterio que D-A006-4: cada una exime solo las
+# operaciones listadas en su modulo; cualquier otra escritura se sigue acusando.
+[[mutaciones.excluido]]
+modulo = "aura_skeleton/adapters/identidad_nodo.py"
+opera  = ["replace", "unlink"]
+motivo = "Escribe la IDENTIDAD propia del nodo (un uuid), no un dato del usuario. tmp + `os.replace` es la escritura atomica que exige DP-NODO-01 §4.1 (nunca una identidad a medio escribir); `unlink` solo limpia el temporal si la escritura falla. Pasarla por el Motor Unico seria circular: el nodo necesita su identidad para existir antes de cualquier accion."
+desde  = "2026-10-04"
+
+[[mutaciones.excluido]]
+modulo = "aura_skeleton/adapters/receptor_nodos.py"
+opera  = ["replace"]
+motivo = "Proyeccion regenerable del estado de la red en HC-1 (ultimo latido de cada nodo y vida del receptor): no es dato del usuario y los nodos vuelven a latir cada pocos segundos. `os.replace` hace atomica la escritura y aparta -sin borrar- un registro corrupto como `.corrupto-<ts>`."
+desde  = "2026-10-04"
+
+[[mutaciones.excluido]]
+modulo = "aura_skeleton/nodo_agente.py"
+opera  = ["replace"]
+motivo = "Estado LOCAL del agente en el propio nodo (conectado, ultimo envio, ultimo error): diagnostico regenerable, no dato del usuario. Escritura atomica tmp + `os.replace` para que `--estado` nunca lea un JSON a medio escribir."
+desde  = "2026-10-04"
+
+
+# --- DN-1 (2026-10-27): escrituras de BAJO NIVEL que F2 ampliado hace visibles -----------------
+# Hasta DN-1, R-B no veia `os.open/os.write/os.ftruncate/os.fdopen`, `tempfile.mkstemp` ni
+# `wave.open(...,"wb")`: estas escrituras SIEMPRE estuvieron en el codigo (adaptadores y, tras el
+# merge de delegacion, la biblioteca de nodos), pero el verificador no las perseguia. Clasificarlas
+# NO autoriza comportamiento nuevo: hace contable lo que ya existia. Exclusion POR OPERACION
+# (D-A006-4): exime SOLO la operacion calificada listada; un `unlink`/`open`(builtin)/operacion nueva
+# se sigue acusando. REQUIERE RATIFICACION DEL CEO como D-G1-2/D-A006-4 (ver CHECKPOINT ak+). Ningun
+# modulo pasa a `persistencia_autorizada`; la visibilidad de futuras escrituras se conserva.
+
+[[mutaciones.excluido]]
+modulo = "aura_skeleton/adapters/computador.py"
+opera  = ["os.open", "os.write", "os.fdopen"]
+motivo = "Mismo adaptador que el Motor Unico INVOCA (ya excluido para unlink/rename desde 2026-09-09): su escritura ES el efecto ya autorizado. `os.open`(O_WRONLY|O_CREAT|O_TRUNC|O_NOFOLLOW, dir_fd) + `os.fdopen`/`os.write` es su escritura atomica resistente a symlink del fichero destino. No es una via alternativa al motor."
+desde  = "2026-10-27"
+
+[[mutaciones.excluido]]
+modulo = "aura_skeleton/adapters/jsonl_durable.py"
+opera  = ["os.open", "os.write", "os.ftruncate"]
+motivo = "Primitiva de anadido durable (append-only, O_EXCL|O_APPEND|O_NOFOLLOW 0600 + flock + fsync) para el ESTADO DE SEGURIDAD de la delegacion (ordenes consumidas, diario HC-1), no dato del usuario. `os.write` ES el anadido de una linea y `os.ftruncate` recorta SOLO una cola truncada ya detectada; ambas son el mecanismo del almacen, no una via alternativa. La delegacion no esta cableada a produccion."
+desde  = "2026-10-27"
+
+[[mutaciones.excluido]]
+modulo = "aura_skeleton/adapters/firma_delegacion.py"
+opera  = ["os.open", "os.fdopen"]
+motivo = "Material criptografico y ancla de revocados de la delegacion, no dato del usuario. `os.open`(O_WRONLY|O_CREAT|O_EXCL 0600)+`os.fdopen` escribe la clave privada PKCS8 sin pisar una existente; `os.open`(O_APPEND|O_NOFOLLOW 0600) abre el ancla tam+sha256 append-only (el anadido pasa por `anexar`, DN-2) que detecta el truncado de la lista. Verifica propietario y permisos antes de escribir. No cableado a produccion."
+desde  = "2026-10-27"
+
+[[mutaciones.excluido]]
+modulo = "aura_skeleton/adapters/diario_hc1.py"
+opera  = ["os.open"]
+motivo = "Centinela de INSTANCIA UNICA del diario HC-1: `os.open`(O_RDWR|O_CREAT|O_NOFOLLOW|O_NONBLOCK 0600) abre un fichero propio para tomar un `flock` EXCLUSIVO; no persiste datos del usuario, solo materializa el cerrojo de instancia (ALTO-1). Verifica propietario/permisos y falla cerrado. No cableado a produccion."
+desde  = "2026-10-27"
+
+[[mutaciones.excluido]]
+modulo = "aura_skeleton/adapters/identidad_nodo.py"
+opera  = ["os.fdopen", "tempfile.mkstemp"]
+motivo = "Escribe la IDENTIDAD propia del nodo (un uuid), ya excluido para replace/unlink desde 2026-10-04. `tempfile.mkstemp`+`os.fdopen` es la escritura a temporal que luego se renombra atomicamente (tmp + os.replace, DP-NODO-01 §4.1): nunca una identidad a medio escribir. No es dato del usuario."
+desde  = "2026-10-27"
+
+[[mutaciones.excluido]]
+modulo = "aura_skeleton/adapters/receptor_nodos.py"
+opera  = ["os.open", "os.fdopen"]
+motivo = "Proyeccion regenerable del estado de la red en HC-1 (ya excluido para replace desde 2026-10-04). `os.open`(O_WRONLY|O_CREAT|O_TRUNC 0600)+`os.fdopen` escribe el temporal que se renombra atomicamente; los nodos vuelven a latir cada pocos segundos. No es dato del usuario."
+desde  = "2026-10-27"
+
+[[mutaciones.excluido]]
+modulo = "aura_skeleton/nodo_agente.py"
+opera  = ["os.open", "os.fdopen"]
+motivo = "Estado LOCAL del agente en el propio nodo (ya excluido para replace desde 2026-10-04). `os.open`(O_WRONLY|O_CREAT|O_TRUNC 0600)+`os.fdopen` escribe el temporal que se renombra atomicamente para que `--estado` nunca lea un JSON a medio escribir. Diagnostico regenerable, no dato del usuario."
+desde  = "2026-10-27"
+
+[[mutaciones.excluido]]
+modulo = "aura_skeleton/adapters/microfono.py"
+opera  = ["os.open", "os.fdopen", "wave.open"]
+motivo = "Audio EFIMERO del usuario (ya excluido para remove desde 2026-09-27). `os.open`(O_WRONLY|O_CREAT|O_TRUNC 0600)+`os.fdopen` y `wave.open(...,'wb')` escriben la grabacion/respuesta WAV que se borra tras transcribir/reproducir. Es justo lo contrario de persistir: G-1 protege contra DESTRUCCION de datos, no contra escribir un efimero."
+desde  = "2026-10-27"
+
+[[mutaciones.excluido]]
+modulo = "aura_skeleton/adapters/tts_espeak.py"
+opera  = ["wave.open"]
+motivo = "Sintesis de voz: `wave.open(ruta,'wb')` escribe el WAV de la respuesta hablada, salida efimera de TTS que se reproduce y se descarta. No es dato del usuario ni persistencia gobernada por G-1."
+desde  = "2026-10-27"
+
+[[mutaciones.excluido]]
+modulo = "aura_skeleton/adapters/voice_real.py"
+opera  = ["wave.open"]
+motivo = "Sintesis de voz (Piper): `wave.open(out,'wb')` escribe el WAV de la respuesta hablada, salida efimera de TTS. No es dato del usuario ni persistencia gobernada por G-1."
+desde  = "2026-10-27"

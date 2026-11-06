@@ -1,0 +1,23 @@
+{
+  "etiqueta": "ANTES-cielo",
+  "modelo": "qwen2.5:0.5b",
+  "options": null,
+  "keep_alive": null,
+  "casos": [
+    {
+      "reloj_s": 211.74,
+      "total_s": 211.43,
+      "carga_modelo_s": 4.86,
+      "ingesta_tokens": 160,
+      "ingesta_s": 1.1,
+      "ingesta_tok_s": 145.47,
+      "generacion_tokens": 63,
+      "generacion_s": 145.56,
+      "generacion_tok_s": 0.43,
+      "pct_generacion": 68.8,
+      "respuesta": "{\"say\": \"El cielo es azul porque el sol se acerca a nosotros en el horizonte, lo cual hace que los ojos estén en una posición que nos permite ver el azul.\",\"action\":\"consulta\",\"intent\":\"por que el cielo es azul?\"}",
+      "motivo_fin": "stop",
+      "caso": "cielo"
+    }
+  ]
+}

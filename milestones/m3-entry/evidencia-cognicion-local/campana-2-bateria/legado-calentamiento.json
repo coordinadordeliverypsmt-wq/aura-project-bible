@@ -1,0 +1,23 @@
+{
+  "caso": "calentamiento",
+  "tipo": "calentamiento",
+  "variante": "legado",
+  "texto": "que es un volcan?",
+  "reloj_s": 80.35,
+  "total_s": 80.29,
+  "carga_s": 0.55,
+  "ingesta_tokens": 156,
+  "ingesta_s": 38.27,
+  "generacion_tokens": 71,
+  "generacion_s": 41.46,
+  "generacion_tok_s": 1.712,
+  "motivo_fin": "stop",
+  "json_valido": true,
+  "claves": [
+    "action",
+    "intent",
+    "say"
+  ],
+  "say": "El Volcán es un ser vivo en la superficie terrestre, pero a menudo se refiere solo al magma que forma sus roca. A veces se mantiene bajo oculto en las montañas o bosques de montaña.",
+  "respuesta_cruda": "{\"say\": \"El Volcán es un ser vivo en la superficie terrestre, pero a menudo se refiere solo al magma que forma sus roca. A veces se mantiene bajo oculto en las montañas o bosques de montaña.\",\"action\":\"consulta\",\"intent\":\"volcanos\"}"
+}

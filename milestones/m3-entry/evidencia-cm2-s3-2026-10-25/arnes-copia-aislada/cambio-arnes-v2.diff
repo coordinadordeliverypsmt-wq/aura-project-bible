@@ -1,0 +1,726 @@
+--- /home/majo1230/.claude/jobs/d6cb894c/tmp/mutar.py	2026-10-25 18:49:36.542759492 -0500
++++ walking-skeleton/herramientas/mutar.py	2026-10-25 20:27:43.842454620 -0500
+@@ -20,6 +20,12 @@
+      (2026-08-04). Sin este limite, degradar una condicion de parada de un bucle cuelga el arnes
+      entero en vez de reportarlo -- dano ya medido: 15+ horas de CPU con un proceso huerfano
+      (ver `mutaciones/motor-ciclo.toml`, mutantes M2 y M3).
++  6. La mutacion NUNCA escribe en el arbol del proyecto (2026-10-25): la base y los mutantes corren sobre
++     una COPIA aislada fuera del proyecto (`_copia_aislada`), que se borra al terminar, y un `fichero` que
++     saliera de la copia (absoluto o con `../` de mas) se rechaza sin tocarlo. Medido `[EJEC]`: el servicio
++     `aura-receptor-nodos` y el despertador de AURORA cargan codigo de este mismo worktree; un reinicio
++     mientras el fichero estaba mutado en el sitio habria arrancado produccion con un mutante. La unica
++     escritura posible en el proyecto es restaurar un diario HEREDADO de una ejecucion anterior en el sitio.
+ 
+ Formato de declaracion (mutaciones/*.toml), ver ejemplos en la carpeta `mutaciones/`:
+ 
+@@ -47,11 +53,14 @@
+ import hashlib
+ import json
+ import os
++import shutil
+ import signal
+ import subprocess
+ import sys
++import tempfile
+ import threading
+ import tomllib
++from contextlib import contextmanager
+ from dataclasses import dataclass
+ from pathlib import Path
+ from typing import Any
+@@ -85,8 +94,21 @@
+ # ningún `finally`: el fichero quedaba MUTADO sin que nadie lo supiera. Antes de mutar se anota aquí, en la raíz
+ # del proyecto, qué fichero y con qué bytes originales; se borra tras restaurar. Si existe al arrancar, la
+ # ejecución anterior murió a medias y se restaura antes de nada (`recuperar_mutacion_interrumpida`).
++# Desde 2026-10-25 el arnés YA NO ESCRIBE el diario: muta una copia aislada (regla 6) y un SIGKILL deja mutada la
++# copia, nunca el proyecto, así que no hay nada que recuperar. Escribirlo en la copia era código muerto (mutantes
++# AL-M4/AL-M5 supervivientes, retirados a `mutaciones/retiradas/`). La recuperación sobre la raíz real SE CONSERVA
++# para los diarios que dejaran las ejecuciones anteriores, que sí mutaban en el sitio.
+ _DIARIO = ".mutar-en-curso.json"
+ 
++# COPIA AISLADA (regla 6). Lo que no se copia: historia de git, caches y artefactos que no son del proyecto, y el
++# diario (una copia nunca hereda una mutación en curso). Prefijo reconocible: tras un SIGKILL la copia queda en el
++# directorio temporal del sistema y se identifica por él; el proyecto real sigue intacto.
++_NO_SE_COPIA = (".git", ".venv", "__pycache__", ".pytest_cache", "pytest-of-*", "graphify-out", "node_modules", _DIARIO)
++_PREFIJO_COPIA = "aura-mutar-"
++#: Marca de dueño de cada copia (pid + starttime): permite retirar al arrancar las copias que dejó un arnés muerto
++#: por SIGKILL, y solo esas. Un directorio sin marca nunca se toca.
++_MARCA_DUENO = ".aura-mutar-dueno.json"
++
+ # Señales con las que se detiene al arnés por las buenas. Cualquiera de ellas restaura y limpia (ver `main`).
+ _SENALES_DE_PARADA = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+ 
+@@ -138,13 +160,6 @@
+     _escribir_atomico(Path(raiz) / _DIARIO, json.dumps(datos).encode("utf-8"))
+ 
+ 
+-def _borrar_diario(raiz: str) -> None:
+-    try:
+-        (Path(raiz) / _DIARIO).unlink()
+-    except FileNotFoundError:
+-        pass
+-
+-
+ def recuperar_mutacion_interrumpida(raiz: str = ".") -> list[str]:
+     """Si una ejecución anterior murió con un fichero mutado, lo restaura desde el diario. Devuelve los ficheros."""
+     diario = Path(raiz) / _DIARIO
+@@ -401,11 +416,24 @@
+     return salida.strip()
+ 
+ 
+-def _evaluar_mutante(mutante: dict[str, Any], pruebas: list[str], raiz: str, timeout_s: float) -> ResultadoMutante:
+-    """Aplica un mutante, ejecuta sus pruebas y restaura el fichero pase lo que pase."""
++def _evaluar_mutante(
++    mutante: dict[str, Any], pruebas: list[str], raiz: str, timeout_s: float, limite: str | None = None
++) -> ResultadoMutante:
++    """Aplica un mutante, ejecuta sus pruebas y restaura el fichero pase lo que pase.
++
++    `limite` es la raiz de la copia aislada: un `fichero` que resuelva fuera de ella no se lee ni se escribe."""
+     id_mutante = str(mutante["id"])
+     garantia = str(mutante.get("garantia", ""))
+-    ruta_fichero = Path(raiz) / str(mutante["fichero"])
++    ruta_fichero = (Path(raiz) / str(mutante["fichero"])).resolve()
++    if not ruta_fichero.is_relative_to(Path(limite if limite is not None else raiz).resolve()):
++        # `Path(raiz) / "/abs"` descarta la raiz y `../` de mas sale de ella: mutar ahi seria escribir FUERA de la
++        # copia aislada, quiza en el arbol vivo (revision de seguridad 2026-10-25). Jamas se aplica.
++        return ResultadoMutante(
++            id=id_mutante,
++            garantia=garantia,
++            estado=_AMBIGUO,
++            pruebas_que_fallaron=f"el fichero {mutante['fichero']!r} queda fuera de la raiz de la copia: no se muta",
++        )
+     buscar = str(mutante["buscar"])
+     sustituir = str(mutante["sustituir"])
+ 
+@@ -441,7 +469,6 @@
+     estado = _SOBREVIVE
+     pruebas_que_fallaron = ""
+     try:
+-        _anotar_diario(raiz, str(mutante["fichero"]), original_bytes, contenido_mutado.encode("utf-8"))
+         _escribir_atomico(ruta_fichero, contenido_mutado.encode("utf-8"))
+         codigo, salida, agotado = _ejecutar_pytest(pruebas, raiz, timeout_s)
+         if agotado:
+@@ -468,7 +495,8 @@
+     finally:
+         # Restauracion garantizada: corre incluso si _ejecutar_pytest lanza una excepcion o el
+         # proceso se interrumpe. La excepcion (si la hubo) sigue propagandose despues de esto.
+-        # Con las señales de parada BLOQUEADAS: una segunda señal no puede cortar la restauración a medias.
++        # Con las señales de parada BLOQUEADAS: una segunda señal no puede cortar la restauración a medias. Desde la
++        # regla 6 la restauración es de la COPIA; se conserva porque el informe exige una base intacta para cada mutante.
+         # Si la señal estaba pendiente y salta justo al bloquear, la restauración corre IGUAL (finally anidado).
+         mascara_previa = None
+         try:
+@@ -478,9 +506,8 @@
+                 _escribir_atomico(ruta_fichero, original_bytes)
+                 if ruta_fichero.read_bytes() != original_bytes:
+                     # Verificacion byte a byte: si esto no se cumple, el arnes mismo esta roto y no debe
+-                    # informar nada como si todo estuviera bien. El diario se conserva para recuperar.
++                    # informar nada como si todo estuviera bien.
+                     raise RuntimeError(f"No se pudo restaurar {ruta_fichero} tras evaluar el mutante {id_mutante}")
+-                _borrar_diario(raiz)
+             finally:
+                 _desbloquear_senales(mascara_previa)
+ 
+@@ -500,6 +527,74 @@
+         signal.pthread_sigmask(signal.SIG_SETMASK, mascara_previa)
+ 
+ 
++def _raiz_del_repositorio(origen: Path) -> Path:
++    """La raíz del repositorio git que contiene `origen`, o `origen` si no está en ninguno.
++
++    Se copia el repositorio entero y no solo `origen`: las pruebas reales leen ficheros hermanos (`entorno/`,
++    `milestones/`) y una copia parcial las pondría en rojo por estructura, no por el mutante."""
++    try:
++        proceso = subprocess.run(
++            ["git", "-C", str(origen), "rev-parse", "--show-toplevel"], capture_output=True, text=True, check=False
++        )
++    except OSError as e:
++        print(f"AVISO: no se pudo consultar git ({e}); se copia solo la raíz pedida.", file=sys.stderr)
++        return origen
++    if proceso.returncode != 0 or not proceso.stdout.strip():
++        return origen
++    raiz = Path(proceso.stdout.strip()).resolve()
++    return raiz if origen.is_relative_to(raiz) else origen
++
++
++@contextmanager
++def _copia_aislada(raiz: str):
++    """Copia el proyecto a un directorio temporal PROPIO (0700, fuera del proyecto) y cede la raíz equivalente.
++
++    Se borra al salir, también si hay excepción o interrupción. Con SIGKILL no corre ningún `finally`: la copia
++    queda en el temporal con el prefijo `_PREFIJO_COPIA`, y el proyecto real no se ha tocado nunca."""
++    origen = Path(raiz).resolve()
++    proyecto = _raiz_del_repositorio(origen)
++    destino = Path(tempfile.mkdtemp(prefix=_PREFIJO_COPIA)).resolve()
++    try:
++        if destino.is_relative_to(proyecto):
++            raise RuntimeError(f"La copia aislada caería dentro del proyecto ({destino}): revisa TMPDIR.")
++        campos = _estado_proc(os.getpid())
++        inicio = campos[19] if campos and len(campos) > 19 else ""
++        (destino / _MARCA_DUENO).write_text(json.dumps({"pid": os.getpid(), "inicio": inicio}), encoding="utf-8")
++        copia = destino / proyecto.name
++        shutil.copytree(
++            proyecto,
++            copia,
++            symlinks=False,
++            ignore=shutil.ignore_patterns(*_NO_SE_COPIA),
++            ignore_dangling_symlinks=True,
++        )
++        yield str(copia / origen.relative_to(proyecto)), str(copia)
++    finally:
++        shutil.rmtree(destino, ignore_errors=True)
++
++
++def _retirar_copias_huerfanas() -> list[str]:
++    """Retira las copias aisladas que dejó un arnés muerto (SIGKILL: ningún `finally`). Devuelve las retiradas.
++
++    Solo las del mismo usuario, con el prefijo y con marca de dueño legible cuyo proceso ya no existe (mismo pid y
++    starttime). Una copia sin marca, ajena, ilegible o de un arnés vivo NO se toca."""
++    retiradas: list[str] = []
++    for d in sorted(Path(tempfile.gettempdir()).glob(f"{_PREFIJO_COPIA}*")):
++        try:
++            if d.is_symlink() or not d.is_dir() or d.stat().st_uid != os.getuid():
++                continue
++            datos = json.loads((d / _MARCA_DUENO).read_text(encoding="utf-8"))
++            pid, inicio = int(datos["pid"]), str(datos["inicio"])
++        except (OSError, ValueError, KeyError, TypeError):
++            continue
++        campos = _estado_proc(pid)
++        if campos and len(campos) > 19 and campos[19] == inicio and campos[0] != "Z":
++            continue
++        shutil.rmtree(d, ignore_errors=True)
++        retiradas.append(str(d))
++    return retiradas
++
++
+ def ejecutar(ruta_toml: str, raiz: str = ".") -> ResultadoMutacion:
+     """Ejecuta el arnes de mutacion declarado en `ruta_toml`, con `raiz` como raiz del proyecto.
+ 
+@@ -507,6 +602,7 @@
+       - Si la base (las pruebas declaradas) no esta en verde ANTES de mutar, se devuelve de
+         inmediato con `base_verde=False` y `resultados=[]`, sin tocar ni un fichero.
+       - Cada mutante se evalua con sus propias pruebas si las declara, o con las globales si no.
++      - Base y mutantes corren en una COPIA aislada (regla 6): el arbol de `raiz` solo se lee.
+     """
+     restaurados = recuperar_mutacion_interrumpida(raiz)
+     if restaurados:
+@@ -537,24 +633,29 @@
+     # explicitamente evita el error clasico de tratar el 0 como falso. Si la base misma se agotara
+     # (agotado=True), el returncode devuelto es None, y `None == 0` ya es False: no hace falta un
+     # caso especial para que una base colgada tambien cuente como "no verde".
+-    codigo_base, _, _ = _ejecutar_pytest(pruebas_a_verificar, raiz, timeout_s)
+-    base_verde = codigo_base == 0
+-    if not base_verde:
+-        # Nunca informar de mutantes con la base en rojo: es la regla que el arnes historico violo.
+-        return ResultadoMutacion(
+-            base_verde=False,
+-            resultados=[],
+-            detectados=0,
+-            supervivientes=0,
+-            no_aplicados=0,
+-            ambiguos=0,
+-            timeouts=0,
+-        )
++    huerfanas = _retirar_copias_huerfanas()
++    if huerfanas:
++        print(f"AVISO: retiradas copias aisladas de arneses muertos: {huerfanas}", file=sys.stderr)
++    with _copia_aislada(raiz) as (raiz_copia, limite):
++        print(f"Arnés: muta una copia aislada ({raiz_copia}); el árbol original solo se lee.", file=sys.stderr)
++        codigo_base, _, _ = _ejecutar_pytest(pruebas_a_verificar, raiz_copia, timeout_s)
++        base_verde = codigo_base == 0
++        if not base_verde:
++            # Nunca informar de mutantes con la base en rojo: es la regla que el arnes historico violo.
++            return ResultadoMutacion(
++                base_verde=False,
++                resultados=[],
++                detectados=0,
++                supervivientes=0,
++                no_aplicados=0,
++                ambiguos=0,
++                timeouts=0,
++            )
+ 
+-    resultados: list[ResultadoMutante] = []
+-    for mutante in mutantes:
+-        pruebas_del_mutante = list(mutante.get("pruebas", pruebas_globales))
+-        resultados.append(_evaluar_mutante(mutante, pruebas_del_mutante, raiz, timeout_s))
++        resultados: list[ResultadoMutante] = []
++        for mutante in mutantes:
++            pruebas_del_mutante = list(mutante.get("pruebas", pruebas_globales))
++            resultados.append(_evaluar_mutante(mutante, pruebas_del_mutante, raiz_copia, timeout_s, limite))
+ 
+     detectados = sum(1 for r in resultados if r.estado == _DETECTADO)
+     supervivientes = sum(1 for r in resultados if r.estado == _SOBREVIVE)
+@@ -644,7 +745,7 @@
+       0 -> base en verde y todos los mutantes fueron detectados.
+       1 -> la base no esta en verde (no se evaluo ningun mutante).
+       2 -> hay supervivientes, no aplicados, ambiguos y/o mutantes en TIMEOUT.
+-      130 -> interrumpido (Ctrl-C, SIGTERM, SIGHUP): el fichero mutado se restauró y el árbol de pytest se mató.
++      130 -> interrumpido (Ctrl-C, SIGTERM, SIGHUP): la copia aislada se borró y el árbol de pytest se mató.
+     """
+     args = list(sys.argv[1:] if argv is None else argv)
+     if not args:
+@@ -660,7 +761,7 @@
+         with _parada_limpia():
+             resultado = ejecutar(ruta_toml, raiz=raiz)
+     except KeyboardInterrupt:
+-        print("Arnés interrumpido: fichero mutado restaurado y procesos de pytest terminados.", file=sys.stderr)
++        print("Arnés interrumpido: copia aislada borrada y procesos de pytest terminados.", file=sys.stderr)
+         return 130
+     print(_formatear_informe(resultado, ruta_toml))
+ 
+--- /home/majo1230/.claude/jobs/d6cb894c/tmp/test_arnes_mutacion.py	2026-10-25 18:49:36.542515646 -0500
++++ walking-skeleton/tests/unit/test_arnes_mutacion.py	2026-10-25 20:27:43.818979279 -0500
+@@ -26,6 +26,19 @@
+ from herramientas.mutar import ejecutar
+ 
+ 
++@pytest.fixture(autouse=True)
++def _copias_aisladas_en_el_tmp_de_pytest(tmp_path_factory, monkeypatch):
++    """Las copias aisladas del arnés (regla 6) caen en el tmp de pytest, que pytest retira, y no en el /tmp del
++    sistema. Medido 2026-10-25: al mutar el propio arnés, los mutantes que desactivan su limpieza (A3, AL-M8)
++    dejaban ~30 copias de juguete en /tmp por ejecución. Directorio HERMANO del proyecto de juguete, nunca hijo
++    (la guarda «copia dentro del proyecto» lo rechazaría). TMPDIR también para el arnés lanzado en subproceso."""
++    import tempfile
++
++    destino = tmp_path_factory.mktemp("copias-del-arnes")
++    monkeypatch.setenv("TMPDIR", str(destino))
++    monkeypatch.setattr(tempfile, "tempdir", str(destino))
++
++
+ def _crear_proyecto_juguete(tmp_path: Path) -> None:
+     """Mini-proyecto: un modulo con dos funciones y una prueba que cubre solo una de ellas.
+ 
+@@ -410,13 +423,13 @@
+ 
+             def trabajo():
+                 proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(20)"])
+-                Path("pid_hijo.txt").write_text(str(proc.pid))
++                Path(RUTA_PID).write_text(str(proc.pid))
+                 if condicion_de_parada():
+                     return "listo"
+                 while True:
+                     pass  # bucle infinito real: reproduce el bug de motor-ciclo.toml M2/M3
+             """
+-        ),
++        ).replace("RUTA_PID", repr(str(tmp_path / "pid_hijo.txt"))),  # absoluta: pytest corre en una copia aislada
+         encoding="utf-8",
+     )
+     tests_dir = tmp_path / "tests"
+@@ -560,3 +573,251 @@
+ 
+     assert capturados, "nunca se llamo a _ejecutar_pytest: la prueba de juguete no es valida"
+     assert all(t == 12.5 for t in capturados), f"timeout_s del TOML no llego a _ejecutar_pytest: {capturados}"
++
++
++# --------------------------------------------------------------------------------------------
++# La mutacion NUNCA escribe en el arbol original (2026-10-25).
++#
++# Medido `[EJEC]`: el servicio `aura-receptor-nodos` (credencial real) carga 67 modulos del worktree, y el
++# despertador de AURORA importa el plano de control ANTES de comprobar PARADA. Una bateria muto en el sitio
++# `composicion.py` y `ejecutor_modelo_usuario.py`, que el receptor carga: un reinicio en esa ventana habria
++# arrancado produccion con un mutante. El arnes trabaja ahora sobre una COPIA aislada fuera del proyecto; el
++# arbol original solo se lee.
++
++
++def _huella(raiz: Path) -> dict[str, tuple[str, int]]:
++    """Contenido y mtime de cada fichero: «no se toco» exige las dos cosas (restaurar cambia el mtime)."""
++    import hashlib
++
++    return {
++        str(p.relative_to(raiz)): (hashlib.sha256(p.read_bytes()).hexdigest(), p.stat().st_mtime_ns)
++        for p in sorted(raiz.rglob("*"))
++        if p.is_file() and not ({"__pycache__", ".pytest_cache"} & set(p.parts))
++    }
++
++
++def _espiar_pytest(monkeypatch, original: Path, interrumpir_en: int | None = None) -> list[tuple[str, dict]]:
++    """Registra en que raiz corre cada pytest y como esta el arbol ORIGINAL en ese instante."""
++    vistas: list[tuple[str, dict]] = []
++    real = mutar._ejecutar_pytest
++
++    def espia(pruebas, raiz, timeout_s):
++        vistas.append((raiz, _huella(original)))
++        if interrumpir_en is not None and len(vistas) == interrumpir_en:
++            raise KeyboardInterrupt
++        return real(pruebas, raiz, timeout_s)
++
++    monkeypatch.setattr(mutar, "_ejecutar_pytest", espia)
++    return vistas
++
++
++def test_mientras_corre_el_mutante_el_arbol_original_no_cambia_ni_en_contenido_ni_en_mtime(tmp_path, monkeypatch):
++    _crear_proyecto_juguete(tmp_path)
++    toml = _toml_de_un_mutante(tmp_path, "return a + b", "return 0")
++    antes = _huella(tmp_path)
++    vistas = _espiar_pytest(monkeypatch, tmp_path)
++
++    resultado = ejecutar(str(toml), raiz=str(tmp_path))
++
++    assert resultado.detectados == 1, "control: el mutante se aplico (en algun sitio) y una prueba lo mato"
++    assert len(vistas) == 2, vistas  # base + mutante
++    assert all(huella == antes for _, huella in vistas), "el arbol original cambio mientras pytest corria"
++    assert _huella(tmp_path) == antes, "el arbol original quedo con otro contenido o mtime"
++
++
++def test_pytest_corre_en_una_copia_fuera_del_proyecto_que_se_borra_al_terminar(tmp_path, monkeypatch):
++    _crear_proyecto_juguete(tmp_path)
++    toml = _toml_de_un_mutante(tmp_path, "return a + b", "return 0")
++    vistas = _espiar_pytest(monkeypatch, tmp_path)
++
++    ejecutar(str(toml), raiz=str(tmp_path))
++
++    for raiz, _ in vistas:
++        assert not Path(raiz).resolve().is_relative_to(tmp_path.resolve()), f"pytest corrio dentro del proyecto: {raiz}"
++        assert Path(raiz).name == tmp_path.name, "la copia conserva el nombre del proyecto (rutas relativas)"
++    assert not any(Path(raiz).exists() for raiz, _ in vistas), "la copia aislada no se borro al terminar"
++
++
++def test_una_interrupcion_durante_el_mutante_no_toca_el_original_y_borra_la_copia(tmp_path, monkeypatch):
++    _crear_proyecto_juguete(tmp_path)
++    toml = _toml_de_un_mutante(tmp_path, "return a + b", "return 0")
++    antes = _huella(tmp_path)
++    vistas = _espiar_pytest(monkeypatch, tmp_path, interrumpir_en=2)
++
++    with pytest.raises(KeyboardInterrupt):
++        ejecutar(str(toml), raiz=str(tmp_path))
++
++    assert len(vistas) == 2, "control: la interrupcion llego con el mutante aplicado"
++    assert _huella(tmp_path) == antes
++    assert not (tmp_path / mutar._DIARIO).exists(), "el diario de la mutacion no pertenece al arbol original"
++    assert not Path(vistas[-1][0]).exists(), "la copia aislada no se borro tras la interrupcion"
++
++
++def test_en_un_repositorio_se_copia_el_proyecto_entero_sin_git(tmp_path, monkeypatch):
++    """Las pruebas reales leen ficheros hermanos (`entorno/`, `milestones/`): se copia la raiz del repositorio."""
++    proyecto = tmp_path / "repo"
++    sub = proyecto / "sub"
++    sub.mkdir(parents=True)
++    subprocess.run(["git", "init", "-q", str(proyecto)], check=True)
++    (proyecto / "hermano.txt").write_text("dato hermano", encoding="utf-8")
++    _crear_proyecto_juguete(sub)
++    (sub / "tests" / "test_hermano.py").write_text(
++        "from pathlib import Path\n\n\ndef test_ve_al_hermano():\n"
++        "    assert (Path.cwd().parent / 'hermano.txt').read_text() == 'dato hermano'\n",
++        encoding="utf-8",
++    )
++    toml = _escribir_toml(
++        sub,
++        """\
++        incremento = "juguete"
++        pruebas = ["tests/test_modulo_juguete.py", "tests/test_hermano.py"]
++
++        [[mutante]]
++        id = "M1"
++        garantia = "sumar suma"
++        fichero = "modulo_juguete.py"
++        buscar = '''return a + b'''
++        sustituir = '''return 0'''
++        """,
++    )
++    vistas: list[str] = []
++    real = mutar._ejecutar_pytest
++
++    def espia(pruebas, raiz, timeout_s):
++        vistas.append(raiz)
++        assert not (Path(raiz).parent / ".git").exists(), "la copia arrastro el .git del repositorio"
++        return real(pruebas, raiz, timeout_s)
++
++    monkeypatch.setattr(mutar, "_ejecutar_pytest", espia)
++    resultado = ejecutar(str(toml), raiz=str(sub))
++
++    assert resultado.base_verde and resultado.detectados == 1, resultado
++    assert vistas and all(Path(r).name == "sub" and Path(r).parent.name == "repo" for r in vistas), vistas
++
++
++def test_si_la_copia_cayera_dentro_del_proyecto_el_arnes_se_niega_sin_mutar_nada(tmp_path, monkeypatch):
++    """TMPDIR apuntando dentro del proyecto haria que la «copia aislada» viviera en el arbol: se rechaza."""
++    import tempfile
++
++    _crear_proyecto_juguete(tmp_path)
++    toml = _toml_de_un_mutante(tmp_path, "return a + b", "return 0")
++    dentro = tmp_path / "tmp-dentro"
++    dentro.mkdir()
++    antes = _huella(tmp_path)
++    real = tempfile.mkdtemp
++    monkeypatch.setattr(mutar.tempfile, "mkdtemp", lambda prefix=None: real(prefix=prefix, dir=str(dentro)))
++
++    with pytest.raises(RuntimeError, match="dentro del proyecto"):
++        ejecutar(str(toml), raiz=str(tmp_path))
++    assert _huella(tmp_path) == antes, "el arnes toco el proyecto aunque rechazo la copia"
++    assert list(dentro.iterdir()) == [], "el directorio rechazado no se retiro"
++
++
++@pytest.mark.parametrize("como", ["absoluto", "relativo_que_sale"])
++def test_un_fichero_declarado_fuera_de_la_raiz_no_se_muta_nunca(tmp_path, tmp_path_factory, como):
++    """`Path(raiz) / fichero` descarta la raiz si `fichero` es absoluto, y `../` sale de ella: la copia aislada no
++    protegeria nada (revision de seguridad 2026-10-25 (w), MEDIO). Se rechaza ANTES de leer o escribir."""
++    _crear_proyecto_juguete(tmp_path)
++    ajeno = tmp_path_factory.mktemp("fuera") / "ajeno.py"
++    ajeno.write_text("def sumar(a, b):\n    return a + b\n", encoding="utf-8")
++    huella_ajena = (ajeno.read_bytes(), ajeno.stat().st_mtime_ns)
++    fichero = str(ajeno) if como == "absoluto" else str(Path("..") / ajeno.parent.name / ajeno.name)
++    toml = _escribir_toml(
++        tmp_path,
++        f"""\
++        incremento = "juguete"
++        pruebas = ["tests/test_modulo_juguete.py"]
++
++        [[mutante]]
++        id = "M1"
++        garantia = "fuera de la raiz"
++        fichero = '''{fichero}'''
++        buscar = '''return a + b'''
++        sustituir = '''return 0'''
++        """,
++    )
++
++    resultado = ejecutar(str(toml), raiz=str(tmp_path))
++
++    assert [r.estado for r in resultado.resultados] == ["AMBIGUO"], resultado
++    assert "fuera de la raiz" in resultado.resultados[0].pruebas_que_fallaron
++    assert (ajeno.read_bytes(), ajeno.stat().st_mtime_ns) == huella_ajena, "se escribio un fichero fuera de la raiz"
++
++
++def test_al_arrancar_se_retiran_las_copias_huerfanas_y_solo_ellas(tmp_path):
++    """Un SIGKILL no ejecuta el `finally`: la copia queda. El siguiente arranque retira las copias cuyo arnes dueño
++    ya no existe; nunca la de un arnes vivo ni un directorio sin marca de dueño (revision de codigo, MEDIO)."""
++    import json
++    import tempfile
++
++    temporal = Path(tempfile.gettempdir())
++    muerto = subprocess.Popen(["true"])
++    muerto.wait()
++
++    def copia(nombre: str, dueno: int | None) -> Path:
++        d = temporal / f"{mutar._PREFIJO_COPIA}{nombre}"
++        (d / "proyecto").mkdir(parents=True)
++        if dueno is not None:
++            campos = mutar._estado_proc(dueno)
++            inicio = campos[19] if campos and len(campos) > 19 else "0"
++            (d / mutar._MARCA_DUENO).write_text(json.dumps({"pid": dueno, "inicio": inicio}), encoding="utf-8")
++        return d
++
++    huerfana, viva, sin_marca = copia("huerfana", muerto.pid), copia("viva", os.getpid()), copia("sin-marca", None)
++    _crear_proyecto_juguete(tmp_path)
++
++    ejecutar(str(_toml_de_un_mutante(tmp_path, "return a + b", "return 0")), raiz=str(tmp_path))
++
++    assert not huerfana.exists(), "la copia huerfana (dueño muerto) no se retiro"
++    assert viva.exists(), "se retiro la copia de un arnes vivo"
++    assert sin_marca.exists(), "se retiro un directorio sin marca de dueño"
++
++
++def test_sin_git_se_copia_la_raiz_pedida_y_el_arnes_sigue(tmp_path, monkeypatch):
++    real = mutar.subprocess.run
++
++    def sin_git(argv, *a, **k):
++        if argv and argv[0] == "git":
++            raise FileNotFoundError("git")
++        return real(argv, *a, **k)
++
++    monkeypatch.setattr(mutar.subprocess, "run", sin_git)
++    _crear_proyecto_juguete(tmp_path)
++    resultado = ejecutar(str(_toml_de_un_mutante(tmp_path, "return a + b", "return 0")), raiz=str(tmp_path))
++    assert resultado.base_verde and resultado.detectados == 1, resultado
++
++
++def test_control_un_fichero_hermano_dentro_del_repositorio_copiado_si_se_muta(tmp_path):
++    """Control de la contencion: `../x` es legitimo si sigue DENTRO del repositorio copiado (p. ej. los mutantes de
++    `../entorno/scripts/voz-usb.sh` desde walking-skeleton). El limite es la copia, no la raiz pedida."""
++    proyecto = tmp_path / "repo"
++    sub = proyecto / "sub"
++    sub.mkdir(parents=True)
++    subprocess.run(["git", "init", "-q", str(proyecto)], check=True)
++    (proyecto / "modulo_hermano.py").write_text("def sumar(a, b):\n    return a + b\n", encoding="utf-8")
++    (sub / "tests").mkdir()
++    (sub / "tests" / "test_hermano.py").write_text(
++        "import sys\nfrom pathlib import Path\n\nsys.path.insert(0, str(Path.cwd().parent))\n"
++        "from modulo_hermano import sumar\n\n\ndef test_suma():\n    assert sumar(2, 3) == 5\n",
++        encoding="utf-8",
++    )
++    toml = _escribir_toml(
++        sub,
++        """\
++        incremento = "juguete"
++        pruebas = ["tests/test_hermano.py"]
++
++        [[mutante]]
++        id = "M1"
++        garantia = "el hermano suma"
++        fichero = '''../modulo_hermano.py'''
++        buscar = '''return a + b'''
++        sustituir = '''return 0'''
++        """,
++    )
++    original = (proyecto / "modulo_hermano.py").read_bytes()
++
++    resultado = ejecutar(str(toml), raiz=str(sub))
++
++    assert [r.estado for r in resultado.resultados] == ["detectado"], resultado
++    assert (proyecto / "modulo_hermano.py").read_bytes() == original
+--- /home/majo1230/.claude/jobs/d6cb894c/tmp/test_arnes_ciclo_de_vida.py	2026-10-25 18:49:36.542646070 -0500
++++ walking-skeleton/tests/unit/test_arnes_ciclo_de_vida.py	2026-10-25 19:59:48.891405793 -0500
+@@ -26,6 +26,20 @@
+ 
+ from herramientas.mutar import ejecutar
+ 
++
++@pytest.fixture(autouse=True)
++def _copias_aisladas_en_el_tmp_de_pytest(tmp_path_factory, monkeypatch):
++    """Las copias aisladas del arnés (regla 6) caen en el tmp de pytest, que pytest retira, y no en el /tmp del
++    sistema. Medido 2026-10-25: al mutar el propio arnés, los mutantes que desactivan su limpieza (A3, AL-M8)
++    dejaban ~30 copias de juguete en /tmp por ejecución. Directorio HERMANO del proyecto de juguete, nunca hijo
++    (la guarda «copia dentro del proyecto» lo rechazaría). TMPDIR también para el arnés lanzado en subproceso."""
++    import tempfile
++
++    destino = tmp_path_factory.mktemp("copias-del-arnes")
++    monkeypatch.setenv("TMPDIR", str(destino))
++    monkeypatch.setattr(tempfile, "tempdir", str(destino))
++
++
+ _MARCA_HIJO = "time.sleep(41.25)"  # hijo en la sesión de pytest
+ _MARCA_NIETO = "time.sleep(41.75)"  # nieto que abre SU PROPIA sesión: escapa a killpg
+ 
+@@ -34,7 +48,8 @@
+     """El mutante cuelga para siempre tras lanzar un hijo y un nieto en sesión propia y anotar sus PID.
+ 
+     La ejecución base (sin mutar) NO lanza nada: así `pids.txt` solo existe cuando corre el mutante y la prueba
+-    interrumpe en el momento justo, no en la ejecución base (versión anterior: prueba vacua)."""
++    interrumpe en el momento justo, no en la ejecución base (versión anterior: prueba vacua). La ruta es ABSOLUTA: el
++    arnés ejecuta pytest en una copia aislada (2026-10-25), y una ruta relativa caería dentro de la copia."""
+     modulo = tmp_path / "modulo_vida.py"
+     modulo.write_text(
+         textwrap.dedent(
+@@ -54,7 +69,7 @@
+                 # Solo el MUTANTE llega aquí: la ejecución base no lanza nada ni anota PID.
+                 hijo = subprocess.Popen([sys.executable, "-c", "import time; {_MARCA_HIJO}"])
+                 nieto = subprocess.Popen([sys.executable, "-c", "import time; {_MARCA_NIETO}"], start_new_session=True)
+-                Path("pids.txt").write_text(f"{{hijo.pid}} {{nieto.pid}}")
++                Path({str(tmp_path / "pids.txt")!r}).write_text(f"{{hijo.pid}} {{nieto.pid}}")
+                 while True:
+                     pass
+             """
+@@ -272,15 +287,24 @@
+ # ------------------------------------------------- SIGKILL: diario de restauración --
+ 
+ 
+-def test_tras_un_sigkill_el_arranque_siguiente_restaura_desde_el_diario_y_pytest_no_queda_huerfano(tmp_path, senuelo):
+-    """SIGKILL no ejecuta ningún `finally` (`timeout -k`, OOM, corte). El fichero mutado se recupera del diario
+-    `.mutar-en-curso.json` al siguiente arranque, y el pytest del mutante muere con el arnés (PDEATHSIG)."""
++def test_tras_un_sigkill_el_proyecto_real_sigue_intacto_y_pytest_no_queda_huerfano(tmp_path, senuelo):
++    """SIGKILL no ejecuta ningún `finally` (`timeout -k`, OOM, corte).
++
++    Hasta 2026-10-25 el fichero del proyecto quedaba MUTADO y se recuperaba del diario al siguiente arranque.
++    Desde la regla 6 el arnés muta una COPIA aislada: el proyecto real no llega a contener el mutante, no hay
++    diario en su raíz, y el pytest del mutante muere con el arnés (PDEATHSIG). La copia queda en el temporal
++    del sistema, reconocible por su prefijo; esta prueba la retira."""
++    import shutil
++    import tempfile
++
+     from herramientas import mutar
+ 
+     modulo = _crear_proyecto(tmp_path)
+     original = modulo.read_bytes()
+     toml = _toml(tmp_path, timeout_s=60)
+     raiz_repo = Path(__file__).resolve().parents[2]
++    temporal = Path(tempfile.gettempdir())
++    copias_previas = set(temporal.glob(f"{mutar._PREFIJO_COPIA}*"))
+     arnes = subprocess.Popen(
+         [sys.executable, "-m", "herramientas.mutar", str(toml), "--raiz", str(tmp_path)],
+         cwd=raiz_repo,
+@@ -289,22 +313,24 @@
+     )
+     hijo = nieto = None
+     pytests: list[tuple[int, str]] = []
++    copias: set[Path] = set()
+     try:
+         hijo, nieto = _esperar_pids(tmp_path)
+         pytests = [(p, _cmdline(p)) for p in _descendientes(arnes.pid) if "pytest" in _cmdline(p)]
+         assert pytests, "no se encontró el pytest del mutante"
++        copias = set(temporal.glob(f"{mutar._PREFIJO_COPIA}*")) - copias_previas
++        assert len(copias) == 1, f"control: debe existir la copia aislada del arnés vivo: {copias}"
++        en_la_copia = next(iter(copias)) / tmp_path.name / modulo.name
++        assert en_la_copia.read_bytes() != original, "control: el mutante está aplicado (en la copia)"
++        assert modulo.read_bytes() == original, "el proyecto real contiene el mutante mientras el arnés vive"
++
+         arnes.kill()
+         arnes.wait(timeout=10)
+ 
+-        assert modulo.read_bytes() != original, "precondición: tras SIGKILL el fichero sigue mutado"
+-        assert (tmp_path / ".mutar-en-curso.json").exists(), "no hay diario de la mutación en curso"
++        assert modulo.read_bytes() == original, "tras el SIGKILL el proyecto real contiene el mutante"
++        assert not (tmp_path / ".mutar-en-curso.json").exists(), "el diario no pertenece a la raíz del proyecto"
+         assert all(_esperar_muerte(p, linea) for p, linea in pytests), "el pytest del mutante quedó huérfano"
+-
+-        restaurados = mutar.recuperar_mutacion_interrumpida(str(tmp_path))
+-
+-        assert restaurados == ["modulo_vida.py"], restaurados
+-        assert modulo.read_bytes() == original, "el diario no restauró el fichero"
+-        assert not (tmp_path / ".mutar-en-curso.json").exists()
++        assert mutar.recuperar_mutacion_interrumpida(str(tmp_path)) == []
+         assert _vivo(*senuelo)
+     finally:
+         if arnes.poll() is None:
+@@ -315,6 +341,8 @@
+         if hijo:
+             _matar_si_vivo(hijo, _MARCA_HIJO)
+             _matar_si_vivo(nieto, _MARCA_NIETO)
++        for copia in copias:
++            shutil.rmtree(copia, ignore_errors=True)
+ 
+ 
+ def test_una_ejecucion_normal_no_deja_diario(tmp_path):
+@@ -451,7 +479,7 @@
+                 intermedio = (
+                     "import subprocess, sys; "
+                     "p = subprocess.Popen([sys.executable, '-c', 'import time; {_MARCA_HUERFANO}']); "
+-                    "open('pid_huerfano.txt', 'w').write(str(p.pid))"
++                    "open({str(tmp_path / "pid_huerfano.txt")!r}, 'w').write(str(p.pid))"
+                 )
+                 subprocess.run([sys.executable, "-c", intermedio])  # el intermedio sale: el durmiente cuelga de init
+                 while True:
+--- /home/majo1230/.claude/jobs/d6cb894c/tmp/test_red_aislamiento_estricto.py.antes	2026-10-25 20:26:07.220869738 -0500
++++ entorno/control-plane/test_red_aislamiento_estricto.py	2026-10-25 20:26:07.241667993 -0500
+@@ -353,6 +353,18 @@
+     assert not list(raiz.glob("pytest-of-*")), "pytest creo su directorio base en el cwd"
+ 
+ 
++def _contrato_en_este_plano(contrato: dict) -> dict:
++    """Los contratos reales guardan `pruebas_minimas` ABSOLUTAS al plano vivo. Cuando esta bateria corre en la copia
++    aislada del arnes de mutacion (regla 6, 2026-10-25), `PLANO` es la copia: se reubican sobre `PLANO` para medir el
++    plano bajo prueba. Sin esto la verificacion devuelve `no_aislable` (y hace bien). En el arbol vivo no cambia nada."""
++    marca = "/entorno/control-plane/"
++    verificacion = dict(contrato.get("verificacion") or {})
++    verificacion["pruebas_minimas"] = [
++        str(PLANO.resolve() / str(p).split(marca, 1)[1]) if marca in str(p) else p
++        for p in verificacion.get("pruebas_minimas") or []]
++    return {**contrato, "verificacion": verificacion}
++
++
+ @necesita_estricto
+ @pytest.mark.parametrize("ident,modulo", [("sexta-fuente-estancamiento", "estancamiento.py"),
+                                           ("etiqueta-observatorio-efecto", "observatorio.py")])
+@@ -362,7 +374,7 @@
+     import orquestador as orq
+     monkeypatch.setenv("AURA_AUTOCONSTRUCCION_ESTADO", str(tmp_path / "estado"))
+     monkeypatch.setattr(orq, "mutacion_en_curso", lambda: False)
+-    contrato = ct.contrato_de(ident)
++    contrato = _contrato_en_este_plano(ct.contrato_de(ident))
+     copia, _, _, _ = ac._crear_copia(PLANO.resolve(), pathlib.PurePath(modulo))
+     try:
+         r = review._verificador_de_review(contrato, PLANO)(copia)
+--- /home/majo1230/.claude/jobs/d6cb894c/tmp/contencion-del-ambito.toml.antes	2026-10-25 21:12:37.329741984 -0500
++++ entorno/control-plane/mutaciones/contencion-del-ambito.toml	2026-10-25 21:12:37.353022792 -0500
+@@ -14,7 +14,10 @@
+ #           --raiz ../entorno/control-plane
+ 
+ incremento = "CONTENCION DEL AMBITO (2026-09-21): un contrato fuera del ambito no produce trabajo"
+-pruebas = ["test_red_capacidad_completada.py", "test_red_evolucion_gobernada.py"]
++# 2026-10-25: la base verifica SOLO la prueba que usa su unico mutante (CA-M1 declara la suya). Las otras dos de
++# test_red_capacidad_completada.py miden el plano REAL en su ruta real (contratos con rutas absolutas; la tarea
++# se identifica por la ruta del contrato) y fallan en la copia aislada del arnes (regla 6): ningun mutante las usa.
++pruebas = ["test_red_capacidad_completada.py::test_no_se_contaminan_los_sandboxes"]
+ timeout_s = 300
+ 
+ 

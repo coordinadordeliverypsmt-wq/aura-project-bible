@@ -183,9 +183,15 @@ async def test_superseded_se_deriva_de_valid_until_y_no_es_un_quinto_campo():
     await _declarar(mem, V1, ts=1000.0)
     await _declarar(mem, V2, ts=2000.0)
     nuevos = {"version", "supersedes", "valid_from", "valid_until"}
+    # `hecho_id` NO es un campo de vigencia: es la identidad opaca del reloj de CM2, autorizada aparte
+    # (RESOLUCION-S3-CM2-ORDEN-CEO-2026-10-06.md §2.1). Se permite por su nombre, no se abre la puerta a otros.
+    identidad_cm2 = {"hecho_id"}
     for contenido in (V1, V2):
-        sobrantes = set(_prov(mem, contenido)) - nuevos - {"trace_id", "fuente", "clase", "origen", "ts"}
+        sobrantes = (
+            set(_prov(mem, contenido)) - nuevos - identidad_cm2 - {"trace_id", "fuente", "clase", "origen", "ts"}
+        )
         assert not sobrantes, f"campos fuera de la autorización en {contenido!r}: {sobrantes}"
+        assert "superseded" not in _prov(mem, contenido)
     assert (_prov(mem, V1)["valid_until"] is not None) and (_prov(mem, V2)["valid_until"] is None)
 
 
@@ -407,3 +413,41 @@ async def test_preguntar_por_un_atributo_jamas_declarado_no_lo_fabrica():
     assert "3 de junio" in r["say"]
     assert _prov(mem, V2)["supersedes"] is None
     assert espia.llamadas == 0
+
+
+# ------------------------------------------------ «me llamo X» es «mi nombre es X» (campaña, 2026-09-27)
+#
+# Medido `[EJEC]`: «mi nombre es Mauricio» + «en realidad, mi nombre es Mauro» versionaba bien y AURA
+# decía «Te llamas Mauro»; «me llamo Mauricio» + «me llamo Pedro» dejaba los dos vigentes y AURA
+# afirmaba dos nombres a la vez. La causa: `atributo_declarado` solo reconocía la forma posesiva. No es
+# una decisión nueva: el versionado está aprobado (`D-AMP-1 = B`) y ya se aplica a «mi nombre es».
+# Esto solo reconoce que las dos frases dicen lo mismo.
+
+from aura_skeleton.core.identidad_memoria import atributo_declarado  # noqa: E402
+
+
+def test_me_llamo_declara_el_atributo_nombre():
+    assert atributo_declarado("me llamo Mauricio") == ("nombre", "Mauricio")
+
+
+def test_me_llamo_y_mi_nombre_es_comparten_identidad():
+    """Si no la compartieran, corregir con una forma lo que se dijo con la otra dejaría los dos
+    nombres vigentes: el defecto medido."""
+    assert identidad_de("me llamo Mauricio") == identidad_de("mi nombre es Mauro") == "nombre"
+
+
+def test_me_llamo_no_es_voraz_con_la_coletilla():
+    assert atributo_declarado("Me llamo Mauricio y vivo en Bogotá") == ("nombre", "Mauricio")
+
+
+def test_CONTROL_una_frase_sin_declaracion_de_nombre_no_se_reconoce():
+    """Sin control, `return ("nombre", ...)` fijo pasaría las anteriores."""
+    assert atributo_declarado("¿cómo me llamo?") is None
+    assert atributo_declarado("llamo a mi madre") is None
+
+
+def test_yo_me_llamo_tambien_declara_el_nombre():
+    """Encontrado por el mutante CP-M2, que sobrevivió: la forma con sujeto explícito se reconocía
+    en el código y ninguna prueba lo protegía. Sin ella, «yo me llamo Mauricio» —forma habitual al
+    presentarse hablando— volvería a no versionarse."""
+    assert atributo_declarado("yo me llamo Mauricio") == ("nombre", "Mauricio")

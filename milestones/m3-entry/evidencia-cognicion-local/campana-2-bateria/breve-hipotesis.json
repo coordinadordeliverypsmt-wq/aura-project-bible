@@ -1,0 +1,22 @@
+{
+  "caso": "hipotesis",
+  "tipo": "abierta",
+  "variante": "actual",
+  "texto": "que pasaria si la luna desapareciera?",
+  "reloj_s": 33.57,
+  "total_s": 33.49,
+  "carga_s": 0.98,
+  "ingesta_tokens": 166,
+  "ingesta_s": 11.66,
+  "generacion_tokens": 43,
+  "generacion_s": 20.84,
+  "generacion_tok_s": 2.063,
+  "motivo_fin": "stop",
+  "json_valido": true,
+  "claves": [
+    "action",
+    "say"
+  ],
+  "say": "¡Si la luna desapareció, mi comida era delante de mí! ¡Me gustaría comer con todos los animales en el cielo!",
+  "respuesta_cruda": "{\"say\": \"¡Si la luna desapareció, mi comida era delante de mí! ¡Me gustaría comer con todos los animales en el cielo!\",\"action\":\"consulta\"}"
+}

@@ -1,0 +1,7 @@
+barrido HOME falso (sin entorno hostil): exit=0; unica escritura bajo HOME: .config/pulse/cookie
+barrido hostil: 3811 passed, 24 skipped, 3 xfailed in 547.27s (0:09:07)
+barrido hostil: exit=0
+barrido hostil: conexiones al HA falso=0; centinela AURA_DATOS: 0 entradas
+traza conexiones (antes de D7): exit=0
+traza conexiones: 4 (2 sonda e2e de recoleccion, 2 test_voz_degrada); tras la correccion de test_voz_degrada: 0
+traza completa tras la correccion: 3818 passed, 3 skipped, 17 xfailed in 554.07s (0:09:14); exit=0; conexiones=2 (solo la sonda e2e de recoleccion)

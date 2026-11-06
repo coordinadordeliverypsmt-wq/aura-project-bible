@@ -1,0 +1,6 @@
+feat(control-plane): candidato aislado, confinamiento estricto y resto del plano (antes de la recuperacion)
+
+Plano de control tal como estaba antes de DP-RECUPERACION-TRAS-CAIDAS: autoconstruccion con copia aislada, aislamiento y verificador estrictos, review, formacion, observatorio y sus pruebas y mutaciones. planificador.py, control_plane.py, motor_autonomia.py y aura.py se indexan en su version PREVIA (previos-a-la-aplicacion, SHA256SUMS verificado). Particion verificada: PROPUESTA-PARTICION-INTEGRACION.md §8 (commit 4 de 7).
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_018FPxs18b7xW6kGYPWppnL1

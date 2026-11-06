@@ -20,6 +20,12 @@ Este modulo existe para que eso no vuelva a pasar. Reglas de diseno que no son n
      (2026-08-04). Sin este limite, degradar una condicion de parada de un bucle cuelga el arnes
      entero en vez de reportarlo -- dano ya medido: 15+ horas de CPU con un proceso huerfano
      (ver `mutaciones/motor-ciclo.toml`, mutantes M2 y M3).
+  6. La mutacion NUNCA escribe en el arbol del proyecto (2026-10-25): la base y los mutantes corren sobre
+     una COPIA aislada fuera del proyecto (`_copia_aislada`), que se borra al terminar, y un `fichero` que
+     saliera de la copia (absoluto o con `../` de mas) se rechaza sin tocarlo. Medido `[EJEC]`: el servicio
+     `aura-receptor-nodos` y el despertador de AURORA cargan codigo de este mismo worktree; un reinicio
+     mientras el fichero estaba mutado en el sitio habria arrancado produccion con un mutante. La unica
+     escritura posible en el proyecto es restaurar un diario HEREDADO de una ejecucion anterior en el sitio.
 
 Formato de declaracion (mutaciones/*.toml), ver ejemplos en la carpeta `mutaciones/`:
 
@@ -43,11 +49,18 @@ frente a eso basta para todos sus mutantes.
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import json
 import os
+import shutil
 import signal
 import subprocess
 import sys
+import tempfile
+import threading
 import tomllib
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -76,6 +89,106 @@ _TIMEOUT = "TIMEOUT"
 # a una suite de pruebas normal (la de motor-ciclo.toml tarda ~2s) y acotado frente a un mutante que
 # de verdad no termina nunca.
 _TIMEOUT_S_POR_DEFECTO = 60.0
+
+# DIARIO de la mutación en curso (2026-10-06). Un SIGKILL al arnés (`timeout -k`, OOM, corte de luz) no ejecuta
+# ningún `finally`: el fichero quedaba MUTADO sin que nadie lo supiera. Antes de mutar se anota aquí, en la raíz
+# del proyecto, qué fichero y con qué bytes originales; se borra tras restaurar. Si existe al arrancar, la
+# ejecución anterior murió a medias y se restaura antes de nada (`recuperar_mutacion_interrumpida`).
+# Desde 2026-10-25 el arnés YA NO ESCRIBE el diario: muta una copia aislada (regla 6) y un SIGKILL deja mutada la
+# copia, nunca el proyecto, así que no hay nada que recuperar. Escribirlo en la copia era código muerto (mutantes
+# AL-M4/AL-M5 supervivientes, retirados a `mutaciones/retiradas/`). La recuperación sobre la raíz real SE CONSERVA
+# para los diarios que dejaran las ejecuciones anteriores, que sí mutaban en el sitio.
+_DIARIO = ".mutar-en-curso.json"
+
+# COPIA AISLADA (regla 6). Lo que no se copia: historia de git, caches y artefactos que no son del proyecto, y el
+# diario (una copia nunca hereda una mutación en curso). Prefijo reconocible: tras un SIGKILL la copia queda en el
+# directorio temporal del sistema y se identifica por él; el proyecto real sigue intacto.
+_NO_SE_COPIA = (".git", ".venv", "__pycache__", ".pytest_cache", "pytest-of-*", "graphify-out", "node_modules", _DIARIO)
+_PREFIJO_COPIA = "aura-mutar-"
+#: Marca de dueño de cada copia (pid + starttime): permite retirar al arrancar las copias que dejó un arnés muerto
+#: por SIGKILL, y solo esas. Un directorio sin marca nunca se toca.
+_MARCA_DUENO = ".aura-mutar-dueno.json"
+
+# Señales con las que se detiene al arnés por las buenas. Cualquiera de ellas restaura y limpia (ver `main`).
+_SENALES_DE_PARADA = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+
+
+class _InterrupcionDelArnes(KeyboardInterrupt):
+    """SIGTERM/SIGHUP tratados como Ctrl-C: el `finally` restaura y `_ejecutar_pytest` mata el árbol."""
+
+
+def _escribir_atomico(ruta: Path, datos: bytes) -> None:
+    """Escribe `datos` sin estado intermedio visible: temporal en el mismo directorio + `os.replace`.
+
+    `write_bytes` trunca y LUEGO escribe: una señal en medio dejaba el fuente vacío o a medias (revisión ECC).
+    Si la ruta es un enlace simbólico se escribe en su destino (el enlace sigue siendo enlace), y si algo falla el
+    temporal se borra: nunca queda `.x.mutar-tmp` en el árbol."""
+    ruta = ruta.resolve() if ruta.is_symlink() else ruta
+    temporal = ruta.with_name(f".{ruta.name}.mutar-tmp")
+    try:
+        with open(temporal, "wb") as f:
+            f.write(datos)
+            f.flush()
+            os.fsync(f.fileno())
+        try:
+            os.chmod(temporal, ruta.stat().st_mode & 0o7777)
+        except FileNotFoundError:
+            pass
+        os.replace(temporal, ruta)
+    except BaseException:
+        try:
+            temporal.unlink()
+        except FileNotFoundError:
+            pass
+        raise
+
+
+def _anotar_diario(raiz: str, fichero: str, original: bytes, mutado: bytes, pid: int | None = None) -> None:
+    """Anota qué fichero se va a mutar, sus bytes originales, la huella del contenido MUTADO y el arnés dueño.
+
+    La huella y el dueño hacen prudente la recuperación: solo se restaura si el fichero sigue siendo el mutado
+    (nadie lo ha tocado después) y si el arnés que lo mutó ya no existe (revisión ECC)."""
+    dueno = os.getpid() if pid is None else pid
+    campos = _estado_proc(dueno)
+    datos = {
+        "fichero": fichero,
+        "original_b64": base64.b64encode(original).decode("ascii"),
+        "mutado_sha256": hashlib.sha256(mutado).hexdigest(),
+        "pid": dueno,
+        "inicio": campos[19] if campos and len(campos) > 19 else "",
+    }
+    _escribir_atomico(Path(raiz) / _DIARIO, json.dumps(datos).encode("utf-8"))
+
+
+def recuperar_mutacion_interrumpida(raiz: str = ".") -> list[str]:
+    """Si una ejecución anterior murió con un fichero mutado, lo restaura desde el diario. Devuelve los ficheros."""
+    diario = Path(raiz) / _DIARIO
+    if not diario.exists():
+        return []
+    try:
+        datos = json.loads(diario.read_text(encoding="utf-8"))
+        fichero = str(datos["fichero"])
+        original = base64.b64decode(datos["original_b64"])
+        mutado_sha256 = str(datos["mutado_sha256"])
+        pid, inicio = int(datos["pid"]), str(datos["inicio"])
+    except (ValueError, KeyError, TypeError) as e:
+        raise RuntimeError(f"El diario {diario} es ilegible ({e}): revísalo a mano antes de volver a mutar.") from e
+    campos = _estado_proc(pid)
+    if campos and len(campos) > 19 and campos[19] == inicio and campos[0] != "Z":
+        raise RuntimeError(f"Otro arnés (pid {pid}) está mutando esta raíz: no se toca nada ni se ejecuta este.")
+    ruta = Path(raiz) / fichero
+    actual = ruta.read_bytes() if ruta.exists() else None
+    if actual is None or hashlib.sha256(actual).hexdigest() != mutado_sha256:
+        # Después del corte alguien restauró o editó el fichero: el diario está obsoleto y no se pisa su trabajo.
+        print(
+            f"AVISO: diario obsoleto ({fichero} ya no contiene el mutante): se descarta sin tocar el fichero.",
+            file=sys.stderr,
+        )
+        diario.unlink()
+        return []
+    _escribir_atomico(ruta, original)
+    diario.unlink()
+    return [fichero]
 
 
 @dataclass
@@ -125,10 +238,99 @@ def _matar_arbol_de_procesos(proceso: subprocess.Popen) -> None:
     matar nuestro propio grupo seria un suicidio del arnes), y aqui se manda la senal a ese grupo
     entero via PID NEGATIVO.
     """
+    # Primero la FOTO de descendientes: después de matar al grupo se re-parentan a init y ya no se encuentran.
+    # Incluye a los que abrieron su PROPIA sesión (escapan a killpg): ya ocurrió `[EJEC]` 2026-10-06.
+    descendientes = _descendientes(proceso.pid)
     try:
         os.killpg(os.getpgid(proceso.pid), signal.SIGKILL)
     except ProcessLookupError:
         pass  # ya habia terminado por su cuenta entre el TimeoutExpired y este punto: nada que matar
+    for pid, inicio in descendientes:
+        _matar_si_es_el_mismo(pid, inicio)
+
+
+def _estado_proc(pid: int) -> list[str] | None:
+    """Campos de `/proc/<pid>/stat` tras el nombre del ejecutable (que puede llevar espacios y paréntesis)."""
+    try:
+        return Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()
+    except (OSError, IndexError):
+        return None
+
+
+def _descendientes(raiz_pid: int) -> list[tuple[int, str]]:
+    """(pid, starttime) de todos los descendientes de `raiz_pid`, siguiendo los enlaces ppid de `/proc`.
+
+    El starttime identifica al proceso: si el PID se reutiliza entre la foto y la señal, ya no coincide y no se
+    mata a nadie ajeno (revisión ECC). Límite declarado: un proceso que hizo doble fork y ya cuelga de init
+    antes de la foto no se encuentra."""
+    hijos: dict[int, list[tuple[int, str]]] = {}
+    try:
+        entradas = [e for e in os.listdir("/proc") if e.isdigit()]
+    except OSError:
+        return []
+    for entrada in entradas:
+        campos = _estado_proc(int(entrada))
+        if campos and len(campos) > 19:
+            hijos.setdefault(int(campos[1]), []).append((int(entrada), campos[19]))
+    encontrados: list[tuple[int, str]] = []
+    pendientes = [raiz_pid]
+    while pendientes:
+        for pid, inicio in hijos.get(pendientes.pop(), []):
+            encontrados.append((pid, inicio))
+            pendientes.append(pid)
+    return encontrados
+
+
+def _matar_si_es_el_mismo(pid: int, inicio: str) -> None:
+    """SIGKILL a `pid` solo si sigue siendo el proceso de la foto (mismo starttime), vía pidfd si existe."""
+    abrir = getattr(os, "pidfd_open", None)
+    enviar = getattr(signal, "pidfd_send_signal", None)
+    if abrir is None or enviar is None:
+        abrir = enviar = None
+    try:
+        fd = abrir(pid) if abrir is not None else None
+    except ProcessLookupError:
+        return
+    except OSError:
+        fd = None  # pidfd no disponible (ENOSYS, EMFILE…): se cae a `os.kill` con la misma comprobación
+    try:
+        if fd is None or enviar is None:
+            campos = _estado_proc(pid)
+            if campos and len(campos) > 19 and campos[19] == inicio:
+                os.kill(pid, signal.SIGKILL)
+            return
+        try:
+            campos = _estado_proc(pid)  # con el pidfd abierto, el PID ya no puede reasignarse a otro proceso
+            if campos and len(campos) > 19 and campos[19] == inicio:
+                enviar(fd, signal.SIGKILL)
+        finally:
+            os.close(fd)
+    except (ProcessLookupError, PermissionError):
+        pass
+
+
+def _cargar_prctl():
+    """`prctl` de la libc, resuelto UNA vez al importar: en el hijo, tras el fork, no se puede importar ni cargar
+    nada (candados de import/malloc con hilos; revisión ECC). Fuera de Linux no existe y el arnés sigue sin esta red."""
+    try:
+        import ctypes
+
+        return ctypes.CDLL(None, use_errno=True).prctl
+    except Exception:  # noqa: BLE001
+        return None
+
+
+_PRCTL = _cargar_prctl()
+
+
+def _morir_con_el_arnes() -> None:
+    """En el hijo, antes de `exec`: PR_SET_PDEATHSIG = SIGKILL. Si el arnés muere —incluso por SIGKILL, donde
+    ningún `finally` corre— el kernel mata a pytest en vez de dejarlo huérfano (el caso de 48 min).
+
+    Límites declarados: alcanza al pytest (hijo directo), no a sus descendientes —el kernel lo borra en ellos—; y
+    se dispara al morir el HILO que hizo el fork, que en el arnés es siempre el principal."""
+    if _PRCTL is not None:
+        _PRCTL(1, int(signal.SIGKILL), 0, 0, 0)  # 1 = PR_SET_PDEATHSIG
 
 
 def _ejecutar_pytest(pruebas: list[str], raiz: str, timeout_s: float) -> tuple[int | None, str, bool]:
@@ -171,19 +373,35 @@ def _ejecutar_pytest(pruebas: list[str], raiz: str, timeout_s: float) -> tuple[i
         # Sesion propia (= grupo de procesos propio): permite matar el ARBOL completo por PID
         # negativo sin arriesgarse a alcanzar el grupo del propio arnes. Ver `_matar_arbol_de_procesos`.
         start_new_session=True,
+        preexec_fn=_morir_con_el_arnes,
     )
     try:
         salida, _ = proceso.communicate(timeout=timeout_s)
         return proceso.returncode, salida, False
     except subprocess.TimeoutExpired:
-        _matar_arbol_de_procesos(proceso)
-        # Tras el SIGKILL hay que drenar el pipe (o el proceso queda zombie) y recoger lo que se
-        # alcanzo a imprimir, solo para informar -- la decision de estado ya es "agotado".
         try:
-            salida, _ = proceso.communicate(timeout=5)
-        except subprocess.TimeoutExpired:
-            salida = "(no se pudo leer la salida del proceso tras matarlo)"
+            _matar_arbol_de_procesos(proceso)
+            # Tras el SIGKILL hay que drenar el pipe (o el proceso queda zombie) y recoger lo que se
+            # alcanzo a imprimir, solo para informar -- la decision de estado ya es "agotado".
+            try:
+                salida, _ = proceso.communicate(timeout=2)
+            except subprocess.TimeoutExpired:
+                salida = "(no se pudo leer la salida del proceso tras matarlo)"
+        except BaseException:
+            # Una interrupción DENTRO de la rama del timeout no la ve el `except BaseException` hermano: se mata el
+            # árbol aquí también (idempotente) antes de propagar (revisión ECC).
+            _matar_arbol_de_procesos(proceso)
+            raise
         return None, salida, True
+    except BaseException:
+        # INTERRUPCIÓN (Ctrl-C, SIGTERM, error): pytest vive en su propia sesión y la señal no le llega. Sin
+        # esto quedaba huérfano, y con un mutante que cuelga, para siempre (`[EJEC]` 2026-10-06: 48 min).
+        _matar_arbol_de_procesos(proceso)
+        try:
+            proceso.communicate(timeout=2)
+        except BaseException:  # noqa: BLE001 — drenar es un extra; la excepción original es la que importa
+            pass
+        raise
 
 
 def _extraer_pruebas_que_fallaron(salida: str) -> str:
@@ -198,11 +416,24 @@ def _extraer_pruebas_que_fallaron(salida: str) -> str:
     return salida.strip()
 
 
-def _evaluar_mutante(mutante: dict[str, Any], pruebas: list[str], raiz: str, timeout_s: float) -> ResultadoMutante:
-    """Aplica un mutante, ejecuta sus pruebas y restaura el fichero pase lo que pase."""
+def _evaluar_mutante(
+    mutante: dict[str, Any], pruebas: list[str], raiz: str, timeout_s: float, limite: str | None = None
+) -> ResultadoMutante:
+    """Aplica un mutante, ejecuta sus pruebas y restaura el fichero pase lo que pase.
+
+    `limite` es la raiz de la copia aislada: un `fichero` que resuelva fuera de ella no se lee ni se escribe."""
     id_mutante = str(mutante["id"])
     garantia = str(mutante.get("garantia", ""))
-    ruta_fichero = Path(raiz) / str(mutante["fichero"])
+    ruta_fichero = (Path(raiz) / str(mutante["fichero"])).resolve()
+    if not ruta_fichero.is_relative_to(Path(limite if limite is not None else raiz).resolve()):
+        # `Path(raiz) / "/abs"` descarta la raiz y `../` de mas sale de ella: mutar ahi seria escribir FUERA de la
+        # copia aislada, quiza en el arbol vivo (revision de seguridad 2026-10-25). Jamas se aplica.
+        return ResultadoMutante(
+            id=id_mutante,
+            garantia=garantia,
+            estado=_AMBIGUO,
+            pruebas_que_fallaron=f"el fichero {mutante['fichero']!r} queda fuera de la raiz de la copia: no se muta",
+        )
     buscar = str(mutante["buscar"])
     sustituir = str(mutante["sustituir"])
 
@@ -238,7 +469,7 @@ def _evaluar_mutante(mutante: dict[str, Any], pruebas: list[str], raiz: str, tim
     estado = _SOBREVIVE
     pruebas_que_fallaron = ""
     try:
-        ruta_fichero.write_bytes(contenido_mutado.encode("utf-8"))
+        _escribir_atomico(ruta_fichero, contenido_mutado.encode("utf-8"))
         codigo, salida, agotado = _ejecutar_pytest(pruebas, raiz, timeout_s)
         if agotado:
             # Las pruebas NO terminaron en tiempo razonable: nadie llego a decidir si pasan o
@@ -264,13 +495,104 @@ def _evaluar_mutante(mutante: dict[str, Any], pruebas: list[str], raiz: str, tim
     finally:
         # Restauracion garantizada: corre incluso si _ejecutar_pytest lanza una excepcion o el
         # proceso se interrumpe. La excepcion (si la hubo) sigue propagandose despues de esto.
-        ruta_fichero.write_bytes(original_bytes)
-        if ruta_fichero.read_bytes() != original_bytes:
-            # Verificacion byte a byte: si esto no se cumple, el arnes mismo esta roto y no debe
-            # informar nada como si todo estuviera bien.
-            raise RuntimeError(f"No se pudo restaurar {ruta_fichero} tras evaluar el mutante {id_mutante}")
+        # Con las señales de parada BLOQUEADAS: una segunda señal no puede cortar la restauración a medias. Desde la
+        # regla 6 la restauración es de la COPIA; se conserva porque el informe exige una base intacta para cada mutante.
+        # Si la señal estaba pendiente y salta justo al bloquear, la restauración corre IGUAL (finally anidado).
+        mascara_previa = None
+        try:
+            mascara_previa = _bloquear_senales()
+        finally:
+            try:
+                _escribir_atomico(ruta_fichero, original_bytes)
+                if ruta_fichero.read_bytes() != original_bytes:
+                    # Verificacion byte a byte: si esto no se cumple, el arnes mismo esta roto y no debe
+                    # informar nada como si todo estuviera bien.
+                    raise RuntimeError(f"No se pudo restaurar {ruta_fichero} tras evaluar el mutante {id_mutante}")
+            finally:
+                _desbloquear_senales(mascara_previa)
 
     return ResultadoMutante(id=id_mutante, garantia=garantia, estado=estado, pruebas_que_fallaron=pruebas_que_fallaron)
+
+
+def _bloquear_senales() -> set | None:
+    """Bloquea las señales de parada y devuelve la máscara ANTERIOR (para restaurarla tal cual, no desbloquear a
+    ciegas lo que el llamador tuviera bloqueado; revisión ECC). None fuera del hilo principal."""
+    if threading.current_thread() is not threading.main_thread():
+        return None
+    return signal.pthread_sigmask(signal.SIG_BLOCK, _SENALES_DE_PARADA)
+
+
+def _desbloquear_senales(mascara_previa: set | None) -> None:
+    if mascara_previa is not None:
+        signal.pthread_sigmask(signal.SIG_SETMASK, mascara_previa)
+
+
+def _raiz_del_repositorio(origen: Path) -> Path:
+    """La raíz del repositorio git que contiene `origen`, o `origen` si no está en ninguno.
+
+    Se copia el repositorio entero y no solo `origen`: las pruebas reales leen ficheros hermanos (`entorno/`,
+    `milestones/`) y una copia parcial las pondría en rojo por estructura, no por el mutante."""
+    try:
+        proceso = subprocess.run(
+            ["git", "-C", str(origen), "rev-parse", "--show-toplevel"], capture_output=True, text=True, check=False
+        )
+    except OSError as e:
+        print(f"AVISO: no se pudo consultar git ({e}); se copia solo la raíz pedida.", file=sys.stderr)
+        return origen
+    if proceso.returncode != 0 or not proceso.stdout.strip():
+        return origen
+    raiz = Path(proceso.stdout.strip()).resolve()
+    return raiz if origen.is_relative_to(raiz) else origen
+
+
+@contextmanager
+def _copia_aislada(raiz: str):
+    """Copia el proyecto a un directorio temporal PROPIO (0700, fuera del proyecto) y cede la raíz equivalente.
+
+    Se borra al salir, también si hay excepción o interrupción. Con SIGKILL no corre ningún `finally`: la copia
+    queda en el temporal con el prefijo `_PREFIJO_COPIA`, y el proyecto real no se ha tocado nunca."""
+    origen = Path(raiz).resolve()
+    proyecto = _raiz_del_repositorio(origen)
+    destino = Path(tempfile.mkdtemp(prefix=_PREFIJO_COPIA)).resolve()
+    try:
+        if destino.is_relative_to(proyecto):
+            raise RuntimeError(f"La copia aislada caería dentro del proyecto ({destino}): revisa TMPDIR.")
+        campos = _estado_proc(os.getpid())
+        inicio = campos[19] if campos and len(campos) > 19 else ""
+        (destino / _MARCA_DUENO).write_text(json.dumps({"pid": os.getpid(), "inicio": inicio}), encoding="utf-8")
+        copia = destino / proyecto.name
+        shutil.copytree(
+            proyecto,
+            copia,
+            symlinks=False,
+            ignore=shutil.ignore_patterns(*_NO_SE_COPIA),
+            ignore_dangling_symlinks=True,
+        )
+        yield str(copia / origen.relative_to(proyecto)), str(copia)
+    finally:
+        shutil.rmtree(destino, ignore_errors=True)
+
+
+def _retirar_copias_huerfanas() -> list[str]:
+    """Retira las copias aisladas que dejó un arnés muerto (SIGKILL: ningún `finally`). Devuelve las retiradas.
+
+    Solo las del mismo usuario, con el prefijo y con marca de dueño legible cuyo proceso ya no existe (mismo pid y
+    starttime). Una copia sin marca, ajena, ilegible o de un arnés vivo NO se toca."""
+    retiradas: list[str] = []
+    for d in sorted(Path(tempfile.gettempdir()).glob(f"{_PREFIJO_COPIA}*")):
+        try:
+            if d.is_symlink() or not d.is_dir() or d.stat().st_uid != os.getuid():
+                continue
+            datos = json.loads((d / _MARCA_DUENO).read_text(encoding="utf-8"))
+            pid, inicio = int(datos["pid"]), str(datos["inicio"])
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+        campos = _estado_proc(pid)
+        if campos and len(campos) > 19 and campos[19] == inicio and campos[0] != "Z":
+            continue
+        shutil.rmtree(d, ignore_errors=True)
+        retiradas.append(str(d))
+    return retiradas
 
 
 def ejecutar(ruta_toml: str, raiz: str = ".") -> ResultadoMutacion:
@@ -280,7 +602,13 @@ def ejecutar(ruta_toml: str, raiz: str = ".") -> ResultadoMutacion:
       - Si la base (las pruebas declaradas) no esta en verde ANTES de mutar, se devuelve de
         inmediato con `base_verde=False` y `resultados=[]`, sin tocar ni un fichero.
       - Cada mutante se evalua con sus propias pruebas si las declara, o con las globales si no.
+      - Base y mutantes corren en una COPIA aislada (regla 6): el arbol de `raiz` solo se lee.
     """
+    restaurados = recuperar_mutacion_interrumpida(raiz)
+    if restaurados:
+        print(
+            f"AVISO: una ejecución anterior murió a medias; restaurado desde el diario: {restaurados}", file=sys.stderr
+        )
     with open(ruta_toml, "rb") as f:
         declaracion: dict[str, Any] = tomllib.load(f)
 
@@ -305,24 +633,29 @@ def ejecutar(ruta_toml: str, raiz: str = ".") -> ResultadoMutacion:
     # explicitamente evita el error clasico de tratar el 0 como falso. Si la base misma se agotara
     # (agotado=True), el returncode devuelto es None, y `None == 0` ya es False: no hace falta un
     # caso especial para que una base colgada tambien cuente como "no verde".
-    codigo_base, _, _ = _ejecutar_pytest(pruebas_a_verificar, raiz, timeout_s)
-    base_verde = codigo_base == 0
-    if not base_verde:
-        # Nunca informar de mutantes con la base en rojo: es la regla que el arnes historico violo.
-        return ResultadoMutacion(
-            base_verde=False,
-            resultados=[],
-            detectados=0,
-            supervivientes=0,
-            no_aplicados=0,
-            ambiguos=0,
-            timeouts=0,
-        )
+    huerfanas = _retirar_copias_huerfanas()
+    if huerfanas:
+        print(f"AVISO: retiradas copias aisladas de arneses muertos: {huerfanas}", file=sys.stderr)
+    with _copia_aislada(raiz) as (raiz_copia, limite):
+        print(f"Arnés: muta una copia aislada ({raiz_copia}); el árbol original solo se lee.", file=sys.stderr)
+        codigo_base, _, _ = _ejecutar_pytest(pruebas_a_verificar, raiz_copia, timeout_s)
+        base_verde = codigo_base == 0
+        if not base_verde:
+            # Nunca informar de mutantes con la base en rojo: es la regla que el arnes historico violo.
+            return ResultadoMutacion(
+                base_verde=False,
+                resultados=[],
+                detectados=0,
+                supervivientes=0,
+                no_aplicados=0,
+                ambiguos=0,
+                timeouts=0,
+            )
 
-    resultados: list[ResultadoMutante] = []
-    for mutante in mutantes:
-        pruebas_del_mutante = list(mutante.get("pruebas", pruebas_globales))
-        resultados.append(_evaluar_mutante(mutante, pruebas_del_mutante, raiz, timeout_s))
+        resultados: list[ResultadoMutante] = []
+        for mutante in mutantes:
+            pruebas_del_mutante = list(mutante.get("pruebas", pruebas_globales))
+            resultados.append(_evaluar_mutante(mutante, pruebas_del_mutante, raiz_copia, timeout_s, limite))
 
     detectados = sum(1 for r in resultados if r.estado == _DETECTADO)
     supervivientes = sum(1 for r in resultados if r.estado == _SOBREVIVE)
@@ -378,6 +711,33 @@ def _formatear_informe(resultado: ResultadoMutacion, ruta_toml: str) -> str:
     return "\n".join(lineas)
 
 
+class _parada_limpia:
+    """Durante `main`: SIGTERM/SIGHUP/SIGINT lanzan `_InterrupcionDelArnes` en vez de matar el proceso.
+
+    `[EJEC]` 2026-10-06: un `timeout` externo mandó SIGTERM, el arnés murió sin `finally`, el fichero quedó mutado
+    y pytest siguió 48 min huérfano. Tras la primera señal se ignoran las siguientes. Solo en el hilo principal
+    (`signal.signal` no puede instalarse en otro); los manejadores anteriores se restauran al salir."""
+
+    def __enter__(self):
+        self._anteriores: dict = {}
+        if threading.current_thread() is threading.main_thread():
+            for senal in _SENALES_DE_PARADA:
+                # Una señal que el llamador IGNORABA (`nohup` → SIGHUP, `cmd &` → SIGINT) sigue ignorada.
+                if signal.getsignal(senal) is not signal.SIG_IGN:
+                    self._anteriores[senal] = signal.signal(senal, self._manejador)
+        return self
+
+    @staticmethod
+    def _manejador(*_a) -> None:
+        for senal in _SENALES_DE_PARADA:
+            signal.signal(senal, signal.SIG_IGN)
+        raise _InterrupcionDelArnes
+
+    def __exit__(self, *_exc) -> None:
+        for senal, anterior in self._anteriores.items():
+            signal.signal(senal, anterior if anterior is not None else signal.SIG_DFL)
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI: `python3 -m herramientas.mutar <fichero.toml>`.
 
@@ -385,6 +745,7 @@ def main(argv: list[str] | None = None) -> int:
       0 -> base en verde y todos los mutantes fueron detectados.
       1 -> la base no esta en verde (no se evaluo ningun mutante).
       2 -> hay supervivientes, no aplicados, ambiguos y/o mutantes en TIMEOUT.
+      130 -> interrumpido (Ctrl-C, SIGTERM, SIGHUP): la copia aislada se borró y el árbol de pytest se mató.
     """
     args = list(sys.argv[1:] if argv is None else argv)
     if not args:
@@ -396,7 +757,12 @@ def main(argv: list[str] | None = None) -> int:
     # sobre todo para que las meta-pruebas puedan ejercitar ESTA funcion contra un proyecto de
     # juguete: sin ella, el contrato de codigos de salida quedaria sin cobertura (auditoria 2026-08-02).
     raiz = args[args.index("--raiz") + 1] if "--raiz" in args and len(args) > args.index("--raiz") + 1 else "."
-    resultado = ejecutar(ruta_toml, raiz=raiz)
+    try:
+        with _parada_limpia():
+            resultado = ejecutar(ruta_toml, raiz=raiz)
+    except KeyboardInterrupt:
+        print("Arnés interrumpido: copia aislada borrada y procesos de pytest terminados.", file=sys.stderr)
+        return 130
     print(_formatear_informe(resultado, ruta_toml))
 
     if not resultado.base_verde:

@@ -65,5 +65,5 @@ sustituir = '''    if False:
 id = "AR-M7"
 descripcion = "_alcance devuelve todo lo delegable en vez de lo que el acta dijo"
 fichero = "review.py"
-buscar = '''            return tuple(evento["datos"].get("alcance", ()))'''
-sustituir = '''            return TODO_LO_DELEGABLE'''
+buscar = '''    return cp.alcance_de_review(pathlib.Path(directorio))'''
+sustituir = '''    return TODO_LO_DELEGABLE'''

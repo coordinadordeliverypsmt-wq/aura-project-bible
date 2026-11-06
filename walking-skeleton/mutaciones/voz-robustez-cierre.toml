@@ -1,0 +1,31 @@
+incremento = '''Cierre del bloque latencia + robustez voz→acción (2026-10-04): huecos de robustez señalados por la auditoría'''
+pruebas = ["tests/integration/test_voz_accion_opcion_c.py"]
+timeout_s = 300
+
+[[mutante]]
+id = "VR-M1"
+garantia = '''con PARADA (kill switch) armada una orden hablada confirmada llega a ejecutarse'''
+fichero = "aura_skeleton/core/permissions.py"
+buscar = '''if self._kill is not None and self._kill.is_engaged():'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "VR-M2"
+garantia = '''una orden cuyo estado posterior no es el pedido (o ya lo era antes) se da por verificada'''
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''verificado = despues in pedido and antes not in pedido'''
+sustituir = '''verificado = True'''
+
+[[mutante]]
+id = "VR-M3"
+garantia = '''un «sí» hablado sin propuesta pendiente actúa sobre la TV'''
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''propuesta = self._propuestas_de_hogar.pop(uid, None)'''
+sustituir = '''propuesta = self._propuestas_de_hogar.pop(uid, None) or ("apagar_dispositivo", {"device": "media_player.tv_sala_fmilia_medina_un43ru7100fxza"})'''
+
+[[mutante]]
+id = "VR-M4"
+garantia = '''si la TV de la llave no existe en HA, «la tele» resuelve a otro televisor de la casa'''
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''entidades = [e for e in entidades if e["entity_id"] in dentro_de]'''
+sustituir = '''entidades = entidades'''

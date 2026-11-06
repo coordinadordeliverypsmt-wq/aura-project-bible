@@ -139,18 +139,32 @@ fi
 
 # --- 6. Swap --------------------------------------------------------------
 echo ""; echo "-- Swap --"
-SWAP_NAME="$(swapon --show=NAME --noheadings 2>/dev/null | head -1)"
-if [ -z "$SWAP_NAME" ]; then
+# Se evaluan TODOS los swaps activos (2026-10-07): mirar solo el primero etiquetaba zram (RAM) como «disco interno»
+# y dejaba sin mirar un swap interno que no fuera el primero. zram no es disco: no cuenta como interno ni como USB.
+SWAPS="$(swapon --show=NAME --noheadings 2>/dev/null)"
+if [ -z "$SWAPS" ]; then
   bad "No hay swap activo (RAM insuficiente sin el)"
   manual "sudo swapon <archivo de swap>"
 else
-  DEV_SWAP="$(devof "$SWAP_NAME")"
-  if [ -n "${USB_DEV:-}" ] && [ "$DEV_SWAP" = "$USB_DEV" ]; then
-    ok "Swap activo en USB: $SWAP_NAME"
-  else
-    warn "Swap activo en disco INTERNO: $SWAP_NAME ($DEV_SWAP)"
-    manual "sudo swapoff $SWAP_NAME && sudo rm $SWAP_NAME && sudo swapon $EXPECTED_MOUNT/swapfile_aurora"
-  fi
+  EN_USB=0
+  while read -r SWAP_NAME; do
+    [ -z "$SWAP_NAME" ] && continue
+    case "$SWAP_NAME" in
+      /dev/zram*) ok "Swap comprimido en RAM: $SWAP_NAME (no es disco)"; continue ;;
+    esac
+    # Un swap puede vivir en un directorio que el usuario no puede atravesar (p.ej. AURORA_EXT/.swap, root 700): df
+    # no puede consultarlo y devolvia vacio, que se tomaba por «interno». Se sube hasta el primer ancestro consultable,
+    # que esta en el mismo montaje (un submontaje bajo un directorio inaccesible no es visible para el usuario).
+    P_SWAP="$SWAP_NAME"; DEV_SWAP="$(devof "$P_SWAP")"
+    while [ -z "$DEV_SWAP" ] && [ "$P_SWAP" != "/" ]; do P_SWAP="$(dirname "$P_SWAP")"; DEV_SWAP="$(devof "$P_SWAP")"; done
+    if [ -n "${USB_DEV:-}" ] && [ "$DEV_SWAP" = "$USB_DEV" ]; then
+      ok "Swap activo en USB: $SWAP_NAME"; EN_USB=1
+    else
+      warn "Swap activo en disco INTERNO: $SWAP_NAME ($DEV_SWAP)"
+      manual "entorno/scripts/migrar-swap-usb.sh --solo-comprobar   # procedimiento seguro y reversible (no el swapoff+rm directo)"
+    fi
+  done <<< "$SWAPS"
+  [ "$EN_USB" = "1" ] || warn "Ningun swap en el USB $USB_LABEL (solo RAM/zram o disco interno)"
 fi
 
 # --- Hooks del proyecto ---------------------------------------------------

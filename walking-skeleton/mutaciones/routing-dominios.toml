@@ -91,8 +91,10 @@ garantia = "las DECISIONES se leen de la fuente real: acertar el texto sin leerl
 fichero = "aura_skeleton/core/orchestrator.py"
 pruebas = ["tests/integration/test_routing_dominios.py::test_esas_respuestas_LEEN_la_fuente_real",
            "tests/integration/test_routing_dominios.py::test_una_DECISION_se_describe_con_sus_opciones_reales"]
-buscar = '''        return (redactar_decisiones(self.estado_autonomo.instantanea(), identificador)
-                or "No me consta ninguna decisión pendiente en mi estado actual.")'''
+buscar = '''        return (
+            redactar_decisiones(self.estado_autonomo.instantanea(), identificador)
+            or "No me consta ninguna decisión pendiente en mi estado actual."
+        )'''
 sustituir = '''        return "Tengo 2 decisión(es) esperando una respuesta tuya."'''
 
 [[mutante]]
@@ -139,13 +141,15 @@ sustituir = '''    if not isinstance(pendientes, list):
 
 [[mutante]]
 id = "RD-M14"
+# RE-ANCLADO 2026-09-15 (MISION VOZ): `ruff format` reescribio el bloque en el orquestador.
+# La garantia y el efecto del mutante son los mismos; solo cambia como esta escrito el codigo.
 garantia = "el DOMINIO viaja con el turno: sin el, comprobar el enrutamiento seria mirarle la cara al texto"
 fichero = "aura_skeleton/core/orchestrator.py"
 pruebas = ["tests/integration/test_routing_dominios.py::test_cada_entrada_llega_a_SU_dominio"]
 # RE-ANCLADO 2026-09-13 (frontera cognitiva, D-FC-1): el resultado gano la clave aditiva `estatus` y la
 # linea ya no cierra el diccionario. Misma garantia, misma degradacion.
-buscar = '''                              "marks": dict(t.marks), "dominio": dominio or ("llm" if prov != "core" else ""),'''
-sustituir = '''                              "marks": dict(t.marks), "dominio": "",'''
+buscar = '''            "dominio": dominio or ("llm" if prov != "core" else ""),'''
+sustituir = '''            "dominio": "",'''
 
 [[mutante]]
 id = "RD-M15"

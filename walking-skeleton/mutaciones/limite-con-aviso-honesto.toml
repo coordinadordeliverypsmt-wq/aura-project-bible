@@ -1,0 +1,69 @@
+incremento = "DR-3 (CEO, 2026-09-15): un limite alcanzado —timeout o tope de generacion— se dice con honestidad, sin entregar una respuesta a medias, sin abrir el circuito y sin reintentar"
+pruebas = ["tests/integration/test_limite_con_aviso_honesto.py"]
+timeout_s = 240
+
+[[mutante]]
+id = "LH-M1"
+garantia = "el router trata un limite como un fallo: abre el circuito y prueba otro proveedor, y el turno acaba en «no disponible»"
+fichero = "aura_skeleton/modules/router.py"
+pruebas = ["tests/integration/test_limite_con_aviso_honesto.py::test_el_router_no_abre_el_circuito_ni_prueba_otro_proveedor_ante_un_limite",
+           "tests/integration/test_limite_con_aviso_honesto.py::test_un_timeout_se_dice_como_limite_y_no_como_modelo_no_disponible"]
+buscar = '''            except LimiteDelProveedor as e:
+                # Ni circuito ni fallback: ver la docstring de `LimiteDelProveedor`. Se audita igual.
+                obs.log(
+                    "WARN", "router", f"{prov.name}: {e}; circuito sin cambios, sin reintento", trace_id, audit=True
+                )
+                raise
+'''
+sustituir = ''
+
+[[mutante]]
+id = "LH-M2"
+garantia = "el proveedor deja de convertir el timeout: vuelve a llegar como fallo generico y AURA dice que el modelo no esta disponible"
+fichero = "aura_skeleton/modules/providers_real.py"
+pruebas = ["tests/integration/test_limite_con_aviso_honesto.py::test_un_timeout_se_dice_como_limite_y_no_como_modelo_no_disponible"]
+buscar = '''        except TimeoutError as e:
+            raise LimiteDelProveedor("tiempo", f"sin respuesta en {self.timeout_s} s") from e'''
+sustituir = '''        except TimeoutError:
+            raise'''
+
+[[mutante]]
+id = "LH-M3"
+garantia = "un timeout envuelto en URLError deja de reconocerse como limite"
+fichero = "aura_skeleton/modules/providers_real.py"
+pruebas = ["tests/integration/test_limite_con_aviso_honesto.py::test_un_timeout_envuelto_en_URLError_tambien_es_un_limite"]
+buscar = '''            if isinstance(e.reason, TimeoutError):'''
+sustituir = '''            if False:'''
+
+[[mutante]]
+id = "LH-M4"
+garantia = "una respuesta cortada por el tope se entrega como si hubiera terminado"
+fichero = "aura_skeleton/modules/providers_real.py"
+pruebas = ["tests/integration/test_limite_con_aviso_honesto.py::test_una_respuesta_cortada_por_el_tope_no_se_entrega_a_medias"]
+buscar = '''        if modo == "cognitivo" and resp.get("done_reason") == "length":'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "LH-M5"
+garantia = "desaparece el tope de generacion: la cola larga vuelve a no tener limite"
+fichero = "aura_skeleton/modules/providers_real.py"
+pruebas = ["tests/integration/test_limite_con_aviso_honesto.py::test_el_modo_cognitivo_pide_el_tope_de_generacion"]
+buscar = '''            cuerpo["options"] = {"num_predict": LIMITE_GENERACION_COGNITIVA}'''
+sustituir = '''            pass'''
+
+[[mutante]]
+id = "LH-M6"
+garantia = "el orquestador ignora el limite declarado y responde con el mensaje de proveedor no disponible"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_limite_con_aviso_honesto.py::test_un_timeout_se_dice_como_limite_y_no_como_modelo_no_disponible",
+           "tests/integration/test_limite_con_aviso_honesto.py::test_una_respuesta_cortada_por_el_tope_no_se_entrega_a_medias"]
+buscar = '''            if limite in _ABSTENCION_POR_LIMITE:'''
+sustituir = '''            if False:'''
+
+[[mutante]]
+id = "LH-M7"
+garantia = "la degradacion del esquema pierde el tope: con un Ollama antiguo la generacion vuelve a no tener limite"
+fichero = "aura_skeleton/modules/providers_real.py"
+pruebas = ["tests/integration/test_limite_con_aviso_honesto.py::test_la_degradacion_del_esquema_conserva_el_tope"]
+buscar = '''            resp = self._pedir({**cuerpo, "format": "json"})'''
+sustituir = '''            resp = self._pedir({"model": self.model, "prompt": prompt, "system": system, "stream": False, "format": "json"})'''

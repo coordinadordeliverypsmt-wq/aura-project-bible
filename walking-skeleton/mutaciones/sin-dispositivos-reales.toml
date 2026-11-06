@@ -1,0 +1,75 @@
+incremento = "Bateria sin dispositivos reales heredados del shell (2026-10-25)"
+# Defecto medido: con AURA_HA_URL/AURA_HA_TOKEN exportados, una prueba de composicion abria 1 conexion al «hogar».
+# NADA en paralelo con este arnes: muta los ficheros en el sitio (CLAUDE.md §2).
+pruebas = ["tests/unit/test_sin_dispositivos_reales.py", "tests/integration/test_voz_degrada_con_honestidad.py", "tests/unit/test_ruta_red.py"]
+timeout_s = 600
+
+[[mutante]]
+id = "D1"
+garantia = "la guardia deja de retirar las variables de dispositivo"
+fichero = "tests/conftest.py"
+buscar = '''monkeypatch.delenv(variable, raising=False)'''
+sustituir = '''pass'''
+
+[[mutante]]
+id = "D2"
+garantia = "la guardia olvida el token del hogar (el secreto viajaria a la URL heredada)"
+fichero = "tests/conftest.py"
+buscar = '''for variable in ("AURA_HA_URL", "AURA_HA_TOKEN", "AURA_CAMARA_RTSP", "AURA_CAMARA_AUDIO_RTSP"):'''
+sustituir = '''for variable in ("AURA_HA_URL", "AURA_CAMARA_RTSP", "AURA_CAMARA_AUDIO_RTSP"):'''
+
+[[mutante]]
+id = "D3"
+garantia = "la guardia olvida la camara de audio"
+fichero = "tests/conftest.py"
+buscar = '''for variable in ("AURA_HA_URL", "AURA_HA_TOKEN", "AURA_CAMARA_RTSP", "AURA_CAMARA_AUDIO_RTSP"):'''
+sustituir = '''for variable in ("AURA_HA_URL", "AURA_HA_TOKEN", "AURA_CAMARA_RTSP"):'''
+
+# --- 2026-10-25 (t): datos y stack reales heredados del shell (`_sin_datos_ni_stack_reales`) ---
+
+[[mutante]]
+id = "D4"
+garantia = "la guardia deja de fijar AURA_DATOS: Configuracion() vuelve a valer ~/.aura (los datos reales)"
+fichero = "tests/conftest.py"
+buscar = '''monkeypatch.setenv("AURA_DATOS", str(tmp_path_factory.mktemp("aura-datos-por-defecto")))'''
+sustituir = '''pass'''
+
+[[mutante]]
+id = "D5"
+garantia = "«retirar basta»: se borra AURA_DATOS en vez de fijarla, y el defecto ES el directorio real"
+fichero = "tests/conftest.py"
+buscar = '''monkeypatch.setenv("AURA_DATOS", str(tmp_path_factory.mktemp("aura-datos-por-defecto")))'''
+sustituir = '''monkeypatch.delenv("AURA_DATOS", raising=False)'''
+
+[[mutante]]
+id = "D6"
+garantia = "la guardia deja de neutralizar AURA_STACK_REAL: un =1 del shell enciende Ollama/Whisper en la bateria"
+fichero = "tests/conftest.py"
+buscar = '''monkeypatch.setenv("AURA_STACK_REAL", "")'''
+sustituir = '''pass'''
+
+# --- 2026-10-25 (t): servicio local REAL (Ollama 127.0.0.1:11434) en pruebas que componen el stack real ---
+
+[[mutante]]
+id = "D7"
+garantia = "se quita el catalogo falso: las pruebas de voz vuelven a consultar el Ollama REAL del equipo"
+fichero = "tests/integration/test_voz_degrada_con_honestidad.py"
+buscar = '''monkeypatch.setattr(urllib.request, "urlopen", _urlopen)'''
+sustituir = '''pass'''
+
+# --- 2026-10-25 (u): el CLI de nodos y el ~/.aura-red real (`_sin_red_real_por_defecto`) ---
+
+[[mutante]]
+id = "D8"
+garantia = "la guardia deja de desviar _RED_POR_DEFECTO: --nodos/--receptor-nodos en proceso resuelven el ~/.aura-red REAL"
+fichero = "tests/conftest.py"
+buscar = '''monkeypatch.setattr("aura_skeleton.__main__._RED_POR_DEFECTO", str(tmp_path_factory.mktemp("aura-red-por-defecto")))'''
+sustituir = '''pass'''
+
+[[mutante]]
+id = "D9"
+garantia = "una prueba que lanza el CLI de nodos en subproceso deja de fijar AURA_RED (heredaria el ~/.aura-red real)"
+# test_cli_nodos.py NO esta en `pruebas`: el mutante solo se LEE (guardia estatica); ejecutarlo tocaria la red real.
+fichero = "tests/integration/test_cli_nodos.py"
+buscar = '''"AURA_RED": str(red), '''
+sustituir = ''''''

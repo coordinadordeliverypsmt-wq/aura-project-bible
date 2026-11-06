@@ -1,0 +1,316 @@
+{"t": 1791296022.771, "tipo": "ganancia_micro", "dato": "Volume: front-left: 17694 /  27% / -34"}
+{"t": 1791296022.848, "tipo": "inicio", "dato": "entidad=media_player.tv_sala_fmilia_medina_un43ru7100fxza estado_inicial=on datos=/tmp/aura-e2e-voz-th_nmjwx"}
+{"t": 1791296022.854, "tipo": "ram_disponible_mb", "dato": "2113"}
+{"t": 1791296022.859, "tipo": "tv", "dato": "on"}
+{"t": 1791296023.42, "tipo": "aura", "dato": "  [BOOT ] composicion    trace=- hogar: REAL via Home Assistant http://127.0.0.1:8123 (API running.) audit=True"}
+{"t": 1791296023.496, "tipo": "aura", "dato": "  [BOOT ] composicion    trace=- voz: DISPONIBLE (/media/majo1230/AURORA_EXT/piper_voices/es_MX-ald-medium.onnx) audit=True"}
+{"t": 1791296023.497, "tipo": "aura", "dato": "  [BOOT ] composicion    trace=- proveedor LLM: stack=real modelo=qwen2.5:0.5b (instalado) timeout=900s (fuente: entorno:AURA_OLLAMA_TIMEOUT_S); circuito: enfriamiento=60.0s (fuente: defecto_del_codigo), politica CERRADO -> [fallo] -> ABIERTO -> [enfriamiento] -> SEMIABIERTO -> [UNA prueba] -> CERRADO o ABIERTO de nuevo audit=True"}
+{"t": 1791296023.501, "tipo": "aura", "dato": "  [BOOT ] composicion    trace=- perfil de hardware medido: audio_tarjetas=1, carga_1m=0.731445, cpu_64bit=1, disco_libre_mb=6981, gpu_render=1, isa_avx=0, isa_avx2=0, isa_avx512f=0, isa_fma=0, isa_sse4_2=1, isa_ssse3=1, nucleos=2, nucleos_fisicos=2, proceso_bits=64, ram_disponible_mb=2102, ram_mb=3719, red_interfaces=1, video_dispositivos=2 audit=True"}
+{"t": 1791296023.503, "tipo": "aura", "dato": "  [BOOT ] composicion    trace=- capacidades (estado EFECTIVO): activas=[] degradadas=['memoria'] latentes=[]; memoria -> N1 (almacen minimo) audit=True"}
+{"t": 1791296023.508, "tipo": "aura", "dato": "  [AUTO ] estado-autonomo trace=- ciclo autonomo legible"}
+{"t": 1791296023.509, "tipo": "aura", "dato": "  [BOOT ] composicion    trace=- AURA lista: 21 capacidades, 3 fuentes de contexto, stack=real audit=True"}
+{"t": 1791296023.585, "tipo": "aura", "dato": "AURA: microfono parecord + paplay, 5 s por turno"}
+{"t": 1791296023.589, "tipo": "aura", "dato": "AURA: palabra de activación «Aurora» (Vosk local, vosk-model-small-es-0.42)"}
+{"t": 1791296027.139, "tipo": "aura", "dato": "=============================================================="}
+{"t": 1791296027.139, "tipo": "aura", "dato": "AURA — arranque verificado"}
+{"t": 1791296027.14, "tipo": "aura", "dato": "=============================================================="}
+{"t": 1791296027.14, "tipo": "aura", "dato": "  operaciones disponibles (21): abrir_archivo, apagar_dispositivo, auditar_garantias, automatizacion, borrar_archivo, buscar_archivo, consultar_estado_sistema, copiar_archivo, diagnosticar_estado, ejecutar_pruebas, encender_dispositivo, escribir_archivo, leer_archivo, listar_directorio, mover_archivo, olvidar_informacion_usuario, proponer_cambio, refutar_informacion_usuario, registrar_informacion_usuario, renombrar_archivo, verificar_calidad"}
+{"t": 1791296027.14, "tipo": "aura", "dato": "  fuentes de contexto (3): computador, conversacion, home_assistant"}
+{"t": 1791296027.14, "tipo": "aura", "dato": "  memoria persistente : /tmp/aura-e2e-voz-th_nmjwx/memoria.json"}
+{"t": 1791296027.14, "tipo": "aura", "dato": "  registro forense    : /tmp/aura-e2e-voz-th_nmjwx/audit.jsonl"}
+{"t": 1791296027.14, "tipo": "aura", "dato": "  kill switch         : en reposo"}
+{"t": 1791296027.14, "tipo": "aura", "dato": "  capacidades activas : (ninguna)"}
+{"t": 1791296027.141, "tipo": "aura", "dato": "  perfil de hardware  : audio_tarjetas=1, carga_1m=0.731445, cpu_64bit=1, disco_libre_mb=6981, gpu_render=1, isa_avx=0, isa_avx2=0, isa_avx512f=0, isa_fma=0, isa_sse4_2=1, isa_ssse3=1, nucleos=2, nucleos_fisicos=2, proceso_bits=64, ram_disponible_mb=2102, ram_mb=3719, red_interfaces=1, video_dispositivos=2"}
+{"t": 1791296027.141, "tipo": "aura", "dato": "  (nota: capacidades activas = modelo de activacion por hardware, ADR-0021; no es el catalogo de operaciones ejecutables de arriba)"}
+{"t": 1791296027.141, "tipo": "aura", "dato": "  proveedor LLM       : ollama (stack=real)"}
+{"t": 1791296027.142, "tipo": "aura", "dato": "  modelo              : qwen2.5:0.5b"}
+{"t": 1791296027.142, "tipo": "aura", "dato": "  timeout proveedor   : 900s (fuente: entorno:AURA_OLLAMA_TIMEOUT_S)"}
+{"t": 1791296027.142, "tipo": "aura", "dato": "  enfriamiento circuito: 60.0s (fuente: defecto_del_codigo)"}
+{"t": 1791296027.142, "tipo": "aura", "dato": "  estado circuitos    : {'ollama': 'CERRADO'}"}
+{"t": 1791296027.142, "tipo": "aura", "dato": "  timeout conversacion (wait): 900s"}
+{"t": 1791296027.142, "tipo": "aura", "dato": "=============================================================="}
+{"t": 1791296027.857, "tipo": "ram_disponible_mb", "dato": "2020"}
+{"t": 1791296032.858, "tipo": "ram_disponible_mb", "dato": "1942"}
+{"t": 1791296037.86, "tipo": "ram_disponible_mb", "dato": "1859"}
+{"t": 1791296042.861, "tipo": "ram_disponible_mb", "dato": "1806"}
+{"t": 1791296043.59, "tipo": "aura", "dato": "  [VOICE] piper-tts      trace=precarga audio generado: /tmp/aura/resp_precarga-acuse.wav"}
+{"t": 1791296043.59, "tipo": "aura", "dato": "AURA está atenta: di «Aurora» para hablarle. Ctrl-C para salir."}
+{"t": 1791296047.863, "tipo": "ram_disponible_mb", "dato": "1773"}
+{"t": 1791296052.863, "tipo": "ram_disponible_mb", "dato": "1752"}
+{"t": 1791296057.535, "tipo": "aura", "dato": "AURA> ¿Sí?"}
+{"t": 1791296057.864, "tipo": "ram_disponible_mb", "dato": "1751"}
+{"t": 1791296058.094, "tipo": "aura", "dato": "  [LAT  ] voz            trace=13062731 acuse ms=558"}
+{"t": 1791296058.094, "tipo": "aura", "dato": "   (escuchando...)"}
+{"t": 1791296062.864, "tipo": "ram_disponible_mb", "dato": "1755"}
+{"t": 1791296064.13, "tipo": "aura", "dato": "  [LAT  ] voz            trace=13062731 captura ms=6036 corte=tope"}
+{"t": 1791296067.147, "tipo": "aura", "dato": "AURA> (sigo trabajando en tu petición…)"}
+{"t": 1791296067.865, "tipo": "ram_disponible_mb", "dato": "1679"}
+{"t": 1791296070.55, "tipo": "aura", "dato": "  [VOICE] whisper-stt    trace=13062731 transcripcion: 'Apaga la televisión.' (no_habla=0.004, logprob=-0.479)"}
+{"t": 1791296070.551, "tipo": "aura", "dato": "  [EVENT] event-bus      trace=13062731 publish perception.turn_end event_id=9fa2754792fa"}
+{"t": 1791296070.552, "tipo": "aura", "dato": "  [CORE ] voz            trace=13062731 turno hablado: activado=True"}
+{"t": 1791296070.553, "tipo": "aura", "dato": "  [CORE ] referente      trace=13062731 referente=incierto"}
+{"t": 1791296070.574, "tipo": "aura", "dato": "  [CORE ] hogar          trace=13062731 propuesta apagar_dispositivo sobre 'media_player.tv_sala_fmilia_medina_un43ru7100fxza': espera confirmacion audit=True"}
+{"t": 1791296070.575, "tipo": "aura", "dato": "  [CORE ] routing        trace=13062731 dominio=hogar"}
+{"t": 1791296070.576, "tipo": "aura", "dato": "  [CORE ] estatus        trace=13062731 estatus=aclaracion audit=True"}
+{"t": 1791296070.577, "tipo": "aura", "dato": "  [MEM  ] memory         trace=13062731 write [historico] 'usuario dijo: Apaga la televisión.'"}
+{"t": 1791296071.883, "tipo": "aura", "dato": "  [VOICE] piper-tts      trace=13062731 audio generado: /tmp/aura/resp_13062731f366.wav"}
+{"t": 1791296071.906, "tipo": "aura", "dato": "  [LAT  ] orchestrator   trace=13062731 latencia total 7753.1 ms (proveedor=core) audit=True"}
+{"t": 1791296071.907, "tipo": "aura", "dato": "  [LAT  ] voz            trace=13062731 turno ms=7778"}
+{"t": 1791296071.907, "tipo": "aura", "dato": "AURA> Voy a apagar la TV de la sala. ¿Lo hago?"}
+{"t": 1791296072.866, "tipo": "ram_disponible_mb", "dato": "1679"}
+{"t": 1791296075.563, "tipo": "aura", "dato": "  [LAT  ] voz            trace=13062731 respuesta ms=3656"}
+{"t": 1791296077.867, "tipo": "ram_disponible_mb", "dato": "1702"}
+{"t": 1791296082.867, "tipo": "ram_disponible_mb", "dato": "1703"}
+{"t": 1791296087.869, "tipo": "ram_disponible_mb", "dato": "1700"}
+{"t": 1791296092.869, "tipo": "ram_disponible_mb", "dato": "1701"}
+{"t": 1791296097.87, "tipo": "ram_disponible_mb", "dato": "1703"}
+{"t": 1791296101.042, "tipo": "aura", "dato": "AURA> ¿Sí?"}
+{"t": 1791296101.57, "tipo": "aura", "dato": "  [LAT  ] voz            trace=9ad9323c acuse ms=526"}
+{"t": 1791296101.57, "tipo": "aura", "dato": "   (escuchando...)"}
+{"t": 1791296102.87, "tipo": "ram_disponible_mb", "dato": "1713"}
+{"t": 1791296104.357, "tipo": "aura", "dato": "  [LAT  ] voz            trace=9ad9323c captura ms=2788 corte=silencio"}
+{"t": 1791296107.372, "tipo": "aura", "dato": "AURA> (sigo trabajando en tu petición…)"}
+{"t": 1791296107.871, "tipo": "ram_disponible_mb", "dato": "1688"}
+{"t": 1791296110.052, "tipo": "aura", "dato": "  [VOICE] whisper-stt    trace=9ad9323c transcripcion: '¿Enciende la televisión?' (no_habla=0.003, logprob=-0.125)"}
+{"t": 1791296110.052, "tipo": "aura", "dato": "  [EVENT] event-bus      trace=9ad9323c publish perception.turn_end event_id=8f02c9dd312d"}
+{"t": 1791296110.052, "tipo": "aura", "dato": "  [CORE ] voz            trace=9ad9323c turno hablado: activado=True"}
+{"t": 1791296110.052, "tipo": "aura", "dato": "  [CORE ] referente      trace=9ad9323c referente=incierto"}
+{"t": 1791296110.06, "tipo": "aura", "dato": "  [CORE ] hogar          trace=9ad9323c propuesta encender_dispositivo sobre 'media_player.tv_sala_fmilia_medina_un43ru7100fxza': espera confirmacion audit=True"}
+{"t": 1791296110.06, "tipo": "aura", "dato": "  [CORE ] routing        trace=9ad9323c dominio=hogar"}
+{"t": 1791296110.063, "tipo": "aura", "dato": "  [CORE ] estatus        trace=9ad9323c estatus=aclaracion audit=True"}
+{"t": 1791296111.354, "tipo": "aura", "dato": "  [VOICE] piper-tts      trace=9ad9323c audio generado: /tmp/aura/resp_9ad9323c0fe2.wav"}
+{"t": 1791296111.379, "tipo": "aura", "dato": "  [LAT  ] orchestrator   trace=9ad9323c latencia total 6997.2 ms (proveedor=core) audit=True"}
+{"t": 1791296111.379, "tipo": "aura", "dato": "  [LAT  ] voz            trace=9ad9323c turno ms=7021"}
+{"t": 1791296111.379, "tipo": "aura", "dato": "AURA> Voy a encender la TV de la sala. ¿Lo hago?"}
+{"t": 1791296112.872, "tipo": "ram_disponible_mb", "dato": "1659"}
+{"t": 1791296115.042, "tipo": "aura", "dato": "  [LAT  ] voz            trace=9ad9323c respuesta ms=3661"}
+{"t": 1791296117.873, "tipo": "ram_disponible_mb", "dato": "1660"}
+{"t": 1791296122.873, "tipo": "ram_disponible_mb", "dato": "1662"}
+{"t": 1791296127.874, "tipo": "ram_disponible_mb", "dato": "1662"}
+{"t": 1791296132.874, "tipo": "ram_disponible_mb", "dato": "1664"}
+{"t": 1791296137.875, "tipo": "ram_disponible_mb", "dato": "1664"}
+{"t": 1791296142.898, "tipo": "ram_disponible_mb", "dato": "1673"}
+{"t": 1791296147.899, "tipo": "ram_disponible_mb", "dato": "1649"}
+{"t": 1791296152.9, "tipo": "ram_disponible_mb", "dato": "1649"}
+{"t": 1791296157.901, "tipo": "ram_disponible_mb", "dato": "1649"}
+{"t": 1791296162.924, "tipo": "ram_disponible_mb", "dato": "1649"}
+{"t": 1791296167.95, "tipo": "ram_disponible_mb", "dato": "1663"}
+{"t": 1791296172.974, "tipo": "ram_disponible_mb", "dato": "1657"}
+{"t": 1791296177.975, "tipo": "ram_disponible_mb", "dato": "1657"}
+{"t": 1791296182.999, "tipo": "ram_disponible_mb", "dato": "1656"}
+{"t": 1791296188.024, "tipo": "ram_disponible_mb", "dato": "1656"}
+{"t": 1791296193.049, "tipo": "ram_disponible_mb", "dato": "1656"}
+{"t": 1791296198.076, "tipo": "ram_disponible_mb", "dato": "1656"}
+{"t": 1791296203.104, "tipo": "ram_disponible_mb", "dato": "1656"}
+{"t": 1791296208.129, "tipo": "ram_disponible_mb", "dato": "1656"}
+{"t": 1791296213.152, "tipo": "ram_disponible_mb", "dato": "1656"}
+{"t": 1791296218.179, "tipo": "ram_disponible_mb", "dato": "1655"}
+{"t": 1791296223.205, "tipo": "ram_disponible_mb", "dato": "1655"}
+{"t": 1791296228.206, "tipo": "ram_disponible_mb", "dato": "1655"}
+{"t": 1791296233.207, "tipo": "ram_disponible_mb", "dato": "1655"}
+{"t": 1791296238.208, "tipo": "ram_disponible_mb", "dato": "1655"}
+{"t": 1791296243.209, "tipo": "ram_disponible_mb", "dato": "1655"}
+{"t": 1791296248.209, "tipo": "ram_disponible_mb", "dato": "1655"}
+{"t": 1791296252.641, "tipo": "aura", "dato": "AURA> ¿Sí?"}
+{"t": 1791296253.168, "tipo": "aura", "dato": "  [LAT  ] voz            trace=93c52cc6 acuse ms=525"}
+{"t": 1791296253.168, "tipo": "aura", "dato": "   (escuchando...)"}
+{"t": 1791296253.233, "tipo": "ram_disponible_mb", "dato": "1672"}
+{"t": 1791296257.846, "tipo": "aura", "dato": "  [LAT  ] voz            trace=93c52cc6 captura ms=4680 corte=silencio"}
+{"t": 1791296258.237, "tipo": "ram_disponible_mb", "dato": "1672"}
+{"t": 1791296260.863, "tipo": "aura", "dato": "AURA> (sigo trabajando en tu petición…)"}
+{"t": 1791296263.238, "tipo": "ram_disponible_mb", "dato": "1612"}
+{"t": 1791296263.569, "tipo": "aura", "dato": "  [VOICE] whisper-stt    trace=93c52cc6 transcripcion: 'Apaga la televisión.' (no_habla=0.007, logprob=-0.612)"}
+{"t": 1791296263.569, "tipo": "aura", "dato": "  [EVENT] event-bus      trace=93c52cc6 publish perception.turn_end event_id=610655eb4f4b"}
+{"t": 1791296263.569, "tipo": "aura", "dato": "  [CORE ] voz            trace=93c52cc6 turno hablado: activado=True"}
+{"t": 1791296263.569, "tipo": "aura", "dato": "  [CORE ] referente      trace=93c52cc6 referente=incierto"}
+{"t": 1791296263.599, "tipo": "aura", "dato": "  [CORE ] hogar          trace=93c52cc6 propuesta apagar_dispositivo sobre 'media_player.tv_sala_fmilia_medina_un43ru7100fxza': espera confirmacion audit=True"}
+{"t": 1791296263.6, "tipo": "aura", "dato": "  [CORE ] routing        trace=93c52cc6 dominio=hogar"}
+{"t": 1791296263.602, "tipo": "aura", "dato": "  [CORE ] estatus        trace=93c52cc6 estatus=aclaracion audit=True"}
+{"t": 1791296263.602, "tipo": "aura", "dato": "  [MEM  ] memory         trace=93c52cc6 write [historico] 'usuario dijo: Apaga la televisión.'"}
+{"t": 1791296264.873, "tipo": "aura", "dato": "  [VOICE] piper-tts      trace=93c52cc6 audio generado: /tmp/aura/resp_93c52cc65c9e.wav"}
+{"t": 1791296264.897, "tipo": "aura", "dato": "  [LAT  ] orchestrator   trace=93c52cc6 latencia total 7027.3 ms (proveedor=core) audit=True"}
+{"t": 1791296264.897, "tipo": "aura", "dato": "  [LAT  ] voz            trace=93c52cc6 turno ms=7051"}
+{"t": 1791296264.897, "tipo": "aura", "dato": "AURA> Voy a apagar la TV de la sala. ¿Lo hago?"}
+{"t": 1791296268.263, "tipo": "ram_disponible_mb", "dato": "1631"}
+{"t": 1791296268.493, "tipo": "aura", "dato": "  [LAT  ] voz            trace=93c52cc6 respuesta ms=3595"}
+{"t": 1791296273.264, "tipo": "ram_disponible_mb", "dato": "1655"}
+{"t": 1791296278.265, "tipo": "ram_disponible_mb", "dato": "1668"}
+{"t": 1791296283.266, "tipo": "ram_disponible_mb", "dato": "1668"}
+{"t": 1791296288.292, "tipo": "ram_disponible_mb", "dato": "1668"}
+{"t": 1791296293.293, "tipo": "ram_disponible_mb", "dato": "1668"}
+{"t": 1791296295.5, "tipo": "aura", "dato": "AURA> ¿Sí?"}
+{"t": 1791296296.061, "tipo": "aura", "dato": "  [LAT  ] voz            trace=5fe19100 acuse ms=559"}
+{"t": 1791296296.061, "tipo": "aura", "dato": "   (escuchando...)"}
+{"t": 1791296298.316, "tipo": "ram_disponible_mb", "dato": "1672"}
+{"t": 1791296299.1, "tipo": "aura", "dato": "  [LAT  ] voz            trace=5fe19100 captura ms=3039 corte=silencio"}
+{"t": 1791296302.115, "tipo": "aura", "dato": "AURA> (sigo trabajando en tu petición…)"}
+{"t": 1791296303.317, "tipo": "ram_disponible_mb", "dato": "1670"}
+{"t": 1791296304.618, "tipo": "aura", "dato": "  [VOICE] whisper-stt    trace=5fe19100 transcripcion: '¿Sí?' (no_habla=0.009, logprob=-0.725)"}
+{"t": 1791296304.618, "tipo": "aura", "dato": "  [EVENT] event-bus      trace=5fe19100 publish perception.turn_end event_id=20f885b321a2"}
+{"t": 1791296304.618, "tipo": "aura", "dato": "  [CORE ] voz            trace=5fe19100 turno hablado: activado=True"}
+{"t": 1791296304.619, "tipo": "aura", "dato": "  [CORE ] referente      trace=5fe19100 referente=incierto"}
+{"t": 1791296304.646, "tipo": "aura", "dato": "  [AUDIT] permissions    trace=5fe19100 lista verde apagar_dispositivo -> auto-ejecucion audit=True"}
+{"t": 1791296306.276, "tipo": "aura", "dato": "  [ACT  ] ha-real        trace=5fe19100 EJECUTA turn_off sobre media_player.tv_sala_fmilia_medina_un43ru7100fxza audit=True"}
+{"t": 1791296306.28, "tipo": "aura", "dato": "  [ACT  ] ha-real        trace=5fe19100 media_player.tv_sala_fmilia_medina_un43ru7100fxza: on -> off (verificado=True) audit=True"}
+{"t": 1791296306.281, "tipo": "aura", "dato": "  [AUTO ] ejecutor       trace=5fe19100 [conversacion] ejecuto apagar_dispositivo audit=True"}
+{"t": 1791296306.283, "tipo": "aura", "dato": "  [CORE ] orden          trace=5fe19100 capacidad apagar_dispositivo ejecutada por orden del usuario audit=True"}
+{"t": 1791296306.283, "tipo": "aura", "dato": "  [CORE ] routing        trace=5fe19100 dominio=orden_de_capacidad"}
+{"t": 1791296306.284, "tipo": "aura", "dato": "  [CORE ] estatus        trace=5fe19100 estatus=hecho audit=True"}
+{"t": 1791296306.287, "tipo": "aura", "dato": "  [CORE ] memoria-trabajo trace=5fe19100 resultado retenido en la ventana de trabajo: 4/9 turnos (DR-4); no persiste fuera del proceso audit=True"}
+{"t": 1791296306.658, "tipo": "tv", "dato": "off"}
+{"t": 1791296307.741, "tipo": "aura", "dato": "  [VOICE] piper-tts      trace=5fe19100 audio generado: /tmp/aura/resp_5fe19100135f.wav"}
+{"t": 1791296307.764, "tipo": "aura", "dato": "  [LAT  ] orchestrator   trace=5fe19100 latencia total 8641.4 ms (proveedor=core) audit=True"}
+{"t": 1791296307.765, "tipo": "aura", "dato": "  [LAT  ] voz            trace=5fe19100 turno ms=8665"}
+{"t": 1791296307.765, "tipo": "aura", "dato": "AURA> Listo: la TV de la sala está apagada; lo he comprobado."}
+{"t": 1791296308.343, "tipo": "ram_disponible_mb", "dato": "1648"}
+{"t": 1791296311.94, "tipo": "aura", "dato": "  [LAT  ] voz            trace=5fe19100 respuesta ms=4174"}
+{"t": 1791296313.344, "tipo": "ram_disponible_mb", "dato": "1658"}
+{"t": 1791296315.658, "tipo": "aura", "dato": "AURA> ¿Sí?"}
+{"t": 1791296316.186, "tipo": "aura", "dato": "  [LAT  ] voz            trace=d50f8c63 acuse ms=528"}
+{"t": 1791296316.186, "tipo": "aura", "dato": "   (escuchando...)"}
+{"t": 1791296318.344, "tipo": "ram_disponible_mb", "dato": "1658"}
+{"t": 1791296320.602, "tipo": "aura", "dato": "  [LAT  ] voz            trace=d50f8c63 captura ms=4416 corte=silencio"}
+{"t": 1791296323.345, "tipo": "ram_disponible_mb", "dato": "1608"}
+{"t": 1791296323.618, "tipo": "aura", "dato": "AURA> (sigo trabajando en tu petición…)"}
+{"t": 1791296326.515, "tipo": "aura", "dato": "  [VOICE] whisper-stt    trace=d50f8c63 transcripcion: '¿Enciende la televisión?' (no_habla=0.006, logprob=-0.380)"}
+{"t": 1791296326.516, "tipo": "aura", "dato": "  [EVENT] event-bus      trace=d50f8c63 publish perception.turn_end event_id=ee111864ec7e"}
+{"t": 1791296326.516, "tipo": "aura", "dato": "  [CORE ] voz            trace=d50f8c63 turno hablado: activado=True"}
+{"t": 1791296326.516, "tipo": "aura", "dato": "  [CORE ] referente      trace=d50f8c63 referente=incierto"}
+{"t": 1791296326.544, "tipo": "aura", "dato": "  [CORE ] hogar          trace=d50f8c63 propuesta encender_dispositivo sobre 'media_player.tv_sala_fmilia_medina_un43ru7100fxza': espera confirmacion audit=True"}
+{"t": 1791296326.544, "tipo": "aura", "dato": "  [CORE ] routing        trace=d50f8c63 dominio=hogar"}
+{"t": 1791296326.546, "tipo": "aura", "dato": "  [CORE ] estatus        trace=d50f8c63 estatus=aclaracion audit=True"}
+{"t": 1791296327.798, "tipo": "tv", "dato": "on"}
+{"t": 1791296327.86, "tipo": "aura", "dato": "  [VOICE] piper-tts      trace=d50f8c63 audio generado: /tmp/aura/resp_d50f8c63353f.wav"}
+{"t": 1791296327.882, "tipo": "aura", "dato": "  [LAT  ] orchestrator   trace=d50f8c63 latencia total 7257.7 ms (proveedor=core) audit=True"}
+{"t": 1791296327.884, "tipo": "aura", "dato": "  [LAT  ] voz            trace=d50f8c63 turno ms=7281"}
+{"t": 1791296327.884, "tipo": "aura", "dato": "AURA> Voy a encender la TV de la sala. ¿Lo hago?"}
+{"t": 1791296328.37, "tipo": "ram_disponible_mb", "dato": "1653"}
+{"t": 1791296331.623, "tipo": "aura", "dato": "  [LAT  ] voz            trace=d50f8c63 respuesta ms=3741"}
+{"t": 1791296333.371, "tipo": "ram_disponible_mb", "dato": "1653"}
+{"t": 1791296338.372, "tipo": "ram_disponible_mb", "dato": "1653"}
+{"t": 1791296343.396, "tipo": "ram_disponible_mb", "dato": "1653"}
+{"t": 1791296348.422, "tipo": "ram_disponible_mb", "dato": "1652"}
+{"t": 1791296353.445, "tipo": "ram_disponible_mb", "dato": "1652"}
+{"t": 1791296358.47, "tipo": "ram_disponible_mb", "dato": "1652"}
+{"t": 1791296363.495, "tipo": "ram_disponible_mb", "dato": "1652"}
+{"t": 1791296368.519, "tipo": "ram_disponible_mb", "dato": "1652"}
+{"t": 1791296373.544, "tipo": "ram_disponible_mb", "dato": "1653"}
+{"t": 1791296378.544, "tipo": "ram_disponible_mb", "dato": "1653"}
+{"t": 1791296383.545, "tipo": "ram_disponible_mb", "dato": "1621"}
+{"t": 1791296388.546, "tipo": "ram_disponible_mb", "dato": "1603"}
+{"t": 1791296393.547, "tipo": "ram_disponible_mb", "dato": "1601"}
+{"t": 1791296398.548, "tipo": "ram_disponible_mb", "dato": "1616"}
+{"t": 1791296403.548, "tipo": "ram_disponible_mb", "dato": "1599"}
+{"t": 1791296408.549, "tipo": "ram_disponible_mb", "dato": "1612"}
+{"t": 1791296413.55, "tipo": "ram_disponible_mb", "dato": "1603"}
+{"t": 1791296418.575, "tipo": "ram_disponible_mb", "dato": "1603"}
+{"t": 1791296420.216, "tipo": "aura", "dato": "AURA> ¿Sí?"}
+{"t": 1791296420.782, "tipo": "aura", "dato": "  [LAT  ] voz            trace=b5742dc4 acuse ms=565"}
+{"t": 1791296420.782, "tipo": "aura", "dato": "   (escuchando...)"}
+{"t": 1791296423.598, "tipo": "ram_disponible_mb", "dato": "1597"}
+{"t": 1791296423.707, "tipo": "aura", "dato": "  [LAT  ] voz            trace=b5742dc4 captura ms=2926 corte=silencio"}
+{"t": 1791296426.729, "tipo": "aura", "dato": "AURA> (sigo trabajando en tu petición…)"}
+{"t": 1791296428.6, "tipo": "ram_disponible_mb", "dato": "1568"}
+{"t": 1791296433.6, "tipo": "ram_disponible_mb", "dato": "1450"}
+{"t": 1791296438.626, "tipo": "ram_disponible_mb", "dato": "1435"}
+{"t": 1791296443.627, "tipo": "ram_disponible_mb", "dato": "2091"}
+{"t": 1791296448.627, "tipo": "ram_disponible_mb", "dato": "2091"}
+{"t": 1791296453.628, "tipo": "ram_disponible_mb", "dato": "2086"}
+{"t": 1791296458.655, "tipo": "ram_disponible_mb", "dato": "2076"}
+{"t": 1791296463.657, "tipo": "ram_disponible_mb", "dato": "2070"}
+{"t": 1791296468.685, "tipo": "ram_disponible_mb", "dato": "2069"}
+{"t": 1791296473.686, "tipo": "ram_disponible_mb", "dato": "2081"}
+{"t": 1791296478.713, "tipo": "ram_disponible_mb", "dato": "2080"}
+{"t": 1791296483.738, "tipo": "ram_disponible_mb", "dato": "2082"}
+{"t": 1791296488.739, "tipo": "ram_disponible_mb", "dato": "2107"}
+{"t": 1791296493.74, "tipo": "ram_disponible_mb", "dato": "2107"}
+{"t": 1791296498.766, "tipo": "ram_disponible_mb", "dato": "2110"}
+{"t": 1791296503.793, "tipo": "ram_disponible_mb", "dato": "2111"}
+{"t": 1791296508.818, "tipo": "ram_disponible_mb", "dato": "2116"}
+{"t": 1791296513.842, "tipo": "ram_disponible_mb", "dato": "2110"}
+{"t": 1791296518.867, "tipo": "ram_disponible_mb", "dato": "2101"}
+{"t": 1791296523.894, "tipo": "ram_disponible_mb", "dato": "2101"}
+{"t": 1791296528.922, "tipo": "ram_disponible_mb", "dato": "2107"}
+{"t": 1791296533.923, "tipo": "ram_disponible_mb", "dato": "2095"}
+{"t": 1791296538.949, "tipo": "ram_disponible_mb", "dato": "2092"}
+{"t": 1791296543.951, "tipo": "ram_disponible_mb", "dato": "2091"}
+{"t": 1791296548.952, "tipo": "ram_disponible_mb", "dato": "2097"}
+{"t": 1791296553.953, "tipo": "ram_disponible_mb", "dato": "2098"}
+{"t": 1791296558.978, "tipo": "ram_disponible_mb", "dato": "2098"}
+{"t": 1791296564.002, "tipo": "ram_disponible_mb", "dato": "2091"}
+{"t": 1791296569.028, "tipo": "ram_disponible_mb", "dato": "2094"}
+{"t": 1791296574.053, "tipo": "ram_disponible_mb", "dato": "2094"}
+{"t": 1791296579.054, "tipo": "ram_disponible_mb", "dato": "2088"}
+{"t": 1791296584.055, "tipo": "ram_disponible_mb", "dato": "2053"}
+{"t": 1791296589.056, "tipo": "ram_disponible_mb", "dato": "2049"}
+{"t": 1791296594.082, "tipo": "ram_disponible_mb", "dato": "2046"}
+{"t": 1791296599.107, "tipo": "ram_disponible_mb", "dato": "2046"}
+{"t": 1791296604.109, "tipo": "ram_disponible_mb", "dato": "2059"}
+{"t": 1791296609.134, "tipo": "ram_disponible_mb", "dato": "2075"}
+{"t": 1791296614.16, "tipo": "ram_disponible_mb", "dato": "2076"}
+{"t": 1791296619.188, "tipo": "ram_disponible_mb", "dato": "2085"}
+{"t": 1791296624.215, "tipo": "ram_disponible_mb", "dato": "2085"}
+{"t": 1791296629.216, "tipo": "ram_disponible_mb", "dato": "2084"}
+{"t": 1791296634.217, "tipo": "ram_disponible_mb", "dato": "2084"}
+{"t": 1791296639.218, "tipo": "ram_disponible_mb", "dato": "2084"}
+{"t": 1791296644.243, "tipo": "ram_disponible_mb", "dato": "2080"}
+{"t": 1791296649.27, "tipo": "ram_disponible_mb", "dato": "2043"}
+{"t": 1791296654.271, "tipo": "ram_disponible_mb", "dato": "2037"}
+{"t": 1791296659.272, "tipo": "ram_disponible_mb", "dato": "2092"}
+{"t": 1791296664.272, "tipo": "ram_disponible_mb", "dato": "2091"}
+{"t": 1791296669.273, "tipo": "ram_disponible_mb", "dato": "2087"}
+{"t": 1791296674.274, "tipo": "ram_disponible_mb", "dato": "2090"}
+{"t": 1791296679.275, "tipo": "ram_disponible_mb", "dato": "2094"}
+{"t": 1791296684.275, "tipo": "ram_disponible_mb", "dato": "2094"}
+{"t": 1791296687.515, "tipo": "tv", "dato": "off"}
+{"t": 1791296689.302, "tipo": "ram_disponible_mb", "dato": "2094"}
+{"t": 1791296694.327, "tipo": "ram_disponible_mb", "dato": "2094"}
+{"t": 1791296699.353, "tipo": "ram_disponible_mb", "dato": "2100"}
+{"t": 1791296700.12, "tipo": "tv", "dato": "on"}
+{"t": 1791296704.353, "tipo": "ram_disponible_mb", "dato": "2096"}
+{"t": 1791296709.381, "tipo": "ram_disponible_mb", "dato": "2094"}
+{"t": 1791296714.382, "tipo": "ram_disponible_mb", "dato": "2091"}
+{"t": 1791296719.408, "tipo": "ram_disponible_mb", "dato": "2098"}
+{"t": 1791296724.408, "tipo": "ram_disponible_mb", "dato": "2097"}
+{"t": 1791296729.409, "tipo": "ram_disponible_mb", "dato": "2097"}
+{"t": 1791296734.41, "tipo": "ram_disponible_mb", "dato": "2097"}
+{"t": 1791296739.411, "tipo": "ram_disponible_mb", "dato": "2097"}
+{"t": 1791296744.412, "tipo": "ram_disponible_mb", "dato": "2083"}
+{"t": 1791296749.413, "tipo": "ram_disponible_mb", "dato": "2095"}
+{"t": 1791296754.414, "tipo": "ram_disponible_mb", "dato": "2095"}
+{"t": 1791296759.438, "tipo": "ram_disponible_mb", "dato": "2093"}
+{"t": 1791296764.463, "tipo": "ram_disponible_mb", "dato": "2093"}
+{"t": 1791296769.487, "tipo": "ram_disponible_mb", "dato": "2077"}
+{"t": 1791296774.488, "tipo": "ram_disponible_mb", "dato": "2087"}
+{"t": 1791296779.489, "tipo": "ram_disponible_mb", "dato": "2087"}
+{"t": 1791296784.516, "tipo": "ram_disponible_mb", "dato": "2086"}
+{"t": 1791296789.518, "tipo": "ram_disponible_mb", "dato": "2096"}
+{"t": 1791296794.519, "tipo": "ram_disponible_mb", "dato": "2097"}
+{"t": 1791296799.544, "tipo": "ram_disponible_mb", "dato": "2105"}
+{"t": 1791296804.571, "tipo": "ram_disponible_mb", "dato": "2105"}
+{"t": 1791296809.572, "tipo": "ram_disponible_mb", "dato": "2105"}
+{"t": 1791296814.573, "tipo": "ram_disponible_mb", "dato": "2097"}
+{"t": 1791296819.575, "tipo": "ram_disponible_mb", "dato": "2097"}
+{"t": 1791296820.996, "tipo": "tv", "dato": "off"}
+{"t": 1791296824.601, "tipo": "ram_disponible_mb", "dato": "2097"}
+{"t": 1791296829.628, "tipo": "ram_disponible_mb", "dato": "2098"}
+{"t": 1791296833.609, "tipo": "tv", "dato": "on"}
+{"t": 1791296834.656, "tipo": "ram_disponible_mb", "dato": "2098"}
+{"t": 1791296839.681, "tipo": "ram_disponible_mb", "dato": "2099"}
+{"t": 1791296844.707, "tipo": "ram_disponible_mb", "dato": "2100"}
+{"t": 1791296849.733, "tipo": "ram_disponible_mb", "dato": "2114"}
+{"t": 1791296854.76, "tipo": "ram_disponible_mb", "dato": "2109"}
+{"t": 1791296859.787, "tipo": "ram_disponible_mb", "dato": "2109"}
+{"t": 1791296864.813, "tipo": "ram_disponible_mb", "dato": "2110"}
+{"t": 1791296869.84, "tipo": "ram_disponible_mb", "dato": "2110"}
+{"t": 1791296874.867, "tipo": "ram_disponible_mb", "dato": "2111"}
+{"t": 1791296879.868, "tipo": "ram_disponible_mb", "dato": "2111"}
+{"t": 1791296884.869, "tipo": "ram_disponible_mb", "dato": "2111"}
+{"t": 1791296889.892, "tipo": "ram_disponible_mb", "dato": "2111"}
+{"t": 1791296894.894, "tipo": "ram_disponible_mb", "dato": "2111"}
+{"t": 1791296899.921, "tipo": "ram_disponible_mb", "dato": "2111"}
+{"t": 1791296904.948, "tipo": "ram_disponible_mb", "dato": "2111"}
+{"t": 1791296909.974, "tipo": "ram_disponible_mb", "dato": "2111"}
+{"t": 1791296915.001, "tipo": "ram_disponible_mb", "dato": "2111"}
+{"t": 1791296920.028, "tipo": "ram_disponible_mb", "dato": "2111"}
+{"t": 1791296922.86, "tipo": "fin", "dato": "estado_final=on"}

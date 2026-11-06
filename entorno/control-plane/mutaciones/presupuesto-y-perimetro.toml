@@ -1,0 +1,92 @@
+# DOS CUELLOS CERRADOS (CEO, 2026-09-20): la constancia del presupuesto agotado y el escape del
+# perimetro del acta.
+#
+# **PP-M1/M2 protegen una trazabilidad que faltaba**: una tarea que agotaba sus reintentos
+# desaparecia de la cola sin que el log dijera nada, y habia que reconstruir a mano
+# `intentos_de() >= TOPE and not completada()` para descubrir que una oportunidad autorizada quedo
+# abandonada. No concede autoridad: informa.
+#
+# **PP-M4 protege contra un INCIDENTE REAL.** El 2026-09-20 una medicion del motor montada en un
+# sandbox temporal borro 49 lineas del fichero REAL del repositorio, porque el atajo del acta
+# concedia el fichero con cualquier `raiz` y `ficheros_autorizados()` devuelve rutas absolutas. Se
+# restauro con `git checkout`. Si este mutante sobrevive, el sandbox vuelve a no proteger nada.
+#
+# Como se ejecuta (nunca en paralelo con nada):
+#   cd walking-skeleton
+#   python3 -m herramientas.mutar ../entorno/control-plane/mutaciones/presupuesto-y-perimetro.toml \
+#           --raiz ../entorno/control-plane
+
+incremento = "PRESUPUESTO AGOTADO + PERIMETRO DEL ACTA ACOTADO AL REPOSITORIO (CEO, 2026-09-20)"
+pruebas = ["test_red_presupuesto_de_tarea.py", "test_red_perimetro_medicion.py"]
+timeout_s = 600
+
+
+[[mutante]]
+id = "PP-M1"
+garantia = "EL CABLEADO: el motor registra el agotamiento. Sin la llamada, la tarea se apaga en silencio igual que antes"
+fichero = "motor_autonomia.py"
+pruebas = ["test_red_presupuesto_de_tarea.py::test_al_agotar_el_presupuesto_queda_constancia_en_el_historial",
+           "test_red_presupuesto_de_tarea.py::test_la_constancia_dice_QUE_tarea_y_CUANTOS_intentos"]
+buscar = '''                _registrar_si_agoto_su_presupuesto(directorio, tarea)'''
+sustituir = '''                pass  # el agotamiento deja de registrarse'''
+
+
+[[mutante]]
+id = "PP-M2"
+garantia = "solo se registra CUANDO se agota: declarar agotada una tarea con presupuesto seria un informe que miente"
+fichero = "motor_autonomia.py"
+pruebas = ["test_red_presupuesto_de_tarea.py::test_ANTES_de_agotarlo_no_se_registra_nada"]
+buscar = '''    if not id_tarea or plan.intentos_de(directorio, id_tarea) < plan.TOPE_DE_REINTENTOS:'''
+sustituir = '''    if not id_tarea:'''
+
+
+[[mutante]]
+id = "PP-M3"
+garantia = "no se registra dos veces: un log que repite el mismo hecho deja de ser un conteo"
+fichero = "motor_autonomia.py"
+# Por la via del ciclo el guardia es inalcanzable —la tarea deja de ser elegible—, asi que la
+# prueba que lo ejerce es la que llama a la funcion dos veces. Declarar solo la del ciclo dejo
+# sobrevivir a este mutante en la primera pasada.
+pruebas = ["test_red_presupuesto_de_tarea.py::test_registrar_DOS_VECES_no_duplica_la_constancia",
+           "test_red_presupuesto_de_tarea.py::test_no_se_registra_DOS_VECES_la_misma_tarea"]
+buscar = '''    if ya_consta:
+        return'''
+sustituir = '''    if False:
+        return'''
+
+
+[[mutante]]
+id = "PP-M4"
+garantia = "el perimetro del acta NO escapa del repositorio: con una raiz ajena, un sandbox podria borrar el fichero REAL —y lo hizo el 2026-09-20"
+fichero = "autoconstruccion.py"
+# La segunda es la que lo mide POR EL EFECTO: ejecuta el motor entero en un sandbox y compara el
+# hash de los ficheros reales que estuvieron en riesgo. Es la medicion que falto el dia del incidente.
+pruebas = ["test_red_perimetro_medicion.py::test_el_fichero_autorizado_NO_se_concede_con_una_raiz_AJENA_al_repositorio",
+           "test_red_aislamiento_del_sandbox.py::test_ninguna_ruta_del_repositorio_se_concede_desde_una_raiz_AJENA"]
+buscar = '''        if (real.relative_to(_RAIZ_REPO).as_posix() in _FICHEROS_AUTORIZADOS
+                and _la_raiz_es_de_este_repositorio()):'''
+sustituir = '''        if real.relative_to(_RAIZ_REPO).as_posix() in _FICHEROS_AUTORIZADOS:'''
+
+
+[[mutante]]
+id = "PP-M5"
+garantia = "el arreglo no es una PARALISIS: con la raiz real del plano el acta del CEO sigue concediendo su fichero"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_perimetro_medicion.py::test_CONTROL_con_la_raiz_REAL_del_plano_el_acta_sigue_concediendo",
+           "test_red_perimetro_medicion.py::test_el_descubrimiento_barre_el_fichero_autorizado_con_la_raiz_de_produccion"]
+buscar = '''        if raiz is None:
+            return True'''
+sustituir = '''        if raiz is None:
+            return False'''
+
+
+# PP-M6 RETIRADO, con su motivo. Intentaba matar la misma barrera que PP-M4 pero **por el efecto**:
+# anular el guardia y comprobar que un ciclo en sandbox altera el arbol real. Sobrevivio, y la causa
+# es medible: el fichero que el acta autoriza solo produce oportunidades `BLOQUEADA` en el estado
+# actual del arbol, asi que nunca llega a ser tarea y el efecto no es alcanzable. Inventarle un
+# escenario artificial habria sido una prueba que pasa por el motivo equivocado.
+#
+# La barrera NO queda sin red: PP-M4 la mata con una asercion directa sobre `zona_permitida`, y
+# `test_red_aislamiento_del_sandbox.py` la sostiene de extremo a extremo como defensa en profundidad
+# —comparando el hash de los ficheros reales antes y despues de un ciclo completo—, aunque hoy no
+# sirva como detector de mutantes por la misma razon.

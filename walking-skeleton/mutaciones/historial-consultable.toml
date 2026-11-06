@@ -1,0 +1,77 @@
+incremento = "Historial consultable de hechos declarados (2026-09-15): «¿cual era mi X?» lo responde el Core desde las versiones superseded, sin una sola llamada al LLM"
+pruebas = ["tests/unit/test_historial_consultable.py"]
+timeout_s = 180
+
+# AMP-AURA etapas 1-2 escribio `version`/`supersedes`/`valid_from`/`valid_until`, pero el historial
+# solo se podia INSPECCIONAR con `ver()`: no habia forma de PREGUNTARLO. Esta es la superficie de
+# lectura. Cada mutante degrada UNA pieza de la cadena: el cableado, la distincion vigente/superseded,
+# la guarda de clase, el orden cronologico, la fidelidad del dato (ADR-0017) o el anclaje de la
+# gramatica —que es lo que impide robarle el turno a otra superficie—.
+
+[[mutante]]
+id = "HC-M1"
+garantia = "la superficie se desconecta: la pregunta de historial vuelve a caer en `_responder_hecho`, que solo sabe del presente"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/unit/test_historial_consultable.py::test_el_cumpleanos_redeclarado_responde_ambos_valores_con_el_actual_vigente"]
+buscar = '''        respuesta = self._responder_historial(t, vivas)
+        if respuesta is not None:
+            return respuesta'''
+sustituir = '''        respuesta = None
+        if respuesta is not None:
+            return respuesta'''
+
+[[mutante]]
+id = "HC-M2"
+garantia = "desaparece la distincion vigente/superseded: todo cuenta como presente y el historial se vuelve invisible aunque este escrito"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/unit/test_historial_consultable.py::test_el_cumpleanos_redeclarado_responde_ambos_valores_con_el_actual_vigente"]
+buscar = '''            pares.append((version, par[0], par[1], entrada.get("valid_until") is None))'''
+sustituir = '''            pares.append((version, par[0], par[1], True))'''
+
+[[mutante]]
+id = "HC-M3"
+garantia = "cae la guarda de clase: una senal OBSERVADA se cuela en el historial de hechos DECLARADOS y AURA atribuye al usuario algo que el no dijo"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/unit/test_historial_consultable.py::test_una_senal_observada_no_se_mezcla_en_el_historial"]
+buscar = '''            if entrada.get("clase") != ClaseSenal.HECHO_DECLARADO.value:
+                continue'''
+sustituir = '''            if False:
+                continue'''
+
+[[mutante]]
+id = "HC-M4"
+garantia = "se invierte el orden cronologico: los valores anteriores se narran del mas nuevo al mas viejo, y «antes me dijiste» deja de ser una secuencia veraz"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/unit/test_historial_consultable.py"]
+buscar = '''        anteriores = sorted((p for p in pares if not p[3]), key=lambda p: p[0])'''
+sustituir = '''        anteriores = sorted((p for p in pares if not p[3]), key=lambda p: -p[0])'''
+
+[[mutante]]
+id = "HC-M5"
+garantia = "se rompe la fidelidad de ADR-0017: el dato del usuario se devuelve normalizado en vez de como el lo escribio"
+fichero = "aura_skeleton/core/orchestrator.py"
+# Se declara la prueba de UN SOLO dato, no la de dos: el mutante degrada la rama del valor unico, y
+# la prueba de dos valores pasa por la rama «ahora/antes», que no toca. Declarar la prueba que no
+# cubre la garantia fabrica un superviviente falso —culpa del catalogo, no del codigo—.
+pruebas = ["tests/unit/test_historial_consultable.py::test_el_valor_de_UN_SOLO_dato_tambien_se_repite_tal_cual_lo_escribio"]
+buscar = '''        return f"Solo me has dicho una cosa sobre tu {atributo_escrito}: {actual[2]}. No me habías dicho otra antes."'''
+sustituir = '''        return f"Solo me has dicho una cosa sobre tu {atributo_escrito}: {_normalizar(actual[2])}. No me habías dicho otra antes."'''
+
+[[mutante]]
+id = "HC-M6"
+garantia = "se pierde el anclaje de la gramatica: la pregunta deja de tener que SER la frase entera y basta con que aparezca dentro, de modo que la superficie le roba el turno a otra"
+fichero = "aura_skeleton/core/identidad_memoria.py"
+pruebas = ["tests/unit/test_historial_consultable.py"]
+buscar = '''_PASADO_CUAL_ERA = re.compile(r"^¿?(?:cual|cuales) (?:era|eran|fue|fueron) mi ([a-z]+(?: [a-z]+)?)\s*\??$")'''
+sustituir = '''_PASADO_CUAL_ERA = re.compile(r"¿?(?:cual|cuales) (?:era|eran|fue|fueron) mi ([a-z]+(?: [a-z]+)?)\s*\??")'''
+
+[[mutante]]
+id = "HC-M7"
+garantia = "la ausencia deja de caer a la puerta de ADR-0014: la superficie inventa su propio texto y le roba el turno a la ruta que decide que hacer cuando no hay recuerdo"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/unit/test_historial_consultable.py::test_preguntar_el_historial_de_un_atributo_nunca_declarado_no_lo_fabrica",
+           "tests/unit/test_historial_consultable.py::test_un_atributo_jamas_declarado_devuelve_none_y_no_roba_el_turno"]
+buscar = '''        if not pares:
+            return None'''
+sustituir = '''        if not pares:
+            return f"No me has dicho nunca tu {atributo}."'''

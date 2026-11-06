@@ -1,0 +1,29 @@
+{
+  "etiqueta": "B-usb-ausente",
+  "fecha": "2026-09-15 21:50:30",
+  "usb_montada": false,
+  "voz_declarada": "/media/majo1230/AURORA_EXT/piper_voices/es_MX-ald-medium.onnx",
+  "voz_existe": false,
+  "hf_home": "/media/majo1230/AURORA_EXT/hf_cache",
+  "pid": 39867,
+  "boot_voz": [
+    "BOOT composicion voz: NO DISPONIBLE (la voz declarada no existe: /media/majo1230/AURORA_EXT/piper_voices/es_MX-ald-medium.onnx); los turnos se entregaran solo en texto -"
+  ],
+  "turno_texto": {
+    "say": "Todavía no sé nada sobre ti.",
+    "provider": "core",
+    "dominio": "modelo_usuario",
+    "estatus": "ausencia",
+    "voz": "no_disponible",
+    "total_s": 0.03
+  },
+  "turno_audio": {
+    "say": "No pude transcribir el audio, así que no voy a adivinar qué dijiste. Puedes repetirlo o escribírmelo.",
+    "provider": "core",
+    "dominio": "voz",
+    "estatus": "abstencion",
+    "voz": "no_disponible",
+    "total_s": 2.8
+  },
+  "audios": []
+}

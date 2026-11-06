@@ -159,13 +159,17 @@ Dos trampas del formato, ambas pagadas ya:
 - Usa cadenas **literales** `'''…'''` en el TOML, nunca `"""…"""`: las básicas interpretan `\n` como
   salto de línea real y el patrón deja de coincidir. El arnés lo reporta como `NO_APLICADO` —no como
   detectado—, pero pierdes la protección sin enterarte si no lees el informe.
-- **Si el proceso muere por SIGKILL** con un fichero mutado, queda mutado: `git checkout -- <fichero>`
-  lo recupera. Ctrl-C (SIGINT) sí restaura solo.
+- **El arnés nunca muta el worktree** (regla 6 de `herramientas/mutar.py`, 2026-10-25): copia el
+  repositorio a `/tmp/aura-mutar-*`, ejecuta allí base y mutantes y borra la copia al terminar. Un
+  `fichero` que saliera de la copia se rechaza. Si el proceso muere por SIGKILL queda la copia, nunca el
+  árbol, y el siguiente arranque la retira. No hace falta ni procede ningún `git checkout`.
 - **Elegir mal las pruebas produce supervivientes falsos.** Declara las pruebas que de verdad cubren la
   garantía; si dejas fuera la que la protege, el mutante «sobrevive» y no es culpa del código.
 
-**NADA se ejecuta en paralelo con `herramientas.mutar`** (CEO, 2026-08-09). El arnés muta los ficheros
-**en el sitio**, así que mientras corre, el árbol de trabajo NO contiene el código real. Una auditoría
+**NADA se ejecuta en paralelo con `herramientas.mutar`** (CEO, 2026-08-09). Hasta el 2026-10-25 el arnés
+mutaba los ficheros **en el sitio**, y mientras corría el árbol de trabajo NO contenía el código real. Hoy
+muta una copia aislada, pero la regla se mantiene: durante la batería, el despertador de AURORA y el
+verificador rechazan trabajar (`orquestador.mutacion_en_curso`), y el cron de CM2 puede aplazarse. Una auditoría
 independiente lanzó la batería en segundo plano y midió el producto a la vez: AURORA respondió
 `«Hola, Mauricio.»` —que es literalmente el mutante M8— y estuvo a un paso de reportar como rota la
 garantía INV-9 que precisamente estaba sana. Lo detectó por `git status`. Es un generador de casos
@@ -281,3 +285,18 @@ Anótalo **en el momento** y **continúa**. No interrumpas el incremento salvo q
 **arquitectura** o la **seguridad**, o puede producir **pérdida de información**. Lo demás es una
 **observación técnica**, y se registra junto a la condición que la promovería a deuda. El backlog debe
 seguir siendo **pequeño y accionable**: una lista larga de deuda menor entierra lo importante.
+
+---
+
+## 8 · Orquestación de herramientas — PERMANENTE (CEO, 2026-10-11)
+
+El método de trabajo por defecto de AURA está en **[`.claude/rules/orquestacion-herramientas.md`](.claude/rules/orquestacion-herramientas.md)** — fuente única; no copiar su contenido aquí. En resumen: **Graphify
+orienta** (consultar el grafo antes de explorar código), **ECC aporta** agentes y capacidades de ingeniería,
+**Claude Code coordina** (ficha de evidencia mínima por agente, sin repetir investigaciones), **Codex/OpenCode**
+dan revisión/ejecución independiente cuando están disponibles, y **OmniRoute** es externo y experimental (nunca
+en el runtime de AURA ni enrutando código privado a terceros sin proveedor autorizado).
+
+Considera el conjunto **por defecto** en cada prompt: comprueba disponibilidad y usa lo pertinente; no invoques
+cada herramienta para operaciones triviales. Si una falta o su integración no funciona, **documéntalo; no finjas
+que se usó**. Estas herramientas son **externas a AURORA** (regla §4): no se describen como componentes de su
+arquitectura.

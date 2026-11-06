@@ -1,0 +1,23 @@
+{
+  "caso": "concepto",
+  "tipo": "conocimiento",
+  "variante": "legado",
+  "texto": "que es un agujero negro?",
+  "reloj_s": 20.73,
+  "total_s": 20.68,
+  "carga_s": 0.56,
+  "ingesta_tokens": 159,
+  "ingesta_s": 4.53,
+  "generacion_tokens": 32,
+  "generacion_s": 15.59,
+  "generacion_tok_s": 2.053,
+  "motivo_fin": "stop",
+  "json_valido": true,
+  "claves": [
+    "action",
+    "intent",
+    "say"
+  ],
+  "say": "Un agujero negro es una lágrima.",
+  "respuesta_cruda": "{\"say\": \"Un agujero negro es una lágrima.\",\"action\":\"consulta\",\"intent\":\"agujerobranjego\"}"
+}

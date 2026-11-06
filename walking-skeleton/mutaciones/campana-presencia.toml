@@ -1,0 +1,259 @@
+incremento = "Campaña de presencia (CEO, 2026-09-26): memoria, voz real por micrófono y altavoz, frases habladas compuestas"
+# Cada mutante deshace una corrección medida en la campaña. Si alguno sobrevive, esa corrección no
+# tiene red y volverá sin que nadie lo note — que es como se perdieron garantías en este proyecto antes.
+pruebas = ["tests/unit/test_historial_y_vigencia.py", "tests/unit/test_historial_consultable.py",
+           "tests/unit/test_voz_real_sin_red_ni_cuelgue.py", "tests/unit/test_microfono.py",
+           "tests/unit/test_hechos_declarados.py", "tests/unit/test_home_assistant_real.py", "tests/unit/test_escucha_continua.py"]
+timeout_s = 1200
+
+[[mutante]]
+id = "CP-M1"
+garantia = "«me llamo X» deja de reconocerse: dos nombres vuelven a quedar vigentes a la vez"
+fichero = "aura_skeleton/core/identidad_memoria.py"
+buscar = '''        return ("nombre", valor) if valor else None'''
+sustituir = '''        return None'''
+
+[[mutante]]
+id = "CP-M2"
+garantia = "«yo me llamo X» deja de reconocerse: la forma habitual al presentarse hablando no versiona"
+fichero = "aura_skeleton/core/identidad_memoria.py"
+buscar = '''_ME_LLAMO = re.compile(r"^\s*(?:yo\s+)?me\s+llamo\s+(.+)$", re.IGNORECASE)'''
+sustituir = '''_ME_LLAMO = re.compile(r"me\s+llamo\s*(.*)$", re.IGNORECASE)'''
+
+[[mutante]]
+id = "CP-M3"
+garantia = "el historial repite una redeclaracion identica como si fuera otro valor anterior"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        sin_repetir = [p[2] for i, p in enumerate(anteriores) if i == 0 or p[2] != anteriores[i - 1][2]]'''
+sustituir = '''        sin_repetir = [p[2] for p in anteriores]'''
+
+[[mutante]]
+id = "CP-M4"
+garantia = "el historial colapsa TODAS las repeticiones: una vuelta atras real (Valencia -> Sevilla -> Valencia) desaparece"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        sin_repetir = [p[2] for i, p in enumerate(anteriores) if i == 0 or p[2] != anteriores[i - 1][2]]'''
+sustituir = '''        sin_repetir = list(dict.fromkeys(p[2] for p in anteriores))'''
+
+[[mutante]]
+id = "CP-M5"
+garantia = "el audio llega a Whisper sin margen: las ordenes cortas vuelven a alucinarse (1/15 medido)"
+fichero = "aura_skeleton/adapters/voice_real.py"
+buscar = '''            audio = np.concatenate([margen, audio, margen])'''
+sustituir = '''            audio = audio'''
+
+[[mutante]]
+id = "CP-M6"
+garantia = "el transcriptor pierde el vocabulario de AURA (de 12/15 a 1/15 exactas)"
+fichero = "aura_skeleton/adapters/voice_real.py"
+buscar = '''                audio, language=self._idioma, initial_prompt=_VOCABULARIO'''
+sustituir = '''                audio, language=self._idioma'''
+
+[[mutante]]
+id = "CP-M7"
+garantia = "la grabacion del microfono pierde su tope: AURA podria quedarse escuchando indefinidamente"
+fichero = "aura_skeleton/adapters/microfono.py"
+buscar = '''        orden = [
+            "timeout",
+            str(self._segundos),
+            _GRABADOR,
+            "--channels=1",
+            "--rate=16000",
+            "--format=s16le",
+            "--file-format=wav",
+            ruta,
+        ]'''
+sustituir = '''        orden = [_GRABADOR, "--channels=1", "--rate=16000", "--format=s16le", "--file-format=wav", ruta]'''
+
+[[mutante]]
+id = "CP-M8"
+garantia = "una grabacion vacia llega a Whisper, que alucina texto sobre el silencio"
+fichero = "aura_skeleton/adapters/microfono.py"
+buscar = '''        if _frames(ruta) == 0:'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "CP-M9"
+garantia = "lo oido se ARCHIVA: la grabacion del usuario queda en disco tras el turno"
+fichero = "aura_skeleton/__main__.py"
+buscar = '''        if grabacion is not None:
+            microfono.descartar(grabacion)'''
+sustituir = '''        if False:
+            microfono.descartar(grabacion)'''
+
+[[mutante]]
+id = "CP-M10"
+garantia = "la respuesta deja de sonar: AURA vuelve a hablarle a un fichero y no a la persona"
+fichero = "aura_skeleton/__main__.py"
+buscar = '''            microfono.reproducir(respuesta_audio)'''
+sustituir = '''            pass'''
+
+[[mutante]]
+id = "CP-M11"
+garantia = "una frase con nombre y gusto vuelve a perder el nombre (la preferencia gana)"
+fichero = "aura_skeleton/conectores/conversacion.py"
+buscar = '''        if all(c is not None for c in clases):
+            return list(zip(partes, clases, strict=True))'''
+sustituir = '''        if False:
+            return list(zip(partes, clases, strict=True))'''
+
+[[mutante]]
+id = "CP-M12"
+garantia = "se parte aunque una parte no declare nada: «trabajo de logistica y transporte» pierde «transporte»"
+fichero = "aura_skeleton/conectores/conversacion.py"
+buscar = '''        if all(c is not None for c in clases):'''
+sustituir = '''        if any(c is not None for c in clases):'''
+
+# ----------------------------------------------------------- hogar real vía Home Assistant --
+
+[[mutante]]
+id = "CP-M13"
+garantia = "una orden SIN efecto se declara hecha: AURA diria que apago la TV aunque siga encendida"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''        verificado = despues in pedido and antes not in pedido'''
+sustituir = '''        verificado = True'''
+
+[[mutante]]
+id = "CP-M14"
+garantia = "el estado ya no se relee tras actuar: la confirmacion del efecto es decorativa"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''            despues = str(leido.get("state") or "?")'''
+sustituir = '''            despues = esperado'''
+
+[[mutante]]
+id = "CP-M15"
+garantia = "un dispositivo inexistente vuelve a escaparse del Motor Unico y tumba el turno"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''class OrdenNoAdmisible(ErrorDeValidacion):'''
+sustituir = '''class OrdenNoAdmisible(RuntimeError):'''
+
+[[mutante]]
+id = "CP-M16"
+garantia = "el mismo evento actua dos veces sobre un dispositivo fisico (se pierde la idempotencia)"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''        if event_id in self._hechos:  # idempotencia (3.3 §3): mismo evento, un solo efecto físico'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "CP-M17"
+garantia = "sin Home Assistant el doble vuelve a hacerse pasar por el hogar: el arranque no lo dice"
+fichero = "aura_skeleton/composicion.py"
+buscar = '''            "hogar: SIMULADO (sin AURA_HA_URL/AURA_HA_TOKEN); encender/apagar no actuan sobre ningun dispositivo real",'''
+sustituir = '''            "hogar: listo encender/apagar no actuan sobre ningun dispositivo real",'''
+
+[[mutante]]
+id = "CP-M18"
+garantia = "con Home Assistant configurado se sigue montando el doble: las ordenes no tocan el mundo"
+fichero = "aura_skeleton/composicion.py"
+buscar = '''    if not (url and token):'''
+sustituir = '''    if True:'''
+
+# ------------------------------------------ correcciones de la auditoría de seguridad --
+
+[[mutante]]
+id = "CP-M19"
+garantia = "la lista verde vuelve a alcanzar cualquier entidad: «apaga el congelador» pasa como una luz"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''        if dominio not in _DOMINIOS_VERDES:'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "CP-M20"
+garantia = "el WAV de la respuesta vuelve a acumularse en disco con lo que AURA recito"
+fichero = "aura_skeleton/__main__.py"
+buscar = '''        if respuesta_audio is not None:
+            descartar = microfono.descartar if microfono is not None else descartar_audio'''
+sustituir = '''        if False:
+            descartar = microfono.descartar if microfono is not None else descartar_audio'''
+
+[[mutante]]
+id = "CP-M21"
+garantia = "el directorio de audio vuelve a ser legible por cualquier usuario local"
+fichero = "aura_skeleton/adapters/microfono.py"
+buscar = '''    os.makedirs(ruta, mode=0o700, exist_ok=True)'''
+sustituir = '''    os.makedirs(ruta, mode=0o777, exist_ok=True)
+    return'''
+
+[[mutante]]
+id = "CP-M22"
+garantia = "un enlace simbolico plantado en /tmp vuelve a desviar la voz del usuario"
+fichero = "aura_skeleton/adapters/microfono.py"
+buscar = '''    if os.path.islink(ruta):
+        raise DispositivoNoDisponible(f"el directorio de audio es un enlace simbólico: {ruta}")'''
+sustituir = '''    if False:
+        raise DispositivoNoDisponible("")'''
+
+# ------------------------------------------------- escucha continua (Bible 6.2) --
+
+[[mutante]]
+id = "CP-M23"
+garantia = "AURA despierta con cualquier frase que MENCIONE su nombre («la aurora boreal»): escucha sin ser llamada"
+fichero = "aura_skeleton/adapters/escucha.py"
+buscar = '''    if palabras == [_NOMBRE]:
+        return True'''
+sustituir = '''    if _NOMBRE in palabras:
+        return True'''
+
+[[mutante]]
+id = "CP-M24"
+garantia = "al dejar de escuchar el microfono sigue abierto grabando hacia nadie"
+fichero = "aura_skeleton/adapters/escucha.py"
+buscar = '''        self._proceso.terminate()'''
+sustituir = '''        pass'''
+
+[[mutante]]
+id = "CP-M25"
+garantia = "AURA graba y actua sin haber oido su nombre"
+fichero = "aura_skeleton/__main__.py"
+buscar = '''        if not llamada:
+            print("AURA: el micrófono dejó de entregar audio; dejo de escuchar.")
+            return 1'''
+sustituir = '''        if False:
+            return 1'''
+
+[[mutante]]
+id = "CP-M26"
+garantia = "en escucha continua la pantalla vuelve a llenarse de telemetria por defecto"
+fichero = "aura_skeleton/__main__.py"
+buscar = '''    Aqui ademas no se escribe a disco (`adapters/escucha.py`)."""
+    if not telemetria:
+        obs.configurar_salida(None)'''
+sustituir = '''    Aqui ademas no se escribe a disco (`adapters/escucha.py`)."""
+    if telemetria:
+        obs.configurar_salida(None)'''
+
+# ------------------------------------------------ voz precargada (S1, bloque 1) --
+
+[[mutante]]
+id = "CP-M27"
+garantia = "la voz se vuelve a cargar en CADA frase: la sintesis pasa de ~0,8 s a ~6 s por turno"
+fichero = "aura_skeleton/adapters/voice_real.py"
+buscar = '''        if self._piper is None and not self._piper_fallo:'''
+sustituir = '''        if not self._piper_fallo:'''
+
+[[mutante]]
+id = "CP-M28"
+garantia = "la sintesis precargada pierde su tope: una voz colgada cuelga el turno para siempre"
+fichero = "aura_skeleton/adapters/voice_real.py"
+buscar = '''            await asyncio.wait_for(loop.run_in_executor(None, self._tts_sync, text, out), self._limite_sintesis_s)'''
+sustituir = '''            await loop.run_in_executor(None, self._tts_sync, text, out)'''
+
+[[mutante]]
+id = "CP-M29"
+garantia = "en modo texto la respuesta sintetizada vuelve a quedarse en disco (encontrado en la demo fisica)"
+fichero = "aura_skeleton/__main__.py"
+buscar = '''            descartar = microfono.descartar if microfono is not None else descartar_audio'''
+sustituir = '''            descartar = microfono.descartar if microfono is not None else (lambda _ruta: None)'''
+
+[[mutante]]
+id = "CP-M30"
+garantia = "el modelo de la palabra de activacion vuelve a cargarse en cada escucha: AURA queda sorda tras cada conversacion"
+fichero = "aura_skeleton/adapters/escucha.py"
+buscar = '''        if self._vosk_modelo is None:'''
+sustituir = '''        if True:'''
+
+[[mutante]]
+id = "CP-M31"
+garantia = "el audio de una sesion interrumpida a la fuerza se queda en disco para siempre"
+fichero = "aura_skeleton/adapters/microfono.py"
+buscar = '''            if nombre.endswith(".wav") and nombre.startswith(("entrada_", "resp_")):'''
+sustituir = '''            if False:'''

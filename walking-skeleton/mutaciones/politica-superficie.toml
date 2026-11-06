@@ -1,0 +1,53 @@
+incremento = "Política por superficie de cámara (corrección CEO 2026-09-28): por canal, deny-by-default, niveles no heredados, gate antes de capturar"
+pruebas = ["tests/unit/test_politica_superficie.py"]
+timeout_s = 300
+
+[[mutante]]
+id = "PS-M1"
+garantia = "deny-by-default se rompe: una superficie desconocida o no autorizada pasa a permitir"
+fichero = "aura_skeleton/core/politica_superficie.py"
+pruebas = ["tests/unit/test_politica_superficie.py::test_superficie_desconocida_se_deniega_por_defecto",
+           "tests/unit/test_politica_superficie.py::test_una_superficie_privada_no_permite_procesamiento_visual"]
+buscar = '''        if s is None or not s.autorizado:
+            return False'''
+sustituir = '''        if s is None or not s.autorizado:
+            return True'''
+
+[[mutante]]
+id = "PS-M2"
+garantia = "la identidad se HEREDA del permiso de proceso visual (identidad debe ser frontera aparte)"
+fichero = "aura_skeleton/core/politica_superficie.py"
+pruebas = ["tests/unit/test_politica_superficie.py::test_identidad_esta_denegada_aunque_el_procesamiento_visual_este_permitido"]
+buscar = '''    def puede_identificar(self, surface_id: str) -> bool:
+        return self._permite(surface_id, "identity_processing_allowed")'''
+sustituir = '''    def puede_identificar(self, surface_id: str) -> bool:
+        return self._permite(surface_id, "visual_processing_allowed")'''
+
+[[mutante]]
+id = "PS-M3"
+garantia = "el permiso deja de mirar el flag concreto: cualquier superficie autorizada permitiría todo"
+fichero = "aura_skeleton/core/politica_superficie.py"
+pruebas = ["tests/unit/test_politica_superficie.py::test_identidad_esta_denegada_aunque_el_procesamiento_visual_este_permitido"]
+buscar = '''        return bool(getattr(s, atributo))'''
+sustituir = '''        return True'''
+
+[[mutante]]
+id = "PS-M4"
+garantia = "la percepción captura ANTES de comprobar la política: se toma un frame de una superficie denegada"
+fichero = "aura_skeleton/core/percepcion.py"
+pruebas = ["tests/unit/test_politica_superficie.py::test_percepcion_NO_captura_de_una_superficie_no_autorizada",
+           "tests/unit/test_politica_superficie.py::test_percepcion_con_superficie_no_registrada_deniega_sin_capturar"]
+buscar = '''        if self._politica is not None and not self._politica.puede_procesar_visual(self._superficie or ""):'''
+sustituir = '''        if False and self._politica is not None and not self._politica.puede_procesar_visual(self._superficie or ""):'''
+
+[[mutante]]
+id = "PS-M5"
+garantia = "vuelve un BLOQUEO GLOBAL: un canal privado del DVR bloquea también los canales exteriores (lo que el auditor prohíbe explícitamente)"
+fichero = "aura_skeleton/core/politica_superficie.py"
+pruebas = ["tests/unit/test_politica_superficie.py::test_un_canal_privado_NO_bloquea_a_los_canales_exteriores_del_mismo_DVR"]
+buscar = '''    def _permite(self, surface_id: str, atributo: str) -> bool:
+        s = self._por_id.get(surface_id)'''
+sustituir = '''    def _permite(self, surface_id: str, atributo: str) -> bool:
+        if any(not x.autorizado for x in self._por_id.values()):
+            return False
+        s = self._por_id.get(surface_id)'''

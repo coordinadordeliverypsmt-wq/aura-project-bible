@@ -1,0 +1,22 @@
+## Prueba 9 — reinicio COMPLETO de HC-1 (arranque sin sesión) · verificado 2026-10-07 07:41 [EJEC]
+Arranque del equipo: 2026-10-07 02:17:48 (el anterior: 2026-10-04 04:24). El reinicio no lo provocó ninguna sesión de Claude Code; consta solo el arranque.
+Servicios de usuario arrancados por linger sin iniciar sesión, incluida aura-hogar-ha.service (habilitada el 2026-10-07 01:46).
+
+== Verificación tras reinicio de HC-1 · 2026-10-07 07:41:32
+arranque actual (uptime -s): 2026-10-07 02:17:48
+  OK    hubo reinicio: 2026-10-04 04:24 -> 2026-10-07 02:17:48
+  OK    linger activo (los servicios de usuario arrancan sin sesión)
+  OK    aura-nats.service: active/enabled
+        activo desde: Wed 2026-10-07 02:18:03 -05
+  OK    aura-receptor-nodos.service: active/enabled
+        activo desde: Wed 2026-10-07 02:18:03 -05
+  OK    aura-hogar-ha.service: active
+  OK    Home Assistant escucha en 127.0.0.1:8123
+  OK    NATS escucha en 4222
+  OK    mDNS: majo1230-Lenovo-100e-2nd-Gen.local -> 192.168.20.38 (= IP real)
+        nodo-01 [bac41ce9…]  ONLINE  — latido reciente y métricas mínimas completas
+  OK    nodo-01 ONLINE
+  OK    latido nuevo: secuencia 10003 -> 10005 en 20 s
+  OK    PARADA (a) del control-plane: armada (sin cambios)
+  OK    kill switch (b) sin armar (sin cambios)
+== Resultado: PASS

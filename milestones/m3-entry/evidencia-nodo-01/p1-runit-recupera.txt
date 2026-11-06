@@ -1,0 +1,8 @@
+## Prueba 1 — proceso matado (SIGKILL) → runit lo recupera · 2026-10-04T05:04:18-05:00
+pid antes: 8178
+runit: run: aura-nodo: (pid 8325) 5s; run: log: (pid 6561) 527s
+RESULTADO: HC-1 registra reinicio
+receptor de nodos: VIVO (hace 4 s)
+nodo-01 [bac41ce9…]  ONLINE  — latido reciente y métricas mínimas completas
+  último latido: hace 6 s · primer contacto: 2026-10-04 05:03:47 · reinicios: 1 · secuencia 0 · agente nodo-agente/1
+"nodo_id": "bac41ce92abc4fb9bac4187cec6d727d"

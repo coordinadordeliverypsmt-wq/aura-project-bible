@@ -15,19 +15,16 @@ fichero = "aura_skeleton/core/orchestrator.py"
 pruebas = ["tests/integration/test_declaracion_sin_llm.py::test_A_me_llamo_se_acusa_en_el_core_sin_modelo_y_el_hecho_se_captura",
            "tests/integration/test_declaracion_sin_llm.py::test_C_cumpleanos_se_acusa_sin_modelo_se_responde_y_se_versiona",
            "tests/integration/test_declaracion_sin_llm.py::test_G_color_favorito_se_acusa_sin_modelo_y_se_responde_literal"]
-buscar = '''        if (self.reconocer_declaracion is not None and self.reconocer_declaracion(text)
-                and not _pide_accion(text)):'''
-sustituir = '''        if (False and self.reconocer_declaracion(text)
-                and not _pide_accion(text)):'''
+buscar = '''        if self.reconocer_declaracion is not None and self.reconocer_declaracion(text) and not _pide_accion(text):'''
+sustituir = '''        if False and self.reconocer_declaracion(text) and not _pide_accion(text):'''
 
 [[mutante]]
 id = "DS-M2"
 garantia = "se elimina la guarda 'not _pide_accion(text)': una declaracion que ademas pide una accion ('me llamo Mauricio y enciende la luz') perderia la accion, tragada por el acuse del Core"
 fichero = "aura_skeleton/core/orchestrator.py"
 pruebas = ["tests/integration/test_declaracion_sin_llm.py::test_E_declaracion_que_ademas_pide_una_accion_llega_al_router"]
-buscar = '''        if (self.reconocer_declaracion is not None and self.reconocer_declaracion(text)
-                and not _pide_accion(text)):'''
-sustituir = '''        if (self.reconocer_declaracion is not None and self.reconocer_declaracion(text)):'''
+buscar = '''        if self.reconocer_declaracion is not None and self.reconocer_declaracion(text) and not _pide_accion(text):'''
+sustituir = '''        if self.reconocer_declaracion is not None and self.reconocer_declaracion(text):'''
 
 [[mutante]]
 id = "DS-M3"
@@ -55,7 +52,5 @@ fichero = "aura_skeleton/core/orchestrator.py"
 pruebas = ["tests/integration/test_declaracion_sin_llm.py::test_A_me_llamo_se_acusa_en_el_core_sin_modelo_y_el_hecho_se_captura",
            "tests/integration/test_declaracion_sin_llm.py::test_C_cumpleanos_se_acusa_sin_modelo_se_responde_y_se_versiona",
            "tests/integration/test_declaracion_sin_llm.py::test_G_color_favorito_se_acusa_sin_modelo_y_se_responde_literal"]
-buscar = '''            await self._finalizar_turno(uid, tid, text, _ACUSE_DECLARACION, "core", t, dominio="declaracion",
-                                        estatus=Estatus.HECHO)'''
-sustituir = '''            await self._finalizar_turno(uid, tid, text, _ACUSE_DECLARACION, "core", t, dominio="declaracion",
-                                        estatus=Estatus.PROPUESTA)'''
+buscar = '''                uid, tid, text, _ACUSE_DECLARACION, "core", t, dominio="declaracion", estatus=Estatus.HECHO'''
+sustituir = '''                uid, tid, text, _ACUSE_DECLARACION, "core", t, dominio="declaracion", estatus=Estatus.PROPUESTA'''

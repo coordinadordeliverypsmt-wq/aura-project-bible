@@ -1,0 +1,110 @@
+incremento = "NODO-01 R1 - avisos de nodos (caida, recuperacion, receptor caido) por transicion"
+pruebas = [
+    "tests/unit/test_avisos_nodos.py",
+    "tests/integration/test_avisos_nodos_cableado.py",
+]
+
+[[mutante]]
+id = "M1"
+garantia = "un registro sin ningun nodo (nunca latieron) genera un aviso falso en vez de silencio"
+fichero = "aura_skeleton/core/nodos.py"
+buscar = '''        nuevos[r.latido.nodo_id] = estado
+    return tuple(avisos), nuevos'''
+sustituir = '''        nuevos[r.latido.nodo_id] = estado
+    if not registro.nodos():
+        avisos.append(AvisoNodo("__vacio__", UNKNOWN, "Sin latido de ningun nodo", "alta"))
+    return tuple(avisos), nuevos'''
+
+[[mutante]]
+id = "M2"
+garantia = "con el receptor caido se avisa de 'sin latido' de cada nodo en vez de solo del receptor"
+fichero = "aura_skeleton/core/nodos.py"
+buscar = '''        nuevos[CLAVE_RECEPTOR] = OFFLINE
+        return tuple(avisos), nuevos
+    nuevos[CLAVE_RECEPTOR] = ONLINE
+
+    for r in registro.nodos():
+        estado, _ = estado_nodo(r, ahora, receptor_vivo)'''
+sustituir = '''        nuevos[CLAVE_RECEPTOR] = OFFLINE
+    else:
+        nuevos[CLAVE_RECEPTOR] = ONLINE
+
+    for r in registro.nodos():
+        estado, _ = estado_nodo(r, ahora, True)'''
+
+[[mutante]]
+id = "M3"
+garantia = "el estado anterior no se actualiza: el mismo aviso se repite en cada evaluacion"
+fichero = "aura_skeleton/core/nodos.py"
+buscar = '''        nuevos[r.latido.nodo_id] = estado
+    return'''
+sustituir = '''        pass
+    return'''
+
+[[mutante]]
+id = "M4"
+garantia = "la transicion OFFLINE a ONLINE/DEGRADED se ignora: nunca se avisa de la recuperacion"
+fichero = "aura_skeleton/core/nodos.py"
+buscar = '''    if previo == OFFLINE and estado in (ONLINE, DEGRADED):'''
+sustituir = '''    if False and estado in (ONLINE, DEGRADED):'''
+
+[[mutante]]
+id = "M5"
+garantia = "la composicion no enciende el vigia de nodos (el orquestador nace sin puerto)"
+fichero = "aura_skeleton/composicion.py"
+buscar = '''        vigia_nodos=crear_vigia_nodos(),'''
+sustituir = '''        vigia_nodos=None,'''
+
+[[mutante]]
+id = "M6"
+garantia = "el titulo de caida pierde la hora: dos caidas distintas se fusionan en un episodio"
+fichero = "aura_skeleton/core/nodos.py"
+buscar = '''sin latido desde las {_hora_y_dia(r.recibido_en)}"'''
+sustituir = '''sin latido"'''
+
+[[mutante]]
+id = "M7"
+garantia = "el orquestador no guarda el estado de nodos tras evaluar (cada turno vuelve a ser 'al abrir')"
+fichero = "aura_skeleton/core/orchestrator.py"
+# RE-ANCLADO 2026-10-18 (corrección ECC): el estado se adopta ahora DESPUÉS de entregar los avisos.
+buscar = '''            self._estado_nodos = nuevo_estado'''
+sustituir = '''            pass'''
+
+[[mutante]]
+id = "M8"
+garantia = "el orquestador no evalua los nodos al inicio de cada turno"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        self.evaluar_nodos()  # avisos de nodos por turno'''
+sustituir = '''        pass  # avisos de nodos por turno'''
+
+[[mutante]]
+id = "M9"
+garantia = "la composicion no hace la evaluacion al abrir AURA"
+fichero = "aura_skeleton/composicion.py"
+buscar = '''    orquestador.evaluar_nodos()
+'''
+sustituir = '''    pass
+'''
+
+# --- Añadidos tras la revisión ECC (2026-10-18): correcciones del título del receptor y de los topes ---
+
+[[mutante]]
+id = "M10"
+garantia = "el aviso del receptor lleva la hora de detección: sin ella, su 2ª caída en la sesión la suprime el Centro"
+fichero = "aura_skeleton/core/nodos.py"
+buscar = '''el receptor de HC-1 no está escuchando (detectado a las {_hora(ahora)})"'''
+sustituir = '''el receptor de HC-1 no está escuchando"'''
+
+[[mutante]]
+id = "M11"
+garantia = "el vigía rechaza un registro mayor que el tope ANTES de leerlo (no se bloquea el turno)"
+fichero = "aura_skeleton/adapters/receptor_nodos.py"
+buscar = '''    if peso > MAX_BYTES_REGISTRO:'''
+sustituir = '''    if peso > MAX_BYTES_REGISTRO * 1_000_000:'''
+
+[[mutante]]
+id = "M12"
+garantia = "el vigía rechaza un registro con más nodos que el tope"
+fichero = "aura_skeleton/adapters/receptor_nodos.py"
+buscar = '''            if len(datos["nodos"]) > MAX_NODOS_REGISTRO:'''
+sustituir = '''            if False:'''

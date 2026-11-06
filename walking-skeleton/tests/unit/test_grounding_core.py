@@ -77,8 +77,13 @@ async def test_memoria_vacia_responde_el_core_sin_consultar_al_llm(pregunta):
 @pytest.mark.asyncio
 async def test_no_bloquea_peticiones_que_no_son_consultas_de_memoria():
     """Una orden normal tiene 0 hits de memoria pero SI debe llegar al LLM (no romper lista verde)."""
-    espia = _ProveedorEspia('{"intent":"domotica","action":"encender_dispositivo","args":{},"say":"Listo."}')
-    r = await _turno(_orq(espia), "Enciende la luz de la sala")
+    # Semana 2: «Enciende la luz de la sala» ya la interpreta el Core, no el modelo. Para seguir probando
+    # que una ORDEN con 0 recuerdos llega al modelo en vez de a la pared, se usa una que el Core no
+    # reconoce como orden limpia y que nombra el dispositivo (la guarda exige que el modelo no lo invente).
+    espia = _ProveedorEspia(
+        '{"intent":"domotica","action":"encender_dispositivo","args":{"device":"luz de la sala"},"say":"Listo."}'
+    )
+    r = await _turno(_orq(espia), "quiero que enciendas la luz de la sala")
 
     assert espia.llamadas == 1, "las ordenes normales deben seguir enrutandose al modelo"
     assert r["provider"] == "espia"

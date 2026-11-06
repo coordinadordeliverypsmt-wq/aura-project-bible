@@ -8,7 +8,16 @@ from .. import observability as obs
 
 class HomeAssistantMock:
     name = "home_assistant"
-    capabilities = ["encender_dispositivo", "apagar_dispositivo"]
+    # El volumen de la TV (acta 2026-10-22) se acepta igual que on/off: el doble no verifica nada y el modo
+    # SIMULADO lo dice al arrancar; no finge haber comprobado un efecto que no existe.
+    capabilities = [
+        "encender_dispositivo",
+        "apagar_dispositivo",
+        "subir_volumen",
+        "bajar_volumen",
+        "silenciar",
+        "quitar_silencio",
+    ]
 
     def __init__(self):
         self._done: set[str] = set()

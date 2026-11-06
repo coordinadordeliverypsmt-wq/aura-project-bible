@@ -1,0 +1,23 @@
+{
+  "caso": "hipotesis",
+  "tipo": "abierta",
+  "variante": "legado",
+  "texto": "que pasaria si la luna desapareciera?",
+  "reloj_s": 27.07,
+  "total_s": 27.02,
+  "carga_s": 0.54,
+  "ingesta_tokens": 164,
+  "ingesta_s": 5.86,
+  "generacion_tokens": 41,
+  "generacion_s": 20.62,
+  "generacion_tok_s": 1.989,
+  "motivo_fin": "stop",
+  "json_valido": true,
+  "claves": [
+    "action",
+    "intent",
+    "say"
+  ],
+  "say": "Pasaría muy mal, la luna desaparecerá y las estrellas seguirán en el mismo lugar.",
+  "respuesta_cruda": "{\"say\": \"Pasaría muy mal, la luna desaparecerá y las estrellas seguirán en el mismo lugar.\",\"action\":\"consulta\",\"intent\":\"paso\"}"
+}

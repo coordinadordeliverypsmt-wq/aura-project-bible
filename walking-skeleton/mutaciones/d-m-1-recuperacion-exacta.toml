@@ -1,0 +1,34 @@
+incremento = "D-M-1 A′: recuperación exacta de memoria N1 (filtro prefijo + cota α=1) — aprobación CEO 2026-10-12"
+pruebas = ["tests/unit/test_recall_exacto_d_m_1.py"]
+timeout_s = 600
+
+# A′ es EXACTA respecto a la fuerza bruta en todo régimen. Cada mutante degrada una garantía de la
+# generación de candidatos y una prueba (contra el oráculo de fuerza bruta) debe matarlo.
+
+[[mutante]]
+id = "DM1-M1"
+garantia = "el prefijo toma una lista MENOS (rompe el principio del palomar): reaparece el falso negativo de D-M-1 en régimen ubicuo"
+fichero = "aura_skeleton/modules/memory.py"
+pruebas = ["tests/unit/test_recall_exacto_d_m_1.py::test_D_M_1_regimen_ubicuo_NO_produce_falso_negativo",
+           "tests/unit/test_recall_exacto_d_m_1.py::test_diferencial_aleatorio_cero_discrepancias_vs_fuerza_bruta"]
+buscar = '''        prefijo = listas[: n - m + 1]'''
+sustituir = '''        prefijo = listas[: n - m]'''
+
+[[mutante]]
+id = "DM1-M2"
+garantia = "la union del prefijo se queda SOLO con la ultima lista: se pierden candidatos de las demas listas del prefijo"
+fichero = "aura_skeleton/modules/memory.py"
+pruebas = ["tests/unit/test_recall_exacto_d_m_1.py::test_D_M_1_regimen_ubicuo_NO_produce_falso_negativo",
+           "tests/unit/test_recall_exacto_d_m_1.py::test_diferencial_aleatorio_cero_discrepancias_vs_fuerza_bruta"]
+buscar = '''            for p in prefijo:
+                cand |= set(p)'''
+sustituir = '''            for p in prefijo:
+                cand = set(p)'''
+
+[[mutante]]
+id = "DM1-M3"
+garantia = "el barrido completo deja de filtrar por user_id: fuga del modelo de otro usuario (aislamiento, Bible 4.1 §6)"
+fichero = "aura_skeleton/modules/memory.py"
+pruebas = ["tests/unit/test_recall_exacto_d_m_1.py::test_aislamiento_por_usuario_con_barrido_activo"]
+buscar = '''            candidatos: list[int] = [idx for idx, it in enumerate(self._items) if it["user_id"] == user_id]'''
+sustituir = '''            candidatos: list[int] = [idx for idx, it in enumerate(self._items)]'''

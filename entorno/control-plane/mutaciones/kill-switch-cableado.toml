@@ -1,0 +1,57 @@
+incremento = "CABLEADO DEL KILL SWITCH (2026-09-21): PARADA se consulta en CINCO puntos y solo UNO tenia red de mutacion. Los otros cuatro podian dejar de mirarlo sin que ninguna prueba se enterara"
+pruebas = ["test_red_motor_autonomia.py", "test_red_despertador.py", "test_red_observatorio.py", "test_red_f1_orquestador.py"]
+timeout_s = 600
+
+# POR QUE ESTE CATALOGO EXISTE.
+#
+# `PARADA` es la garantia mas fuerte del plano: *«mecanismo fuera de banda (Bible 5.3): basta la
+# PRESENCIA del fichero. No hace falta que el orquestador colabore»*. Un kill switch que dependiera
+# de la cooperacion del sistema al que detiene no seria un kill switch.
+#
+# Auditado el 2026-09-21: la funcion `orquestador.parada_solicitada()` se consulta en **cinco**
+# puntos de produccion —`autoconstruccion.py:596`, `motor_autonomia.py:96`, `despertador.py:65`,
+# `observatorio.py:518` y `orquestador.py:566`— y **solo el primero** tenia mutante (`BA-M4`, del
+# blindaje del anillo). En los otros cuatro, borrar la consulta no habria hecho fallar nada
+# declarado: el interruptor seguiria existiendo, probado como funcion pura, sin proteger el camino.
+#
+# Es exactamente la leccion que este proyecto ya pago: **el mutante «la composicion no enciende las
+# automatizaciones» sobrevivio con 426 pruebas en verde**. Se muta el CABLEADO, no solo la logica.
+#
+# Estos mutantes no cambian ninguna politica ni conceden nada: comprueban que cada punto donde el
+# sistema dice consultar el kill switch lo consulta de verdad.
+
+[[mutante]]
+id = "KS-M1"
+garantia = "EL MOTOR: el kill switch se consulta en CADA vuelta. Un interruptor mirado solo al arrancar no detiene lo que ya empezo, que es justo cuando hace falta detenerlo"
+fichero = "motor_autonomia.py"
+pruebas = ["test_red_motor_autonomia.py"]
+buscar = '''        if orq.parada_solicitada(directorio):
+            return _detener(directorio, informe, "kill switch activado", desde=arranque)'''
+sustituir = '''        if False:  # el motor deja de mirar el kill switch
+            return _detener(directorio, informe, "kill switch activado", desde=arranque)'''
+
+[[mutante]]
+id = "KS-M2"
+garantia = "EL DESPERTADOR: no se despierta con PARADA armada. Sin esto, el sistema se reanudaria solo despues de que un humano lo parase a mano — el peor fallo posible de un kill switch"
+fichero = "despertador.py"
+pruebas = ["test_red_despertador.py"]
+buscar = '''    if orq.parada_solicitada(directorio):
+        return False, "kill switch activado"'''
+sustituir = '''    if False:  # el despertador deja de mirar el kill switch
+        return False, "kill switch activado"'''
+
+[[mutante]]
+id = "KS-M3"
+garantia = "EL OBSERVATORIO: con PARADA armada el estado se informa BLOQUEADA. Un panel que no refleja que alguien paro el sistema a mano miente sobre el hecho mas fuerte que hay"
+fichero = "observatorio.py"
+pruebas = ["test_red_observatorio.py"]
+buscar = '''    if orq.parada_solicitada(directorio):'''
+sustituir = '''    if False:  # el observatorio deja de mirar el kill switch'''
+
+[[mutante]]
+id = "KS-M4"
+garantia = "EL BUCLE DEL ORQUESTADOR: consulta PARADA en cada iteracion y deja constancia con el evento `parada_de_emergencia`"
+fichero = "orquestador.py"
+pruebas = ["test_red_f1_orquestador.py::test_el_kill_switch_detiene_el_bucle_del_orquestador", "test_red_f1_orquestador.py::test_CONTROL_sin_PARADA_el_bucle_no_se_detiene_por_kill_switch"]
+buscar = '''            if parada_solicitada(self.directorio):'''
+sustituir = '''            if False:  # el bucle deja de mirar el kill switch'''

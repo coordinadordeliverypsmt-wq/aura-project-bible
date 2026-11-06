@@ -64,8 +64,12 @@ sustituir = '''        if False:
 id = "HV-M8"
 garantia = "el contador se calcula solo sobre las vigentes y se REINICIA en cada cierre: dos entradas distintas compartirian version"
 fichero = "aura_skeleton/core/ejecutor_modelo_usuario.py"
-buscar = '''        previas = [i for i in self._memoria._items if _predicado_identidad(user_id, identidad, False)(i)]'''
-sustituir = '''        previas = [i for i in self._memoria._items if _predicado_identidad(user_id, identidad)(i)]'''
+# RE-ANCLADO 2026-10-06: `_hecho_id` (reloj de CM2) repite la misma linea; el ancla incluye la siguiente para
+# seguir apuntando a `_plan_de_vigencia`. Misma garantia, mismo mutante.
+buscar = '''        previas = [i for i in self._memoria._items if _predicado_identidad(user_id, identidad, False)(i)]
+        ultima = max('''
+sustituir = '''        previas = [i for i in self._memoria._items if _predicado_identidad(user_id, identidad)(i)]
+        ultima = max('''
 
 [[mutante]]
 id = "HV-M9"
@@ -78,8 +82,9 @@ sustituir = '''            ts = time.time()'''
 id = "HV-M10"
 garantia = "la lectura ignora la vigencia: la respuesta vuelve a depender del ORDEN de llegada"
 fichero = "aura_skeleton/core/orchestrator.py"
-buscar = '''        hechos = [e for e in vivas
-                  if e.get("clase") == ClaseSenal.HECHO_DECLARADO.value and e.get("valid_until") is None]'''
+buscar = '''        hechos = [
+            e for e in vivas if e.get("clase") == ClaseSenal.HECHO_DECLARADO.value and e.get("valid_until") is None
+        ]'''
 sustituir = '''        hechos = [e for e in vivas if e.get("clase") == ClaseSenal.HECHO_DECLARADO.value]'''
 
 [[mutante]]

@@ -1,0 +1,169 @@
+incremento = "Fase 1 de DP-RESIDENCIA-MEDICION-CM2: audit log con varios escritores (cerrojo flock, seq bajo cerrojo, cola truncada, huerfanos, escritura parcial). 2026-11-05."
+# NO ejecutado por la sesion que lo escribio: lo corre el orquestador con `python3 -m herramientas.mutar mutaciones/audit-multiescritor.toml`, sin nada en paralelo.
+# Las pruebas nuevas lanzan subprocesos reales (R1/R2 ~1 s cada una); el fichero de rotacion protege que el sellado sigue igual en un solo proceso.
+pruebas = ["tests/integration/test_audit_multiescritor.py", "tests/integration/test_audit_manifiesto_parcial.py", "tests/unit/test_rotacion_audit_log.py", "tests/integration/test_reloj_cm2_integracion.py"]
+timeout_s = 600
+
+# X1 y X4 dependen de una CARRERA: las pruebas R1/R2 la provocan con barrera de arranque, pero un
+# superviviente aislado en X4 pide repetir la bateria antes de declarar que falta una prueba.
+
+[[mutante]]
+id = "X1"
+garantia = "el seq cacheado se usa sin comprobar inodo/tamano con fstat: un escritor deja de releer lo que otro escribio"
+fichero = "aura_skeleton/observability.py"
+buscar = '''        if self._cache is not None and self._cache[1] == ino and self._cache[2] == size:'''
+sustituir = '''        if self._cache is not None:'''
+
+[[mutante]]
+id = "X2"
+garantia = "escribir con LOCK_SH en vez de LOCK_EX: dos escritores entran a la vez (o uno entra mientras un lector lee)"
+fichero = "aura_skeleton/observability.py"
+buscar = '''    def append(self, record: dict) -> None:
+        with _cerrojo(self._path, fcntl.LOCK_EX):'''
+sustituir = '''    def append(self, record: dict) -> None:
+        with _cerrojo(self._path, fcntl.LOCK_SH):'''
+
+[[mutante]]
+id = "X3"
+garantia = "escribir fuera del cerrojo: append no espera ni excluye a nadie"
+fichero = "aura_skeleton/observability.py"
+buscar = '''        with _cerrojo(self._path, fcntl.LOCK_EX):
+            self._cerrar_cola_truncada()
+            self._escribir_registro(record)
+            if os.path.getsize(self._path) >= self._umbral:
+                self._sellar()'''
+sustituir = '''        self._cerrar_cola_truncada()
+        self._escribir_registro(record)
+        if os.path.getsize(self._path) >= self._umbral:
+            self._sellar()'''
+
+[[mutante]]
+id = "X4"
+garantia = "rotar fuera del cerrojo: el sellado compite con el append del otro escritor"
+fichero = "aura_skeleton/observability.py"
+buscar = '''            self._cerrar_cola_truncada()
+            self._escribir_registro(record)
+            if os.path.getsize(self._path) >= self._umbral:
+                self._sellar()'''
+sustituir = '''            self._cerrar_cola_truncada()
+            self._escribir_registro(record)
+        if os.path.getsize(self._path) >= self._umbral:
+            self._sellar()'''
+
+[[mutante]]
+id = "X5"
+garantia = "volver a truncar con open(path, 'w') tras sellar: el activo reaparece vacio (y se pisaria lo de otro escritor)"
+fichero = "aura_skeleton/observability.py"
+buscar = '''        _fsync_dir(_dir_de(self._path))
+        self._cache = None'''
+sustituir = '''        _fsync_dir(_dir_de(self._path))
+        open(self._path, "w").close()
+        self._cache = None'''
+
+[[mutante]]
+id = "X6"
+garantia = "no cerrar la cola truncada: el registro siguiente se fusiona con la linea parcial y se pierde"
+fichero = "aura_skeleton/observability.py"
+buscar = '''                if f.read(1) == b"\n":'''
+sustituir = '''                if True:'''
+
+[[mutante]]
+id = "X7"
+garantia = "no reconciliar huerfanos: un segmento renombrado y sin anotar queda invisible"
+fichero = "aura_skeleton/observability.py"
+buscar = '''    return [n for n in nombres if n not in anotados and re.fullmatch(patron, n)]'''
+sustituir = '''    return []'''
+
+[[mutante]]
+id = "X8"
+garantia = "tragar la escritura parcial: se da por escrito un registro que no lo esta y se consume su seq"
+fichero = "aura_skeleton/observability.py"
+buscar = '''            if escritos != len(datos):'''
+sustituir = '''            if False:'''
+
+[[mutante]]
+id = "X9"
+garantia = "quitar el fsync del fichero tras escribir: la anexion deja de sobrevivir a un corte de energia"
+fichero = "aura_skeleton/observability.py"
+buscar = '''            os.fsync(fd)
+            st = os.fstat(fd)'''
+sustituir = '''            st = os.fstat(fd)'''
+
+[[mutante]]
+id = "X10"
+garantia = "el lector crea el .lock (O_RDONLY -> O_RDWR|O_CREAT): leer deja efectos en disco"
+fichero = "aura_skeleton/observability.py"
+buscar = '''banderas=os.O_RDONLY)'''
+sustituir = '''banderas=os.O_RDWR | os.O_CREAT)'''
+
+[[mutante]]
+id = "X11"
+garantia = "__init__ toma el cerrojo siempre: construir un AuditLog en un directorio vacio crea el .lock"
+fichero = "aura_skeleton/observability.py"
+buscar = '''        if _candidatos_huerfanos(path):
+            with _cerrojo'''
+sustituir = '''        if True:
+            with _cerrojo'''
+
+[[mutante]]
+id = "X12"
+garantia = "_max_seq no cuenta los huerfanos aun sin anotar: un escritor vivo reutiliza el seq de un segmento cuyo sellador murio"
+fichero = "aura_skeleton/observability.py"
+buscar = '''    for _nombre, registros in _huerfanos_validos(path)[0]:'''
+sustituir = '''    for _nombre, registros in []:'''
+
+[[mutante]]
+id = "X13"
+garantia = "quitar O_NOFOLLOW al abrir el activo: se escribe a traves de un symlink plantado"
+fichero = "aura_skeleton/observability.py"
+buscar = '''        fd = os.open(self._path, os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW, 0o600)'''
+sustituir = '''        fd = os.open(self._path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)'''
+
+[[mutante]]
+id = "X14"
+garantia = "no validar el rango del nombre contra el contenido: un fichero plantado se anota y empuja el seq"
+fichero = "aura_skeleton/observability.py"
+buscar = '''        if m is None or (int(m.group(1)), int(m.group(2))) != (min(seqs), max(seqs)):'''
+sustituir = '''        if m is None:'''
+
+[[mutante]]
+id = "X15"
+garantia = "quitar el fsync del directorio tras sellar: el renombrado no es duradero"
+fichero = "aura_skeleton/observability.py"
+buscar = '''        _fsync_dir(_dir_de(self._path))
+        self._cache = None'''
+sustituir = '''        self._cache = None'''
+
+[[mutante]]
+id = "X16"
+garantia = "los lectores publicos dejan de tomar LOCK_SH: ven un sellado a medias y no esperan a un escritor"
+fichero = "aura_skeleton/observability.py"
+buscar = '''    with _cerrojo_lectura(path):
+        for s in _leer_fichero'''
+sustituir = '''    with contextlib.nullcontext():
+        for s in _leer_fichero'''
+
+# --- Hallazgo posterior: escritura parcial del MANIFIESTO (2026-11-05) -------------------------
+
+[[mutante]]
+id = "X17"
+garantia = "no cerrar la cola del manifiesto: la entrada siguiente se fusiona con el fragmento y el segmento queda invisible"
+fichero = "aura_skeleton/observability.py"
+buscar = '''        cola_abierta = _cola_sin_salto(manifiesto)'''
+sustituir = '''        cola_abierta = False'''
+
+[[mutante]]
+id = "X18"
+garantia = "cerrar la cola del manifiesto sin dejar constancia en el audit (INV-9: ninguna recuperacion silenciosa)"
+fichero = "aura_skeleton/observability.py"
+buscar = '''        if cola_abierta:
+            self._escribir_registro('''
+sustituir = '''        if False:
+            self._escribir_registro('''
+
+[[mutante]]
+id = "X19"
+garantia = "comprobar la cola del ACTIVO en vez de la del manifiesto: el fragmento del manifiesto nunca se cierra"
+fichero = "aura_skeleton/observability.py"
+buscar = '''        cola_abierta = _cola_sin_salto(manifiesto)'''
+sustituir = '''        cola_abierta = _cola_sin_salto(self._path)'''

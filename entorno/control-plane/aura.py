@@ -53,9 +53,10 @@ import descubrimiento as des
 import motor_autonomia as motor
 import observatorio as obs
 
-#: Terminaciones que **no** son un problema: se hizo el trabajo, o no habia. Cualquier otra parada
-#: la mira alguien.
-PARADAS_NORMALES = ("cola agotada", "limite de seguridad")
+#: Terminaciones que **no** son un problema: se hizo el trabajo, no habia, u **otro ciclo lo esta haciendo**
+#: (supervisor unico por log, DP-RECUPERACION-TRAS-CAIDAS: con el cron cada 30 min, solaparse con un ciclo largo es
+#: lo esperable, no un fallo). Cualquier otra parada la mira alguien.
+PARADAS_NORMALES = ("cola agotada", "limite de seguridad", "otro supervisor en curso")
 
 SALIDA_OK = 0
 SALIDA_PARADA = 2

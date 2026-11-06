@@ -35,6 +35,10 @@ CATALOGO: dict[str, dict] = {
     "organizacion": {"lista": "verde", "efecto": "interno", "desc": "planificar organizacion (dry-run)"},
     "encender_dispositivo": {"lista": "verde", "efecto": "reversible", "desc": "encender dispositivo"},
     "apagar_dispositivo": {"lista": "verde", "efecto": "reversible", "desc": "apagar dispositivo"},
+    "subir_volumen": {"lista": "verde", "efecto": "reversible", "desc": "subir el volumen de un dispositivo"},
+    "bajar_volumen": {"lista": "verde", "efecto": "reversible", "desc": "bajar el volumen de un dispositivo"},
+    "silenciar": {"lista": "verde", "efecto": "reversible", "desc": "silenciar un dispositivo"},
+    "quitar_silencio": {"lista": "verde", "efecto": "reversible", "desc": "quitar el silencio de un dispositivo"},
     # --- Computador: solo lectura (M2) ---
     "buscar_archivo": {"lista": "verde", "efecto": "lectura", "desc": "buscar por nombre o patron"},
     "listar_directorio": {"lista": "verde", "efecto": "lectura", "desc": "listar contenido"},
@@ -94,14 +98,23 @@ CATALOGO: dict[str, dict] = {
     # permite eximir del HITL a una accion roja—. Esta clase expresa la politica sin tocar ninguna
     # de las dos garantias: la regla estructural habla de VERDE, ADR-0003 habla de ROJA.
     "registrar_informacion_usuario": {
-        "lista": "soberania", "efecto": "altera", "sujeto": "usuario",
-        "desc": "registrar informacion sobre la persona"},
+        "lista": "soberania",
+        "efecto": "altera",
+        "sujeto": "usuario",
+        "desc": "registrar informacion sobre la persona",
+    },
     "olvidar_informacion_usuario": {
-        "lista": "soberania", "efecto": "destruye", "sujeto": "usuario",
-        "desc": "olvidar informacion sobre la persona"},
+        "lista": "soberania",
+        "efecto": "destruye",
+        "sujeto": "usuario",
+        "desc": "olvidar informacion sobre la persona",
+    },
     "refutar_informacion_usuario": {
-        "lista": "soberania", "efecto": "altera", "sujeto": "usuario",
-        "desc": "marcar como refutada informacion sobre la persona"},
+        "lista": "soberania",
+        "efecto": "altera",
+        "sujeto": "usuario",
+        "desc": "marcar como refutada informacion sobre la persona",
+    },
 }
 
 # Fuente unica de verdad: las listas se DERIVAN del catalogo, no se mantienen en paralelo.

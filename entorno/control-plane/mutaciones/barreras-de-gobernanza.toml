@@ -1,0 +1,48 @@
+incremento = "BARRERAS DE GOBERNANZA (2026-09-21): cuatro mecanismos que sostienen la autoridad del plano y no tenian ningun mutante que los protegiera"
+pruebas = ["test_control_plane.py", "test_modelo_orquestador.py", "test_red_estancamiento.py", "test_red_f1_orquestador.py", "test_red_motor_autonomia.py", "test_red_vocabulario_constructivo.py"]
+timeout_s = 600
+
+# POR QUE ESTE CATALOGO EXISTE.
+#
+# Auditado el 2026-09-21: el plano tenia 41 mutantes para ~1100 pruebas, y **ninguno** degradaba
+# cuatro de los mecanismos que sostienen su gobernanza — `ESTADOS_SOLO_HUMANO` dentro de
+# `validar_transicion`, `verificar_integridad_log`, `_MATERIA_RESERVADA` y el tope duro `MAX_TAREAS`.
+# Existian pruebas que los ejercitaban; lo que faltaba era la **red**: la comprobacion de que si
+# alguien los desactivara, alguna prueba se enteraria.
+#
+# La distincion importa y es la leccion repetida de este proyecto: una prueba que pasa demuestra que
+# el camino feliz funciona; solo un mutante que muere demuestra que la barrera **protege**.
+#
+# Estos mutantes no cambian ninguna politica ni conceden nada.
+
+[[mutante]]
+id = "BG-M1"
+garantia = "SOLO UN HUMANO SACA UNA TAREA DE `DECISION_REQUIRED`. Sin esta rama, un adaptador podria auto-desbloquear lo que el CEO tiene reservado — la escalada de autoridad por la puerta de los estados"
+fichero = "control_plane.py"
+pruebas = ["test_red_f1_orquestador.py::test_a5_DECISION_REQUIRED_no_se_resuelve_sin_acto_humano"]
+buscar = '''    if previo in ESTADOS_SOLO_HUMANO and autoridad not in AUTORIDADES_HUMANAS:'''
+sustituir = '''    if False:  # cualquiera puede salir de un estado reservado al humano'''
+
+[[mutante]]
+id = "BG-M2"
+garantia = "LA CADENA DEL HISTORIAL SE VERIFICA DE VERDAD: si `verificar_integridad_log` declarase integro cualquier log, ADR-0023 —«el historial es la unica fuente de verdad»— quedaria sin sostener y un log manipulado pasaria por bueno"
+fichero = "control_plane.py"
+pruebas = ["test_control_plane.py", "test_red_f1_orquestador.py"]
+buscar = '''        if evento.get("hash") != _hash_de(evento):'''
+sustituir = '''        if False:  # el hash de cada evento deja de comprobarse'''
+
+[[mutante]]
+id = "BG-M3"
+garantia = "LA MATERIA RESERVADA SE CONSULTA: `es_materia_reservada` decide si una accion toca lo que `D22` reserva al CEO —entre ello `crear_autoridad`—. Si devolviera siempre `False`, la reserva existiria escrita y no se aplicaria"
+fichero = "review.py"
+pruebas = ["test_red_criterios_22.py", "test_red_review.py"]
+buscar = '''    return accion in _MATERIA_RESERVADA'''
+sustituir = '''    return False  # nada es materia reservada'''
+
+[[mutante]]
+id = "BG-M4"
+garantia = "EL TOPE DURO DE TAREAS MANDA SOBRE LO QUE PIDA EL LLAMANTE: `min(max_tareas, MAX_TAREAS)` impide que una peticion grande convierta el ciclo en un bucle sin cota. Un motor que decide solo cuando parar es el demonio que ningun DP autoriza"
+fichero = "motor_autonomia.py"
+pruebas = ["test_red_motor_autonomia.py::test_el_TOPE_DURO_manda_sobre_lo_que_pida_el_llamante", "test_red_motor_autonomia.py::test_CONTROL_una_peticion_PEQUENA_no_la_aplasta_el_tope"]
+buscar = '''    tope = min(int(max_tareas), MAX_TAREAS)'''
+sustituir = '''    tope = int(max_tareas)  # el tope duro deja de aplicarse'''

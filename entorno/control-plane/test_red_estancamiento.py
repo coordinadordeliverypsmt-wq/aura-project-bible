@@ -71,8 +71,13 @@ def _ciclo_con_progreso(d, ident="P-1", fichero="x.py", simbolo="_muerta"):
     cp.registrar_evento(d, "propuesta_registrada", {
         "id": ident, "fichero": fichero, "simbolo": simbolo, "forma": "funcion",
         "estado": "PROPUESTA", "autorizada": False, "linea": None, "motivo": "bajo REVIEW"})
-    cp.registrar_evento(d, "propuesta_autorizada", {
-        "id": ident, "autorizada_por": "REVIEW:auditor-consistencia", "acta": "acta"})
+    # Por la puerta gobernada (acta del CEO, 2026-09-20): el evento dejo de aceptarse en
+    # crudo. Encender REVIEW antes no es andamiaje: es lo que hace produccion, y sin ello la
+    # autoridad `REVIEW:<revisor>` no vale — vale por el acta que la enciende.
+    if not cp.alcance_de_review(d):
+        cp.registrar_review_habilitado(d, por="ceo", acta="acta", alcance=("eliminar_codigo_muerto",))
+    cp.registrar_propuesta_autorizada(d, ident,
+                                      autorizada_por="REVIEW:auditor-consistencia", acta="acta")
     cp.registrar_evento(d, "cambio_aplicado", {
         "id": ident, "fichero": fichero, "simbolo": simbolo, "efecto_verificado": True,
         "verificacion_sana": True, "revertido": False, "autoridad": "orquestador"})

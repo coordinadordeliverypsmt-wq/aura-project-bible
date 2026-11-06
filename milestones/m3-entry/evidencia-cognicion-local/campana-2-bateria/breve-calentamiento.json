@@ -1,0 +1,22 @@
+{
+  "caso": "calentamiento",
+  "tipo": "calentamiento",
+  "variante": "actual",
+  "texto": "que es un volcan?",
+  "reloj_s": 31.27,
+  "total_s": 31.2,
+  "carga_s": 0.55,
+  "ingesta_tokens": 158,
+  "ingesta_s": 2.49,
+  "generacion_tokens": 70,
+  "generacion_s": 28.15,
+  "generacion_tok_s": 2.487,
+  "motivo_fin": "stop",
+  "json_valido": true,
+  "claves": [
+    "action",
+    "say"
+  ],
+  "say": "Un volcan es un fuente de lava y gas en las zonas interiores del planeta que desciende desde los altos montañas hasta los nidos de pueblos, a través de canales fluviales. También se conoce como caos o cao.",
+  "respuesta_cruda": "{\"say\": \"Un volcan es un fuente de lava y gas en las zonas interiores del planeta que desciende desde los altos montañas hasta los nidos de pueblos, a través de canales fluviales. También se conoce como caos o cao.\",\"action\":\"consulta\"}"
+}

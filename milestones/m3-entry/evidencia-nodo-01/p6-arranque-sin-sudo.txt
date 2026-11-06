@@ -1,0 +1,9 @@
+## Prueba 6 — ruta de arranque sin sudo instalada en el nodo (runsvdir de usuario + @reboot) · 2026-10-04T05:13:53-05:00
+sudo sin contraseña: no
+crontab:
+@reboot /usr/bin/runsvdir -P /home/MariaJose/.aura-nodo/servicios
+runsvdir del usuario: /usr/bin/runsvdir -P /home/MariaJose/.aura-nodo/servicios
+/usr/bin/runsvdir -P /home/MariaJose/.aura-nodo/servicios
+total 0
+lrwxrwxrwx 1 MariaJose MariaJose 39 oct  4 04:55 aura-nodo -> /home/MariaJose/.aura-nodo/sv/aura-nodo
+PENDIENTE: el reinicio físico del equipo (no demostrado todavía).

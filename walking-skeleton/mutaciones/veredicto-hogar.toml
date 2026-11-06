@@ -1,0 +1,193 @@
+incremento = "Veredicto de hogar veraz: estados reconocidos, errores HTTP distinguidos, idempotencia y textos honestos"
+pruebas = [
+    "tests/unit/test_home_assistant_real.py",
+    "tests/integration/test_voz_accion_opcion_c.py",
+    "tests/integration/test_volumen_tv.py",
+    "tests/integration/test_hogar_en_conversacion.py",
+]
+
+[[mutante]]
+id = "VH1"
+garantia = "playing deja de contar como encendida: una TV reproduciendo se ve como inaccesible"
+fichero = "aura_skeleton/core/hogar.py"
+buscar = '''ESTADOS_ENCENDIDA = frozenset({"on", "playing", "paused", "idle"})'''
+sustituir = '''ESTADOS_ENCENDIDA = frozenset({"on", "paused", "idle"})'''
+
+[[mutante]]
+id = "VH2"
+garantia = "standby deja de contar como apagada: una TV en espera se ve como inaccesible"
+fichero = "aura_skeleton/core/hogar.py"
+buscar = '''ESTADOS_APAGADA = frozenset({"off", "standby"})'''
+sustituir = '''ESTADOS_APAGADA = frozenset({"off"})'''
+
+[[mutante]]
+id = "VH3"
+garantia = "una orden sobre algo que ya estaba en el estado pedido se da por verificada"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''verificado = despues in pedido and antes not in pedido'''
+sustituir = '''verificado = despues in pedido'''
+
+[[mutante]]
+id = "VH4"
+garantia = "un estado no reconocido (unavailable) se envia igualmente aunque no pueda comprobarse"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''        if antes not in ESTADOS_ENCENDIDA | ESTADOS_APAGADA:'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "VH5"
+garantia = "el volumen se envia a una TV inaccesible (estado no reconocido)"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''        if antes not in ESTADOS_ENCENDIDA:
+            raise OrdenNoAdmisible(_no_accesible(nombre, antes))'''
+sustituir = '''        if False:
+            raise OrdenNoAdmisible(_no_accesible(nombre, antes))'''
+
+[[mutante]]
+id = "VH6"
+garantia = "el volumen se envia a una TV apagada"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''        if antes in ESTADOS_APAGADA:
+            espera'''
+sustituir = '''        if False:
+            espera'''
+
+[[mutante]]
+id = "VH7"
+garantia = "un rechazo HTTP de HA al enviar se cuenta como «no respondio» (HogarSinRespuesta)"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''            raise HogarOrdenRechazada('''
+sustituir = '''            raise HogarSinRespuesta('''
+
+[[mutante]]
+id = "VH8"
+garantia = "el HTTP 5xx se describe como rechazo y el 4xx como fallo interno (comparacion invertida)"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''e.code >= 500 else "rechazó"'''
+sustituir = '''e.code < 500 else "rechazó"'''
+
+[[mutante]]
+id = "VH9"
+garantia = "un HTTPError al releer el estado se cuenta como «no respondio» en vez de «respondio HTTP n»"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''        except urllib.error.HTTPError as e:
+            raise HogarSinRespuesta(
+                f"Home Assistant respondió HTTP {e.code} al comprobar'''
+sustituir = '''        except ZeroDivisionError as e:
+            raise HogarSinRespuesta(
+                f"Home Assistant respondió HTTP {e.code} al comprobar'''
+
+[[mutante]]
+id = "VH10"
+garantia = "un HTTPError al buscar el dispositivo se cuenta como «no respondio» (se pierde el codigo HTTP)"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''            if isinstance(e, urllib.error.HTTPError) and e.code not in (401, 403):'''
+sustituir = '''            if False:'''
+
+[[mutante]]
+id = "VH11"
+garantia = "los atributos malformados (no dict) se usan tal cual y revientan o mienten"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''    return atributos if isinstance(atributos, dict) else {}'''
+sustituir = '''    return atributos'''
+
+[[mutante]]
+id = "VH12"
+garantia = "sin relectura legible el valor posterior se rellena con el anterior (parece «no cambio» legible)"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''valor_despues = _atributos(actual).get(atributo)  # sin'''
+sustituir = '''valor_despues = _atributos(actual).get(atributo, valor_antes)  # sin'''
+
+[[mutante]]
+id = "VH13"
+garantia = "la verificacion del volumen ya no exige evidencia distinta de «ninguna»"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''verificado = cambio and evidencia == "estado_ha_tras_orden" and not ya_en_estado'''
+sustituir = '''verificado = cambio and not ya_en_estado'''
+
+[[mutante]]
+id = "VH14"
+garantia = "silenciar lo ya silenciado nunca se reconoce como «ya estaba»"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''            cambio and evidencia == "estado_ha_tras_orden" and isinstance(esperado, bool) and valor_antes == esperado'''
+sustituir = '''            False'''
+
+[[mutante]]
+id = "VH15"
+garantia = "un nombre/estado externo largo entra sin acotar en el texto para la persona"
+fichero = "aura_skeleton/core/hogar.py"
+buscar = '''    return limpio if len(limpio) <= tope else limpio[:tope] + "…"'''
+sustituir = '''    return limpio'''
+
+[[mutante]]
+id = "VH16"
+garantia = "los caracteres de control (ESC) de un dato externo entran en el texto para la persona"
+fichero = "aura_skeleton/core/hogar.py"
+buscar = '''c if ord(c) >= 32 and ord(c) != 127 else " "'''
+sustituir = '''c'''
+
+[[mutante]]
+id = "VH17"
+garantia = "un rechazo previo al envio quema el event_id: ya no se puede reintentar"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''            if event_id not in self._enviados:
+                self._hechos.discard(event_id)'''
+sustituir = '''            if False:
+                self._hechos.discard(event_id)'''
+
+[[mutante]]
+id = "VH18"
+garantia = "un evento cuya orden SI salio se libera tras el fallo: el reintento duplica el efecto fisico"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''            if event_id not in self._enviados:
+                self._hechos.discard(event_id)'''
+sustituir = '''            if True:
+                self._hechos.discard(event_id)'''
+
+[[mutante]]
+id = "VH19"
+garantia = "la rama «ya veia» del texto desaparece: lo que ya estaba se cuenta como «no cambio»/«no el estado pedido»"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''    if detalle.get("ya_en_estado"):
+        if antes == despues:
+            return f"Home Assistant ya veía {objetivo} {ahora}'''
+sustituir = '''    if False:
+        if antes == despues:
+            return f"Home Assistant ya veía {objetivo} {ahora}'''
+
+[[mutante]]
+id = "VH20"
+garantia = "pasar de un estado encendido a otro encendido (playing->on) se dice «no el estado pedido» en vez de «ya veia»"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''ya_en_estado = antes in pedido and despues in pedido'''
+sustituir = '''ya_en_estado = antes == despues'''
+
+[[mutante]]
+id = "VH21"
+garantia = "el exito de encender/apagar vuelve a afirmar «lo he comprobado» (texto antiguo, sobreafirma)"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''return f"Listo: Home Assistant ve {humano} {_estado_humano(detalle.get('estado_despues'))}."'''
+sustituir = '''return f"Listo: Home Assistant ve {humano} {_estado_humano(detalle.get('estado_despues'))}; lo he comprobado."'''
+
+[[mutante]]
+id = "VH22"
+garantia = "encender/apagar ignora assumed_state: un estado optimista de SmartIR se verifica sin haber leido el aparato"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''        verificado = despues in pedido and antes not in pedido and not asumido'''
+sustituir = '''        verificado = despues in pedido and antes not in pedido'''
+
+[[mutante]]
+id = "VH23"
+garantia = "volumen/silencio ignora assumed_state: se verifica un valor que HA solo supone"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''        if asumido:
+            evidencia = "estado_asumido_por_ha"'''
+sustituir = '''        if False:
+            evidencia = "estado_asumido_por_ha"'''
+
+[[mutante]]
+id = "VH24"
+garantia = "el texto de un estado asumido vuelve a decir «Listo»: se afirma lo que HA solo supone"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''    if detalle.get("verificado") is True and detalle.get("evidencia") != "estado_asumido_por_ha":'''
+sustituir = '''    if detalle.get("verificado") is True or detalle.get("evidencia") == "estado_asumido_por_ha":'''

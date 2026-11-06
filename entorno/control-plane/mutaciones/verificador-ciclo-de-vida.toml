@@ -1,0 +1,141 @@
+incremento = '''Ciclo de vida de los procesos del verificador (2026-10-06): interrupción, descendientes, muerte del llamante y arnés durante la medición'''
+# Ejecutar: cd walking-skeleton && python3 -m herramientas.mutar ../entorno/control-plane/mutaciones/verificador-ciclo-de-vida.toml --raiz ../entorno/control-plane
+pruebas = ["test_red_verificador_ciclo_de_vida.py"]
+timeout_s = 300
+
+[[mutante]]
+id = "VV-M1"
+garantia = '''una interrupción vuelve a dejar a pytest huérfano'''
+fichero = "verificador.py"
+buscar = '''        if proceso is not None and proceso.poll() is None:
+            _matar_arbol(proceso)'''
+sustituir = '''        if False:
+            _matar_arbol(proceso)'''
+
+[[mutante]]
+id = "VV-M2"
+garantia = '''sin la foto de descendientes, quien abrió su propia sesión sobrevive al killpg'''
+fichero = "verificador.py"
+buscar = '''        nuevos = [(pid, inicio) for pid, inicio in _descendientes(proceso.pid) if pid not in vistos]'''
+sustituir = '''        nuevos: list[tuple[int, str]] = []'''
+
+[[mutante]]
+id = "VV-M3"
+garantia = '''se señala un PID sin comprobar que sigue siendo el mismo proceso (PID reutilizado)'''
+fichero = "verificador.py"
+buscar = '''        if not (campos and len(campos) > 19 and campos[19] == inicio):
+            return'''
+sustituir = '''        if False:
+            return'''
+
+[[mutante]]
+id = "VV-M4"
+garantia = '''pytest no muere con quien lo lanzó: SIGTERM o SIGKILL al llamante lo dejan huérfano'''
+fichero = "verificador.py"
+buscar = '''            if _PRCTL(1, int(signal.SIGKILL), 0, 0, 0) != 0:  # 1 = PR_SET_PDEATHSIG'''
+sustituir = '''            if False:'''
+
+[[mutante]]
+id = "VV-M5"
+garantia = '''componer la muerte con el padre se come el confinamiento de aislamiento'''
+fichero = "verificador.py"
+buscar = '''        if callable(confinar):
+            confinar()'''
+sustituir = '''        pass'''
+
+[[mutante]]
+id = "VV-M6"
+garantia = '''no se vigila el arnés DURANTE la batería: un arnés que arranca y termina dentro no se ve'''
+fichero = "verificador.py"
+buscar = '''            if _arnes_corriendo():
+                raise ArnesEnCurso("el arnes de mutacion arranco durante la medicion: se detiene la bateria")'''
+sustituir = '''            pass'''
+
+[[mutante]]
+id = "VV-M7"
+garantia = '''no se mira el arnés al terminar: una medición sobre un mutante se da por buena'''
+fichero = "verificador.py"
+buscar = '''        if _arnes_corriendo():
+            # El arnes arranco mientras corria la bateria: lo medido puede ser un mutante.'''
+sustituir = '''        if False:
+            # El arnes arranco mientras corria la bateria: lo medido puede ser un mutante.'''
+
+[[mutante]]
+id = "VV-M8"
+garantia = '''sin pidfd (ENOSYS) el descendiente ya no se mata'''
+fichero = "verificador.py"
+buscar = '''    except OSError:
+        fd = None'''
+sustituir = '''    except OSError:
+        raise'''
+
+[[mutante]]
+id = "VV-M9"
+garantia = '''al agotar el plazo no se mata el árbol'''
+fichero = "verificador.py"
+buscar = '''        if restante <= 0:
+            _matar_arbol(proceso)'''
+sustituir = '''        if restante <= 0:
+            pass'''
+
+[[mutante]]
+id = "VV-M10"
+garantia = '''una excepción durante la foto deja el grupo CONGELADO para siempre (la muerte fuera del finally)'''
+fichero = "verificador.py"
+buscar = '''    finally:
+        # Pase lo que pase en la foto'''
+sustituir = '''    except BaseException:
+        raise
+    if True:
+        # Pase lo que pase en la foto'''
+
+[[mutante]]
+id = "VV-M11"
+garantia = '''un OSError inesperado al señalar a uno corta la muerte del resto'''
+fichero = "verificador.py"
+buscar = '''    except OSError:
+        pass  # ya no existe'''
+sustituir = '''    except (ProcessLookupError, PermissionError):
+        pass  # ya no existe'''
+
+[[mutante]]
+id = "VV-M12"
+garantia = '''sin barrido final, un descendiente desvinculado por doble fork sobrevive al verificador'''
+fichero = "verificador.py"
+buscar = '''        _barrer_marcados(marca)
+        shutil.rmtree(temporal, ignore_errors=True)'''
+sustituir = '''        shutil.rmtree(temporal, ignore_errors=True)'''
+
+[[mutante]]
+id = "VV-M13"
+garantia = '''el hijo no lleva la marca: el barrido no encuentra a nadie'''
+fichero = "verificador.py"
+buscar = '''    entorno[_VARIABLE_MARCA] = marca
+'''
+sustituir = '''
+'''
+
+[[mutante]]
+id = "VV-M14"
+garantia = '''el barrido congela y no mata: los marcados quedan parados para siempre'''
+fichero = "verificador.py"
+buscar = '''    finally:
+        for pid, inicio in vistos.items():
+            _senal_si_es_el_mismo(pid, inicio, signal.SIGKILL)
+
+
+def _estado_proc'''
+sustituir = '''    finally:
+        pass
+
+
+def _estado_proc'''
+
+[[mutante]]
+id = "VV-M15"
+garantia = '''la marca se filtra al entorno del propio plano'''
+fichero = "verificador.py"
+buscar = '''    entorno[_VARIABLE_MARCA] = marca
+'''
+sustituir = '''    entorno[_VARIABLE_MARCA] = os.environ[_VARIABLE_MARCA] = marca
+'''

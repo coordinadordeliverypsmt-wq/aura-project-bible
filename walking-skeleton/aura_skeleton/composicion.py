@@ -20,13 +20,17 @@ propio en otro fichero reabre exactamente el agujero que MA.1 cierra.
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from . import observability as obs
+from .adapters.detector_hardware import DetectorHardwareLocal
 from .adapters.estado_autonomo_cp import crear_fuente_estado_autonomo
 from .adapters.hitl_consola import confirmar_por_consola
 from .adapters.home_assistant import HomeAssistantMock
+from .adapters.receptor_nodos import crear_vigia_nodos
 from .adapters.voice import VoiceAdapterMock
 from .artefactos import ModelResolver
 from .bus import InProcessEventBus
@@ -43,6 +47,7 @@ from .core.catalogo_capacidades import catalogo
 from .core.conectores_externos import habilitar
 from .core.contexto import RegistroContexto
 from .core.decisiones import AlmacenDecisiones, reabrir_aprobadas
+from .core.detectores import DetectorHardware
 from .core.director import DirectorGeneral, RegistroEjecutores
 from .core.ejecutor_modelo_usuario import EjecutorModeloUsuario
 from .core.ejecutor_reglas import EjecutorReglas
@@ -61,13 +66,16 @@ from .modules.memory_semantic import SemanticMemory
 from .modules.providers_real import OllamaProvider
 from .modules.router import ModelRouter
 
+if TYPE_CHECKING:
+    from .adapters.tts_espeak import SintetizadorEspeak
+
 
 class _PerfilInyectado:
-    """DetectorHardware del arranque: devuelve el perfil que trae `Configuracion`.
+    """DetectorHardware de inyeccion: devuelve el perfil que trae `Configuracion`.
 
-    Cableado, no arquitectura: implementa el contrato ya aprobado (`DetectorHardware`) para que el
-    Builder tenga de donde tomar las metricas. El detector REAL —el que mide capacidad efectiva con
-    pruebas (D44)— es **latente-prevista**: requiere hardware para construirse y validarse.
+    Es la inyeccion para PRUEBAS y el respaldo cuando `Configuracion.detector` es None. El detector REAL
+    (`adapters.detector_hardware.DetectorHardwareLocal`) ya existe y se activa en el camino de producto
+    (`Configuracion.desde_entorno()`). Con perfil vacio el Manager decide con `ram_mb = 0`.
     """
 
     def __init__(self, perfil: PerfilHardware) -> None:
@@ -77,11 +85,33 @@ class _PerfilInyectado:
         return self._perfil
 
 
+def _sin_metricas(detector: DetectorHardware | None) -> str:
+    """Causa REAL de un perfil vacio: sin detector es inyeccion; con detector es que no entrego metricas."""
+    if detector is None:
+        return "perfil de hardware: sin métricas (inyectado vacío)"
+    return "perfil de hardware: el detector de hardware no entregó métricas (ver WARN)"
+
+
 # Directorio por defecto del artefacto de embeddings de N2: una ubicacion estandar de AURA que contiene
 # el modelo + su `manifiesto.json` (ADR-0022). Hoy normalmente ausente -> N2 se materializa como N1.
 # Configurable por AURA_EMBED_MODEL_DIR sin editar codigo (D24); cambiar de modelo = apuntar a otro
 # directorio con su propio manifiesto (sin tocar codigo).
 _MODELO_EMBED_DEFECTO = "~/.aura/models/paraphrase-multilingual-MiniLM-L12-v2"
+
+
+def _sintetizador_de_entorno(env) -> SintetizadorEspeak | None:
+    """Motor de síntesis pedido por `AURA_TTS_MOTOR`: None = Piper (defecto), «espeak» = espeak-ng.
+
+    Un valor desconocido NO falla el arranque: se dice (auditado) y se sigue con Piper (`INV-9`)."""
+    motor = env.get("AURA_TTS_MOTOR", "piper")
+    if motor == "piper":
+        return None
+    if motor == "espeak":
+        from .adapters.tts_espeak import SintetizadorEspeak
+
+        return SintetizadorEspeak(voz=env.get("AURA_ESPEAK_VOZ", "es"))
+    obs.log("BOOT", "composicion", f"motor de voz desconocido {motor!r}; se usa piper", "-", audit=True)
+    return None
 
 
 @dataclass(frozen=True)
@@ -210,8 +240,9 @@ class Configuracion:
     # NINGUNO. Es configuracion del usuario, no una lista blanca en el Core (ADR-0015).
     conectores_externos_habilitados: frozenset[str] = field(default_factory=frozenset)
     # Perfil de capacidad efectiva (D44) que el Capability Manager evalua. Por defecto CONSERVADOR
-    # (recursos vacios) -> las capacidades operan en su nivel minimo. La deteccion real de hardware es
-    # una capacidad latente-prevista (DetectorPerfil): C1/C2 no la implementan; el perfil se inyecta.
+    # (recursos vacios) -> las capacidades operan en su nivel minimo. La deteccion real YA existe
+    # (`detector`, activo en el camino de producto via `desde_entorno`); `perfil` sigue siendo la
+    # inyeccion para pruebas y solo se usa cuando `detector` es None.
     perfil: PerfilHardware = field(default_factory=PerfilHardware)
     # Timeout del proveedor LLM (D-FC-7): declarado, no oculto en el constructor de `OllamaProvider`.
     # `fuente_timeout_proveedor` distingue "vino de tu entorno" de "es el defecto del codigo" -- la
@@ -222,10 +253,14 @@ class Configuracion:
     # Enfriamiento del circuit breaker (D-FC-7). VALOR OPERATIVO, ver `_ENFRIAMIENTO_CIRCUITO_DEFECTO_S`.
     enfriamiento_circuito_s: float = field(default_factory=lambda: _enfriamiento_circuito_desde_entorno()[0])
     fuente_enfriamiento_circuito: str = field(default_factory=lambda: _enfriamiento_circuito_desde_entorno()[1])
+    # Detector de hardware. None -> se usa `perfil` inyectado. `desde_entorno()` lo cablea al detector real.
+    detector: DetectorHardware | None = None
 
     @classmethod
     def desde_entorno(cls) -> Configuracion:
-        return cls()
+        config = cls()
+        config.detector = DetectorHardwareLocal(config.datos)
+        return config
 
 
 @dataclass
@@ -250,6 +285,7 @@ class Sistema:
     ruta_memoria: str
     ruta_audit: str
     config: Configuracion  # arranque: expone timeout/enfriamiento/fuente al informe (D-FC-7)
+    perfil_hardware: PerfilHardware = field(default_factory=PerfilHardware)  # lo que se MIDIO al arrancar
 
     @property
     def capacidades_activas_efectivas(self) -> tuple[str, ...]:
@@ -274,6 +310,74 @@ _EJECUTORES = {
     "auditor": "auditar_garantias",
     "diagnostico": "diagnosticar_estado",
 }
+
+
+#: Entidades de Home Assistant que una orden HABLADA puede accionar. Decisión CEO 2026-10-04, DP-VOZ-ACCION
+#: opción C (milestones/m3-entry/DP-VOZ-ACCION.md §8): solo la TV de la sala. La TV .20 NO entra. A
+#: propósito NO la cambia ninguna variable de entorno: ampliarla exige una decisión y un cambio aquí.
+VOZ_ACTUA_EN: frozenset[str] = frozenset({"media_player.tv_sala_fmilia_medina_un43ru7100fxza"})
+
+#: Cómo se NOMBRA ante la persona cada entidad de `VOZ_ACTUA_EN`. Decisión CEO 2026-10-04: AURA habla en
+#: lenguaje familiar («la TV de la sala»), no con el nombre de Home Assistant. El entity_id sigue siendo
+#: la identidad INTERNA (la que recibe el Motor Único y el adaptador); esto es solo lo que se dice. No es un
+#: segundo registro de dispositivos: va junto a la llave de voz y cubre exactamente las mismas claves.
+NOMBRE_HUMANO_DE_VOZ: dict[str, str] = {"media_player.tv_sala_fmilia_medina_un43ru7100fxza": "la TV de la sala"}
+
+
+def _hogar():
+    """El adaptador del hogar: REAL si hay un Home Assistant configurado, el doble si no (Bible 6.3).
+
+    **Lo que no puede pasar es que el doble se haga pasar por el hogar.** Hasta la campaña del
+    2026-09-27 siempre se montaba `HomeAssistantMock`, que contesta `ok` a «encender» sin tocar nada, y
+    el arranque no lo decia. Ahora el arranque declara cual de los dos hay (`INV-9`).
+    """
+    url, token = os.environ.get("AURA_HA_URL", ""), os.environ.get("AURA_HA_TOKEN", "")
+    if not (url and token):
+        obs.log(
+            "BOOT",
+            "composicion",
+            "hogar: SIMULADO (sin AURA_HA_URL/AURA_HA_TOKEN); encender/apagar no actuan sobre ningun dispositivo real",
+            "-",
+            audit=True,
+        )
+        return HomeAssistantMock()
+    from .adapters.home_assistant_real import HogarNoDisponible, HomeAssistantReal
+
+    real = HomeAssistantReal(url=url, token=token)
+    try:
+        obs.log("BOOT", "composicion", f"hogar: REAL via Home Assistant {real.comprobar()}", "-", audit=True)
+    except HogarNoDisponible as e:
+        obs.log(
+            "BOOT",
+            "composicion",
+            f"hogar: Home Assistant configurado pero NO disponible ({e}); las ordenes de hogar fallaran y se diran",
+            "-",
+            audit=True,
+        )
+    return real
+
+
+_NOMBRE_DE_SUPERFICIE = re.compile(r"[a-z0-9_-]{1,32}")
+
+
+def _sin_tildes(texto: str) -> str:
+    import unicodedata
+
+    return "".join(c for c in unicodedata.normalize("NFD", texto) if unicodedata.category(c) != "Mn").lower().strip()
+
+
+def _nombre_de_superficie(valor: str | None) -> str:
+    """El nombre con el que se pregunta por la cámara de red («¿qué ves en la cámara habitacion?»). Una palabra limpia;
+    si no lo es, o choca con la cámara local, se queda en «camara»: el nombre no puede suplantar otra superficie."""
+    nombre = _sin_tildes(valor or "")
+    return nombre if _NOMBRE_DE_SUPERFICIE.fullmatch(nombre) and nombre != "local" else "camara"
+
+
+def _etiqueta_de_zona(valor: str | None) -> str:
+    """La zona que declara el propietario, como ETIQUETA (no da ni quita permisos). Sin declarar: «desconocida», nunca
+    una zona inventada (antes «interior», fuera de la lista y puesta por el código)."""
+    zona = _sin_tildes(valor or "")
+    return zona if re.fullmatch(r"[a-z0-9 _-]{1,32}", zona) else "desconocida"
 
 
 def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
@@ -306,7 +410,7 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
     raices = config.raices_permitidas
     adaptadores: list[Adapter] = [
         AdaptadorComputador(raices=raices) if raices else AdaptadorComputador(),
-        HomeAssistantMock(),
+        _hogar(),
         # Ejecutor QA del SO Interno: AURORA puede verificarse a si misma. Su raiz es la del propio
         # arbol de trabajo y se fija AQUI, no llega por argumentos de ninguna llamada.
         _qa := EjecutorQA(raiz=str(Path(__file__).resolve().parents[1])),
@@ -337,7 +441,7 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
 
     # --- Modelo y voz ------------------------------------------------------
     if config.usar_stack_real:
-        from .adapters.voice_real import WhisperPiperVoice
+        from .adapters.voice_real import VozNoDisponible, WhisperPiperVoice
 
         # El timeout se pasa EXPLICITO (D-FC-7): `OllamaProvider` ya sabe leer su propio entorno,
         # pero eso es justo lo que lo hacia invisible aqui. Pasarlo como argumento garantiza que el
@@ -347,16 +451,52 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
         proveedores: list[ModelProvider] = [
             OllamaProvider("ollama", config.modelo, timeout_s=config.timeout_proveedor_s)
         ]
-        voz: VoiceAdapter = WhisperPiperVoice(piper_voice=os.environ.get("AURA_PIPER_VOICE", ""))
+        # **EL MODELO SE DECLARA Y SE COMPRUEBA EN EL ARRANQUE (INV-9, 2026-09-15).** El defecto del
+        # codigo es `qwen2.5:3b` y en HC-1 solo hay `qwen2.5:0.5b`: arrancar asi anunciaba «stack=real»
+        # y moria en el primer turno con un 404, el circuito ABIERTO y un «modelo local no disponible»
+        # que miente dos veces. Aqui **no se corrige** la discrepancia -- el modelo es del entorno y
+        # cambiarlo por cuenta propia seria reinterpretar la configuracion (INV-7): se hace VISIBLE.
+        _disp, _detalle = proveedores[0].comprobar()  # type: ignore[attr-defined]
+        estado_modelo = f"modelo={config.modelo}" + (f" [{_detalle}]" if _detalle else " (instalado)")
+        # **LA VOZ SE DECLARA AL ARRANCAR, NO SE DESCUBRE EN EL PRIMER TURNO (MISION VOZ, 2026-09-15).**
+        # `AURA_PIPER_VOICE` sigue siendo la convencion del entorno que ADR-0022 registra: el binario vive
+        # FUERA del codigo y su ubicacion es un dato, no una propiedad de la arquitectura. Lo que cambia
+        # es que ahora se COMPRUEBA y se dice: si no hay voz, AURA lo anuncia y los turnos se entregaran
+        # en texto (degradacion honesta), en vez de anunciar una capacidad que no tiene (INV-9).
+        # `AURA_WHISPER_MODEL` (semana 2): medido `[EJEC]` bajo la misma carga, `tiny` transcribe ~2,2x más
+        # rápido que `base` y algo peor (5/15 frente a 6/15 órdenes cortas exactas). Es una elección de
+        # producto entre velocidad y precisión, así que es configuración, no código. Por defecto, `base`.
+        voz_real = WhisperPiperVoice(
+            whisper_model=os.environ.get("AURA_WHISPER_MODEL", "base"),
+            piper_voice=os.environ.get("AURA_PIPER_VOICE", ""),
+            # CM1: espeak-ng es OPCIONAL. `[EJEC]` 2026-09-29: ningún camino Piper cabe en 800 ms en HC-1
+            # (626 ms-3,4 s) y espeak sí (<5 ms), pero su WER es 0,33 frente a 0,18: regresión de calidad
+            # real, así que el defecto sigue siendo Piper.
+            sintetizador=_sintetizador_de_entorno(os.environ),
+        )
+        try:
+            obs.log("BOOT", "composicion", f"voz: DISPONIBLE ({voz_real.comprobar()})", "-", audit=True)
+        except VozNoDisponible as e:
+            obs.log(
+                "BOOT",
+                "composicion",
+                f"voz: NO DISPONIBLE ({e}); los turnos se entregaran solo en texto",
+                "-",
+                audit=True,
+            )
+        voz: VoiceAdapter = voz_real
     else:
         from .modules.router import MockProvider
 
         proveedores = [MockProvider("mock", 100, healthy=True)]
         voz = VoiceAdapterMock()
+        # Sin proveedor real no hay catalogo que consultar: preguntarselo a Ollama no tendria sentido.
+        estado_modelo = "modelo=(mock)"
     obs.log(
         "BOOT",
         "composicion",
         f"proveedor LLM: stack={'real' if config.usar_stack_real else 'mock'} "
+        f"{estado_modelo} "
         f"timeout={config.timeout_proveedor_s}s (fuente: {config.fuente_timeout_proveedor}); "
         f"circuito: enfriamiento={config.enfriamiento_circuito_s}s "
         f"(fuente: {config.fuente_enfriamiento_circuito}), "
@@ -374,7 +514,16 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
     # La composicion ENSAMBLA (D40): inyecta los detectores, pide el contexto al Builder y consume el plan.
     # Hoy no hay detectores de entorno (ninguna capacidad declarada los necesita), asi que el conjunto de
     # capacidades soportadas sale vacio, igual que en el ensamblaje provisional.
-    contexto = ActivationContextBuilder(_PerfilInyectado(config.perfil), ()).construir()
+    contexto = ActivationContextBuilder(config.detector or _PerfilInyectado(config.perfil), ()).construir()
+    perfil_hardware = contexto.hardware
+    metricas = ", ".join(f"{k}={v:g}" for k, v in sorted(perfil_hardware.recursos.items()))
+    obs.log(
+        "BOOT",
+        "composicion",
+        f"perfil de hardware medido: {metricas}" if metricas else _sin_metricas(config.detector),
+        "-",
+        audit=True,
+    )
     plan = CapabilityManager(CapabilityRegistry(catalogo())).planificar(contexto)
     dec_memoria = plan.decision("memoria")
     estado_memoria = dec_memoria.estado if dec_memoria is not None else Estado.DEGRADADA
@@ -496,7 +645,12 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
         # (linea de `motor_ciclo`, mas abajo). La conversacion no abre una segunda via de
         # autorizacion: se asoma a la unica que hay.
         decisiones=decisiones,
+        # Avisos de NODO-01 (acta 2026-10-18, R1): puerto de LECTURA de `registro.json`; `None` si
+        # `AURA_RED` esta declarado vacio. Sin persistencia nueva; el estado previo vive en memoria.
+        vigia_nodos=crear_vigia_nodos(),
     )
+    # Primera evaluacion AL ABRIR: lo anomalo se avisa aqui, el resto en cada turno (no es tiempo real).
+    orquestador.evaluar_nodos()
 
     obs.log(
         "BOOT",
@@ -506,6 +660,99 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
         f"stack={'real' if config.usar_stack_real else 'mock'}",
         "-",
         audit=True,
+    )
+
+    # **CONOCIMIENTO DEL ENTORNO (semana 2).** El descubrimiento de la red es E/S y vive en un adaptador;
+    # el Core solo recibe la función. Si el hogar es el real, sus entidades dicen qué está INTEGRADO; con el
+    # doble no hay entidades y nada se da por integrado.
+    from .adapters.red_local import descubrir as _descubrir_red
+    from .adapters.red_local import estado_de_fuentes as _estado_de_fuentes
+    from .core.entorno import ConocimientoDelEntorno
+
+    _hogar_registrado = registro_adaptadores.para("encender_dispositivo")
+    orquestador.entorno = ConocimientoDelEntorno(
+        descubrir=_descubrir_red,
+        entidades_ha=getattr(_hogar_registrado, "entidades", lambda: []),
+        fuentes=_estado_de_fuentes(),
+    )
+
+    # FRAME → OBSERVACIÓN (DP aprobado 2026-09-28, Alt B / bajo demanda / imagen-cero). Superficie por
+    # defecto: la cámara LOCAL de la plataforma (autorizada por ser el propio equipo de AURA). Las cámaras
+    # de red se registran solo cuando el propietario autorice esa superficie. Import perezoso de cv2 en el
+    # adaptador: si no hay cámara/OpenCV, `observar` degradará honestamente (frame_recibido=False).
+    import os as _os
+
+    from .adapters.vision_local import CamaraLocal
+    from .core.percepcion import (
+        PercepcionAuditivaBajoDemanda,
+        PercepcionBajoDemanda,
+        PercepcionDeEventoBajoDemanda,
+    )
+    from .core.politica_superficie import RegistroDeSuperficies, Superficie
+
+    _sup_local = Superficie(
+        surface_id="local",
+        device_id="equipo_aura",
+        channel_id=None,
+        zona="plataforma",
+        proposito="observacion_local",
+        autorizado=True,
+        visual_processing_allowed=True,
+        persistence_allowed=False,
+        identity_processing_allowed=False,
+    )
+    _fuentes_vis: dict = {"local": (CamaraLocal(), "local")}
+    _fuentes_evt: dict = {}
+    _fuentes_aud: dict = {}
+    _superficies = [_sup_local]
+
+    # Bloque multimodal (acta CEO 2026-09-28): una cámara de red se autoriza SOLO por variable de entorno
+    # del propietario (como el token de HA); nada hardcodeado, ningún secreto en el código, deny-by-default.
+    # `AURA_CAMARA_RTSP` = URL de vídeo (VER + EVENTO); `AURA_CAMARA_AUDIO_RTSP` = URL de audio (ESCUCHAR).
+    _cam_url = _os.environ.get("AURA_CAMARA_RTSP")
+    _aud_url = _os.environ.get("AURA_CAMARA_AUDIO_RTSP")
+    # El propietario NOMBRA la cámara («habitacion», «garaje») y declara su ZONA como etiqueta (acta 2026-10-22,
+    # «la zona es metadato»): la zona organiza y da contexto, nunca concede ni quita permisos.
+    _cam_nombre = _nombre_de_superficie(_os.environ.get("AURA_CAMARA_NOMBRE"))
+    _cam_zona = _etiqueta_de_zona(_os.environ.get("AURA_CAMARA_ZONA"))
+    if _cam_url:
+        from .adapters.camara_pyav import CamaraPyAV, DetectorMovimientoPyAV
+
+        _fuentes_vis[_cam_nombre] = (CamaraPyAV(_cam_url, _cam_nombre), "rtsp")
+        _fuentes_evt[_cam_nombre] = (DetectorMovimientoPyAV(_cam_url, _cam_nombre), "rtsp")
+    if _aud_url:
+        from .adapters.audio_rtsp import AudioRTSP
+
+        _fuentes_aud[_cam_nombre] = (AudioRTSP(_aud_url, _cam_nombre), "rtsp")
+    # La superficie "camara" se autoriza si hay CUALQUIERA de las dos URLs, cada modalidad por su variable
+    # (fix auditoría 2026-09-28: antes, audio-solo registraba la fuente pero ninguna Superficie y quedaba
+    # denegado). Deny-by-default se mantiene: sin variables, no hay superficie de red.
+    if _cam_url or _aud_url:
+        _superficies.append(
+            Superficie(
+                surface_id=_cam_nombre,
+                device_id="camara_red",
+                channel_id=None,
+                zona=_cam_zona,
+                proposito="observacion_red",
+                autorizado=True,
+                visual_processing_allowed=bool(_cam_url),
+                audio_processing_allowed=bool(_aud_url),
+                persistence_allowed=False,
+                identity_processing_allowed=False,
+            )
+        )
+
+    _registro_sup = RegistroDeSuperficies(_superficies)
+    # Frontera voz -> accion: la llave por ENTIDAD la abre la composicion y ninguna variable de entorno.
+    orquestador.voz_actua_en = VOZ_ACTUA_EN
+    orquestador.nombres_de_voz = NOMBRE_HUMANO_DE_VOZ
+    orquestador.percepcion_visual = PercepcionBajoDemanda(fuentes=_fuentes_vis, politica=_registro_sup)
+    orquestador.percepcion_evento = PercepcionDeEventoBajoDemanda(fuentes=_fuentes_evt, politica=_registro_sup)
+    # Transcriptor de audio de cámara: se inyecta cuando exista STT para cámara y el dispositivo entregue
+    # audio (hoy .110 no lo entrega — device). Sin transcriptor: «recibí audio pero no lo interpreto».
+    orquestador.percepcion_auditiva = PercepcionAuditivaBajoDemanda(
+        fuentes=_fuentes_aud, politica=_registro_sup, transcriptor=None
     )
 
     return Sistema(
@@ -527,4 +774,5 @@ def componer(config: Configuracion | None = None, confirmador=None) -> Sistema:
         ruta_memoria=ruta_memoria,
         ruta_audit=ruta_audit,
         config=config,
+        perfil_hardware=perfil_hardware,
     )

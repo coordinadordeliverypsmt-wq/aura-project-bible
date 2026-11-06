@@ -1,0 +1,141 @@
+incremento = '''SIGTERM en pulsar-para-hablar y modo texto (2026-10-06): parada limpia, sin audio del usuario ni grabador huérfano'''
+pruebas = ["tests/unit/test_voz_sigterm_conversacion.py", "tests/unit/test_voz_sigterm.py"]
+timeout_s = 300
+
+[[mutante]]
+id = "VC-M1"
+garantia = '''el modo conversación no instala la parada por SIGTERM: el proceso muere sin limpiar'''
+fichero = "aura_skeleton/__main__.py"
+buscar = '''    anterior = signal.signal(signal.SIGTERM, _manejador)'''
+sustituir = '''    anterior = signal.getsignal(signal.SIGTERM)'''
+
+[[mutante]]
+id = "VC-M2"
+garantia = '''un segundo SIGTERM puede cortar la limpieza a medias'''
+fichero = "aura_skeleton/__main__.py"
+buscar = '''        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        tarea, bucle = estado.get("tarea"), estado.get("bucle")'''
+sustituir = '''        tarea, bucle = estado.get("tarea"), estado.get("bucle")'''
+
+[[mutante]]
+id = "VC-M3"
+garantia = '''fuera de una espera síncrona SIGTERM lanza y corta código a medias (audit, finally)'''
+fichero = "aura_skeleton/__main__.py"
+buscar = '''        bucle.call_soon_threadsafe(tarea.cancel)'''
+sustituir = '''        raise _ParadaPorSigterm'''
+
+[[mutante]]
+id = "VC-M4"
+garantia = '''dentro de input()/grabación SIGTERM no interrumpe: la parada espera a que la persona pulse Enter'''
+fichero = "aura_skeleton/__main__.py"
+buscar = '''        if _ESPERAS_SINCRONAS[0] > 0 or tarea is None or bucle is None:'''
+sustituir = '''        if tarea is None or bucle is None:'''
+
+[[mutante]]
+id = "VC-M5"
+garantia = '''input() deja de ser una espera interrumpible'''
+fichero = "aura_skeleton/__main__.py"
+buscar = '''            with _espera_sincrona():
+                texto = input("tu> ").strip()'''
+sustituir = '''            if True:
+                texto = input("tu> ").strip()'''
+
+[[mutante]]
+id = "VC-M6"
+garantia = '''la grabación síncrona deja de ser interrumpible'''
+fichero = "aura_skeleton/__main__.py"
+buscar = '''            with _espera_sincrona():
+                grabacion = capturar(tid)'''
+sustituir = '''            if True:
+                grabacion = capturar(tid)'''
+
+[[mutante]]
+id = "VC-M7"
+garantia = '''la reproducción síncrona deja de ser interrumpible'''
+fichero = "aura_skeleton/__main__.py"
+buscar = '''            with _espera_sincrona():
+                microfono.reproducir(respuesta_audio)'''
+sustituir = '''            if True:
+                microfono.reproducir(respuesta_audio)'''
+
+[[mutante]]
+id = "VC-M8"
+garantia = '''el manejador de SIGTERM no se restaura al salir'''
+fichero = "aura_skeleton/__main__.py"
+buscar = '''        signal.signal(signal.SIGTERM, anterior if anterior is not None else signal.SIG_DFL)'''
+sustituir = '''        pass'''
+
+[[mutante]]
+id = "VC-M9"
+garantia = '''una grabación interrumpida deja el WAV parcial del usuario en disco'''
+fichero = "aura_skeleton/adapters/microfono.py"
+buscar = '''            # que lo descarte —`_turno_de_voz` todavía no tiene la ruta—. Se borra aquí y se propaga.
+            self.descartar(ruta)
+            raise'''
+sustituir = '''            # que lo descarte —`_turno_de_voz` todavía no tiene la ruta—. Se borra aquí y se propaga.
+            raise'''
+
+[[mutante]]
+id = "VC-M10"
+garantia = '''el micrófono vuelve a subprocess.run: parecord queda grabando huérfano'''
+fichero = "aura_skeleton/adapters/microfono.py"
+buscar = '''        ejecutar: Callable = _ejecutar_en_grupo,'''
+sustituir = '''        ejecutar: Callable = subprocess.run,'''
+
+[[mutante]]
+id = "VC-M11"
+garantia = '''interrumpir no termina el grupo de procesos del grabador'''
+fichero = "aura_skeleton/adapters/microfono.py"
+buscar = '''            os.killpg(proceso.pid, senal)'''
+sustituir = '''            pass'''
+
+[[mutante]]
+id = "VC-M12"
+garantia = '''main vuelve a arrancar la conversación sin parada limpia'''
+fichero = "aura_skeleton/__main__.py"
+buscar = '''    return _ejecutar_conversacion(sistema, microfono, telemetria=args.telemetria)'''
+sustituir = '''    return asyncio.run(_conversar(sistema, telemetria=args.telemetria, microfono=microfono))'''
+
+[[mutante]]
+id = "VC-M13"
+garantia = '''tras una parada no se borran los restos del último turno (la respuesta escrita por el hilo del TTS)'''
+fichero = "aura_skeleton/__main__.py"
+buscar = '''    if tid and callable(descartar):
+        descartar(tid)'''
+sustituir = '''    if tid and callable(descartar):
+        pass'''
+
+[[mutante]]
+id = "VC-M14"
+garantia = '''el turno en curso no se registra: la limpieza tras la parada no sabe qué borrar'''
+fichero = "aura_skeleton/__main__.py"
+buscar = '''    _ULTIMO_TURNO[0] = tid
+'''
+sustituir = '''
+'''
+
+[[mutante]]
+id = "VC-M15"
+garantia = '''la limpieza del turno olvida la respuesta sintetizada'''
+fichero = "aura_skeleton/adapters/microfono.py"
+buscar = '''        for prefijo in ("entrada_", "resp_"):'''
+sustituir = '''        for prefijo in ("entrada_",):'''
+
+[[mutante]]
+id = "VC-M16"
+garantia = '''la escucha continua no limpia los restos del turno al detenerse'''
+fichero = "aura_skeleton/__main__.py"
+buscar = '''        return asyncio.run(_hasta_sigterm(corrutina, al_detener=getattr(oido, "detener", None)))
+    finally:
+        _descartar_restos_del_turno(microfono)'''
+sustituir = '''        return asyncio.run(_hasta_sigterm(corrutina, al_detener=getattr(oido, "detener", None)))
+    finally:
+        pass'''
+
+[[mutante]]
+id = "VC-M17"
+garantia = '''el modo conversación no limpia los restos del turno al detenerse'''
+fichero = "aura_skeleton/__main__.py"
+buscar = '''        _descartar_restos_del_turno(microfono)
+        signal.signal'''
+sustituir = '''        signal.signal'''

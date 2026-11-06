@@ -1,0 +1,50 @@
+incremento = "Puerta de ADR-0014 decide con lo vigente (Director Tecnico, por orden ejecutiva del CEO, 2026-10-06)"
+pruebas = ["tests/integration/test_puerta_adr0014_vigencia.py"]
+timeout_s = 400
+
+# La puerta de ADR-0014 debe evaluar `vigentes` (lo que el Core da por cierto), no `hits` crudos.
+# Resolucion (Director Tecnico, por orden ejecutiva del CEO): milestones/m3-entry/RESOLUCION-S3-CM2-ORDEN-CEO-2026-10-06.md §1 y §2.
+
+[[mutante]]
+id = "PV-M1"
+garantia = "la puerta decide con `hits` crudos: tras olvidar, el eco retirado impide la ausencia determinista"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = [
+  "tests/integration/test_puerta_adr0014_vigencia.py::test_tras_olvidar_el_hecho_la_consulta_da_la_ausencia_determinista_sin_llamar_al_modelo",
+  "tests/integration/test_puerta_adr0014_vigencia.py::test_tras_refutar_el_hecho_la_consulta_da_la_ausencia_determinista_sin_llamar_al_modelo",
+]
+buscar = '''        if not vigentes and _es_consulta_de_memoria(text) and not cognicion_general:'''
+sustituir = '''        if not hits and _es_consulta_de_memoria(text) and not cognicion_general:'''
+
+[[mutante]]
+id = "PV-M2"
+garantia = "`vigentes` no filtra: lo no vigente sigue contando como recuerdo para la puerta y para el contexto"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = [
+  "tests/integration/test_puerta_adr0014_vigencia.py::test_tras_olvidar_el_hecho_la_consulta_da_la_ausencia_determinista_sin_llamar_al_modelo",
+  "tests/integration/test_puerta_adr0014_vigencia.py::test_tras_refutar_el_hecho_la_consulta_da_la_ausencia_determinista_sin_llamar_al_modelo",
+]
+buscar = '''        vigentes = [h for h in hits if _da_por_cierto(h)]'''
+sustituir = '''        vigentes = [h for h in hits]'''
+
+[[mutante]]
+id = "PV-M3"
+garantia = "la puerta dispara siempre que hay consulta de memoria, aun con memoria vigente (control: lo vigente llega al modelo)"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = [
+  "tests/integration/test_puerta_adr0014_vigencia.py::test_CONTROL_con_un_recuerdo_vigente_no_hay_ausencia_y_llega_al_contexto",
+  "tests/integration/test_puerta_adr0014_vigencia.py::test_superseded_con_version_vigente_no_da_ausencia",
+]
+buscar = '''        if not vigentes and _es_consulta_de_memoria(text) and not cognicion_general:'''
+sustituir = '''        if _es_consulta_de_memoria(text) and not cognicion_general:'''
+
+[[mutante]]
+id = "PV-M4"
+garantia = "sin consulta amplia: la puerta decide solo con los k=3 hits y afirma una falsa ausencia si la vigente quedo fuera"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = [
+  "tests/integration/test_puerta_adr0014_vigencia.py::test_con_cuatro_versiones_la_vigente_desplazada_por_k_no_da_falsa_ausencia",
+  "tests/integration/test_puerta_adr0014_vigencia.py::test_la_consulta_amplia_no_ensancha_el_contexto_mas_alla_de_los_hits_originales",
+]
+buscar = '''        if hits and not vigentes:'''
+sustituir = '''        if False:'''

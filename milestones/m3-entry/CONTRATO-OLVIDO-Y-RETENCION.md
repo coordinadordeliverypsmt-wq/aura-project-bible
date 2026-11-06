@@ -5,7 +5,7 @@ version: 2
 fecha: 2026-10-07
 relacionado: "Bible 5.5 §3 y §5 · 1.1 §3 (jerarquía) · ADR-0023 · ADR-0017 §4 · ADR-0001 · DP-D-M-8 (G-1, G-6, G-7, §5.2) · DP-S3-RELOJ-CM2 (§4.1, Q4/D-AMP-3, E-Q1) · AMP-AURA-DECISIONES (D-AMP-3) · DEUDA-N2 (D-N2-2, D-N2-5) · RESOLUCION-S3-CM2-ORDEN-CEO-2026-10-06"
 estado: "§1-§4 VIGENTES salvo las filas marcadas BLOQUEADO · §5 BLOQUEADO por decisión formal"
-revision: "v2: correcciones de la evaluación de arquitectura (arquitecto-evaluador, Opus, 2026-10-07)"
+revision: "v2: correcciones de la evaluación de arquitectura (arquitecto-evaluador, Opus, 2026-10-07) · v3 (2026-11-05): fila T9 ratificada por el CEO Operativo de AURA (DP-DURABILIDAD-MEMORIA, P2-B)"
 ---
 
 # Contrato de olvido y retención
@@ -37,8 +37,8 @@ de texto idéntico (DP-S3 §4.1.1).
 | T6 | Historial («¿cuál era mi X?») | Lo olvidado no aparece como versión anterior | Prueba adversarial. **Límite:** con versiones de texto idéntico, en sesión puede devolverse el mismo texto (T14) |
 | T7 | `ver`, `describir_conocimiento` | Lo olvidado no aparece | Prueba adversarial |
 | T8 | `restore(backup)` de una copia anterior al olvido | — | **BLOQUEADO**: `restore` reescribe el historial con `_persist()` (viola G-7 y ADR-0023, corolarios 1 y 3) y no tiene llamadores en producción. Garantía vigente: **no se conecta** sin operación de catálogo y DP (D23). Prueba `xfail(strict)` que documenta la resurrección |
-| T9 | Línea final truncada | Comportamiento existente de `PersistentMemory` (falla en alto, no resucita en silencio) | Prueba |
-| T10 | Reloj de CM2 | Misma proyección; eventos `cm2.*` sin texto | Prueba |
+| T9 | Línea final truncada | Falla en alto si es ambigua, corrupta o puede ser lápida o marca; solo se tolera un corte demostrable, con constancia (texto ratificado en §2.1) | Prueba (T9 ×3 + `test_durabilidad_memoria_p2.py`) |
+| T10 | Reloj de CM2 | Misma proyección y misma lectura de líneas que la memoria (`_lineas_legibles`); eventos `cm2.*` sin texto | Prueba |
 | **T11b** | **Captura de señales de la orden** («olvídalo, mi cumpleaños es el 3 de junio» se capturaba como declaración vigente) | Un turno de soberanía no captura señales | **Defecto activo (ECC ALTO A1), corregido 2026-10-07** |
 | **T11** | **Eco de la propia orden de olvido** («usuario dijo: olvida que mi ciudad favorita es Valencia», escrito después de la lápida como `episodica` vigente) | El eco de un turno de soberanía es `historico` | **Defecto activo, corregido 2026-10-07** (TDD de extremo a extremo) |
 | T12 | Olvido/refutación por texto o total no retira ecos | — | Latente (sin llamadores); documentado |
@@ -48,6 +48,27 @@ de texto idéntico (DP-S3 §4.1.1).
 | T16 | `backup()`: copias anteriores al olvido conservan el texto; además reescribe el fichero y **destruye lápidas** | — | Sin llamadores en producción. **Declarado ≠ real:** el manifiesto clasifica `backup` como neutro (`architecture_manifest.toml:87`). Corregirlo exige editar el manifiesto (aprobación) |
 | T17 | N2 `_items` | — | Parte de T3 |
 | T18 | Telemetría en RAM (`obs._records`) y stderr con `--telemetria` | — | Contiene texto; entra en §5 (5.5 §5) |
+
+### 2.1 T9 — texto ratificado (decisión del CEO Operativo de AURA, 2026-11-05)
+
+> Una línea final truncada debe fallar en alto cuando sea ambigua, corrupta o pueda corresponder a una lápida o
+> marca. Se permite tolerar únicamente un corte demostrable: prefijo JSON válido cuyo único defecto sea el fin
+> abrupto del contenido, que no pueda corresponder al inicio de una línea con la clave de un recuerdo existente y
+> siempre que no se superen tres líneas toleradas por fichero. Cada tolerancia deberá quedar registrada mediante
+> constancia de auditoría, sin exponer el contenido del recuerdo.
+
+Sustituye al texto anterior («comportamiento existente: falla en alto, no resucita en silencio»), que exigía fallar
+ante cualquier línea final truncada. La garantía de olvido no se debilita: toda línea que pueda ser una lápida
+(`olvidar`) o una marca (`marcar`) —ambas copian la clave `(user_id, kind, content)`— sigue fallando en alto, y no
+puede tolerarse una corrupción.
+
+Implementación y evidencia: `DP-DURABILIDAD-MEMORIA.md` §8; código `7b7d45c` (`_lineas_legibles`,
+`_forma_de_corte`, `_fragmento_ambiguo`, `_MAX_FRAGMENTOS_TOLERADOS = 3`, constancia
+`memoria.linea_truncada_tolerada` con posición y bytes); pruebas y mutación `ac0ffc8`.
+
+*Nota de alcance (descriptiva, no normativa):* la siguiente escritura cierra un corte tolerado con `\n` sin borrar
+bytes, de modo que esa línea deja de ser la final; en relecturas posteriores sigue tolerándose con las mismas
+condiciones de esta sección (y cuenta para el tope de tres por fichero).
 
 ## 3. Metadatos que pueden conservarse
 

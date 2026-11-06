@@ -1,7 +1,7 @@
 ---
 documento: "Decision Package — Durabilidad de memoria.json (PersistentMemory)"
 fecha: 2026-11-05
-estado: "APROBADO por el CEO (2026-11-05, opción A del informe de continuidad). P1 (durabilidad) CERRADA y publicada (commits 473df8d, 8ff5bf9, 5bd18be; HEAD 5bd18be). P2 (tolerar la cola truncada) DECISION_REQUIRED: contradice el contrato vigente T9"
+estado: "APROBADO por el CEO (2026-11-05). P1 CERRADA y publicada (473df8d, 8ff5bf9, 5bd18be; cierre documental 0a840eb). P2-B AUTORIZADA por el CEO (2026-11-05) e IMPLEMENTADA en local, pendiente de publicar; la fila T9 del contrato de olvido requiere ratificar su nuevo texto (§8)"
 alcance-aprobado: "Persistencia de memoria.json en walking-skeleton/aura_skeleton/modules/memory.py, rama integracion/m3-entry"
 no-cubre: "M4 · residencia (Fases 2/3, activación) · delegación remota · autenticación · CM2/S3 · producción · ~/.aura · cron · PARADA · purga física (CONTRATO-OLVIDO §5, BLOQUEADO)"
 ---
@@ -117,6 +117,51 @@ Evidencia `[EJEC]` (sobre exactamente el código publicado):
 
 Riesgos residuales: los de §6, sin cambios. **P2 sigue DECISION_REQUIRED** (§4): `_load`, `olvidar`, `marcar` y
 `_proyectar` no se modificaron.
+
+## 8. P2-B — implementación (autorizada por el CEO el 2026-11-05)
+
+Lectura única `_lineas_legibles` (memory.py), compartida por `PersistentMemory._load`, `restore` (solo el separador)
+y el reloj de CM2 (`reloj_cm2._MemoriaSoloLectura`, T10: misma lectura). Una línea ilegible se tolera **solo si**:
+
+1. es un **prefijo JSON estricto** de un objeto (`_forma_de_corte`): su único error es el fin de la entrada. Una
+   comilla perdida, bytes cambiados o dos líneas fusionadas dejan un token inválido en medio → corrupción → falla en
+   alto, aunque esté a mitad del fichero (hallazgo ALTO de la auditoría adversarial, corregido);
+2. **no es ambigua** (`_fragmento_ambiguo`): no puede ser el comienzo de una línea con la clave
+   `(user_id, kind, content)` de una línea existente, comparando en los dos sentidos y con `ensure_ascii` True y
+   False. Lápidas y marcas copian siempre la clave → todo fragmento de lápida o marca es ambiguo. Si alguna línea no
+   empieza por esas tres claves en ese orden, o no es un objeto, nada se tolera (fallo cerrado);
+3. no se supera `_MAX_FRAGMENTOS_TOLERADOS` (3) en el fichero: una interrupción deja como mucho uno; más es corrupción
+   (y acota el coste de la lectura).
+
+Cualquier otra línea ilegible relanza su `JSONDecodeError` (T9). Cada tolerancia deja constancia en el audit
+(`memoria.linea_truncada_tolerada`: posición y bytes; sin contenido ni hash, reversible para recuerdos cortos).
+`_anexar` cierra una cola sin `\n` anteponiendo `\n` en el mismo write (sin borrar bytes): elimina la fusión del
+riesgo residual de P1. Solo `\n` separa líneas: `splitlines()` cortaba en U+2028/U+2029/U+0085, que
+`json.dumps(ensure_ascii=False)` no escapa — **defecto preexistente**: un recuerdo con U+2028 dejaba la memoria sin
+abrir `[EJEC]`.
+
+**Limitaciones declaradas.** Un corte anterior a que la clave se distinga (p. ej. `{"user_id": "mauricio", "ki`) es
+indistinguible de una lápida cortada → sigue fallando en alto al reabrir (prueba
+`test_limitacion_un_corte_previo_a_la_clave_...`). Un corte dentro de un escape o literal (`\u00`, `tru`) también.
+Dos escritores simultáneos podrían fusionar líneas (PersistentMemory es de un solo escritor por diseño). El reloj de
+CM2 tolera lo mismo pero no escribe constancia (es de solo lectura); la deja `PersistentMemory` al arrancar.
+
+**Evidencia `[EJEC]` de P2-B.** RED: 5 pruebas de tolerancia/cierre fallaban; después, los casos A (lápida corrupta a
+mitad de fichero) y B (fusión legada) de la auditoría adversarial, los cortes en mitad de token, U+2028 y `restore`.
+GREEN: `test_durabilidad_memoria_p2.py` 36 pruebas. Regresión (memoria, olvido, G-7, histórico, batería, reloj CM2,
+T11, G-1) en verde. Mutación: `durabilidad-memoria-p2.toml` **12/12** (P2-5 original era equivalente y se sustituyó,
+ver el catálogo), `durabilidad-memoria.toml` 8/8, `g7-lapida-append-only` 7/7 y `reloj-cm2` 32/32 (G7-M5 y M23
+reanclados a la lectura compartida, misma garantía), `olvido-adversarial` 4/4. Quality Gate **PASS** 4370 passed /
+5 skipped / 17 xfailed, contratos 8. Auditoría de seguridad: APROBADO (sin CRITICAL/HIGH; MEDIUM de coste O(F·N) y LOW
+de hash reversible, corregidos). Auditoría adversarial: RECHAZADO en primera pasada (lápida corrupta a mitad de
+fichero resucitaba) → corregido con el prefijo JSON estricto → **APROBADO** en la segunda: 105 032 mutaciones de un
+carácter de lápidas y marcas (a mitad y al final) y 5 219 cortes reales, 0 tolerados. La tolerancia también aplica a
+mitad de fichero (es el estado legítimo que deja el cierre con `\n`); ninguna corrupción de un carácter lo produce.
+
+**Contrato T9.** Las tres pruebas T9 siguen en verde sin modificarlas. Cambia el texto de la fila: de «línea final
+truncada → falla en alto» a «línea truncada AMBIGUA o corrupta → falla en alto; un corte demostrable que no puede ser
+lápida ni marca se tolera con constancia». La enmienda del texto de `CONTRATO-OLVIDO-Y-RETENCION.md` queda para
+ratificación del CEO; no se edita aquí.
 
 ## Retorno sobre tokens
 

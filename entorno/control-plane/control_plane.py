@@ -2368,6 +2368,137 @@ def estado_de(directorio: pathlib.Path, id_tarea: str) -> str:
     return tarea["estado"] if tarea else "UNKNOWN"
 
 
+# ----------------------------------------- F1 · deteccion de proyeccion obsoleta (C2) --
+
+#: Los cinco veredictos de `estado_de_la_proyeccion`. Exactamente uno por llamada.
+PROYECCION_ACTUAL = "PROYECCION_ACTUAL"
+PROYECCION_OBSOLETA = "PROYECCION_OBSOLETA"
+PROYECCION_AUSENTE = "PROYECCION_AUSENTE"
+PROYECCION_INVALIDA = "PROYECCION_INVALIDA"
+ESTADO_NO_VERIFICABLE = "ESTADO_NO_VERIFICABLE"
+
+#: Campos de cada tarea que DERIVAN del log (los que `proyectar` reconstruye). Son los unicos que se
+#: comparan: `previo` es de gobierno; `motivo`, `creada_sin_origen`, `actualizado` por tarea son del
+#: consumidor o del entorno. Comparar de mas garantiza un falso positivo.
+_CAMPOS_DE_TAREA_DEL_LOG = ("estado", "descripcion", "autoridad", "causa", "seq")
+
+
+def _vista_derivada_del_log(estado: dict) -> dict:
+    """La parte de un estado que PROVIENE del log, normalizada para comparar: `status`,
+    `eventos_aplicados`, `eventos_ignorados` y, por tarea, SOLO los campos del log. Se EXCLUYEN
+    `actualizado`, `cuota`, `git` y cualquier otro campo de entorno/gobierno: meterlos haria que el
+    almacenado (rico) y `proyectar()` (puro) difirieran siempre."""
+    tareas = {}
+    for id_tarea, tarea in (estado.get("tareas") or {}).items():
+        tareas[id_tarea] = {campo: tarea.get(campo) for campo in _CAMPOS_DE_TAREA_DEL_LOG}
+    return {
+        "status": estado.get("status"),
+        "eventos_aplicados": estado.get("eventos_aplicados"),
+        "eventos_ignorados": estado.get("eventos_ignorados"),
+        "tareas": tareas,
+    }
+
+
+def _seq_de_la_proyeccion(almacenado: dict) -> int | None:
+    """Hasta que `seq` del log llego la proyeccion almacenada. `eventos_aplicados` es el contador que
+    `proyectar` lleva; si falta (proyeccion antigua), se cae al mayor `seq` de tarea. `None` si no hay
+    ninguna pista."""
+    aplicados = almacenado.get("eventos_aplicados")
+    if isinstance(aplicados, int) and not isinstance(aplicados, bool):
+        return aplicados
+    seqs = [t.get("seq") for t in (almacenado.get("tareas") or {}).values()
+            if isinstance(t.get("seq"), int) and not isinstance(t.get("seq"), bool)]
+    return max(seqs) if seqs else None
+
+
+def estado_de_la_proyeccion(directorio: pathlib.Path) -> dict:
+    """**F1 · deteccion de SOLO LECTURA.** Clasifica la relacion entre el `estado.json` almacenado y
+    el log (`eventos.jsonl` + ancla) en EXACTAMENTE uno de cinco estados, SIN escribir nada, SIN
+    regenerar la proyeccion y SIN tocar historial ni ancla.
+
+        PROYECCION_ACTUAL · PROYECCION_OBSOLETA · PROYECCION_AUSENTE · PROYECCION_INVALIDA ·
+        ESTADO_NO_VERIFICABLE
+
+    Reutiliza las piezas que ya son la autoridad del sistema —`verificar_integridad_log` (integridad y
+    completitud, D-LOG-1), `cargar`, `proyectar`, `validar`/`validar_tareas`— y NO reimplementa
+    ninguna. No es un segundo escritor ni una segunda fuente de verdad: la verdad sigue siendo el log,
+    y F1 solo COMPARA el estado materializado contra `proyectar()`.
+
+    Precedencia (fallo seguro: ante cualquier duda, NUNCA se afirma ACTUAL):
+
+    1. Si el log no es integro o su completitud no esta DEMOSTRADA (ancla ausente/corrupta/incompatible,
+       directorio de anclas laxo, ancla en desacuerdo, cadena rota o truncada) -> `ESTADO_NO_VERIFICABLE`.
+       No se puede demostrar que la proyeccion refleje un log completo, asi que no se afirma que lo sea.
+    2. Con log integro y completitud demostrada, se mira la proyeccion:
+       - no existe `estado.json` -> `PROYECCION_AUSENTE`.
+       - existe pero no se puede cargar (JSON roto) o no pasa `validar`/`validar_tareas` -> `PROYECCION_INVALIDA`.
+       - su parte DERIVADA DEL LOG coincide con `proyectar()` -> `PROYECCION_ACTUAL`; si difiere ->
+         `PROYECCION_OBSOLETA`.
+
+    Cuando OBSOLETA o NO_VERIFICABLE, el consumidor NO debe presentar los valores como actuales: debe
+    informar de que la proyeccion necesita regenerarse. F1 **no** la regenera (eso es F2).
+
+    Un `estado.json.tmp` residual de una escritura interrumpida se IGNORA por completo: F1 solo mira
+    `estado.json`."""
+    directorio = pathlib.Path(directorio)
+    verif = verificar_integridad_log(directorio)
+    seq_confirmado = (verif.get("ancla") or {}).get("seq")
+
+    if not verif.get("integro") or verif.get("completitud") != COMPLETITUD_DEMOSTRADA:
+        informe = {
+            "estado": ESTADO_NO_VERIFICABLE,
+            "seq_confirmado": seq_confirmado,
+            "integridad": verif,
+            "motivo": "no se puede demostrar que el log este completo: la proyeccion no es verificable",
+        }
+        if verif.get("motivo_codigo") is not None:
+            informe["motivo_codigo"] = verif["motivo_codigo"]
+        if verif.get("seq") is not None:
+            informe["seq"] = verif["seq"]
+        return informe
+
+    try:
+        almacenado = cargar(directorio / "estado.json")
+    except (ValueError, OSError) as exc:    # JSON roto, fichero ilegible
+        return {"estado": PROYECCION_INVALIDA, "seq_confirmado": seq_confirmado,
+                "motivo": f"el estado.json existe pero no se puede cargar: {exc}"}
+
+    if almacenado is None:
+        return {"estado": PROYECCION_AUSENTE, "seq_confirmado": seq_confirmado,
+                "motivo": "no hay estado.json materializado; el log si es verificable"}
+
+    try:
+        validar(almacenado)
+        validar_tareas(almacenado)
+    except ValueError as exc:
+        return {"estado": PROYECCION_INVALIDA, "seq_confirmado": seq_confirmado,
+                "motivo": f"el estado.json no es un estado legitimo: {exc}"}
+
+    esperado = proyectar(directorio)
+    seq_proyeccion = _seq_de_la_proyeccion(almacenado)
+    if _vista_derivada_del_log(almacenado) == _vista_derivada_del_log(esperado):
+        return {"estado": PROYECCION_ACTUAL, "seq_confirmado": seq_confirmado,
+                "seq_proyeccion": seq_proyeccion, "integridad": verif,
+                "motivo": "la proyeccion coincide con la reconstruccion del log"}
+    return {"estado": PROYECCION_OBSOLETA, "seq_confirmado": seq_confirmado,
+            "seq_proyeccion": seq_proyeccion, "integridad": verif,
+            "motivo": "la proyeccion no refleja el ultimo estado del log: necesita regenerarse"}
+
+
+def cargar_si_actual(directorio: pathlib.Path) -> dict:
+    """Guarda delgada para consumidores/panel: devuelve la proyeccion almacenada SOLO si F1 la
+    clasifica como `PROYECCION_ACTUAL`; en cualquier otro caso devuelve `proyeccion=None` y la
+    clasificacion, para que el consumidor no presente como actual lo que no lo es. No regenera nada.
+
+    El informe es el de `estado_de_la_proyeccion` mas la clave `proyeccion`. Cuando ACTUAL, el
+    comportamiento del consumidor no cambia: recibe el mismo `estado.json` que leeria con `cargar`."""
+    directorio = pathlib.Path(directorio)
+    informe = estado_de_la_proyeccion(directorio)
+    if informe["estado"] == PROYECCION_ACTUAL:
+        return {**informe, "proyeccion": cargar(directorio / "estado.json")}
+    return {**informe, "proyeccion": None}
+
+
 # --------------------------------------------------- transiciones gobernadas (C2) --
 
 def validar_transicion(previo: str, valor: str, autoridad: str, causa: str) -> None:

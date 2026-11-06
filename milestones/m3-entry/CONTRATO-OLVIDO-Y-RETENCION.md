@@ -5,7 +5,7 @@ version: 2
 fecha: 2026-10-07
 relacionado: "Bible 5.5 §3 y §5 · 1.1 §3 (jerarquía) · ADR-0023 · ADR-0017 §4 · ADR-0001 · DP-D-M-8 (G-1, G-6, G-7, §5.2) · DP-S3-RELOJ-CM2 (§4.1, Q4/D-AMP-3, E-Q1) · AMP-AURA-DECISIONES (D-AMP-3) · DEUDA-N2 (D-N2-2, D-N2-5) · RESOLUCION-S3-CM2-ORDEN-CEO-2026-10-06"
 estado: "§1-§4 VIGENTES salvo las filas marcadas BLOQUEADO · §5 BLOQUEADO por decisión formal"
-revision: "v2: correcciones de la evaluación de arquitectura (arquitecto-evaluador, Opus, 2026-10-07) · v3 (2026-11-05): fila T9 ratificada por el CEO Operativo de AURA (DP-DURABILIDAD-MEMORIA, P2-B)"
+revision: "v2: correcciones de la evaluación de arquitectura (arquitecto-evaluador, Opus, 2026-10-07) · v3 (2026-11-05): fila T9 ratificada por el CEO Operativo de AURA (DP-DURABILIDAD-MEMORIA, P2-B) · v4 (2026-11-06): fila T19 (acta continuidad de resultados)"
 ---
 
 # Contrato de olvido y retención
@@ -39,6 +39,7 @@ de texto idéntico (DP-S3 §4.1.1).
 | T8 | `restore(backup)` de una copia anterior al olvido | — | **BLOQUEADO**: `restore` reescribe el historial con `_persist()` (viola G-7 y ADR-0023, corolarios 1 y 3) y no tiene llamadores en producción. Garantía vigente: **no se conecta** sin operación de catálogo y DP (D23). Prueba `xfail(strict)` que documenta la resurrección |
 | T9 | Línea final truncada | Falla en alto si es ambigua, corrupta o puede ser lápida o marca; solo se tolera un corte demostrable, con constancia (texto ratificado en §2.1) | Prueba (T9 ×3 + `test_durabilidad_memoria_p2.py`) |
 | T10 | Reloj de CM2 | Misma proyección y misma lectura de líneas que la memoria (`_lineas_legibles`); eventos `cm2.*` sin texto | Prueba |
+| T19 | Registro de resultados de acción (`resultado_accion`, punto D) | «olvida lo que hiciste» / «borra el historial de acciones» anexa lápidas sobre los registros del usuario: no se recuperan, ni tras reinicio, ni en ver/exportar; nunca entran en `recall` ni en el prompt (acta 2026-11-06) | Prueba adversarial |
 | **T11b** | **Captura de señales de la orden** («olvídalo, mi cumpleaños es el 3 de junio» se capturaba como declaración vigente) | Un turno de soberanía no captura señales | **Defecto activo (ECC ALTO A1), corregido 2026-10-07** |
 | **T11** | **Eco de la propia orden de olvido** («usuario dijo: olvida que mi ciudad favorita es Valencia», escrito después de la lápida como `episodica` vigente) | El eco de un turno de soberanía es `historico` | **Defecto activo, corregido 2026-10-07** (TDD de extremo a extremo) |
 | T12 | Olvido/refutación por texto o total no retira ecos | — | Latente (sin llamadores); documentado |

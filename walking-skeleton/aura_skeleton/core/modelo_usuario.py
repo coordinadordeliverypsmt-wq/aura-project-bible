@@ -21,6 +21,8 @@ from __future__ import annotations
 import json
 import time
 
+from . import resultado_accion
+
 _TIPOS = ("semantica", "procedimental")
 
 
@@ -72,6 +74,33 @@ class ModeloUsuario:
             for i in self._entradas(user_id)
         ]
 
+    async def ver_acciones(self, user_id: str) -> list[dict]:
+        """Los registros de acciones del usuario (punto D, ADR-0017 §4), con LISTA BLANCA de campos. Aparte de `ver`
+        a proposito: «¿que sabes de mi?» describe lo que AURA CREE de la persona, y lo que AURA hizo no es eso."""
+        registros = resultado_accion.leer_auditando(self._memoria, user_id)
+        return [resultado_accion.exportable(r) for r in registros]
+
+    async def olvidar_acciones(self, user_id: str) -> int | None:
+        """«Olvida lo que hiciste» (T19): lapida de todos los `resultado_accion` del usuario, por el Motor Unico
+        (`olvidar_informacion_usuario` con `ambito="acciones"`). El audit conserva el metadato de las ejecuciones,
+        como para toda accion: olvido asimetrico DECLARADO, no resuelto aqui (D-AMP-3).
+
+        Devuelve `None` si el motor NO ejecuto la operacion (detenida o error): «no se hizo» no es «no habia nada»."""
+        resultado = (
+            await self._motor.ejecutar(
+                "olvidar_informacion_usuario",
+                {"user_id": user_id, "ambito": "acciones"},
+                user_id or "-",
+                "modelo-olvidar_informacion_usuario",
+                origen="modelo_usuario",
+            )
+            if self._motor is not None
+            else None
+        )
+        if not isinstance(resultado, dict) or resultado.get("estado") != "ejecutada":
+            return None
+        return int((resultado.get("resultado") or {}).get("n", 0))
+
     # ------------------------------------------------------------- corregir --
 
     async def corregir(self, user_id: str, anterior: str, correccion: str) -> None:
@@ -107,7 +136,12 @@ class ModeloUsuario:
     async def exportar(self, user_id: str) -> str:
         """JSON legible sin AURA (4.1 §5). Un formato que solo el sistema sabe leer no es soberania."""
         return json.dumps(
-            {"usuario": user_id, "exportado_ts": time.time(), "entradas": await self.ver(user_id)},
+            {
+                "usuario": user_id,
+                "exportado_ts": time.time(),
+                "entradas": await self.ver(user_id),
+                "acciones": await self.ver_acciones(user_id),
+            },
             ensure_ascii=False,
             indent=2,
         )

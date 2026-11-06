@@ -18,6 +18,7 @@ import time
 import uuid
 
 from .. import observability as obs
+from . import resultado_accion
 from .identidad_memoria import identidad_de
 from .modelo_usuario import _TIPOS
 from .senales import ClaseSenal
@@ -46,6 +47,21 @@ def _predicado(user_id: str, contiene: str | None, solo_vivas: bool = False):
             and (contiene is None or contiene in i["content"])
             and not (solo_vivas and i.get("provenance", {}).get("refutada"))
         )
+
+    return objetivo
+
+
+#: Valor de `ambito` con el que `olvidar_informacion_usuario` apunta a los REGISTROS DE ACCIONES (T19) en lugar de al
+#: modelo del usuario. Es una ampliacion de la operacion que ya existe, no una operacion nueva: mismo catalogo,
+#: mismo sujeto, mismos controles del motor.
+AMBITO_ACCIONES = "acciones"
+
+
+def _predicado_acciones(user_id: str):
+    """Los `resultado_accion` de ESE usuario. Aislamiento por usuario (P-ARQ-5), como `_predicado`."""
+
+    def objetivo(i: dict) -> bool:
+        return i["user_id"] == user_id and i["kind"] == resultado_accion.KIND
 
     return objetivo
 
@@ -138,6 +154,8 @@ class EjecutorModeloUsuario:
         """El predicado que decide QUE se toca. Con `entrada` localiza UNA; sin ella, por texto (el camino
         de «olvidarlo todo», `contiene=None`). DR-2: cuando existe una entrada concreta, nunca por texto."""
         user_id = args.get("user_id", "")
+        if args.get("ambito") == AMBITO_ACCIONES:
+            return _predicado_acciones(user_id)
         if args.get("entrada"):
             return _predicado_entrada(user_id, args["entrada"], solo_vivas)
         return _predicado(user_id, args.get("contiene"), solo_vivas)
@@ -280,6 +298,21 @@ class EjecutorModeloUsuario:
                     causa=causa,
                 )
 
+    def _olvidar_acciones(self, user_id: str, trace_id: str) -> dict:
+        """T19: lapida de los `resultado_accion` del usuario. Se CUENTAN en el audit, no se nombran: el rastro del
+        olvido no puede ser una copia de lo olvidado (la entidad y la hora son un patron de vida)."""
+        n = self._memoria.olvidar(_predicado_acciones(user_id))
+        obs.log(
+            "MODELO",
+            "ejecutor-modelo",
+            f"olvidados {n} registro(s) de acciones sobre '{user_id}'",
+            trace_id,
+            audit=True,
+            evento="resultado.olvidado",
+            cantidad=n,
+        )
+        return {"n": n}
+
     async def simular(self, accion: str, args: dict, trace_id: str) -> dict:
         """Dry-run: qué pasaría. **No muta.** Un plan no viable detiene la ejecución antes de empezar."""
         if accion == "registrar_informacion_usuario":
@@ -341,6 +374,9 @@ class EjecutorModeloUsuario:
                     valid_from=procedencia.get("valid_from"),
                 )
             return {"n": 1}
+
+        if accion == "olvidar_informacion_usuario" and args.get("ambito") == AMBITO_ACCIONES:
+            return self._olvidar_acciones(user_id, trace_id)
 
         # §5.1 — se leen ANTES de tocar nada: despues de mutar, lo perdido ya no se puede nombrar.
         refutar = accion == "refutar_informacion_usuario"

@@ -10,9 +10,9 @@ import time
 from pathlib import Path
 
 from .. import observability as obs
-from ..contracts import HISTORICO, Event, es_escritura_pasiva
+from ..contracts import HISTORICO, RESULTADO_ACCION, Event, es_escritura_pasiva
 from ..observability import Timer
-from . import contexto_memoria, entorno, hogar, intencion, ordenes, percepcion, recuperacion
+from . import contexto_memoria, entorno, hogar, intencion, ordenes, percepcion, recuperacion, resultado_accion
 from .almacen_senales import AlmacenSenales
 from .aritmetica import resolver_formal
 from .automatizacion import MotorAutomatizacion
@@ -39,8 +39,8 @@ from .identidad_memoria import (
 from .modelo_usuario import describir_conocimiento, explicar_entrada
 from .nodos import evaluar_avisos_nodos
 from .notificaciones import Notificacion, notificacion_de_accion
+from .operaciones import CAPACIDADES_QUE_DEVUELVEN_CONTENIDO, ErrorDeValidacion
 from .operaciones import ESPECIFICACIONES as _ESPECS
-from .operaciones import ErrorDeValidacion
 from .registro import RegistroAdaptadores
 from .reglas import ReglaUsuario, evaluar_condicion, resolver_args
 from .senales import ClaseSenal
@@ -1118,6 +1118,74 @@ def _redactar_revision(hallazgos) -> str:
     return "\n".join(lineas)
 
 
+_AVISO_SIN_REGISTRO = "No he podido guardar el registro de esta acción: tras un reinicio no la recordaré."
+
+
+def describir_desenlace(
+    capacidad: str,
+    desenlace: str,
+    *,
+    motivo: object = None,
+    resumen: str | None = None,
+    detalle_hogar: dict | None = None,
+    nombres: dict[str, str] | None = None,
+    modo: str = "vivo",
+    elementos: int | None = None,
+    estado: object = None,
+    ilegible: bool = False,
+) -> str | None:
+    """LA redaccion del desenlace de una orden: una sola funcion, tres modos, ninguna segunda implementacion
+    (punto D, requisito 10; leccion de ALERTA-005).
+
+    - `vivo`: el turno que acaba de ocurrir. Presente de verificacion («Home Assistant ve…»).
+    - `registro`: lo que cuenta el registro persistido tras un reinicio. Pasado: lo que CONSTABA entonces, sin afirmar
+      nada que no se haya vuelto a comprobar («registro local, sin verificar ahora»).
+    - `prompt`: lo unico que de un resultado con contenido del usuario reentra en el prompt (metadato, sin contenido).
+
+    Devuelve `None` solo cuando el desenlace es `ejecutada` y el texto depende del contenido concreto del adaptador
+    (entradas, ficheros) que el modo `vivo` redacta quien lo tiene."""
+    registro = modo == "registro"
+    if modo in ("prompt", "registro") and capacidad in CAPACIDADES_QUE_DEVUELVEN_CONTENIDO and desenlace == "ejecutada":
+        cuantas = f", {elementos} línea(s)" if elementos is not None else ""
+        if modo == "prompt":
+            return f"Ejecuté «{capacidad}»: leí un archivo{cuantas}. Su contenido no se repite aquí."
+        return f"Ejecuté «{capacidad}»: leí un archivo{cuantas}; no conservo su contenido."
+    if desenlace == "duplicada":
+        # Idempotencia del adaptador: NO se volvió a ejecutar. Contarlo como una ejecución fresca
+        # sería afirmar un trabajo que no se hizo.
+        return (
+            f"«{capacidad}» ya se había ejecutado con esos mismos datos, así que no lo repetí. "
+            f"No tengo resultado nuevo que darte."
+        )
+    if capacidad in _ACCION_DE_HOGAR and desenlace in ("detenida", "error"):
+        # Medido `[EJEC]` contra el HA real (2026-10-22): «Intenté ejecutar «subir_volumen» y no pude: el adaptador
+        # rechazo la operacion: …». El motivo era cierto; la forma, técnica. En casa se dice QUÉ no se hizo y por qué.
+        motivo = str(motivo or "un control lo impidió").removeprefix("el adaptador rechazo la operacion: ")
+        return f"No he podido {_ACCION_DE_HOGAR[capacidad]}: {_con_nombres_humanos(motivo, nombres)}."
+    if desenlace == "detenida":
+        texto = _con_nombres_humanos(str(motivo or "un control lo impidió"), nombres)
+        return f"No he ejecutado «{capacidad}»: {texto}."
+    if desenlace == "error":
+        return f"Intenté ejecutar «{capacidad}» y no pude: {_con_nombres_humanos(str(motivo or 'fallo'), nombres)}."
+    if desenlace == "no_limpia":
+        return f"Ejecuté «{capacidad}». **No está limpio**: {_acotar(resumen or 'no ha salido bien')}"
+    if desenlace == "ejecutada" and detalle_hogar is not None:
+        if capacidad in _CAPACIDADES_DE_HOGAR:
+            return _redactar_efecto_de_hogar(capacidad, detalle_hogar, nombres, registro)
+        if capacidad in _CAPACIDADES_DE_VOLUMEN:
+            return _redactar_efecto_de_volumen(capacidad, detalle_hogar, nombres, registro)
+    if desenlace == "desconocido":
+        if ilegible:
+            return f"Ejecuté «{capacidad}», pero no me devolvió un resultado que pueda leer."
+        como = f" ({estado!r})" if estado is not None else ""
+        return f"Ejecuté «{capacidad}», pero no sé interpretar cómo terminó{como}."
+    if registro:  # ejecutada sin nada mas que contar: lo unico que el registro conserva es cuantas entradas hubo
+        if elementos is not None:
+            return f"Ejecuté «{capacidad}»: {elementos} entrada(s)."
+        return f"Ejecuté «{capacidad}» y terminó."
+    return None
+
+
 def _redactar_resultado_de_orden(capacidad: str, res: dict, nombres: dict[str, str] | None = None) -> str:
     """Cuenta lo que el motor DEVOLVIÓ, no lo que se esperaba que hiciera.
 
@@ -1135,22 +1203,14 @@ def _redactar_resultado_de_orden(capacidad: str, res: dict, nombres: dict[str, s
     es **el gobierno funcionando** —permisos, dry-run, kill switch— y lo segundo es un fallo. Decirle
     al usuario «falló» cuando en realidad se le negó el permiso sería confundir una barrera con una
     avería."""
+    # UNA clasificacion del desenlace, la misma que usa el registro persistido (`resultado_accion.desenlace_de`).
+    desenlace = resultado_accion.desenlace_de(res)
     if not isinstance(res, dict):
-        return f"Ejecuté «{capacidad}», pero no me devolvió un resultado que pueda leer."
-
-    estado = res.get("estado")
-    if capacidad in _ACCION_DE_HOGAR and estado in ("detenida", "error"):
-        # Medido `[EJEC]` contra el HA real (2026-10-22): «Intenté ejecutar «subir_volumen» y no pude: el adaptador
-        # rechazo la operacion: …». El motivo era cierto; la forma, técnica. En casa se dice QUÉ no se hizo y por qué.
-        motivo = str(res.get("motivo") or "un control lo impidió").removeprefix("el adaptador rechazo la operacion: ")
-        return f"No he podido {_ACCION_DE_HOGAR[capacidad]}: {_con_nombres_humanos(motivo, nombres)}."
-    if estado == "detenida":
-        motivo = _con_nombres_humanos(str(res.get("motivo") or "un control lo impidió"), nombres)
-        return f"No he ejecutado «{capacidad}»: {motivo}."
-    if estado == "error":
-        return f"Intenté ejecutar «{capacidad}» y no pude: {_con_nombres_humanos(str(res.get('motivo') or 'fallo'), nombres)}."
-    if estado != "ejecutada":
-        return f"Ejecuté «{capacidad}», pero no sé interpretar cómo terminó ({estado!r})."
+        return describir_desenlace(capacidad, desenlace, ilegible=True) or ""
+    if desenlace in ("detenida", "error"):
+        return describir_desenlace(capacidad, desenlace, motivo=res.get("motivo"), nombres=nombres) or ""
+    if res.get("estado") != "ejecutada":
+        return describir_desenlace(capacidad, desenlace, estado=res.get("estado")) or ""
 
     detalle = res.get("resultado")
     if not isinstance(detalle, dict):
@@ -1161,9 +1221,10 @@ def _redactar_resultado_de_orden(capacidad: str, res: dict, nombres: dict[str, s
     # se ejecutó **correctamente** y su resultado es **malo**. Son dos cosas distintas y el usuario
     # necesita la segunda.
     resumen = str(detalle.get("resumen") or "").strip()
-    if detalle.get("ok") is False:
-        cuerpo = resumen or "no ha salido bien"
-        return f"Ejecuté «{capacidad}». **No está limpio**: {_acotar(cuerpo)}"
+    if desenlace == "no_limpia":
+        return describir_desenlace(capacidad, desenlace, resumen=resumen) or ""
+    if desenlace == "duplicada":
+        return describir_desenlace(capacidad, desenlace) or ""
     if resumen:
         return f"Ejecuté «{capacidad}». {_acotar(resumen)}"
 
@@ -1173,17 +1234,9 @@ def _redactar_resultado_de_orden(capacidad: str, res: dict, nombres: dict[str, s
     # contrato hacía que un listado real se contara como «terminó correctamente» **sin enseñar
     # nada** — cierto, pero inútil, que es la otra forma de que una respuesta no sirva.
     estado_adaptador = str(detalle.get("status") or "").strip()
-    if estado_adaptador == "duplicate":
-        # Idempotencia del adaptador: NO se volvió a ejecutar. Contarlo como una ejecución fresca
-        # sería afirmar un trabajo que no se hizo.
-        return (
-            f"«{capacidad}» ya se había ejecutado con esos mismos datos, así que no lo repetí. "
-            f"No tengo resultado nuevo que darte."
-        )
-    if capacidad in _CAPACIDADES_DE_HOGAR:
-        return _redactar_efecto_de_hogar(capacidad, detalle, nombres)
-    if capacidad in _CAPACIDADES_DE_VOLUMEN:
-        return _redactar_efecto_de_volumen(capacidad, detalle, nombres)
+    del_hogar = describir_desenlace(capacidad, "ejecutada", detalle_hogar=detalle, nombres=nombres)
+    if del_hogar is not None:
+        return del_hogar
     if estado_adaptador and estado_adaptador != "ok":
         return f"Ejecuté «{capacidad}» y devolvió el estado {estado_adaptador!r}."
 
@@ -1251,7 +1304,14 @@ def _estado_humano(valor: object) -> str:
     return _ESTADOS_HUMANOS.get(str(valor)) or f"«{hogar.texto_seguro(valor)}»"
 
 
-def _sin_efecto_de_hogar(infinitivo: str, objetivo: str, detalle: dict) -> str:
+_COLA_YA_IGUAL = {False: " y la sigue viendo así; no ha cambiado nada.", True: "; no cambió nada."}
+_COLA_YA_DISTINTO = {
+    False: " y ahora la ve {ahora}; no ha cambiado nada.",
+    True: " y después la veía {ahora}; no cambió nada.",
+}
+
+
+def _sin_efecto_de_hogar(infinitivo: str, objetivo: str, detalle: dict, registro: bool = False) -> str:
     """Orden enviada sin estado pedido: dice qué VE Home Assistant, nunca qué ocurrió físicamente."""
     if detalle.get("evidencia") == "estado_asumido_por_ha":
         # SmartIR y similares: HA publica un estado optimista (`assumed_state`) porque no lee el aparato.
@@ -1262,19 +1322,24 @@ def _sin_efecto_de_hogar(infinitivo: str, objetivo: str, detalle: dict) -> str:
         )
     antes, despues = detalle.get("estado_antes"), detalle.get("estado_despues")
     ahora = _estado_humano(despues)
+    # Modo registro: pasado, sin presente de verificacion (`registro` elige la cola de la frase).
     if detalle.get("ya_en_estado"):
         if antes == despues:
-            return f"Home Assistant ya veía {objetivo} {ahora} y la sigue viendo así; no ha cambiado nada."
-        return f"Home Assistant ya veía {objetivo} {_estado_humano(antes)} y ahora la ve {ahora}; no ha cambiado nada."
+            return f"Home Assistant ya veía {objetivo} {ahora}{_COLA_YA_IGUAL[registro]}"
+        return f"Home Assistant ya veía {objetivo} {_estado_humano(antes)}{_COLA_YA_DISTINTO[registro].format(ahora=ahora)}"
     cabecera = f"Envié la orden de {infinitivo} {objetivo}, pero"
     if detalle.get("evidencia") == "ninguna" or despues in (None, "?"):
         return f"{cabecera} no pude leer el estado en Home Assistant después. No lo doy por hecho."
     if antes == despues:
-        return f"{cabecera} no cambió: Home Assistant sigue viendo {objetivo} {ahora}. No lo doy por hecho."
-    return f"{cabecera} Home Assistant ve {objetivo} {ahora}, no el estado pedido. No lo doy por hecho."
+        verbo = "seguía viendo" if registro else "sigue viendo"
+        return f"{cabecera} no cambió: Home Assistant {verbo} {objetivo} {ahora}. No lo doy por hecho."
+    verbo = "veía" if registro else "ve"
+    return f"{cabecera} Home Assistant {verbo} {objetivo} {ahora}, no el estado pedido. No lo doy por hecho."
 
 
-def _redactar_efecto_de_hogar(capacidad: str, detalle: dict, nombres: dict[str, str] | None = None) -> str:
+def _redactar_efecto_de_hogar(
+    capacidad: str, detalle: dict, nombres: dict[str, str] | None = None, registro: bool = False
+) -> str:
     """Solo se dice «hecho» si el adaptador OBSERVÓ el estado pedido releyendo Home Assistant.
 
     Casos, y ninguno puede contarse como otro: verificado (HA ve el estado pedido tras la orden), sin efecto o
@@ -1289,6 +1354,14 @@ def _redactar_efecto_de_hogar(capacidad: str, detalle: dict, nombres: dict[str, 
     objetivo = humano if humano is not None else f"«{hogar.texto_seguro(dispositivo)}»"
     if detalle.get("verificado") is True and detalle.get("evidencia") != "estado_asumido_por_ha":
         # Nivel de evidencia: lo que HOME ASSISTANT reporta tras la orden, no un efecto físico confirmado.
+        if registro:  # modo registro: lo que constaba entonces, sin afirmar nada ahora
+            estado = _estado_humano(detalle.get("estado_despues"))
+            if humano is not None:
+                return f"Constaba que Home Assistant veía {humano} {estado} tras la orden (registro local, sin verificar ahora)."
+            return (
+                f"Constaba que Home Assistant veía {objetivo} en «{hogar.texto_seguro(detalle.get('estado_despues'))}» "
+                f"(antes «{hogar.texto_seguro(detalle.get('estado_antes'))}») tras la orden (registro local, sin verificar ahora)."
+            )
         if humano is not None:
             return f"Listo: Home Assistant ve {humano} {_estado_humano(detalle.get('estado_despues'))}."
         return (
@@ -1296,7 +1369,7 @@ def _redactar_efecto_de_hogar(capacidad: str, detalle: dict, nombres: dict[str, 
             f"(antes «{hogar.texto_seguro(detalle.get('estado_antes'))}»)."
         )
     if detalle.get("status") == "sin_efecto":
-        return _sin_efecto_de_hogar(infinitivo, objetivo, detalle)
+        return _sin_efecto_de_hogar(infinitivo, objetivo, detalle, registro)
     return (
         f"Envié la orden de {infinitivo} {objetivo}, pero el hogar está en modo simulado: "
         "no hay ningún dispositivo real conectado y no puedo confirmar que haya pasado nada."
@@ -1317,7 +1390,9 @@ def _valor_de_volumen(atributo: object, valor: object) -> str:
     return f"en {round(float(valor) * 100)}" if isinstance(valor, (int, float)) else f"en «{valor}»"
 
 
-def _redactar_efecto_de_volumen(capacidad: str, detalle: dict, nombres: dict[str, str] | None = None) -> str:
+def _redactar_efecto_de_volumen(
+    capacidad: str, detalle: dict, nombres: dict[str, str] | None = None, registro: bool = False
+) -> str:
     """Volumen y silencio con el mismo criterio que encender/apagar: «hecho» solo si el adaptador RELEYÓ el atributo y
     cambió en el sentido pedido (acta 2026-10-22 §4). El volumen se dice como HA lo da (0-1) en escala de 0 a 100."""
     hecho, infinitivo = _CAPACIDADES_DE_VOLUMEN[capacidad]
@@ -1332,12 +1407,18 @@ def _redactar_efecto_de_volumen(capacidad: str, detalle: dict, nombres: dict[str
     if detalle.get("ya_en_estado"):
         # Silenciar lo ya silenciado: HA ya lo veía así y lo sigue viendo; AURA no cambió nada y no dice que lo hizo.
         ya = _valor_de_volumen(atributo, detalle.get("valor_despues"))
+        if registro:
+            return f"Home Assistant ya veía {objetivo} {ya}; no cambié nada."
         return f"Home Assistant ya veía {objetivo} {ya} y la sigue viendo así; no he cambiado nada."
     if detalle.get("verificado") is True:
         if atributo == "volume_level":
             antes = _valor_de_volumen(atributo, detalle.get("valor_antes")).removeprefix("en ")
             despues = _valor_de_volumen(atributo, detalle.get("valor_despues")).removeprefix("en ")
+            if registro:
+                return f"Se ordenó {infinitivo} {objetivo} (de {antes} a {despues}); constaba comprobado en Home Assistant (registro local)."
             return f"Listo: {hecho} {objetivo} (de {antes} a {despues}); lo he comprobado en Home Assistant."
+        if registro:
+            return f"Se ordenó {infinitivo} {objetivo}; constaba comprobado en Home Assistant (registro local)."
         return f"Listo: {hecho} {objetivo}; lo he comprobado en Home Assistant."
     if detalle.get("status") == "sin_efecto":
         valor_despues = detalle.get("valor_despues")
@@ -2165,6 +2246,10 @@ class Orchestrator:
         # autónomo (semana 2, encontrado `[EJEC]` con la TV real: contestaba «mi última tarea es P-018»).
         # Sin ninguna acción en la ventana, el historial responde igual que antes.
         clase_en_conversacion = recuperacion.reconocer(text)
+        if clase_en_conversacion == recuperacion.PREGUNTA_ANTES_DEL_REINICIO:
+            # Punto D: solo el registro persistido puede contestarlo, aunque la ventana tenga ejecuciones nuevas.
+            await self._responder_recuperacion(uid, tid, text, t, clase_en_conversacion)
+            return
         if clase_en_conversacion is not None and recuperacion.hubo_ejecucion(self._dialogue.get(uid, [])):
             await self._responder_recuperacion(uid, tid, text, t, clase_en_conversacion)
             return
@@ -2354,7 +2439,9 @@ class Orchestrator:
         # ya está filtrado por vigencia; el Builder excluye además los ecos de terceros. NO cubre el
         # buffer `recent` de abajo (otra vía al prompt, continuidad conversacional) — límite declarado.
         ctx = contexto_memoria.construir_contexto(vigentes)
-        buffer = self._dialogue.get(uid, [])
+        # Punto D: un turno con `resumen_prompt` (contenido de ficheros del usuario, o consulta al registro persistido)
+        # reentra SOLO con su resumen. La ventana en RAM conserva el texto entero para la recuperacion a peticion.
+        buffer = [t._replace(aura=t.resumen_prompt) if t.resumen_prompt else t for t in self._dialogue.get(uid, [])]
         # D-FC-8 = B: cada turno previo reentra CON su estatus. Una propuesta del modelo aparece como
         # `AURA [PROPUESTA_NO_VERIFICADA]: ...` y nunca desnuda: sin la etiqueta, el modelo leeria su
         # propia salida anterior como si AURA la hubiera afirmado, y la reforzaria turno a turno.
@@ -2531,10 +2618,31 @@ class Orchestrator:
                 obs.log("CORE", "export", "export del modelo CONFIRMADO por el usuario", "-", audit=True)
                 return await self.modelo_usuario.exportar(uid)
             # No confirmado: el pendiente queda descartado y el turno sigue su curso normal.
+        # Punto D: TODAS las formas del olvido de acciones son una mutacion (T19) y la PARADA las bloquea tambien.
+        olvida_acciones = resultado_accion.es_peticion_de_olvido_de_acciones(text)
+        if self._sistema_detenido() and olvida_acciones:
+            obs.log("KILL", "orchestrator", "soberania: olvido de acciones bloqueado por kill switch", "-", audit=True)
+            return "Ahora mismo no puedo modificar lo que sé de ti: el sistema está detenido."
         if self._sistema_detenido() and (_es_peticion_de_olvido(t) or _cae_en(t, _PAT_MODELO_REFUTA)):
             # Inspeccionar sigue permitido: leer no muta nada. Lo que la parada impide es MODIFICAR.
             obs.log("KILL", "orchestrator", "soberania: mutacion bloqueada por kill switch", "-", audit=True)
             return "Ahora mismo no puedo modificar lo que sé de ti: el sistema está detenido."
+        if olvida_acciones:
+            # T19: «olvida lo que hiciste». Va por la via de soberania (el eco NO se captura: T11) y por el Motor
+            # Unico. Antes de `_foco`: no apunta a ninguna entrada del modelo del usuario.
+            n = await self.modelo_usuario.olvidar_acciones(uid)
+            if n is None:  # el motor NO ejecuto la operacion (detenida o error): no se sabe que habia, y sigue ahi
+                return (
+                    "No he podido olvidar lo que hice: la operación no se ejecutó (la detuvo un control o falló). "
+                    "El registro sigue como estaba."
+                )
+            if n == 0:
+                return "No tenía ningún registro de acciones."
+            # Honesto (contrato de olvido §5 / D-AMP-3): es un olvido LOGICO. El borrado fisico no esta implementado.
+            return (
+                "Hecho. Dejo de usar y de mostrar lo que hice. El borrado físico no está implementado: "
+                "el registro sigue en el fichero, aunque ya no lo uso."
+            )
         entradas = await self.modelo_usuario.ver(uid)
         vivas = [e for e in entradas if not e.get("refutada")]
         # **PRESENTES: lo que AURA afirma HOY (2026-09-15).** `vivas` incluye las versiones SUPERSEDED de
@@ -2968,19 +3076,63 @@ class Orchestrator:
         return await self._despachar_orden(uid, simple, ordenes.argumentos_de(simple), tid)
 
     async def _responder_recuperacion(self, uid: str, tid: str, text: str, t, clase: str) -> None:
-        """Recupera de la ventana de trabajo lo que AURA hizo, sin volver a ejecutarlo (M8). Un solo sitio
-        para los dos puntos de la cascada que lo usan."""
+        """Recupera lo que AURA hizo, sin volver a ejecutarlo (M8 + punto D). Un solo sitio para los dos puntos de la
+        cascada que lo usan. Cascada: ventana de trabajo (M8, sin cambios) -> registro persistido -> ausencia sin
+        «nunca». «Antes de reiniciarte» solo puede contestarlo el registro, aunque la ventana tenga ejecuciones
+        nuevas. **El motor recibe CERO llamadas**: leer nunca re-ejecuta."""
         turno_previo = recuperacion.ultima_ejecucion(self._dialogue.get(uid, []))
-        resp, estatus_rec = recuperacion.redactar(clase, turno_previo)
+        del_registro = clase == recuperacion.PREGUNTA_ANTES_DEL_REINICIO or turno_previo is None
+        if del_registro:
+            resp, estatus_rec, resumen = self._recuperar_del_registro(uid, tid, clase)
+            origen = "persistido"
+        else:
+            resp, estatus_rec = recuperacion.redactar(clase, turno_previo)
+            resumen = turno_previo.resumen_prompt if turno_previo else ""
+            origen = "ventana"
         obs.log(
             "CORE",
             "recuperacion",
             f"pregunta por ejecucion anterior ({clase}): "
-            f"{'recuperada' if turno_previo else 'sin ejecucion en la ventana'}, sin LLM",
+            f"{'recuperada' if estatus_rec is not Estatus.AUSENCIA else 'sin ejecucion que recuperar'} "
+            f"({origen}), sin LLM",
             tid,
             audit=True,
+            origen=origen,
         )
-        await self._finalizar_turno(uid, tid, text, resp, "core", t, dominio="recuperacion", estatus=estatus_rec)
+        await self._finalizar_turno(
+            uid, tid, text, resp, "core", t, dominio="recuperacion", estatus=estatus_rec, resumen_prompt=resumen
+        )
+
+    def _recuperar_del_registro(self, uid: str, tid: str, clase: str) -> tuple[str, Estatus, str]:
+        """(respuesta, estatus, resumen para el prompt) desde `resultado_accion`. Cada registro se redacta con
+        `describir_desenlace`, la MISMA funcion del turno en vivo. Lo que no valida se ignora y se audita."""
+        registros = resultado_accion.leer_auditando(self.memory, uid, tid)
+        if clase == recuperacion.PREGUNTA_ANTES_DEL_REINICIO:
+            propios = self._persistidos_en_proceso()
+            registros = [r for r in registros if r["trace_id"] not in propios]
+        # Nunca mas de lo que la ventana de trabajo ya aprobada (DR-4) retendria: sin numero nuevo que justificar.
+        lineas = [
+            f"{resultado_accion.hora_legible(r)}: {self._texto_de_registro(r)}" for r in registros[-self._DIALOG_MAX :]
+        ]
+        resp, estatus = recuperacion.redactar_persistido(clase, lineas)
+        return resp, estatus, recuperacion.RESUMEN_PROMPT_REGISTRO if lineas else ""
+
+    def _texto_de_registro(self, registro: dict) -> str:
+        """Un registro persistido, con la redaccion compartida. Lo que el registro no conserva (el motivo, el
+        resumen) se dice que no se conserva: no se inventa."""
+        capacidad, desenlace = registro["capacidad"], registro["desenlace"]
+        de_hogar = capacidad in resultado_accion.CAPACIDADES_DE_HOGAR
+        texto = describir_desenlace(
+            capacidad,
+            desenlace,
+            motivo="no conservo el motivo",
+            resumen="no conservo el detalle",
+            detalle_hogar=resultado_accion.detalle_reconstruido(registro) if de_hogar else None,
+            nombres=getattr(self, "nombres_de_voz", None),
+            modo="registro",
+            elementos=registro["elementos"],
+        )
+        return texto or ""
 
     async def _despachar_revision(self, uid: str, capacidades, tid: str) -> str:
         """Varias capacidades reales, una respuesta. **Cada una por su propia puerta.**
@@ -3067,6 +3219,9 @@ class Orchestrator:
         ALERTA-005 y la de `AI-M2`, que sobrevivio justamente porque cada camino conectaba su propia
         proteccion. Aqui hay una puerta y las dos formas pasan por ella."""
         ev = Event("action.command", tid, uid, {"action": capacidad, "args": args})
+        # PARADA se lee UNA vez, ANTES del motor (punto D, requisito 4): lo que se persiste depende del estado con
+        # el que la orden fue evaluada, no de uno que pudo cambiar mientras el motor trabajaba.
+        parada = self._sistema_detenido()
         res = await self.motor.ejecutar(capacidad, args, tid, ev.event_id, origen="conversacion")
         # **El registro forense cuenta lo que PASO, no lo que se pidio.** Esta linea decia
         # «ejecutada» siempre, incluso sobre ordenes que el motor habia DETENIDO o que habian dado
@@ -3096,7 +3251,82 @@ class Orchestrator:
             and detalle.get("device")
         ):
             entorno_vivo.registrar_efecto(detalle["device"], bool(detalle.get("verificado")))
-        return _redactar_resultado_de_orden(capacidad, res, getattr(self, "nombres_de_voz", None))
+        texto = _redactar_resultado_de_orden(capacidad, res, getattr(self, "nombres_de_voz", None))
+        if capacidad in CAPACIDADES_QUE_DEVUELVEN_CONTENIDO:
+            # Punto D, requisito 11: el CONTENIDO del fichero no reentra en el prompt de turnos posteriores. La
+            # recuperacion a peticion (M8, misma conversacion) sigue repitiendolo desde la ventana.
+            self._resumen_del_turno()[tid] = (
+                describir_desenlace(
+                    capacidad, "ejecutada", modo="prompt", elementos=resultado_accion.elementos_de(detalle)
+                )
+                or ""
+            )
+        if not await self._persistir_resultado(uid, capacidad, res, tid, parada):
+            texto += " " + _AVISO_SIN_REGISTRO
+        return texto
+
+    async def _persistir_resultado(self, uid: str, capacidad: str, res: object, tid: str, parada: bool) -> bool:
+        """Escribe el registro de resultado de accion DESPUES del desenlace del motor (requisito 4). `True` si la
+        accion queda sin problema de registro (escrito, o no procede escribirlo por diseño); `False` solo si
+        FALLO la escritura, caso en el que AURA lo dice (INV-9) y la accion NO pasa a fallida (requisito 5).
+
+        Un solo punto de escritura, con la guarda de PARADA por `es_escritura_pasiva` (no un `if` propio:
+        ALERTA-005). `RESULTADO_ACCION` no es pasivo, asi que con PARADA no se persiste nada."""
+        if parada and not es_escritura_pasiva(RESULTADO_ACCION):
+            obs.log("CORE", "parada", f"escritura NO pasiva bloqueada por PARADA: {RESULTADO_ACCION}", tid, audit=True)
+            return True
+        registro, motivo = resultado_accion.construir(capacidad, res, tid)
+        if registro is None:
+            obs.log(
+                "CORE",
+                "resultado",
+                f"registro de {capacidad} no persistido: {motivo}",
+                tid,
+                audit=True,
+                evento="resultado.no_persistido",
+                capacidad=capacidad,
+                motivo=motivo,
+            )
+            # Dominio de seguridad: exclusion POR DISEÑO, no un fallo, sin aviso. Un registro invalido si es fallo.
+            return motivo == resultado_accion.MOTIVO_DOMINIO_DE_SEGURIDAD
+        try:
+            await self.memory.write(
+                uid, RESULTADO_ACCION, resultado_accion.a_contenido(registro), {"trace_id": tid, "fuente": "ejecucion"}
+            )
+        except Exception as e:  # noqa: BLE001 - cualquier fallo de disco: la accion YA ocurrio y no se deshace
+            obs.log(
+                "WARN",
+                "resultado",
+                f"registro de {capacidad} NO persistido ({type(e).__name__}); la accion no se ve afectada",
+                tid,
+                audit=True,
+                evento="resultado.no_persistido",
+                capacidad=capacidad,
+                desenlace=registro["desenlace"],
+                motivo="fallo_de_escritura",
+            )
+            return False
+        self._persistidos_en_proceso().add(tid)
+        obs.log(
+            "CORE",
+            "resultado",
+            f"registro de {capacidad} persistido",
+            tid,
+            audit=True,
+            evento="resultado.persistido",
+            capacidad=capacidad,
+            desenlace=registro["desenlace"],
+        )
+        return True
+
+    def _resumen_del_turno(self) -> dict[str, str]:
+        """Resumen que SUSTITUYE al texto de AURA en el prompt, por turno (`tid`). Se crea perezosamente: las
+        pruebas de superficie construyen el orquestador con `__new__`, sin pasar por `__init__`."""
+        return self.__dict__.setdefault("_resumenes_de_prompt", {})
+
+    def _persistidos_en_proceso(self) -> set[str]:
+        """`trace_id` de los registros escritos por ESTE proceso: lo que NO es «antes de reiniciarte»."""
+        return self.__dict__.setdefault("_registros_de_este_proceso", set())
 
     def _describir_capacidades(self) -> str:
         """Responde "¿que capacidades tienes?" / "¿que puedes hacer?" con el registro de
@@ -3467,7 +3697,18 @@ class Orchestrator:
         except Exception as e:
             obs.log("WARN", "senales", f"captura fallida (turno no afectado): {e}", tid)
 
-    async def _finalizar_turno(self, uid, tid, text, say, prov, t, dominio: str = "", estatus: Estatus | None = None):
+    async def _finalizar_turno(
+        self,
+        uid,
+        tid,
+        text,
+        say,
+        prov,
+        t,
+        dominio: str = "",
+        estatus: Estatus | None = None,
+        resumen_prompt: str = "",
+    ):
         """Cierre comun del turno: persistencia, memoria de trabajo, voz, metricas y resultado.
 
         `dominio` dice QUE FUENTE respondio. `provider` solo distingue nucleo de modelo, y con nueve
@@ -3527,6 +3768,8 @@ class Orchestrator:
         if dominio != "modelo_usuario":  # T11/A1: ver el comentario de arriba
             await self._capturar_senales(uid, tid, text)
         buffer = self._dialogue.setdefault(uid, [])
+        # Lo unico que de este turno reentra en el prompt si lleva contenido del usuario (punto D, req. 11).
+        resumen = resumen_prompt or self._resumen_del_turno().pop(tid, "")
         # Se guarda el say SIN marca y con su estatus: la etiqueta de contexto la pone
         # `linea_de_contexto` al construir el prompt, y una marca duplicada no aportaria nada.
         #
@@ -3536,6 +3779,8 @@ class Orchestrator:
         # siguientes. Un fallo del microfono no puede ensuciar el contexto de la conversacion.
         if text:
             buffer.append(recuperacion.Turno(text, say, e, dominio))
+            if resumen:
+                buffer[-1] = buffer[-1]._replace(resumen_prompt=resumen)
             if len(buffer) > self._DIALOG_MAX:
                 del buffer[: len(buffer) - self._DIALOG_N]  # conserva las ultimas N (memoria de trabajo)
             # **LO QUE SE RETIENE DEJA RASTRO.** Hasta M7 la ventana de trabajo era el unico almacen

@@ -239,6 +239,13 @@ def _fsync_dir(directorio: str) -> None:
         os.close(fd)
 
 
+def _abrir_privado(ruta: str, flags: int) -> int:
+    """`opener` de los ficheros de memoria: se CREAN con 0600 (punto D, 2026-11-06). `memoria.json` guarda ahora el
+    registro de lo que AURA hizo; sin firma ni cifrado, la mitigacion es que solo el usuario lo lea. LIMITE DECLARADO:
+    los permisos de los DIRECTORIOS no se cambian aqui."""
+    return os.open(ruta, flags, 0o600)
+
+
 def _clave(item: dict) -> tuple:
     """Identidad de un recuerdo a efectos de proyeccion, analoga a `(user_id, rule_id)` en reglas."""
     return (item.get("user_id"), item.get("kind"), item.get("content"))
@@ -277,6 +284,8 @@ class PersistentMemory:
         self._dir_pendiente = False
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         os.makedirs(self._bdir, exist_ok=True)
+        if os.path.exists(path):
+            os.chmod(path, 0o600)  # idempotente: un memoria.json de antes de este incremento tambien se cierra
         self._load()
 
     _UMBRAL_UBICUO = 256  # una lista de posteo mas larga que esto es un stopword efectivo (MA.2a)
@@ -430,7 +439,7 @@ class PersistentMemory:
         # P2-B: una cola sin salto de linea (corte previo) se CIERRA en el mismo write, sin borrar bytes: la linea
         # nueva no se fusiona con el fragmento (que `_lineas_legibles` tolera solo si no es ambiguo).
         cierre = "\n" if _cola_abierta(self._path) else ""
-        with open(self._path, "a", encoding="utf-8") as f:
+        with open(self._path, "a", encoding="utf-8", opener=_abrir_privado) as f:
             f.write(cierre + json.dumps(item, ensure_ascii=False) + "\n")
             f.flush()
             os.fsync(f.fileno())
@@ -445,7 +454,7 @@ class PersistentMemory:
         historial cambia por entero —restore, migracion de formato— o al crear un backup."""
         tmp = self._path + ".tmp"
         data = "".join(json.dumps(it, ensure_ascii=False) + "\n" for it in self._items)
-        with open(tmp, "w", encoding="utf-8") as f:
+        with open(tmp, "w", encoding="utf-8", opener=_abrir_privado) as f:
             f.write(data)
             f.flush()
             os.fsync(f.fileno())  # el contenido en disco ANTES del rename: si no, un corte deja la memoria vacia
@@ -488,10 +497,10 @@ class PersistentMemory:
         digest = _sha256_file(self._path)
         name = f"memoria-{digest[:12]}.json"
         dst = os.path.join(self._bdir, name)
-        with open(self._path, encoding="utf-8") as src, open(dst, "w", encoding="utf-8") as out:
+        with open(self._path, encoding="utf-8") as src, open(dst, "w", encoding="utf-8", opener=_abrir_privado) as out:
             out.write(src.read())
         # manifiesto append-only con integridad
-        with open(os.path.join(self._bdir, "manifest.jsonl"), "a", encoding="utf-8") as mf:
+        with open(os.path.join(self._bdir, "manifest.jsonl"), "a", encoding="utf-8", opener=_abrir_privado) as mf:
             mf.write(json.dumps({"backup": name, "sha256": digest, "items": len(self._items)}) + "\n")
         obs.log("BACKUP", "memory", f"backup creado {name} ({len(self._items)} items)", "-", audit=True)
         return name

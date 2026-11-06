@@ -39,9 +39,10 @@ LO QUE ESTE MÓDULO NO HACE, Y ES DELIBERADO:
   error y `duplicate`, porque `_redactar_resultado_de_orden` se corrigió para eso en M7. Repetir ese
   texto conserva la distinción sin duplicar la lógica en un segundo sitio, que es como dos
   implementaciones del mismo control acaban divergiendo.
-- **No decide nada sobre privacidad ni retención.** No introduce exclusión por sensibilidad, ni TTL,
-  ni purga. Esa es la decisión que el CEO tiene abierta (`DECISION-REQUERIDA-CONTINUIDAD-DE-
-  RESULTADOS.md`, punto D) y no se resuelve por inferencia desde aquí.
+- **No decide nada sobre privacidad ni retención.** Esa decisión la tomó el CEO Operativo (2026-11-06, punto D,
+  `DECISION-REQUERIDA-CONTINUIDAD-DE-RESULTADOS.md` §7): el contenido de ficheros no reentra en el prompt y no se
+  persiste (lo marca `operaciones.CAPACIDADES_QUE_DEVUELVEN_CONTENIDO`), y lo que sobrevive al reinicio es un
+  registro de metadatos (`core/resultado_accion.py`). Este módulo solo redacta lo que ese registro conserva.
 - **No recupera lo que dijo el MODELO.** Solo turnos que produjo el Core ejecutando una capacidad.
   Repetir una propuesta del modelo como si fuera un hecho del Core la blanquearía, y el estatus
   epistémico existe justamente para impedirlo (`D-FC-8 = B`).
@@ -61,6 +62,9 @@ DOMINIO_EJECUCION = "orden_de_capacidad"
 #: Las dos cosas distintas que el usuario puede estar preguntando sobre lo anterior.
 PREGUNTA_POR_EL_RESULTADO = "resultado"
 PREGUNTA_POR_UN_JUICIO = "juicio"
+#: Tercera cosa que se puede preguntar (punto D): lo que AURA hizo ANTES DE REINICIARSE. Solo puede contestarlo el
+#: registro persistido (`resultado_accion`), nunca la ventana, que muere con el proceso.
+PREGUNTA_ANTES_DEL_REINICIO = "antes_del_reinicio"
 
 _VOCATIVOS = ("aurora", "aura")
 _PUNTUACION = "¿?¡!.…"
@@ -75,6 +79,10 @@ class Turno(NamedTuple):
     aura: str
     estatus: Estatus
     dominio: str = ""
+    #: Si no esta vacio, es LO UNICO que de este turno reentra en el prompt de turnos posteriores (punto D). Lo fija
+    #: el orquestador cuando la respuesta lleva contenido del usuario (`devuelve_contenido_usuario`) o sale del
+    #: registro persistido. La recuperacion a peticion en la misma conversacion sigue usando `aura` entero.
+    resumen_prompt: str = ""
 
 
 #: Formas en las que el usuario pide EL DATO de una ejecución anterior. Coincidencia por SEGMENTO
@@ -128,6 +136,13 @@ _FORMAS_RESULTADO_TV = frozenset(
     for tv in ("la tele", "la television", "el televisor", "la tv")
 )
 
+#: Preguntas por lo que AURA hizo antes de reiniciarse. Conjunto CERRADO, turno completo (ver `_FORMAS_RESULTADO`).
+_FORMAS_ANTES_DEL_REINICIO = frozenset(
+    f"{pregunta} antes {de}"
+    for pregunta in ("que hiciste", "que has hecho", "que habias hecho", "que ejecutaste", "que habias ejecutado")
+    for de in ("de reiniciarte", "del reinicio", "de reiniciar", "de que te reiniciaras")
+)
+
 #: Formas que piden una VALORACIÓN de lo anterior, no el dato. Se separan porque se contestan
 #: distinto: el Core puede repetir lo que encontró, pero decidir qué fue «lo más importante» sería
 #: una inferencia presentada como hecho — lo que `ADR-0014 §4` prohíbe.
@@ -167,6 +182,8 @@ def reconocer(texto: str) -> str | None:
         return PREGUNTA_POR_EL_RESULTADO
     if limpio in _FORMAS_JUICIO:
         return PREGUNTA_POR_UN_JUICIO
+    if limpio in _FORMAS_ANTES_DEL_REINICIO:
+        return PREGUNTA_ANTES_DEL_REINICIO
     return None
 
 
@@ -198,7 +215,24 @@ _SIN_JUICIO = (
 #: Ausencia PRECISA, y por eso distinta de la de `ADR-0014`. «No tengo ningún recuerdo registrado
 #: sobre eso» habla de la memoria personal; esto habla de la conversación. Que las siete situaciones
 #: dieran la misma frase era el defecto de fondo, no un detalle de redacción.
-_SIN_EJECUCION = "En esta conversación todavía no he ejecutado nada, así que no tengo ningún resultado que recuperar."
+#:
+#: **Sin «nunca» ni «no he ejecutado nada»** (punto D, decision L): la ventana muere con el proceso y el registro
+#: persistido puede haber fallado o no cubrir una accion (caida entre el efecto y la escritura, dominios de
+#: seguridad, PARADA). Decir que no hizo nada seria afirmar una ausencia que no puedo demostrar (INV-9).
+_SIN_EJECUCION = (
+    "No conservo registro de acciones anteriores; podría haber alguna que no consta, "
+    "así que no tengo ningún resultado que recuperar."
+)
+
+#: Lo que AURA antepone cuando lo que cuenta sale del registro persistido. «Consta en mi registro local» dice la
+#: procedencia (un fichero del usuario, sin firma) y NO el estatus de hecho verificado del Core.
+_PROCEDENCIA_PERSISTIDA = (
+    "Consta en mi registro local (no lo he vuelto a ejecutar ni a comprobar; puede estar incompleto):"
+)
+
+#: Lo que reentra en el prompt de turnos posteriores tras recuperar del registro: la existencia de la consulta, no
+#: su contenido.
+RESUMEN_PROMPT_REGISTRO = "(consulté mi registro local de acciones anteriores)"
 
 
 def redactar(clase: str, turno: Turno | None) -> tuple[str, Estatus]:
@@ -223,11 +257,25 @@ def redactar(clase: str, turno: Turno | None) -> tuple[str, Estatus]:
     return f"{_PROCEDENCIA}\n\n{turno.aura}", Estatus.HECHO
 
 
+def redactar_persistido(clase: str, lineas: list[str]) -> tuple[str, Estatus]:
+    """Qué contesta AURA con lo que `resultado_accion.leer` devolvió, ya redactado línea a línea por el orquestador
+    (con la MISMA redacción del turno en vivo). Con `lineas` vacío, la ausencia sin «nunca».
+
+    El estatus es ABSTENCION y no HECHO a propósito: el registro es un fichero local sin firma. AURA entrega lo que
+    consta con su procedencia, pero no lo afirma como hecho verificado por el Core (`ETIQUETA_CONTEXTO`)."""
+    if not lineas:
+        return redactar(clase, None)
+    cuerpo = "\n".join(f"• {linea}" for linea in lineas)
+    previo = f"{_SIN_JUICIO}\n\n" if clase == PREGUNTA_POR_UN_JUICIO else ""
+    return f"{previo}{_PROCEDENCIA_PERSISTIDA}\n{cuerpo}", Estatus.ABSTENCION
+
+
 def hubo_ejecucion(ventana) -> bool:
     """True si en la ventana de trabajo de ESTA conversación AURA ejecutó algo.
 
     Semana 2, encontrado `[EJEC]` con la TV real: tras «apaga la tele», «¿qué hiciste?» lo contestaba el
     historial del ciclo autónomo («mi última tarea es P-018»), también con una pregunta en medio. Si AURA
     actuó en esta conversación, la pregunta es por eso; si no, el historial sigue respondiendo como siempre.
-    Solo la ventana (DR-4): tras un reinicio no hay acción que recuperar y responde el historial."""
+    Solo la ventana (DR-4): tras un reinicio la ventana está vacía y responde el historial. Lo que AURA hizo ANTES de
+    reiniciarse lo contesta, aparte, el registro persistido (`resultado_accion`, punto D)."""
     return ultima_ejecucion(ventana) is not None

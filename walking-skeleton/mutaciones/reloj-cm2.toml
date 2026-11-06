@@ -168,8 +168,9 @@ sustituir = '''    if False:
 id = "M23"
 garantia = "la lectura solo-lectura no aplica la proyeccion (lapidas): un hecho olvidado parece presente"
 fichero = "aura_skeleton/core/reloj_cm2.py"
-buscar = '''self._items = _proyectar([json.loads(linea) for linea in contenido.splitlines() if linea.strip()])'''
-sustituir = '''self._items = [json.loads(linea) for linea in contenido.splitlines() if linea.strip()]'''
+# Reanclado 2026-11-05 (DP-DURABILIDAD-MEMORIA P2-B: lectura compartida `_lineas_legibles`); misma garantia.
+buscar = '''self._items = _proyectar(_lineas_legibles(contenido)[0])'''
+sustituir = '''self._items = _lineas_legibles(contenido)[0]'''
 
 [[mutante]]
 id = "M24"

@@ -1,0 +1,102 @@
+incremento = "DP-DURABILIDAD-MEMORIA, P2-B: tolerancia selectiva de una linea cortada (prefijo JSON estricto, no ambigua con ninguna clave existente, tope de fragmentos), cierre de cola en _anexar, separador solo '\n', lectura compartida con el reloj de CM2. 2026-11-05."
+# Lo corre el orquestador con `python3 -m herramientas.mutar mutaciones/durabilidad-memoria-p2.toml`, sin nada en paralelo.
+pruebas = ["tests/unit/test_durabilidad_memoria_p2.py", "tests/unit/test_durabilidad_memoria.py", "tests/integration/test_olvido_adversarial.py"]
+timeout_s = 300
+
+[[mutante]]
+id = "P2-1"
+garantia = "no comprobar la ambiguedad: un fragmento de lapida o marca se tolera y lo olvidado reaparece"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''            or _fragmento_ambiguo(linea, prefijos)'''
+sustituir = '''            or False'''
+
+[[mutante]]
+id = "P2-2"
+garantia = "solo comparar en un sentido (fragmento mas largo que la clave): un corte temprano de lapida se tolera"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''    return any(fragmento.startswith(p) or p.startswith(fragmento) for p in prefijos)'''
+sustituir = '''    return any(fragmento.startswith(p) for p in prefijos)'''
+
+[[mutante]]
+id = "P2-3"
+garantia = "orden de claves desconocido deja de ser fallo cerrado"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''    if prefijos is None:
+        return True'''
+sustituir = '''    if prefijos is None:
+        return False'''
+
+[[mutante]]
+id = "P2-4"
+garantia = "no exigir prefijo JSON estricto: una lapida corrupta a mitad de fichero se tolera y resucita lo olvidado"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''        return e.pos >= len(candidata)  # el unico error es el FIN de la entrada'''
+sustituir = '''        return True  # el unico error es el FIN de la entrada'''
+
+[[mutante]]
+id = "P2-5"
+# Sustituye al P2-5 original (break al cerrar el objeto raiz), EQUIVALENTE: tras el break la profundidad es 0 y la
+# condicion siguiente devuelve False igual, y el prefijo JSON estricto rechazaria la linea ("Extra data") de todos
+# modos. Era defensa redundante, no una garantia.
+garantia = "tolerar lineas que no empiezan por '{' (no son objetos: corrupcion, nunca un corte de nuestro escritor)"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''    if not linea.startswith("{"):
+        return False
+    profundidad, en_cadena, escape = 0, False, False'''
+sustituir = '''    if False:
+        return False
+    profundidad, en_cadena, escape = 0, False, False'''
+
+[[mutante]]
+id = "P2-6"
+garantia = "sin tope de fragmentos: la corrupcion masiva se tolera (y la lectura no tiene coste acotado)"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''            len(tolerados) >= _MAX_FRAGMENTOS_TOLERADOS'''
+sustituir = '''            False'''
+
+[[mutante]]
+id = "P2-7"
+garantia = "volver a splitlines: un recuerdo con U+2028 se parte y se pierde"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''    crudas = [linea for linea in contenido.split("\n") if linea.strip()]'''
+sustituir = '''    crudas = [linea for linea in contenido.splitlines() if linea.strip()]'''
+
+[[mutante]]
+id = "P2-8"
+garantia = "no cerrar la cola en _anexar: el siguiente recuerdo se fusiona con el fragmento"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''        cierre = "\n" if _cola_abierta(self._path) else ""'''
+sustituir = '''        cierre = ""'''
+
+[[mutante]]
+id = "P2-9"
+garantia = "tolerar sin dejar constancia en el audit (INV-9: ninguna recuperacion silenciosa)"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''            for posicion, fragmento in tolerados:
+                obs.log('''
+sustituir = '''            for posicion, fragmento in []:
+                obs.log('''
+
+[[mutante]]
+id = "P2-10"
+garantia = "el reloj de CM2 vuelve a su propia lectura: diverge de la memoria (T10)"
+fichero = "aura_skeleton/core/reloj_cm2.py"
+pruebas = ["tests/unit/test_durabilidad_memoria_p2.py"]
+buscar = '''self._items = _proyectar(_lineas_legibles(contenido)[0])'''
+sustituir = '''self._items = _proyectar([json.loads(linea) for linea in contenido.splitlines() if linea.strip()])'''
+
+[[mutante]]
+id = "P2-11"
+garantia = "una linea que no es objeto rompe con AttributeError en vez de fallar de forma controlada"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''    if not isinstance(linea, dict):
+        return None'''
+sustituir = '''    if False:
+        return None'''
+
+[[mutante]]
+id = "P2-12"
+garantia = "restore vuelve a splitlines: un backup con U+2028 no se restaura"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''            else [json.loads(x) for x in contenido.split("\n") if x.strip()]'''
+sustituir = '''            else [json.loads(x) for x in contenido.splitlines() if x.strip()]'''

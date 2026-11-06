@@ -11897,3 +11897,19 @@ autoriza. Enlazado desde el índice.
   sin CRITICAL ni HIGH (el riesgo de fsync parcial es preexistente de P2-B, documentado; P3 lo reduce).
 - **Sin cambios:** T9, T11, punto D (olvido de acciones vía `ambito="acciones"`), `main`, producción, `~/.aura`, cron,
   PARADA, CM2/S3, nodos.
+
+## 2026-11-06 · F1 — detección de proyección obsoleta (control-plane; rama integracion/m3-entry)
+
+- **Autorización:** CEO, F1 del DP `milestones/m3-entry/DP-INTEGRIDAD-RECUPERACION-CONSISTENCIA.md` (ahora §10).
+- **Qué hace:** `estado_de_la_proyeccion(directorio)` en `entorno/control-plane/control_plane.py` clasifica el
+  `estado.json` frente al log encadenado en cinco estados (ACTUAL/OBSOLETA/AUSENTE/INVALIDA/NO_VERIFICABLE),
+  reutilizando `verificar_integridad_log`/`cargar`/`proyectar`/`validar`. Compara solo la parte derivada del log,
+  excluye campos de entorno (sin falsos positivos), falla cerrado (nunca ACTUAL sin demostrarlo) y es de solo
+  lectura (no regenera, no escribe, no toca historial ni ancla). `cargar_si_actual` devuelve la proyección solo si
+  ACTUAL. No implementa F2 ni F3.
+- **Evidencia `[EJEC]`:** `test_red_proyeccion_obsoleta.py` 20 pruebas (RED→GREEN); suite del control-plane 145
+  passed; mutación `proyeccion-obsoleta.toml` 5/5; Quality Gate PASS 4562 (cubre walking-skeleton; el control-plane
+  se valida con su suite y la mutación). Auditorías: corrección CABE, seguridad APROBADO (0 C/H/M). Diff aditivo,
+  sin tocar las funciones protegidas.
+- **Sin cambios:** producción, runtime, `~/.aura`, cron, PARADA, CM2/S3, N1/N2/delegación, `main` (99f2109).
+- **Pendiente del CEO:** F2, F3, F4 (lectura agregada §7.3 — confirmaría ciclos 196/217 y causa de BLOQUEADA), F5.

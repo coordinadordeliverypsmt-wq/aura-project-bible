@@ -194,7 +194,11 @@ async def test_sin_ninguna_ejecucion_la_ausencia_es_PRECISA_y_no_la_de_la_pared(
     respuesta = await _di(orq, "¿qué encontraste?", "R24")
 
     assert "No tengo ningun recuerdo registrado sobre eso" not in respuesta
-    assert "no he ejecutado nada" in respuesta.lower()
+    # PUNTO D, decision L: la ausencia ya no dice «no he ejecutado nada» (la ventana muere con el proceso y el
+    # registro persistido puede no cubrir una accion): «No conservo registro…; podria haber alguna».
+    assert "no conservo registro de acciones anteriores" in respuesta.lower()
+    assert "podría haber alguna" in respuesta and "nunca" not in respuesta.lower()
+    assert "no he ejecutado nada" not in respuesta.lower()
 
 
 @pytest.mark.asyncio
@@ -212,12 +216,11 @@ async def test_recuperar_deja_rastro_forense(tmp_path):
 
 @pytest.mark.asyncio
 async def test_el_CONTENIDO_de_un_fichero_se_repite_al_recuperar(tmp_path):
-    """**Hecho incómodo fijado a propósito, no garantía deseable.** Recuperar repite lo que AURA ya
-    había dicho al MISMO usuario en la MISMA conversación, así que no es una divulgación nueva — pero
-    sí lo vuelve recuperable a petición. Si debe haber una exclusión por sensibilidad es el punto D
-    de `DECISION-REQUERIDA-CONTINUIDAD-DE-RESULTADOS.md`, que sigue abierto: inventarla aquí sería
-    crear política de privacidad sin autoridad. Esta prueba existe para que el día que se decida,
-    el cambio sea deliberado y visible."""
+    """**Decisión 1 del punto D (CEO Operativo, 2026-11-06).** Recuperar repite lo que AURA ya había dicho al
+    MISMO usuario en la MISMA conversación, así que no es una divulgación nueva: el contenido SÍ se repite a
+    petición. Lo que cambió es que ya NO reentra solo en el prompt de turnos ajenos (ver
+    `test_frontera_continuidad.py`) ni se persiste (`test_continuidad_resultados.py`). Esta prueba fija la mitad
+    que se mantuvo a propósito."""
     secreto = tmp_path / "privado.txt"
     secreto.write_text(SECRETO, encoding="utf-8")
     orq = _aura(tmp_path).orquestador

@@ -18,6 +18,8 @@ superficie complaciente haría más daño.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 from aura_skeleton import observability as obs
@@ -230,6 +232,7 @@ async def _atender(texto, caps=SERVIDAS, motor=None):
     from aura_skeleton.core.orchestrator import Orchestrator
 
     orq = Orchestrator.__new__(Orchestrator)  # sin __init__: esta prueba mide UNA superficie
+    orq.perm = SimpleNamespace(_kill=None)  # PARADA no armada, explicito: `_despachar_orden` la consulta (punto D)
     orq.motor = motor if motor is not None else _MotorEspia()
     orq.registro = _RegistroFalso(caps)
     return await orq._atender_orden_de_capacidad("u1", texto, "t1")

@@ -76,7 +76,9 @@ async def test_preguntar_si_apago_la_tele_SIN_haber_actuado_no_afirma_nada_ni_to
 
     r = await _di(sis, "¿apagaste la tele?")
 
-    assert "no he ejecutado nada" in r["say"], r["say"]
+    # PUNTO D, decision L: la ausencia ya no dice «no he ejecutado nada» (no se puede demostrar tras un reinicio).
+    assert "No conservo registro de acciones anteriores" in r["say"] and "podría haber alguna" in r["say"], r["say"]
+    assert "no he ejecutado nada" not in r["say"]
     assert ha.servicios == 0 and ha.estados[SALA]["state"] == "on"
 
 

@@ -132,7 +132,9 @@ def test_sin_ninguna_ejecucion_la_ausencia_es_DISTINTA_de_la_de_ADR_0014():
     texto, estatus = recuperacion.redactar(recuperacion.PREGUNTA_POR_EL_RESULTADO, None)
     assert estatus is Estatus.AUSENCIA
     assert "No tengo ningun recuerdo registrado sobre eso" not in texto
-    assert "no he ejecutado nada" in texto.lower()
+    # PUNTO D, decision L: sin «nunca» ni «no he ejecutado nada»; no se afirma una ausencia que no se puede demostrar.
+    assert "no conservo registro de acciones anteriores" in texto.lower() and "podría haber alguna" in texto
+    assert "no he ejecutado nada" not in texto.lower() and "nunca" not in texto.lower()
 
 
 def test_ante_una_pregunta_de_JUICIO_se_niega_a_jerarquizar_pero_entrega_el_dato():

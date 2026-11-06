@@ -23,6 +23,17 @@ Las tres fronteras que este fichero clava son las que hacen que (2) sea hoy **ac
 vive en RAM y **no se filtra** ni a la memoria persistente ni al registro forense. Si un incremento
 futuro rompe cualquiera de las tres, la decisión pendiente se habrá tomado sola y por accidente —que
 es exactamente como este proyecto ha perdido garantías otras ocho veces.
+
+**PUNTO D (CEO Operativo, 2026-11-06) — la decisión pendiente se tomó, a propósito.** Tres de estas pruebas
+cambian por esa decisión y no por accidente (`DECISION-REQUERIDA-CONTINUIDAD-DE-RESULTADOS.md` §7.7-7):
+
+  * «la ventana no tiene respaldo en disco» y «el resultado no entra en la memoria persistente» pasan a ser
+    «en disco solo hay registros `resultado_accion` de esquema cerrado»: el texto de la respuesta (el `say`)
+    sigue sin llegar a disco, pero SÍ persiste un registro de metadatos (`core/resultado_accion.py`).
+  * «el contenido del fichero reentra en el prompt del turno siguiente» pasa a su contrario: ya no reentra
+    (decisión 1); solo el metadato («leí un archivo, N líneas»).
+
+Las demás fronteras (audit sin payload, nadie lee el audit para conversar, proveedor local, rastro) no cambian.
 """
 
 from __future__ import annotations
@@ -34,6 +45,7 @@ import pytest
 
 from aura_skeleton import observability as obs
 from aura_skeleton.composicion import Configuracion, componer
+from aura_skeleton.core import resultado_accion as ra
 
 CONTENIDO_SENSIBLE = "IBAN ES91-2100-0418-4502 y la clave del router es colibri-verde-1978"
 
@@ -70,10 +82,14 @@ async def test_el_resultado_de_una_ejecucion_SI_queda_en_la_ventana_de_trabajo(t
     )
 
 
+def _lineas_de_memoria(tmp_path) -> list[dict]:
+    return [json.loads(x) for x in _memoria_en_disco(tmp_path).split("\n") if x.strip()]
+
+
 @pytest.mark.asyncio
-async def test_la_ventana_de_trabajo_NO_tiene_respaldo_en_disco(tmp_path):
-    """Muere con el proceso. Es lo que hace que hoy la retención sea acotada: si alguien le pusiera
-    respaldo, estaría creando persistencia de resultados sin la decisión que aún falta."""
+async def test_la_ventana_de_trabajo_NO_se_vuelca_a_disco_solo_persisten_registros_de_esquema_cerrado(tmp_path):
+    """PUNTO D. El TEXTO de la ventana (el `say`) muere con el proceso. Lo único que sobrevive a un reinicio es
+    un registro `resultado_accion` de esquema cerrado (decisión 7: sustituye a «sin respaldo en disco»)."""
     sis = _sistema(tmp_path)
     await _turno(sis.orquestador, f"lista el directorio {tmp_path}", "F2")
 
@@ -86,22 +102,28 @@ async def test_la_ventana_de_trabajo_NO_tiene_respaldo_en_disco(tmp_path):
     assert "Ejecuté" not in volcado, (
         f"el texto del resultado aparecio EN DISCO; la ventana dejo de ser efimera: {ficheros}"
     )
+    # CONTROL (lo que cambia): ahora SI hay un registro, y es exactamente un registro de esquema cerrado.
+    registros = [x for x in _lineas_de_memoria(tmp_path) if x["kind"] == ra.KIND]
+    assert len(registros) == 1, f"la accion no dejo registro persistente: {_memoria_en_disco(tmp_path)!r}"
+    assert ra.desde_contenido(registros[0]["content"]) is not None, "el registro no cumple el esquema cerrado"
+    assert set(ra.desde_contenido(registros[0]["content"])) == set(ra.CAMPOS)
 
 
 # --------------------------------- FRONTERA 2: no se filtra a la memoria PERSONAL persistente --
 
 
 @pytest.mark.asyncio
-async def test_el_resultado_de_una_ejecucion_NO_entra_en_la_memoria_persistente(tmp_path):
-    """`Bible 4.1 §1` separa memoria de trabajo de las tres persistentes. Mezclarlas convertiría el
-    ruido de una ejecución en «lo que AURA sabe del usuario»."""
+async def test_el_resultado_de_una_ejecucion_entra_en_la_memoria_persistente_SOLO_como_registro_de_esquema_cerrado(
+    tmp_path,
+):
+    """`Bible 4.1 §1` separa memoria de trabajo de las tres persistentes. Mezclarlas convertiría el ruido de una
+    ejecución en «lo que AURA sabe del usuario». PUNTO D (decisión 7): lo único que entra es un registro
+    `resultado_accion` —episódico de acción, no recuperable, fuera del modelo del usuario—, nunca el resultado."""
     orq = _sistema(tmp_path).orquestador
 
-    # CASO DE CONTROL, y encontrado por el propio control `[EJEC]`: la primera version de esta
-    # prueba ejecutaba solo la orden y miraba `memoria.json`. Pero «lista el directorio …» NO
-    # escribe memoria, asi que el fichero podia ni existir y la asercion pasaba sin comprobar nada
-    # —una prueba decorativa, el error que este proyecto ya ha pagado cuatro veces—. Se declara
-    # antes un hecho real: asi la memoria TIENE contenido y la ausencia del resultado significa algo.
+    # CASO DE CONTROL, y encontrado por el propio control `[EJEC]`: la primera version de esta prueba
+    # ejecutaba solo la orden y miraba `memoria.json`; si el fichero no existia la asercion pasaba sin comprobar
+    # nada —una prueba decorativa—. Se declara antes un hecho real: asi la memoria TIENE contenido.
     await _turno(orq, "me llamo Mauricio", "F3a")
     await _turno(orq, f"lista el directorio {tmp_path}", "F3b")
 
@@ -110,6 +132,12 @@ async def test_el_resultado_de_una_ejecucion_NO_entra_en_la_memoria_persistente(
         f"la memoria personal no se escribio: la asercion siguiente no probaria nada ({escrito!r})"
     )
     assert "Ejecuté" not in escrito, "el resultado de ejecutar una capacidad se persistio como memoria del usuario"
+    registros = [x for x in _lineas_de_memoria(tmp_path) if x["kind"] == ra.KIND]
+    assert len(registros) == 1, "debe constar el registro de la accion (punto D)"
+    assert ra.desde_contenido(registros[0]["content"])["capacidad"] == "listar_directorio"
+    # Y nada mas con forma de resultado: ningun otro kind lleva el listado ni el say.
+    otros = [x for x in _lineas_de_memoria(tmp_path) if x["kind"] != ra.KIND]
+    assert all("entrada(s)" not in str(x["content"]) for x in otros)
 
 
 @pytest.mark.asyncio
@@ -181,24 +209,20 @@ async def test_ninguna_superficie_de_conversacion_LEE_el_audit_log_para_responde
 
 
 @pytest.mark.asyncio
-async def test_el_CONTENIDO_de_un_fichero_del_usuario_SI_reentra_en_el_prompt_del_turno_siguiente(
+async def test_el_CONTENIDO_de_un_fichero_del_usuario_NO_reentra_en_el_prompt_del_turno_siguiente(
     tmp_path,
 ):
-    """**Esta prueba fija un hecho incómodo, no una garantía deseable.** Medido `[EJEC]` el
-    2026-09-21: tras `leer_archivo`, el contenido del fichero viaja en el prompt del turno
-    siguiente aunque ese turno hable de otra cosa:
+    """**PUNTO D, decisión 1 (CEO Operativo, 2026-11-06): esta prueba invierte la que fijaba el hecho incómodo.**
+    Medido `[EJEC]` el 2026-09-21, el contenido de un fichero leído viajaba en el prompt del turno siguiente
+    aunque ese turno hablara de otra cosa («pájaros»). Era consecuencia de `DR-4` (latencia y caché, no
+    privacidad). Ahora la capacidad lleva la marca declarativa `devuelve_contenido_usuario`
+    (`operaciones.ESPECIFICACIONES`) y el prompt solo recibe el METADATO:
 
-        (previo) tu: lee el archivo /…/privado.txt | AURA [HECHO]: Ejecuté «leer_archivo».
-        Esto es lo que dice:
-        IBAN ES91-… clave del router colibri-verde-1978
+        (previo) tu: lee el archivo /…/privado.txt | AURA [HECHO]: Ejecuté «leer_archivo»: leí un archivo,
+        1 línea(s). Su contenido no se repite aquí.
 
-    Es consecuencia directa de `DR-4`, que gobierna la ventana de trabajo — y `DR-4` se decidió por
-    **latencia y caché de prefijo**, no por privacidad: `leer_archivo` como orden conversacional es
-    posterior. Nadie decidió que el contenido de los ficheros del usuario reentrara en el prompt;
-    simplemente ocurre.
-
-    Se escribe como prueba para que el día que alguien lo cambie sea **a propósito**, y para que la
-    decisión pendiente tenga un hecho medido debajo en vez de una sospecha."""
+    La recuperación a petición, en la MISMA conversación, sí repite el contenido
+    (`test_el_CONTENIDO_de_un_fichero_se_repite_al_recuperar`)."""
     secreto = tmp_path / "privado.txt"
     secreto.write_text(CONTENIDO_SENSIBLE, encoding="utf-8")
     sis = _sistema(tmp_path)
@@ -215,13 +239,13 @@ async def test_el_CONTENIDO_de_un_fichero_del_usuario_SI_reentra_en_el_prompt_de
 
     orq.router.providers = [_Espia(p) for p in orq.router.providers]
 
-    await _turno(orq, f"lee el archivo {secreto}", "F6a")
+    dicho = await _turno(orq, f"lee el archivo {secreto}", "F6a")
     await _turno(orq, "cuéntame algo interesante sobre los pájaros", "F6b")
 
+    assert "colibri-verde-1978" in dicho, "control: el contenido SI se le entrego al usuario"
     assert prompts, "el segundo turno no llego al proveedor: la prueba no mide lo que dice medir"
-    assert any("colibri-verde-1978" in p for p in prompts), (
-        "el comportamiento medido cambio: revisa si fue deliberado y actualiza la decision pendiente"
-    )
+    assert not any("colibri-verde-1978" in p for p in prompts), "el contenido de un fichero reentro en el prompt"
+    assert any("leí un archivo, 1 línea(s)" in p for p in prompts), "control: el metadato SI reentra"
 
 
 def test_el_UNICO_proveedor_de_modelo_es_LOCAL():

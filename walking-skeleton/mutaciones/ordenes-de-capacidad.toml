@@ -68,24 +68,25 @@ sustituir = '''        if not partes:'''
 [[mutante]]
 id = "OC-M7"
 garantia = "UN RESULTADO MALO NO SE CUENTA COMO BUENO: el adaptador devuelve `ok=False` con su motivo, y decir «termino correctamente» seria «declarado != real» en la superficie que el usuario lee y se cree"
-fichero = "aura_skeleton/core/orchestrator.py"
+# Reanclado 2026-11-06 (punto D): la clasificacion del desenlace es UNICA en `resultado_accion.desenlace_de`.
+fichero = "aura_skeleton/core/resultado_accion.py"
 pruebas = ["tests/integration/test_ordenes_de_capacidad.py::test_un_resultado_MALO_no_se_cuenta_como_bueno", "tests/integration/test_ordenes_de_capacidad.py::test_CONTROL_un_resultado_BUENO_si_se_cuenta_como_bueno"]
-buscar = '''    if detalle.get("ok") is False:
-        cuerpo = resumen or "no ha salido bien"'''
-sustituir = '''    if False:  # el veredicto del adaptador deja de mirarse
-        cuerpo = resumen or "no ha salido bien"'''
+buscar = '''        if detalle.get("ok") is False:
+            return "no_limpia"'''
+sustituir = '''        if False:  # el veredicto del adaptador deja de mirarse
+            return "no_limpia"'''
 
 [[mutante]]
 id = "OC-M8"
 garantia = "UNA DENEGACION DE GOBIERNO NO ES UNA AVERIA: el motor distingue `detenida` de `error`, y confundirlas le contaria al usuario que el sistema falla cuando lo que pasa es que una barrera funciono"
 fichero = "aura_skeleton/core/orchestrator.py"
 pruebas = ["tests/integration/test_ordenes_de_capacidad.py::test_una_capacidad_DETENIDA_por_el_gobierno_no_se_cuenta_como_fallo", "tests/integration/test_ordenes_de_capacidad.py::test_el_KILL_SWITCH_detiene_la_orden_porque_pasa_por_el_motor"]
-buscar = '''    if estado == "detenida":
-        motivo = _con_nombres_humanos(str(res.get("motivo") or "un control lo impidió"), nombres)
-        return f"No he ejecutado «{capacidad}»: {motivo}."'''
+buscar = '''    if desenlace == "detenida":
+        texto = _con_nombres_humanos(str(motivo or "un control lo impidió"), nombres)
+        return f"No he ejecutado «{capacidad}»: {texto}."'''
 sustituir = '''    if False:  # `detenida` deja de distinguirse de un error
-        motivo = _con_nombres_humanos(str(res.get("motivo") or "un control lo impidió"), nombres)
-        return f"No he ejecutado «{capacidad}»: {motivo}."'''
+        texto = _con_nombres_humanos(str(motivo or "un control lo impidió"), nombres)
+        return f"No he ejecutado «{capacidad}»: {texto}."'''
 
 [[mutante]]
 id = "OC-M9"
@@ -139,8 +140,10 @@ id = "OC-M14"
 garantia = "UN `duplicate` NO ES UNA EJECUCION: el adaptador NO volvio a ejecutar, y contarlo como trabajo hecho seria afirmar algo que no ocurrio"
 fichero = "aura_skeleton/core/orchestrator.py"
 pruebas = ["tests/integration/test_ordenes_de_capacidad.py::test_un_resultado_DUPLICATE_no_se_cuenta_como_ejecucion_fresca", "tests/integration/test_ordenes_de_capacidad.py::test_un_LISTADO_se_enseña_en_vez_de_decir_solo_que_termino"]
-buscar = '''    if estado_adaptador == "duplicate":'''
-sustituir = '''    if False:  # `duplicate` deja de distinguirse de una ejecucion fresca'''
+buscar = '''    if desenlace == "duplicada":
+        return describir_desenlace(capacidad, desenlace) or ""'''
+sustituir = '''    if False:  # `duplicate` deja de distinguirse de una ejecucion fresca
+        return describir_desenlace(capacidad, desenlace) or ""'''
 
 [[mutante]]
 id = "OC-M15"

@@ -1,0 +1,469 @@
+incremento = "Continuidad de resultados y privacidad del contenido — punto D del Umbral (CEO Operativo, 2026-11-06)"
+# Cada mutante degrada UNA garantia del diseno aprobado (DECISION-REQUERIDA-CONTINUIDAD-DE-RESULTADOS.md §7 v2).
+# Familias: (a) lo que se escribe (esquema cerrado, sin say/payload, sin texto de HA); (b) lo que se lee (validar al leer,
+# dedupe, aislamiento por usuario); (c) lo que NO debe pasar (recall, PARADA, prompt, dominios de seguridad, ts);
+# (d) como se cuenta (procedencia, ausencia sin «nunca», cascada, re-ejecucion); (e) soberania (olvido, ver/exportar) y
+# (f) el cableado de la composicion, que ya sobrevivio una vez con 426 pruebas en verde (CLAUDE.md §2).
+# NADA en paralelo con este arnes (CLAUDE.md §2). FC-M1..M9, M8, G7 y P2 siguen en sus catalogos y deben seguir muriendo.
+pruebas = ["tests/unit/test_resultado_accion.py",
+           "tests/integration/test_continuidad_resultados_auditoria.py",
+           "tests/integration/test_continuidad_resultados.py"]
+timeout_s = 900
+
+# ------------------------------------------------------------------ (a) lo que se escribe --
+
+[[mutante]]
+id = "CR-M1"
+garantia = "se escribe el payload/say del resultado como contenido del registro, en vez de los metadatos de esquema cerrado"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''resultado_accion.a_contenido(registro), {"trace_id": tid, "fuente": "ejecucion"}'''
+sustituir = '''str(res), {"trace_id": tid, "fuente": "ejecucion"}'''
+
+[[mutante]]
+id = "CR-M2"
+garantia = "el payload viaja en la procedencia del registro: el contenido del fichero llega a memoria.json por la puerta de atras"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''{"trace_id": tid, "fuente": "ejecucion"}'''
+sustituir = '''{"trace_id": tid, "fuente": "ejecucion", "payload": res}'''
+
+[[mutante]]
+id = "CR-M3"
+garantia = "un estado de Home Assistant que no es del enum se copia al registro en vez de degradarse a «desconocido»"
+fichero = "aura_skeleton/core/resultado_accion.py"
+buscar = '''    return valor if isinstance(valor, str) and valor in ESTADOS else DESCONOCIDO'''
+sustituir = '''    return valor'''
+
+[[mutante]]
+id = "CR-M4"
+garantia = "sin validacion de VALORES: un estado o volumen fuera de enum/rango se acepta como registro valido"
+fichero = "aura_skeleton/core/resultado_accion.py"
+buscar = '''        and _es_estado(registro["antes"])
+        and _es_estado(registro["despues"])'''
+sustituir = '''        and True'''
+
+[[mutante]]
+id = "CR-M5"
+garantia = "la entidad deja de ser nula en las capacidades de ficheros: el esquema admite una ruta o nombre donde solo cabe un entity_id"
+fichero = "aura_skeleton/core/resultado_accion.py"
+buscar = '''    if capacidad in CAPACIDADES_DE_HOGAR:
+        candidata = detalle.get("device")'''
+sustituir = '''    if True:
+        candidata = detalle.get("device")'''
+
+[[mutante]]
+id = "CR-M6"
+garantia = "el validador acepta una entidad en una capacidad de ficheros (registro falsificado a mano)"
+fichero = "aura_skeleton/core/resultado_accion.py"
+buscar = '''    return registro["capacidad"] in CAPACIDADES_DE_HOGAR'''
+sustituir = '''    return True'''
+
+[[mutante]]
+id = "CR-M7"
+garantia = "sin exclusion de dominios de seguridad al ESCRIBIR: «abri la cerradura a las 23:10» quedaria en un fichero plano"
+fichero = "aura_skeleton/core/resultado_accion.py"
+buscar = '''        if isinstance(candidata, str) and candidata.startswith(DOMINIOS_DE_SEGURIDAD):'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "CR-M8"
+garantia = "el validador acepta un registro de un dominio de seguridad escrito a mano"
+fichero = "aura_skeleton/core/resultado_accion.py"
+buscar = '''    if not _es_texto(entidad, _PATRON_ENTIDAD) or entidad.startswith(DOMINIOS_DE_SEGURIDAD):'''
+sustituir = '''    if not _es_texto(entidad, _PATRON_ENTIDAD):'''
+
+[[mutante]]
+id = "CR-M9"
+garantia = "ts sin redondear al minuto al escribir: la hora exacta de cada accion es un patron de vida"
+fichero = "aura_skeleton/core/resultado_accion.py"
+buscar = '''        "ts": int(ahora if ahora is not None else time.time()) // _SEGUNDOS_POR_MINUTO * _SEGUNDOS_POR_MINUTO,'''
+sustituir = '''        "ts": int(ahora if ahora is not None else time.time()),'''
+
+[[mutante]]
+id = "CR-M10"
+garantia = "el validador deja de exigir ts al minuto: un registro con segundos se acepta al leer"
+fichero = "aura_skeleton/core/resultado_accion.py"
+buscar = '''        and registro["ts"] % _SEGUNDOS_POR_MINUTO == 0'''
+sustituir = '''        and True'''
+
+[[mutante]]
+id = "CR-M11"
+garantia = "una duplicada se cuenta como ejecutada: AURA afirmaria un trabajo que el adaptador no hizo"
+fichero = "aura_skeleton/core/resultado_accion.py"
+buscar = '''        if detalle.get("status") == "duplicate":
+            return "duplicada"'''
+sustituir = '''        if detalle.get("status") == "duplicate":
+            return "ejecutada"'''
+
+# ------------------------------------------------------------------- (b) lo que se lee --
+
+[[mutante]]
+id = "CR-M12"
+garantia = "sin validacion AL LEER: un registro falsificado o inyectado a mano se acepta tal cual"
+fichero = "aura_skeleton/core/resultado_accion.py"
+buscar = '''    if not validar(registro) or _serializar(registro) != contenido:'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "CR-M13"
+garantia = "dos registros con el mismo trace_id y contenido distinto no se descartan: se elige uno por inferencia en vez de fallar cerrado"
+fichero = "aura_skeleton/core/resultado_accion.py"
+buscar = '''        if any(r != grupo[0] for r in grupo):'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "CR-M14"
+garantia = "la lectura no aisla por usuario: una persona veria las acciones de otra"
+fichero = "aura_skeleton/core/resultado_accion.py"
+buscar = '''        if item.get("kind") != KIND or item.get("user_id") != user_id:'''
+sustituir = '''        if item.get("kind") != KIND:'''
+
+[[mutante]]
+id = "CR-M15"
+garantia = "la lectura devuelve los registros en orden inverso: «lo ultimo» y «lo anterior» se confunden"
+fichero = "aura_skeleton/core/resultado_accion.py"
+buscar = '''    return sorted(validos, key=lambda r: r["ts"]), rechazados'''
+sustituir = '''    return sorted(validos, key=lambda r: -r["ts"]), rechazados'''
+
+[[mutante]]
+id = "CR-M16"
+garantia = "lo rechazado al leer no deja rastro: un registro falsificado desaparece sin que nadie lo sepa"
+fichero = "aura_skeleton/core/resultado_accion.py"
+buscar = '''    if rechazados:
+        obs.log('''
+sustituir = '''    if False:
+        obs.log('''
+
+# --------------------------------------------------------------- (c) lo que NO debe pasar --
+
+[[mutante]]
+id = "CR-M17"
+garantia = "resultado_accion deja de estar en KINDS_NO_RECUPERABLES: las acciones del usuario vuelven por recall"
+fichero = "aura_skeleton/contracts.py"
+buscar = '''KINDS_NO_RECUPERABLES = frozenset({HISTORICO, RESULTADO_ACCION})'''
+sustituir = '''KINDS_NO_RECUPERABLES = frozenset({HISTORICO})'''
+
+[[mutante]]
+id = "CR-M18"
+garantia = "se persiste con la PARADA armada"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        if parada and not es_escritura_pasiva(RESULTADO_ACCION):'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "CR-M19"
+garantia = "la guarda de PARADA es un `if` propio, sin es_escritura_pasiva: la whitelist deja de ser la unica puerta (ALERTA-005)"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        if parada and not es_escritura_pasiva(RESULTADO_ACCION):'''
+sustituir = '''        if parada:'''
+
+[[mutante]]
+id = "CR-M20"
+garantia = "PARADA se lee DESPUES del motor, no antes: el registro depende de un estado que cambio mientras la orden se evaluaba"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        if not await self._persistir_resultado(uid, capacidad, res, tid, parada):'''
+sustituir = '''        if not await self._persistir_resultado(uid, capacidad, res, tid, self._sistema_detenido()):'''
+
+[[mutante]]
+id = "CR-M21"
+garantia = "PARADA nunca se lee: la orden se evalua y el registro se escribe como si el sistema no estuviera detenido"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        parada = self._sistema_detenido()
+        res = await self.motor.ejecutar('''
+sustituir = '''        parada = False
+        res = await self.motor.ejecutar('''
+
+[[mutante]]
+id = "CR-M22"
+garantia = "el contenido de un fichero del usuario reentra en el prompt de turnos posteriores"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        buffer = [t._replace(aura=t.resumen_prompt) if t.resumen_prompt else t for t in self._dialogue.get(uid, [])]'''
+sustituir = '''        buffer = list(self._dialogue.get(uid, []))'''
+
+[[mutante]]
+id = "CR-M23"
+garantia = "la marca devuelve_contenido_usuario deja de aplicarse: el turno de leer_archivo no lleva resumen para el prompt"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        if capacidad in CAPACIDADES_QUE_DEVUELVEN_CONTENIDO:
+            # Punto D, requisito 11'''
+sustituir = '''        if False:
+            # Punto D, requisito 11'''
+
+[[mutante]]
+id = "CR-M24"
+garantia = "el turno de RECUPERACION desde la ventana vuelve a meter el contenido del fichero en el prompt siguiente"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            resumen = turno_previo.resumen_prompt if turno_previo else ""'''
+sustituir = '''            resumen = ""'''
+
+[[mutante]]
+id = "CR-M25"
+garantia = "el audit de lo persistido lleva la entidad: la rutina de la persona queda en el registro forense"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            evento="resultado.persistido",
+            capacidad=capacidad,'''
+sustituir = '''            evento="resultado.persistido",
+            entidad=registro["entidad"],
+            capacidad=capacidad,'''
+
+[[mutante]]
+id = "CR-M26"
+garantia = "un fallo de escritura se calla: la accion tuvo exito pero AURA no dice que no la recordara (INV-9)"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''                motivo="fallo_de_escritura",
+            )
+            return False'''
+sustituir = '''                motivo="fallo_de_escritura",
+            )
+            return True'''
+
+[[mutante]]
+id = "CR-M27"
+garantia = "memoria.json se crea con permisos abiertos: el registro de acciones lo lee cualquier usuario de la maquina"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''    return os.open(ruta, flags, 0o600)'''
+sustituir = '''    return os.open(ruta, flags, 0o644)'''
+
+# ------------------------------------------------------------------ (d) como se cuenta --
+
+[[mutante]]
+id = "CR-M28"
+garantia = "lo persistido se presenta con el estatus de HECHO del Core: un fichero local sin firma pasa por verificado"
+fichero = "aura_skeleton/core/recuperacion.py"
+buscar = '''    return f"{previo}{_PROCEDENCIA_PERSISTIDA}\n{cuerpo}", Estatus.ABSTENCION'''
+sustituir = '''    return f"{previo}{_PROCEDENCIA_PERSISTIDA}\n{cuerpo}", Estatus.HECHO'''
+
+[[mutante]]
+id = "CR-M29"
+garantia = "lo persistido deja de decir que consta en el registro local y puede estar incompleto"
+fichero = "aura_skeleton/core/recuperacion.py"
+buscar = '''    "Consta en mi registro local (no lo he vuelto a ejecutar ni a comprobar; puede estar incompleto):"'''
+sustituir = '''    "Lo he comprobado ahora mismo:"'''
+
+[[mutante]]
+id = "CR-M30"
+garantia = "la ausencia vuelve a decir «nunca»: afirma una ausencia que no puede demostrar tras un reinicio"
+fichero = "aura_skeleton/core/recuperacion.py"
+buscar = '''    "No conservo registro de acciones anteriores; podría haber alguna que no consta, "'''
+sustituir = '''    "Nunca he ejecutado nada antes de esto; "'''
+
+[[mutante]]
+id = "CR-M31"
+garantia = "la cascada invertida: «antes de reiniciarte» se contesta con la ventana cuando esta tiene ejecuciones nuevas"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        del_registro = clase == recuperacion.PREGUNTA_ANTES_DEL_REINICIO or turno_previo is None'''
+sustituir = '''        del_registro = turno_previo is None'''
+
+[[mutante]]
+id = "CR-M32"
+garantia = "la cascada invertida: el registro persistido gana a la ventana (M8) incluso en la misma conversacion"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        del_registro = clase == recuperacion.PREGUNTA_ANTES_DEL_REINICIO or turno_previo is None'''
+sustituir = '''        del_registro = True'''
+
+[[mutante]]
+id = "CR-M33"
+garantia = "«antes de reiniciarte» mezcla lo anterior con lo posterior al reinicio (no filtra lo escrito por este proceso)"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            registros = [r for r in registros if r["trace_id"] not in propios]'''
+sustituir = '''            registros = list(registros)'''
+
+[[mutante]]
+id = "CR-M34"
+garantia = "recuperar del registro RE-EJECUTA una accion: el Motor Unico recibe una llamada al leer"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            resp, estatus_rec, resumen = self._recuperar_del_registro(uid, tid, clase)'''
+sustituir = '''            await self.motor.ejecutar("consultar_estado_sistema", {}, tid, tid, origen="conversacion")
+            resp, estatus_rec, resumen = self._recuperar_del_registro(uid, tid, clase)'''
+
+[[mutante]]
+id = "CR-M35"
+garantia = "la pregunta «antes de reiniciarte» deja de interceptarse en la cascada y cae al historial del ciclo autonomo"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        if clase_en_conversacion == recuperacion.PREGUNTA_ANTES_DEL_REINICIO:'''
+sustituir = '''        if False:'''
+
+# ------------------------------------------------------------ (e) soberania del usuario --
+
+[[mutante]]
+id = "CR-M36"
+garantia = "el olvido de acciones no alcanza el kind resultado_accion (solo toca el modelo del usuario)"
+fichero = "aura_skeleton/core/ejecutor_modelo_usuario.py"
+buscar = '''        return i["user_id"] == user_id and i["kind"] == resultado_accion.KIND'''
+sustituir = '''        return i["user_id"] == user_id and i["kind"] in _TIPOS'''
+
+[[mutante]]
+id = "CR-M37"
+garantia = "«olvida lo que hiciste» ya no se reconoce y el registro queda: T19 sin cumplir"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        if olvida_acciones:
+            # T19'''
+sustituir = '''        if False:
+            # T19'''
+
+[[mutante]]
+id = "CR-M38"
+garantia = "exportar no incluye los registros de acciones (ADR-0017 §4 incompleto)"
+fichero = "aura_skeleton/core/modelo_usuario.py"
+buscar = '''                "acciones": await self.ver_acciones(user_id),'''
+sustituir = '''                "acciones": [],'''
+
+[[mutante]]
+id = "CR-M39"
+garantia = "ver no incluye los registros de acciones"
+fichero = "aura_skeleton/core/modelo_usuario.py"
+buscar = '''        return [resultado_accion.exportable(r) for r in registros]'''
+sustituir = '''        return []'''
+
+[[mutante]]
+id = "CR-M40"
+garantia = "ver/exportar sacan el registro entero (con trace_id) en lugar de la lista blanca de campos"
+fichero = "aura_skeleton/core/resultado_accion.py"
+buscar = '''        "tipo": KIND,
+        "capacidad": registro["capacidad"],'''
+sustituir = '''        **registro,
+        "tipo": KIND,
+        "capacidad": registro["capacidad"],'''
+
+# ------------------------------------------------------------------- (f) cableado --
+
+[[mutante]]
+id = "CR-M41"
+garantia = "la composicion no cablea el modelo del usuario en el orquestador: olvidar acciones y exportar desaparecen"
+fichero = "aura_skeleton/composicion.py"
+buscar = '''        contexto=registro_contexto,  # captura de senales ENCENDIDA (M3.0)
+        notificaciones=centro_notificaciones,
+        modelo_usuario=modelo_usuario,'''
+sustituir = '''        contexto=registro_contexto,  # captura de senales ENCENDIDA (M3.0)
+        notificaciones=centro_notificaciones,
+        modelo_usuario=None,'''
+
+[[mutante]]
+id = "CR-M42"
+garantia = "la composicion da al orquestador otra memoria: el registro de acciones se escribe donde nadie lo lee tras reiniciar"
+fichero = "aura_skeleton/composicion.py"
+buscar = '''        InProcessEventBus(),
+        memoria,'''
+sustituir = '''        InProcessEventBus(),
+        PersistentMemory(os.path.join(config.datos, "otra-memoria.json")),'''
+
+# ------------------------------------------------ correcciones tras la auditoria independiente --
+
+[[mutante]]
+id = "CR-M43"
+garantia = "las formas «borra el historial de acciones»/«borra lo que hiciste» esquivan la guarda de PARADA (solo olvida X la tenia)"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        if self._sistema_detenido() and olvida_acciones:'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "CR-M44"
+garantia = "una operacion de olvido que el motor NO ejecuto (detenida/error) se cuenta como «no habia nada» (INV-9)"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            if n is None:  # el motor NO ejecuto la operacion'''
+sustituir = '''            if False:  # el motor NO ejecuto la operacion'''
+
+[[mutante]]
+id = "CR-M45"
+garantia = "olvidar_acciones colapsa «el motor no ejecuto» en 0: el resultado del motor deja de propagarse"
+fichero = "aura_skeleton/core/modelo_usuario.py"
+buscar = '''        if not isinstance(resultado, dict) or resultado.get("estado") != "ejecutada":
+            return None'''
+sustituir = '''        if not isinstance(resultado, dict) or resultado.get("estado") != "ejecutada":
+            return 0'''
+
+[[mutante]]
+id = "CR-M46"
+garantia = "el olvido de acciones vuelve a prometer «ya no conservo registro» cuando el borrado fisico no esta implementado"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''                "Hecho. Dejo de usar y de mostrar lo que hice. El borrado físico no está implementado: "'''
+sustituir = '''                "Hecho. Ya no conservo registro de lo que hice. "'''
+
+[[mutante]]
+id = "CR-M47"
+garantia = "una orden de hogar con estado asumido por HA se registra como verificada: la recuperacion iria a otra rama"
+fichero = "aura_skeleton/core/resultado_accion.py"
+buscar = '''    if detalle.get("evidencia") == "estado_asumido_por_ha":
+        return "asumida"'''
+sustituir = '''    if detalle.get("evidencia") == "estado_asumido_por_ha":
+        return "ninguna"'''
+
+[[mutante]]
+id = "CR-M48"
+garantia = "detalle_reconstruido pierde la evidencia asumida: la redaccion recuperada afirma lo que HA solo daba por supuesto"
+fichero = "aura_skeleton/core/resultado_accion.py"
+buscar = '''            "asumida": "estado_asumido_por_ha",'''
+sustituir = '''            "asumida": "estado_ha_tras_orden",'''
+
+[[mutante]]
+id = "CR-M49"
+garantia = "el modo registro deja de existir: la recuperacion usa frases de verificacion fisica en presente («Home Assistant ve…», «lo he comprobado»)"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''    registro = modo == "registro"'''
+sustituir = '''    registro = False'''
+
+[[mutante]]
+id = "CR-M50"
+garantia = "evidencia deja de validarse al leer: un valor fuera del enum se acepta"
+fichero = "aura_skeleton/core/resultado_accion.py"
+buscar = '''        and registro["evidencia"] in EVIDENCIAS'''
+sustituir = '''        and True'''
+
+[[mutante]]
+id = "CR-M51"
+garantia = "un memoria.json preexistente con 0644 no se cierra a 0600 al construir la memoria"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''            os.chmod(path, 0o600)  # idempotente'''
+sustituir = '''            pass  # idempotente'''
+
+[[mutante]]
+id = "CR-M52"
+garantia = "las copias de backup se crean con los permisos por defecto (legibles por otros)"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''open(dst, "w", encoding="utf-8", opener=_abrir_privado)'''
+sustituir = '''open(dst, "w", encoding="utf-8")'''
+
+[[mutante]]
+id = "CR-M53"
+garantia = "la reescritura completa (_persist) crea el .tmp con permisos por defecto y el fichero final los hereda"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''        with open(tmp, "w", encoding="utf-8", opener=_abrir_privado) as f:'''
+sustituir = '''        with open(tmp, "w", encoding="utf-8") as f:'''
+
+[[mutante]]
+id = "CR-M54"
+garantia = "ver_acciones/exportar no auditan los registros rechazados (solo la recuperacion lo hacia)"
+fichero = "aura_skeleton/core/modelo_usuario.py"
+buscar = '''        registros = resultado_accion.leer_auditando(self._memoria, user_id)'''
+sustituir = '''        registros, _ = resultado_accion.leer(self._memoria, user_id)'''
+
+[[mutante]]
+id = "CR-M55"
+garantia = "una capacidad fuera del catalogo real se acepta como registro valido"
+fichero = "aura_skeleton/core/resultado_accion.py"
+buscar = '''        and registro["capacidad"] in CAPACIDADES_CONOCIDAS'''
+sustituir = '''        and True'''
+
+[[mutante]]
+id = "CR-M56"
+garantia = "un registro con ts del futuro (mas alla del margen del redondeo al minuto) se acepta"
+fichero = "aura_skeleton/core/resultado_accion.py"
+buscar = '''        if registro is None or registro["ts"] > limite:'''
+sustituir = '''        if registro is None:'''
+
+[[mutante]]
+id = "CR-M57"
+garantia = "la redaccion en vivo deja de usar la clasificacion unica del desenlace (desenlace_de) y diverge del registro"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''    desenlace = resultado_accion.desenlace_de(res)
+    if not isinstance(res, dict):'''
+sustituir = '''    desenlace = "ejecutada"
+    if not isinstance(res, dict):'''
+
+[[mutante]]
+id = "CR-M58"
+garantia = "desenlace_de da precedencia a duplicate sobre ok=False: se contradice con la redaccion en vivo (un resultado malo contado como duplicado)"
+fichero = "aura_skeleton/core/resultado_accion.py"
+buscar = '''        if detalle.get("ok") is False:
+            return "no_limpia"'''
+sustituir = '''        if detalle.get("ok") is False and detalle.get("status") != "duplicate":
+            return "no_limpia"'''

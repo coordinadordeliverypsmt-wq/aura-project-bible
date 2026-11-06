@@ -18,7 +18,7 @@ sustituir = '''    return True'''
 id = "H-M2"
 garantia = "el nivel se declara pero queda vacio: nada se considera no recuperable"
 fichero = "aura_skeleton/contracts.py"
-buscar = '''KINDS_NO_RECUPERABLES = frozenset({HISTORICO})'''
+buscar = '''KINDS_NO_RECUPERABLES = frozenset({HISTORICO, RESULTADO_ACCION})'''
 sustituir = '''KINDS_NO_RECUPERABLES = frozenset()'''
 
 [[mutante]]

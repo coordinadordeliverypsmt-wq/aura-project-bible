@@ -100,8 +100,8 @@ sustituir = ''''''
 id = "D12"
 garantia = "el redactor de hogar deja de aplicarse a detenida"
 fichero = "aura_skeleton/core/orchestrator.py"
-buscar = '''capacidad in _ACCION_DE_HOGAR and estado in ("detenida", "error"):'''
-sustituir = '''capacidad in _ACCION_DE_HOGAR and estado in ("error",):'''
+buscar = '''capacidad in _ACCION_DE_HOGAR and desenlace in ("detenida", "error"):'''
+sustituir = '''capacidad in _ACCION_DE_HOGAR and desenlace in ("error",):'''
 
 [[mutante]]
 id = "D13"

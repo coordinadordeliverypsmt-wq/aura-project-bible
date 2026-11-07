@@ -2499,6 +2499,146 @@ def cargar_si_actual(directorio: pathlib.Path) -> dict:
     return {**informe, "proyeccion": None}
 
 
+# ----------------------------------------------------- F2 · regeneracion controlada (DP Entregable C) --
+
+#: Campos de ENTORNO de `estado.json` que F2 preserva tal cual (del `estado.json` existente, o de
+#: `estado_inicial()` si no habia ninguno). Ninguno deriva del log: perderlos o inventarlos violaria
+#: la garantia 6 del DP. Se listan explicitamente, no por exclusion, para que anadir un campo nuevo a
+#: `estado_inicial()` no quede preservado "por accidente" sin decidirlo aqui.
+_CAMPOS_DE_ENTORNO = ("git", "cuota", "verificacion", "defectos", "decisiones_pendientes",
+                     "aprobaciones", "siguiente_tarea", "trabajo_completado", "checkpoint",
+                     "sesion_claude", "tarea_actual", "estado_ejecucion", "motivo_pausa")
+
+
+def _gobierno_por_tarea_desde_el_log(directorio: pathlib.Path) -> dict[str, dict]:
+    """Recorre el log y devuelve, por tarea, el `previo`/`creada_sin_origen` que LE CORRESPONDE a su
+    estado actual — nunca inventados.
+
+    Siembra primero desde `tarea_registrada`: una tarea solo registrada (nunca transicionada) es
+    legitima —queda en WAITING_FOR_NEXT_TASK— y su `previo` REAL es `ESTADO_SIN_REGISTRAR`
+    ('UNKNOWN'): el estado previo de una tarea recien registrada es su ausencia, su origen es el
+    propio registro. Es la misma lectura que hace `fijar_estado_tarea` (`previo = estado_de_tarea(...)`
+    devuelve 'UNKNOWN' para una tarea sin estado) y el mismo valor que `transicion` grabaria como
+    `previo` en el primer cambio de estado. Citar el log, no fabricar.
+
+    Si hay eventos `estado_de_tarea` posteriores, el `previo` del ULTIMO los sobrescribe: viene
+    literal de `datos["previo"]`, que el propio motor (`transicion`/`reconciliar_tras_caida`) escribe
+    al generar el evento.
+
+    `creada_sin_origen` es SIEMPRE False para toda tarea reconstruida del log. Los eventos que
+    conceden estado (`tarea_registrada`, `estado_de_tarea`) estan en `EVENTOS_GOBERNADOS`:
+    `registrar_evento`/`registrar_evento_si` rechazan `estado_de_tarea` en crudo (`_negar_gobernado`),
+    asi que solo se escribe por `transicion()`/`reconciliar_tras_caida()`, y ambas exigen que la tarea
+    YA exista en la proyeccion (`transicion`: "no se transiciona lo que no existe"), lo que a su vez
+    exige un `tarea_registrada` previo. El "rodeo" que haria `creada_sin_origen=True` solo lo abre la
+    ruta en memoria (`fijar_estado_tarea`), que no persiste en ningun evento. No hay nada que
+    fabricar: esa condicion no tiene forma de ocurrir en una tarea que el log puede reconstruir."""
+    gobierno: dict[str, dict] = {}
+    for evento in leer_eventos(directorio):
+        tipo = evento.get("tipo")
+        datos = evento.get("datos") or {}
+        id_tarea = datos.get("id")
+        if id_tarea is None:
+            continue
+        if tipo == "tarea_registrada":
+            # Solo siembra si no hubo ya un cambio de estado: no pisa un `previo` real con el de
+            # registro si el orden de eventos pusiera el registro despues (no ocurre hoy, pero no
+            # debe depender del orden para ser correcto).
+            gobierno.setdefault(id_tarea, {"previo": ESTADO_SIN_REGISTRAR, "creada_sin_origen": False})
+        elif tipo == _EVENTO_DE_ESTADO:
+            gobierno[id_tarea] = {"previo": datos.get("previo"), "creada_sin_origen": False}
+    return gobierno
+
+
+def _entorno_preservado(directorio: pathlib.Path) -> dict:
+    """Los campos de ENTORNO (garantia 6): del `estado.json` existente si es legible, o de
+    `estado_inicial()` si no hay ninguno. Nunca se inventan ni se pierden."""
+    try:
+        previo = cargar(directorio / "estado.json")
+    except (ValueError, OSError):
+        previo = None
+    fuente = previo if previo is not None else estado_inicial()
+    return {campo: fuente.get(campo, estado_inicial().get(campo)) for campo in _CAMPOS_DE_ENTORNO}
+
+
+def regenerar_proyeccion(directorio: pathlib.Path) -> dict:
+    """**F2 · regeneracion EXPLICITA y CONTROLADA** (DP de integridad, Entregable C, opcion 1/2).
+
+    Reconstruye `estado.json` desde el log cuando F1 (`estado_de_la_proyeccion`) la detecta
+    OBSOLETA o AUSENTE **y el log es verificable** (integro + completitud demostrada). Se invoca a
+    mano; no la llama ninguna ruta de lectura (`cargar_si_actual`, `estado_de_la_proyeccion`,
+    `proyectar`) ni el orquestador: la reparacion automatica en cada lectura queda fuera de alcance
+    (F3, no construido).
+
+    No es un segundo escritor con reglas propias: reutiliza integramente F1 para decidir si procede,
+    `proyectar()` para los campos que derivan del log, y el escritor unico `guardar()` (atomico,
+    valida `validar`+`validar_tareas` antes de tocar disco) para persistir. No reimplementa ninguno.
+
+    Devuelve siempre un informe con `regenerado: bool`:
+      - `False` con `estado_detectado="ESTADO_NO_VERIFICABLE"`: el log no demuestra su propia
+        completitud: regenerar seria afirmar una actualidad que no se puede demostrar. No escribe.
+      - `False` con `estado_detectado="PROYECCION_ACTUAL"`: no-op; ya estaba al dia. No escribe.
+      - `False` con `motivo` de rechazo de gobierno: alguna tarea no es reconstruible desde el log sin
+        fabricar su gobierno (p. ej. COMPLETED cuya autoridad en el log no es humana). No escribe
+        **nada**: regenerar las demas tareas y rechazar solo esta dejaria un estado.json que declara
+        una proyeccion parcial sin decirlo. Esto es responsabilidad del CEO (DECISION_REQUIRED), no
+        un defecto que esta funcion pueda resolver fabricando una autoridad.
+      - `True`: regenero y escribio; incluye `estado_detectado_antes` y `seq`."""
+    directorio = pathlib.Path(directorio)
+    informe_f1 = estado_de_la_proyeccion(directorio)
+    estado_detectado = informe_f1["estado"]
+
+    if estado_detectado == ESTADO_NO_VERIFICABLE:
+        return {"regenerado": False, "estado_detectado": estado_detectado,
+                "motivo": "el log no demuestra su propia completitud (ver F1): no se regenera una "
+                          "proyeccion que no se puede verificar"}
+    if estado_detectado == PROYECCION_ACTUAL:
+        return {"regenerado": False, "estado_detectado": estado_detectado,
+                "motivo": "ya actual: la proyeccion almacenada ya coincide con el log"}
+    # Solo quedan PROYECCION_OBSOLETA, PROYECCION_AUSENTE o PROYECCION_INVALIDA; las tres con log
+    # integro y completitud demostrada (si no, F1 ya habria devuelto ESTADO_NO_VERIFICABLE).
+
+    proyeccion = proyectar(directorio)
+    gobierno = _gobierno_por_tarea_desde_el_log(directorio)
+    entorno = _entorno_preservado(directorio)
+
+    tareas_regeneradas = {}
+    for id_tarea, tarea in proyeccion["tareas"].items():
+        datos_gobierno = gobierno.get(id_tarea)
+        if datos_gobierno is None:
+            # No deberia ocurrir: toda tarea en `proyectar()["tareas"]` tiene al menos el evento que
+            # la creo. Fallo seguro: no fabricar un `previo`, rechazar.
+            return {"regenerado": False, "estado_detectado": estado_detectado,
+                    "motivo": f"no reconstruible sin fabricar gobierno: {id_tarea!r} no tiene "
+                              f"ningun evento de estado en el log del que derivar su gobierno"}
+        candidata = {**tarea, **datos_gobierno}
+        if candidata["estado"] == "COMPLETED" and candidata.get("autoridad") not in AUTORIDADES_HUMANAS:
+            # El log registra un cierre COMPLETED cuya autoridad no es humana (p. ej. un evento
+            # heredado o fabricado por otra capa, previo a esta garantia). `validar_tareas` lo
+            # rechazaria de todas formas al guardar; se adelanta el rechazo para no regenerar las
+            # demas tareas y dejar un estado.json parcial.
+            return {"regenerado": False, "estado_detectado": estado_detectado,
+                    "motivo": f"no reconstruible sin fabricar gobierno: {id_tarea!r} consta "
+                              f"COMPLETED en el log con autoridad {candidata.get('autoridad')!r}, "
+                              f"que no es humana (DECISION_REQUIRED: requiere acto humano, no se "
+                              f"fabrica aqui)"}
+        tareas_regeneradas[id_tarea] = candidata
+
+    regenerado = {
+        **entorno,
+        "version": proyeccion["version"],
+        "status": proyeccion["status"],
+        "tareas": tareas_regeneradas,
+        "eventos_aplicados": proyeccion["eventos_aplicados"],
+        "eventos_ignorados": proyeccion["eventos_ignorados"],
+    }
+    validar(regenerado)
+    validar_tareas(regenerado)
+    guardar(regenerado, directorio / "estado.json")
+    return {"regenerado": True, "estado_detectado_antes": estado_detectado,
+            "seq": proyeccion["eventos_aplicados"]}
+
+
 # --------------------------------------------------- transiciones gobernadas (C2) --
 
 def validar_transicion(previo: str, valor: str, autoridad: str, causa: str) -> None:

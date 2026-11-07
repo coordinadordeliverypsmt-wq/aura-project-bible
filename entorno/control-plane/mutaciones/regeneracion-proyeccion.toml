@@ -1,0 +1,75 @@
+incremento = "F2: regeneracion EXPLICITA y CONTROLADA de la proyeccion (regenerar_proyeccion, DP Entregable C)"
+# Defecto que cierra: una proyeccion obsoleta/ausente no se podia reconstruir sin fabricar gobierno.
+# F2 reutiliza F1/verificar_integridad_log/proyectar/guardar; no regenera si NO_VERIFICABLE, no
+# fabrica previo/autoridad, preserva el entorno, y rechaza (sin escribir) lo no reconstruible.
+# NADA en paralelo con este arnes (CLAUDE.md §2).
+pruebas = ["test_red_regeneracion_proyeccion.py"]
+timeout_s = 600
+
+[[mutante]]
+id = "RP1"
+garantia = "se regenera aunque el log sea NO_VERIFICABLE: afirma actualidad sin poder demostrarla (salta la puerta de integridad de F1)"
+fichero = "control_plane.py"
+buscar = '''    if estado_detectado == ESTADO_NO_VERIFICABLE:
+        return {"regenerado": False, "estado_detectado": estado_detectado,
+                "motivo": "el log no demuestra su propia completitud (ver F1): no se regenera una "
+                          "proyeccion que no se puede verificar"}'''
+sustituir = '''    if False:
+        return {"regenerado": False, "estado_detectado": estado_detectado,
+                "motivo": "el log no demuestra su propia completitud (ver F1): no se regenera una "
+                          "proyeccion que no se puede verificar"}'''
+
+[[mutante]]
+id = "RP2"
+garantia = "ACTUAL deja de ser no-op: regenera (y reescribe) aunque la proyeccion ya estuviera al dia (auto-reparacion encubierta en cada llamada)"
+fichero = "control_plane.py"
+buscar = '''    if estado_detectado == PROYECCION_ACTUAL:
+        return {"regenerado": False, "estado_detectado": estado_detectado,
+                "motivo": "ya actual: la proyeccion almacenada ya coincide con el log"}'''
+sustituir = '''    if False:
+        return {"regenerado": False, "estado_detectado": estado_detectado,
+                "motivo": "ya actual: la proyeccion almacenada ya coincide con el log"}'''
+
+[[mutante]]
+id = "RP3"
+garantia = "el `previo` de cada tarea se fabrica como constante en vez de derivarlo del evento del log (gobierno falsificado)"
+fichero = "control_plane.py"
+buscar = '''        gobierno[id_tarea] = {"previo": datos.get("previo"), "creada_sin_origen": False}'''
+sustituir = '''        gobierno[id_tarea] = {"previo": "WAITING_FOR_NEXT_TASK", "creada_sin_origen": False}'''
+
+[[mutante]]
+id = "RP4"
+garantia = "no se preservan los campos de entorno del estado.json existente (se pierde git/cuota/trabajo_completado al regenerar)"
+fichero = "control_plane.py"
+buscar = '''    regenerado = {
+        **entorno,
+        "version": proyeccion["version"],'''
+sustituir = '''    regenerado = {
+        "version": proyeccion["version"],'''
+
+# RP5 RETIRADO (equivalente demostrado, 2026-11-06). Mutar las dos lineas `validar(regenerado)` /
+# `validar_tareas(regenerado)` previas a `guardar` NO degrada nada observable: `guardar` (control_plane.py:202-203)
+# ya llama a `validar` + `validar_tareas` ANTES de escribir, asi que un estado invalido o falsificado se rechaza
+# igualmente y nunca se persiste. La validacion explicita de F2 es defensa redundante (fail-fast); su mutante es
+# equivalente y por eso se deja escrito, no como prueba decorativa (mismo criterio que B2-M8 en DP-RECUPERACION).
+
+[[mutante]]
+id = "RP6"
+garantia = "no se rechaza un COMPLETED cuya autoridad en el log no es humana: se regenera igual, fabricando una proyeccion con gobierno invalido en vez de parar"
+fichero = "control_plane.py"
+buscar = '''        if candidata["estado"] == "COMPLETED" and candidata.get("autoridad") not in AUTORIDADES_HUMANAS:'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "RP7"
+garantia = "`creada_sin_origen` se fabrica como True por defecto en vez de la derivacion correcta (False, la unica consecuencia posible de las invariantes del log)"
+fichero = "control_plane.py"
+buscar = '''        gobierno[id_tarea] = {"previo": datos.get("previo"), "creada_sin_origen": False}'''
+sustituir = '''        gobierno[id_tarea] = {"previo": datos.get("previo"), "creada_sin_origen": True}'''
+
+[[mutante]]
+id = "RP8"
+garantia = "una tarea registrada-sin-transicionar no obtiene su `previo` del registro: se fabrica un previo constante distinto de ESTADO_SIN_REGISTRAR (su previo real) — gobierno inventado para la tarea aun no transicionada"
+fichero = "control_plane.py"
+buscar = '''            gobierno.setdefault(id_tarea, {"previo": ESTADO_SIN_REGISTRAR, "creada_sin_origen": False})'''
+sustituir = '''            gobierno.setdefault(id_tarea, {"previo": "WORKING", "creada_sin_origen": False})'''

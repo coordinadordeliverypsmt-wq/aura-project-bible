@@ -1,7 +1,7 @@
 ---
 documento: "Decision Package — Integridad, recuperación y consistencia del estado autónomo"
 fecha: 2026-11-06
-estado: "F1 APROBADA por el CEO (2026-11-06) e IMPLEMENTADA (ver §10). F2, F3, F4, F5 siguen PROPUESTAS, pendientes de aprobación. El Director no se aprueba a sí mismo las pendientes."
+estado: "F1 y F2 APROBADAS por el CEO (2026-11-06) e IMPLEMENTADAS (§10, §11). F3, F4, F5 siguen PROPUESTAS, pendientes de aprobación. El Director no se aprueba a sí mismo las pendientes."
 tipo: "DP técnico de integridad/recuperación. Diagnóstico de solo lectura; ninguna corrección implementada."
 rama: "integracion/m3-entry · HEAD 2956c402bc347d2363e519ac9cd267e7e7750481"
 evidencia: "Análisis del CÓDIGO y los documentos del repo (sin leer ~/.aura, §7.3). Clasificación D47."
@@ -160,3 +160,32 @@ eliminadas); no se tocó `proyectar`/`guardar`/`cargar`/`_leer_ancla`/`verificar
 **Siguen pendientes de tu decisión:** F2 (refresco incremental), F3 (indicador agregado), F4 (lectura agregada
 de `~/.aura`, decisión #3 — única vía para confirmar los ciclos 196/217 y la causa de BLOQUEADA), F5 (D-INT-1,
 D-ORCH-6). F1 **no las implementa ni las desbloquea**.
+
+## §11 · Cierre de F2 (implementada, 2026-11-06)
+
+**Autorizada e implementada**: `regenerar_proyeccion(directorio)` en `entorno/control-plane/control_plane.py`, regeneración
+EXPLÍCITA y CONTROLADA del `estado.json` desde el log. Solo regenera si F1 lo detecta OBSOLETA o AUSENTE **y** el log es
+verificable (íntegro + completitud demostrada); ante NO_VERIFICABLE no escribe; ACTUAL es no-op. Los campos derivados del
+log vienen de `proyectar()`; el gobierno por tarea (`previo`, `creada_sin_origen`) se **deriva del propio log** —de
+`datos["previo"]` del último evento de estado, o de `ESTADO_SIN_REGISTRAR` para una tarea registrada-sin-transicionar—,
+**nunca se fabrica**. Los campos de entorno (git, cuota, trabajo_completado, …) se preservan del `estado.json` existente.
+Valida con `validar`+`validar_tareas` y escribe con el escritor único `guardar` (atómico): nunca deja un estado parcial.
+Si una tarea no es reconstruible sin fabricar gobierno (COMPLETED cuya autoridad en el log no es humana), **rechaza la
+regeneración entera y lo reporta** (DECISION_REQUIRED, no se fabrica). Es explícita: no la llama ninguna ruta de lectura
+(no hay auto-reparación; eso sería F3). No modifica F1, `proyectar`, `guardar`, `cargar`, `_leer_ancla` ni
+`verificar_integridad_log`.
+
+Evidencia `[EJEC]`: `test_red_regeneracion_proyeccion.py` **19 pruebas** (RED→GREEN, incluidos los casos
+registrada-sin-transicionar, mixto, COMPLETED-sin-autoridad rechazado, fallo de escritura sin estado parcial, no toca
+eventos/ancla, idempotencia); suite del control-plane 155 passed sin regresión; mutación
+`mutaciones/regeneracion-proyeccion.toml` **7/7** (RP5 retirado y documentado como equivalente: `guardar` ya revalida);
+Quality Gate del repo **PASS** (4562). Diff aditivo (+140/−0); no se tocaron las funciones protegidas.
+
+Un defecto propio de F2 (falso rechazo de una tarea registrada-sin-transicionar) lo detectó la **auditoría en línea del
+Director** y se corrigió antes de publicar. Limitación declarada: las dos auditorías independientes de F2 (arquitectura y
+seguridad) cayeron por límite de sesión; la verificación de F2 fue del orquestador en línea (implementador ≠ auditor:
+el ingeniero es Sonnet, el auditor el Director/Opus), más la mutación 7/7 y el QG. Conviene una auditoría independiente
+de F2 cuando el presupuesto de sesión lo permita.
+
+**Siguen pendientes de tu decisión:** F3 (indicador agregado), F4 (lectura agregada de `~/.aura`, decisión #3), F5
+(D-INT-1, D-ORCH-6).

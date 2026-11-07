@@ -11913,3 +11913,21 @@ autoriza. Enlazado desde el índice.
   sin tocar las funciones protegidas.
 - **Sin cambios:** producción, runtime, `~/.aura`, cron, PARADA, CM2/S3, N1/N2/delegación, `main` (99f2109).
 - **Pendiente del CEO:** F2, F3, F4 (lectura agregada §7.3 — confirmaría ciclos 196/217 y causa de BLOQUEADA), F5.
+
+## 2026-11-06 · F2 — regeneración controlada de la proyección (control-plane; rama integracion/m3-entry)
+
+- **Autorización:** CEO, F2 del DP (ahora §11). F1 queda intacta como contrato de detección.
+- **Qué hace:** `regenerar_proyeccion(directorio)` reconstruye `estado.json` desde el log, EXPLÍCITA y controlada: solo si
+  F1 lo ve OBSOLETA/AUSENTE y el log es verificable; NO_VERIFICABLE → no escribe; ACTUAL → no-op. Gobierno por tarea
+  (`previo`, `creada_sin_origen`) derivado del log (nunca fabricado); entorno preservado; valida y escribe con `guardar`
+  atómico; rechaza entera si un COMPLETED no tiene autoridad humana en el log (DECISION_REQUIRED). No hay auto-reparación
+  (eso sería F3). No se invoca desde ninguna lectura.
+- **Evidencia `[EJEC]`:** test_red_regeneracion_proyeccion.py 19 pruebas (RED→GREEN); suite control-plane 155 passed;
+  mutación 7/7 (RP5 retirado = equivalente, guardar revalida); Quality Gate PASS 4562. Diff aditivo, funciones
+  protegidas intactas.
+- **Proceso:** el ingeniero (Sonnet) empezó por error en el worktree de producción; reconducido con rutas absolutas. El
+  Director halló en auditoría en línea un falso rechazo (tarea registrada-sin-transicionar) y lo corrigió antes de
+  publicar. Límite declarado: las auditorías independientes de F2 cayeron por límite de sesión; verificación del
+  orquestador en línea (implementador ≠ auditor) + mutación 7/7 + QG. Recomendada auditoría independiente futura.
+- **Sin cambios:** producción, runtime, `~/.aura`, eventos.jsonl, ancla, cron, PARADA, CM2/S3, memorias/Correo/NODO, `main` (99f2109).
+- **Pendiente del CEO:** F3, F4 (lectura agregada §7.3), F5.

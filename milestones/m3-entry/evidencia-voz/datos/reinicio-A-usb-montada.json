@@ -1,0 +1,32 @@
+{
+  "etiqueta": "A-usb-montada",
+  "fecha": "2026-09-15 21:49:34",
+  "usb_montada": true,
+  "voz_declarada": "/media/majo1230/AURORA_EXT/piper_voices/es_MX-ald-medium.onnx",
+  "voz_existe": true,
+  "hf_home": "/media/majo1230/AURORA_EXT/hf_cache",
+  "pid": 39703,
+  "boot_voz": [
+    "BOOT composicion voz: DISPONIBLE (/media/majo1230/AURORA_EXT/piper_voices/es_MX-ald-medium.onnx) -"
+  ],
+  "turno_texto": {
+    "say": "Todavía no sé nada sobre ti.",
+    "provider": "core",
+    "dominio": "modelo_usuario",
+    "estatus": "ausencia",
+    "voz": "ok",
+    "total_s": 10.13
+  },
+  "turno_audio": {
+    "say": "Todavía no sé nada sobre ti.",
+    "provider": "core",
+    "dominio": "modelo_usuario",
+    "estatus": "ausencia",
+    "voz": "ok",
+    "total_s": 29.44
+  },
+  "audios": [
+    "resp_68984f0f87ea.wav",
+    "resp_eb246f78d384.wav"
+  ]
+}

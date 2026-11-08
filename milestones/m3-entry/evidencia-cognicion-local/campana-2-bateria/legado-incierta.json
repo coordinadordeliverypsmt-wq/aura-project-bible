@@ -1,0 +1,23 @@
+{
+  "caso": "incierta",
+  "tipo": "abierta",
+  "variante": "legado",
+  "texto": "que es la materia oscura?",
+  "reloj_s": 49.92,
+  "total_s": 49.85,
+  "carga_s": 0.94,
+  "ingesta_tokens": 158,
+  "ingesta_s": 7.12,
+  "generacion_tokens": 91,
+  "generacion_s": 41.79,
+  "generacion_tok_s": 2.178,
+  "motivo_fin": "stop",
+  "json_valido": true,
+  "claves": [
+    "action",
+    "args",
+    "say"
+  ],
+  "say": "La materia oscura es una especie de átomos en estado muerto. Están deshabilitados y no pueden formar partículas. Estos átomos tienen un alto número de electrones y a menudo se usan como ejemplo para ilustrar los conceptos básicos en física.",
+  "respuesta_cruda": "{\"say\": \"La materia oscura es una especie de átomos en estado muerto. Están deshabilitados y no pueden formar partículas. Estos átomos tienen un alto número de electrones y a menudo se usan como ejemplo para ilustrar los conceptos básicos en física.\",\"action\":\"consulta\",\"args\":{\"subject\":\"materia oscura\",\"type\":\"definición\"}}"
+}

@@ -1,0 +1,6 @@
+test(red): red de _ruta_red v2 y aislamiento de dispositivos reales
+
+Pruebas y mutantes de la correccion de _ruta_red (AURA_RED vacio = sin red) y del aislamiento de las pruebas frente a HA, camaras y Ollama reales. El codigo de la correccion entro en el commit del nucleo. Particion verificada: PROPUESTA-PARTICION-INTEGRACION.md §8 (commit 2 de 7).
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_018FPxs18b7xW6kGYPWppnL1

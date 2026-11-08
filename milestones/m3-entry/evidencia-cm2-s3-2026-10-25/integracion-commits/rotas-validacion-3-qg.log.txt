@@ -1,0 +1,8 @@
+codigo-muerto-completo.toml:CMC-M11
+cp-estado-defectos.toml:EDF-M6
+cp-g3-ciclo-de-vida.toml:G3-M2
+d-orch-2-autoconstruccion.toml:AC-M10
+dr-f-3d-2-veracidad.toml:V-M4
+dr-f-3d-2-veracidad.toml:V-M6
+segunda-barrera.toml:SB-M5
+segunda-barrera.toml:SB-M8

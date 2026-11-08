@@ -1,0 +1,23 @@
+{
+  "caso": "palabra",
+  "tipo": "conocimiento",
+  "variante": "legado",
+  "texto": "que significa la palabra resiliencia?",
+  "reloj_s": 42.77,
+  "total_s": 42.72,
+  "carga_s": 0.76,
+  "ingesta_tokens": 159,
+  "ingesta_s": 6.58,
+  "generacion_tokens": 42,
+  "generacion_s": 35.37,
+  "generacion_tok_s": 1.187,
+  "motivo_fin": "stop",
+  "json_valido": true,
+  "claves": [
+    "action",
+    "intent",
+    "say"
+  ],
+  "say": "La resiliencia es el proceso de asumir y superar problemas o dificultades que se les presentan.",
+  "respuesta_cruda": "{\"say\": \"La resiliencia es el proceso de asumir y superar problemas o dificultades que se les presentan.\",\"action\":\"consulta\",\"intent\":\"resiliencia\"}"
+}

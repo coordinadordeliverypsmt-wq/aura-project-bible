@@ -1,0 +1,83 @@
+incremento = "DP-DURABILIDAD-MEMORIA, P3: olvidar/marcar atomicos respecto a la RAM (anexar antes de tocar _items/indice/_conteo_usuario/provenance; si una anexion falla, la RAM queda como antes de la llamada). 2026-11-06."
+# Lo corre el orquestador con `python3 -m herramientas.mutar mutaciones/durabilidad-memoria-p3.toml`, sin nada en paralelo.
+pruebas = ["tests/unit/test_durabilidad_memoria_p3.py", "tests/unit/test_g7_lapida_append_only.py", "tests/integration/test_olvido_adversarial.py", "tests/integration/test_olvido_por_entrada.py"]
+timeout_s = 300
+
+[[mutante]]
+id = "P3-1"
+garantia = "olvidar vuelve a quitar de RAM ANTES de anexar: un fallo a mitad deja la sesion sin mostrar lo no confirmado en disco"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''        bajas = [i for i in self._items if predicado(i)]
+        if bajas:
+            # Anexar TODO antes de tocar la RAM. Si una anexion falla, el error se propaga aqui mismo,
+            # sin haber quitado nada de `self._items`: la sesion sigue mostrando TODO lo olvidable.
+            for baja in bajas:
+                self._anexar({**baja, _LAPIDA: True})'''
+sustituir = '''        bajas = [i for i in self._items if predicado(i)]
+        self._items = [i for i in self._items if not predicado(i)]
+        if bajas:
+            for baja in bajas:
+                self._anexar({**baja, _LAPIDA: True})'''
+
+[[mutante]]
+id = "P3-2"
+garantia = "marcar muta la procedencia de los objetos vivos ANTES de anexar: un fallo a mitad deja entradas marcadas en RAM sin confirmar en disco"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''        objetivos = [i for i in self._items if predicado(i)]
+        n = len(objetivos)
+        if n:
+            # Copias con la procedencia ya actualizada: no se toca el dict vivo todavia.
+            copias = [{**i, "provenance": {**i.get("provenance", {}), **campos}} for i in objetivos]'''
+sustituir = '''        objetivos = [i for i in self._items if predicado(i)]
+        n = len(objetivos)
+        if n:
+            for i in objetivos:
+                i.setdefault("provenance", {}).update(campos)
+            copias = [{**i, "provenance": {**i.get("provenance", {}), **campos}} for i in objetivos]'''
+
+[[mutante]]
+id = "P3-3"
+garantia = "olvidar traga el error de _anexar: la RAM se toca igual aunque una lapida no se confirmara en disco"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''            for baja in bajas:
+                self._anexar({**baja, _LAPIDA: True})'''
+sustituir = '''            for baja in bajas:
+                try:
+                    self._anexar({**baja, _LAPIDA: True})
+                except OSError:
+                    pass'''
+
+[[mutante]]
+id = "P3-4"
+garantia = "marcar traga el error de _anexar: la copia se anexa a medias y la RAM se actualiza igual"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''            for copia in copias:
+                self._anexar(copia)'''
+sustituir = '''            for copia in copias:
+                try:
+                    self._anexar(copia)
+                except OSError:
+                    pass'''
+
+[[mutante]]
+id = "P3-5"
+garantia = "marcar aplica los campos a RAM aunque una anexion fallara (se mueve la aplicacion dentro del bucle que anexa, antes de que termine la anexion de todas las copias)"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''            for copia in copias:
+                self._anexar(copia)
+            # Solo tras el exito de las `n` anexiones se aplican los campos a los objetos vivos.
+            for i in objetivos:
+                i.setdefault("provenance", {}).update(campos)'''
+sustituir = '''            for copia, i in zip(copias, objetivos):
+                self._anexar(copia)
+                i.setdefault("provenance", {}).update(campos)'''
+
+[[mutante]]
+id = "P3-6"
+garantia = "olvidar quita de RAM de forma INCREMENTAL (self._items.remove dentro del bucle, por baja): un fallo a mitad deja quitadas las bajas ya anexadas antes del error (simetrico a P3-5 para marcar)"
+fichero = "aura_skeleton/modules/memory.py"
+buscar = '''            for baja in bajas:
+                self._anexar({**baja, _LAPIDA: True})'''
+sustituir = '''            for baja in bajas:
+                self._anexar({**baja, _LAPIDA: True})
+                self._items.remove(baja)'''

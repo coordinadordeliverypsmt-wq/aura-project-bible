@@ -1,0 +1,80 @@
+incremento = "F3: indicador agregado de integridad (integridad_del_control_plane, solo lectura, DP Entregable D)"
+# Defecto que cierra: no habia un veredicto unico que consolidara F1 sin que el consumidor tuviera
+# que reinterpretar los 5 estados el mismo. F3 es AGREGACION pura: no regenera, no escribe, no
+# consulta PARADA ni disponibilidad, y no reimplementa la verificacion de F1 (solo la llama una vez).
+# NADA en paralelo con este arnes (CLAUDE.md §2).
+pruebas = ["test_red_integridad_agregada.py"]
+timeout_s = 600
+
+[[mutante]]
+id = "IA1"
+garantia = "NO_VERIFICABLE se presenta como verificable (verificable=True en vez de False): oculta que el log no demuestra su propia completitud, dejando creer al consumidor que el veredicto es fiable"
+fichero = "control_plane.py"
+buscar = '''    verificable = proyeccion != ESTADO_NO_VERIFICABLE'''
+sustituir = '''    verificable = True'''
+
+[[mutante]]
+id = "IA2"
+garantia = "NO_VERIFICABLE se mapea a integridad=\"ok\" en vez de \"no_verificable\": afirma que el indicador agregado esta bien cuando el log subyacente no es verificable (fallo inseguro, viola la precedencia de F1)"
+fichero = "control_plane.py"
+buscar = '''    if proyeccion == ESTADO_NO_VERIFICABLE:
+        integridad = INTEGRIDAD_NO_VERIFICABLE'''
+sustituir = '''    if False:
+        integridad = INTEGRIDAD_NO_VERIFICABLE'''
+
+[[mutante]]
+id = "IA3"
+garantia = "OBSOLETA/AUSENTE/INVALIDA no se marcan regeneracion_pendiente=True: esconde que F2 actuaria si se la invocara, dejando al consumidor sin saber que la proyeccion necesita regenerarse"
+fichero = "control_plane.py"
+buscar = '''    pendiente = verificable and proyeccion in _PROYECCIONES_PENDIENTES_DE_REGENERACION'''
+sustituir = '''    pendiente = False'''
+
+[[mutante]]
+id = "IA4"
+garantia = "ACTUAL se marca regeneracion_pendiente=True: afirma que hace falta regenerar una proyeccion que ya esta al dia (falso positivo que empujaria a regenerar innecesariamente)"
+fichero = "control_plane.py"
+buscar = '''    elif proyeccion == PROYECCION_ACTUAL:
+        integridad = INTEGRIDAD_OK'''
+sustituir = '''    elif proyeccion == PROYECCION_ACTUAL:
+        integridad = INTEGRIDAD_OK
+        pendiente = True'''
+
+[[mutante]]
+id = "IA5"
+garantia = "NO_VERIFICABLE se marca regeneracion_pendiente=True: afirma que F2 regeneraria un log cuya completitud no esta demostrada (F2 realmente rechaza NO_VERIFICABLE; este indicador mentiria sobre esa garantia)"
+fichero = "control_plane.py"
+buscar = '''    pendiente = verificable and proyeccion in _PROYECCIONES_PENDIENTES_DE_REGENERACION'''
+sustituir = '''    pendiente = proyeccion == ESTADO_NO_VERIFICABLE or (verificable and proyeccion in _PROYECCIONES_PENDIENTES_DE_REGENERACION)'''
+
+[[mutante]]
+id = "IA6"
+garantia = "degradada se calcula fuera de la rama else, aplicandose tambien a ACTUAL (todo lo que no es NO_VERIFICABLE pasa a ser \"ok\" sin distinguir OBSOLETA/AUSENTE/INVALIDA de ACTUAL): colapsa el veredicto a solo dos estados en vez de tres"
+fichero = "control_plane.py"
+buscar = '''    else:
+        integridad = INTEGRIDAD_DEGRADADA'''
+sustituir = '''    else:
+        integridad = INTEGRIDAD_OK'''
+
+[[mutante]]
+id = "IA7"
+garantia = "F3 llama a regenerar_proyeccion en vez de limitarse a leer F1: rompe el contrato de solo-lectura y produce una escritura encubierta en cada consulta de integridad"
+fichero = "control_plane.py"
+buscar = '''    informe = estado_de_la_proyeccion(directorio)
+    proyeccion = informe["estado"]'''
+sustituir = '''    informe = estado_de_la_proyeccion(directorio)
+    regenerar_proyeccion(directorio)
+    proyeccion = informe["estado"]'''
+
+[[mutante]]
+id = "IA8"
+garantia = "el veredicto deja de pasar seq_confirmado (se omite siempre, incluso cuando F1 lo trae): un consumidor que dependa de ese campo para comparar con seq_proyeccion recibiria None de forma constante"
+fichero = "control_plane.py"
+buscar = '''        "seq_confirmado": informe.get("seq_confirmado"),'''
+sustituir = '''        "seq_confirmado": None,'''
+
+[[mutante]]
+id = "IA9"
+garantia = "el subinforme de integridad se escribe bajo la clave `integridad`, pisando el veredicto string (un consumidor recibe un dict donde espera 'ok'/'degradada'/'no_verificable')"
+fichero = "control_plane.py"
+buscar = '''        agregado["integridad_log"] = informe["integridad"]'''
+sustituir = '''        agregado["integridad"] = informe["integridad"]'''

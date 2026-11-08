@@ -1,0 +1,22 @@
+{
+  "caso": "explicacion",
+  "tipo": "conocimiento",
+  "variante": "actual",
+  "texto": "por que el cielo es azul?",
+  "reloj_s": 30.09,
+  "total_s": 30.04,
+  "carga_s": 0.54,
+  "ingesta_tokens": 162,
+  "ingesta_s": 4.65,
+  "generacion_tokens": 50,
+  "generacion_s": 24.85,
+  "generacion_tok_s": 2.012,
+  "motivo_fin": "stop",
+  "json_valido": true,
+  "claves": [
+    "action",
+    "say"
+  ],
+  "say": "El cielo azul es normal y tiene un aspecto similar a una luna, pero también puede depender de cómo se mantiene el sol en su rotación.",
+  "respuesta_cruda": "{ \"say\": \"El cielo azul es normal y tiene un aspecto similar a una luna, pero también puede depender de cómo se mantiene el sol en su rotación.\", \"action\": \"consulta\" }"
+}

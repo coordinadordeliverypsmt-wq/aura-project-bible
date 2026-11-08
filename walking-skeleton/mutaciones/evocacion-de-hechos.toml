@@ -1,0 +1,65 @@
+incremento = "DR-1 = A (CEO, 2026-09-15): la evocacion de hechos («¿te acuerdas de lo que te dije?») la responde el Core desde el modelo de usuario, con vigencia, supersesion y refutacion, sin LLM"
+pruebas = ["tests/integration/test_evocacion_de_hechos.py"]
+timeout_s = 240
+
+[[mutante]]
+id = "EV-M1"
+garantia = "la superficie se desconecta: la evocacion generica vuelve a caer en la puerta de ADR-0014 y AURA niega recuerdos que tiene"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_evocacion_de_hechos.py::test_la_evocacion_generica_la_responde_el_Core_con_todos_los_hechos_declarados"]
+buscar = '''        if es_evocacion_generica(t):'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "EV-M2"
+garantia = "lo OBSERVADO se presenta como algo que el usuario dijo"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_evocacion_de_hechos.py::test_lo_OBSERVADO_no_se_presenta_como_algo_que_el_usuario_dijo"]
+buscar = '''            declaradas = [e for e in presentes if e.get("origen") == "declarada"]'''
+sustituir = '''            declaradas = list(presentes)'''
+
+[[mutante]]
+id = "EV-M3"
+garantia = "la evocacion lee todas las vivas: una version superseded se presenta como vigente"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_evocacion_de_hechos.py::test_la_evocacion_no_presenta_una_version_superseded"]
+buscar = '''            declaradas = [e for e in presentes if e.get("origen") == "declarada"]'''
+sustituir = '''            declaradas = [e for e in vivas if e.get("origen") == "declarada"]'''
+
+[[mutante]]
+id = "EV-M4"
+garantia = "tras evocar varios hechos queda fijado un «eso»: un olvido posterior actua sobre uno cualquiera en vez de preguntar"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_evocacion_de_hechos.py::test_tras_evocar_varios_hechos_olvida_eso_pregunta_en_vez_de_elegir"]
+buscar = '''            if len(declaradas) == 1:
+                self._foco_modelo[uid] = declaradas[0]'''
+sustituir = '''            if declaradas:
+                self._foco_modelo[uid] = declaradas[0]'''
+
+[[mutante]]
+id = "EV-M5"
+garantia = "se pierde el anclaje final de la gramatica: una frase que solo EMPIEZA como evocacion se atiende como tal"
+fichero = "aura_skeleton/core/identidad_memoria.py"
+pruebas = ["tests/integration/test_evocacion_de_hechos.py::test_no_reconoce_lo_que_no_es_evocacion_de_hechos"]
+buscar = '''    re.compile(rf"^¿?{_VERBO_EVOCAR} (?:lo que|que) te {_VERBO_DECIR}(?: antes)?\s*\??$"),'''
+sustituir = '''    re.compile(rf"^¿?{_VERBO_EVOCAR} (?:lo que|que) te {_VERBO_DECIR}(?: antes)?\s*\??"),'''
+
+[[mutante]]
+id = "EV-M6"
+garantia = "la evocacion de un atributo se desconecta: «¿te acuerdas de mi color favorito?» deja de responderla el Core"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_evocacion_de_hechos.py::test_la_evocacion_de_un_atributo_se_responde_como_la_consulta_de_ese_atributo"]
+buscar = '''        evocado = atributo_evocado(t)'''
+sustituir = '''        evocado = None'''
+
+[[mutante]]
+id = "EV-M7"
+# RE-ANCLADO 2026-09-15 (MISION VOZ): `ruff format` reescribio el bloque en el orquestador.
+# La garantia y el efecto del mutante son los mismos; solo cambia como esta escrito el codigo.
+garantia = "la ausencia de hechos declarados deja de declararse AUSENCIA y se presenta con estatus de hecho"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_evocacion_de_hechos.py::test_sin_hechos_declarados_la_evocacion_generica_lo_dice_sin_inventar"]
+buscar = '''        *(ausencia for _, _, _, ausencia in _CONSULTAS_DE_HECHO),
+        _SIN_HECHOS_DECLARADOS,
+'''
+sustituir = '''        *(ausencia for _, _, _, ausencia in _CONSULTAS_DE_HECHO),'''

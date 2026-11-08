@@ -48,6 +48,8 @@ import json
 import os
 import pathlib
 import re
+import secrets
+import stat
 import subprocess
 
 VERSION = 1
@@ -674,27 +676,47 @@ def resumen_de_cuota(cuota: dict) -> str:
 # ============================================================================== GIT --
 
 
+def _rutas_de_porcelain_z(salida: str) -> list[str]:
+    """Rutas actuales de `git status --porcelain -z`. Un renombrado o copia da la ruta NUEVA, que es
+    la que existe; el campo siguiente es el origen y se salta."""
+    rutas: list[str] = []
+    campos = salida.split("\0")
+    i = 0
+    while i < len(campos):
+        entrada = campos[i]
+        i += 1
+        if len(entrada) < 4:
+            continue
+        if entrada[0] in "RC" or entrada[1] in "RC":
+            i += 1
+        rutas.append(entrada[3:])
+    return rutas
+
+
 def observar_git(directorio: pathlib.Path) -> dict:
     """Observa; no declara. Git es la fuente auditable."""
-    def _git(*args: str) -> str | None:
+    def _git(*args: str, crudo: bool = False) -> str | None:
         try:
             r = subprocess.run(["git", *args], cwd=directorio, capture_output=True,
                                text=True, timeout=30)
-            return r.stdout.strip() if r.returncode == 0 else None
+            if r.returncode != 0:
+                return None
+            return r.stdout if crudo else r.stdout.strip()
         except Exception:  # noqa: BLE001
             return None
 
-    porcelain = _git("status", "--porcelain")
-    # `ln[3:]` se comia un caracter del nombre segun el estado del fichero: el prefijo de
-    # `--porcelain` son dos columnas de estado y un separador, pero la primera puede ir vacia y el
-    # recorte por posicion fija no lo contempla. Se detecto leyendo un handoff real, donde aparecia
-    # «HECKPOINT-CONTINUIDAD.md».
-    modificados = [ln[2:].lstrip() for ln in porcelain.splitlines()] if porcelain else []
+    # `ln[3:]` se comia un caracter del nombre segun el estado del fichero (se vio
+    # «HECKPOINT-CONTINUIDAD.md» en un handoff real), y el formato de lineas tampoco sirve: un
+    # renombrado sale como `viejo -> nuevo` y las rutas con espacios o tildes salen entrecomilladas.
+    # Con `-z` cada entrada es `XY ruta`, sin comillas, y el origen de un renombrado va aparte.
+    crudo = _git("status", "--porcelain", "-z", crudo=True)
+    modificados = _rutas_de_porcelain_z(crudo) if crudo else []
     return {
         "rama": _git("rev-parse", "--abbrev-ref", "HEAD"),
         "ultimo_commit": _git("rev-parse", "--short", "HEAD"),
         "ficheros_modificados": modificados,
-        "limpio": porcelain == "" if porcelain is not None else None,
+        # Del MISMO `status` que la lista: con dos llamadas podían describir árboles distintos (revisión ECC).
+        "limpio": crudo == "" if crudo is not None else None,
     }
 
 
@@ -1164,12 +1186,24 @@ if ESTADO_REVISION not in ESTADOS:
 # producto ya prohibe.
 TRANSICIONES = {
     "WAITING_FOR_NEXT_TASK": ("WORKING",),
-    # Literalmente la de `§6`. `WAITING_FOR_HUMAN` **no** figura aqui como destino aunque el DP le
-    # de salidas, y eso lo deja inalcanzable desde el flujo. Se detecto al corregir el hallazgo 2 de
-    # la auditoria y **no se enmienda por cuenta propia**: anadirlo en silencio seria decidir por el
-    # CEO sobre su propia tabla. Queda registrado como observacion en el cierre de F1.
+    # F5/D-ORCH-6 (acta del CEO, 2026-11-08): `WAITING_FOR_HUMAN` ya tenia SALIDAS en esta tabla
+    # (linea de abajo) pero ningun estado lo tenia como DESTINO, asi que quedaba inalcanzable desde
+    # el flujo. Se detecto al corregir el hallazgo 2 de la auditoria y en ese momento no se enmendo
+    # "por cuenta propia" -quedo como observacion en el cierre de F1-, porque anadirlo en silencio
+    # hubiese sido decidir por el CEO sobre su propia tabla. El CEO autorizo explicitamente el alta
+    # el 2026-11-08: WORKING -> WAITING_FOR_HUMAN es ahora un auto-stop legitimo (el agente declara
+    # que necesita un humano), analogo a DECISION_REQUIRED. La guarda de `validar_transicion`
+    # (ESTADOS_SOLO_HUMANO) hace que `WAITING_FOR_HUMAN` sea solo-humano SIN excepciones: **ambas**
+    # salidas (-> WORKING y -> FAILED) exigen autoridad humana, exactamente como DECISION_REQUIRED.
+    # No basta con blindar la reanudacion: eximir la salida a FAILED abriria una evasion en dos
+    # pasos (WAITING_FOR_HUMAN -> FAILED sin humano, luego FAILED -> WORKING por reintento) que
+    # compone la autoautorizacion. Por eso el agente no puede ni reanudarse ni abandonarse solo.
     "WORKING": (ESTADO_REVISION, "WAITING_FOR_ENVIRONMENT", "WAITING_FOR_QUOTA",
-                "DECISION_REQUIRED", "FAILED", "COMPLETED"),
+                "DECISION_REQUIRED", "WAITING_FOR_HUMAN", "FAILED", "COMPLETED"),
+    # `ESTADO_REVISION` (WAITING_FOR_REVIEW) NO gana `WAITING_FOR_HUMAN` como destino: la espera
+    # humana que puede surgir *durante* una revision ya la cubre `DECISION_REQUIRED`, que es el
+    # mecanismo existente para ese papel en este estado. Anadir una segunda vía al mismo efecto
+    # duplicaria la regla sin necesidad observada; el defecto D-ORCH-6 solo se detecto en `WORKING`.
     ESTADO_REVISION: ("WORKING", "DECISION_REQUIRED", "COMPLETED", "FAILED"),
     "WAITING_FOR_ENVIRONMENT": ("WORKING", "FAILED"),
     "WAITING_FOR_QUOTA": ("WORKING", "FAILED"),
@@ -1210,8 +1244,16 @@ _EVENTO_DE_ESTADO = "estado_de_tarea"
 # F1; los dos del criterio se anadieron el 2026-08-30 porque una segunda auditoria independiente
 # cerro una tarea a `COMPLETED` fabricandolos a mano: conceden exactamente lo mismo que el primero,
 # asi que gobernarlos menos era dejar la misma puerta con otro nombre.
+# **Los dos de AUTORIDAD se anaden el 2026-09-20 por acta del CEO.** Los cuatro anteriores conceden
+# ESTADO de tarea; estos dos conceden **el permiso de actuar**, que es mas. Se demostro ejecutando:
+# `registrar_evento(d, "review_habilitado", {...})` encendia REVIEW con el alcance que se quisiera, y
+# `registrar_evento(d, "propuesta_autorizada", {...})` hacia pasar `esta_autorizada()` de False a
+# True. Las puertas legitimas —`review.habilitar()` y `autoconstruccion.autorizar()`— si comprobaban
+# autoridad humana y acta; lo que faltaba es que fueran el UNICO camino. Mismo defecto que
+# `estado_de_tarea` ya tuvo dos veces, con otro nombre.
 EVENTOS_GOBERNADOS = frozenset({_EVENTO_DE_ESTADO, "criterio_fijado", "criterio_verificado",
-                                "cuota_observada"})
+                                "cuota_observada",
+                                "review_habilitado", "propuesta_autorizada"})
 
 # **Una sola lista, y la declara el modulo.** Estaba escrita a mano dentro de una prueba de F1, y
 # cuando hizo falta barrer «todas las vias publicas a COMPLETED» se escribio OTRA lista, mas corta:
@@ -1223,6 +1265,7 @@ FUNCIONES_GOBERNADAS = frozenset({
     "fijar_estado_tarea", "completar_tarea", "transicion", "reconciliar_tras_caida",
     "interrumpir", "registrar_bloqueo_de_cuota", "validar_transicion",
     "_registrar_evento_gobernado", "registrar_criterio_fijado", "registrar_criterio_verificado",
+    "registrar_review_habilitado", "registrar_propuesta_autorizada",
     # `agentes` — el barrido dejo de mirar solo este modulo tras la 3.a auditoria
     "cerrar_tarea", "ejecutar_tarea",
 })
@@ -1239,8 +1282,11 @@ NO_CONCEDEN_ESTADO = frozenset({
     "validar_tareas",       # valida el borde de persistencia: solo lanza, nunca concede
     "_exigir_humano_para_completar",   # rechaza; es la puerta, no lo que la cruza
     "registrar_evento",     # primitiva publica: NIEGA los eventos que conceden estado
+    "registrar_evento_si",  # la misma primitiva, condicionada y atomica: NIEGA los mismos eventos
     "pedir_revision",       # mueve a WAITING_FOR_REVIEW o DECISION_REQUIRED; nunca a COMPLETED
     "esperar_por_cuota",    # mueve a WAITING_FOR_QUOTA; nunca a COMPLETED
+    "adoptar_ancla",        # crea el ancla de la cabeza del log (ancla_adoptada); no es un estado de tarea
+    "registrar_planificada",  # constancia de INTENCION (tarea_planificada); rechaza si no es elegible; nunca concede
     # La maquinaria de vigilancia. **Nombra** las señales porque su trabajo es encontrarlas, asi que
     # se delata sola en cuanto el barrido se amplio a las privadas. Inspecciona; no concede nada.
     "modulos_vigilados", "invocables_vigilados", "invocables_sin_clasificar",
@@ -1291,6 +1337,8 @@ _PUERTA_DE = {
     "criterio_fijado": "registrar_criterio_fijado()",
     "criterio_verificado": "registrar_criterio_verificado()",
     "cuota_observada": "esperar_por_cuota()",
+    "review_habilitado": "registrar_review_habilitado()",
+    "propuesta_autorizada": "registrar_propuesta_autorizada()",
 }
 
 
@@ -1451,6 +1499,19 @@ class EventoNoGobernado(TransicionInvalida):
     capturandolo: endurecer una garantia no puede romper a quien la respetaba."""
 
 
+class AutoridadNoHumana(EventoNoGobernado):
+    """Se intento crear AUTORIDAD sin una humana detras, o ampliarla mas alla de la vigente.
+
+    Hereda de `EventoNoGobernado` —y por tanto de `TransicionInvalida` y de `ValueError`— por el
+    mismo motivo que aquella: **es** un evento no gobernado, rechazado por una razon mas precisa.
+    Quien capturaba el rechazo generico lo sigue capturando; endurecer una garantia no puede romper
+    a quien ya la respetaba.
+
+    Cubre cuatro negativas distintas, y el mensaje dice cual: autoridad que no es humana ni el
+    circuito de REVIEW, acta sin constancia, alcance malformado o vacio, y alcance que AMPLIA el
+    vigente."""
+
+
 class VentanaIndeterminada(ValueError):
     """Se intento aparcar una tarea en `WAITING_FOR_QUOTA` sin saber que ventana se agoto.
 
@@ -1496,6 +1557,35 @@ def lock_estado(directorio: pathlib.Path):
         os.close(descriptor)
 
 
+NOMBRE_CENTINELA_SUPERVISOR = ".supervisor.lock"
+
+
+@contextlib.contextmanager
+def supervisor_unico(directorio: pathlib.Path):
+    """**Un solo supervisor por log**, durante todo su ciclo (DP-RECUPERACION-TRAS-CAIDAS §4). Cede `True` si lo
+    tiene y `False` si otro proceso lo sostiene: **nunca espera**, porque un supervisor que espera a otro acaba
+    trabajando sobre una cola que ya cambio.
+
+    Por que hace falta: `cambio_aplicado` se atribuye a su tarea por ORDEN en el log. Dos ciclos intercalados sobre
+    tareas distintas harian que una se llevase el resultado de la otra. `flock` muere con su proceso: un SIGKILL no
+    lo deja tomado. Centinela aparte del de `lock_estado`, que se toma y suelta muchas veces dentro del ciclo."""
+    centinela = pathlib.Path(directorio) / NOMBRE_CENTINELA_SUPERVISOR
+    centinela.parent.mkdir(parents=True, exist_ok=True)
+    descriptor = os.open(centinela, os.O_CREAT | os.O_RDWR, 0o644)
+    try:
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            yield False
+            return
+        try:
+            yield True
+        finally:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+    finally:
+        os.close(descriptor)
+
+
 def huella_de_criterio(criterio: dict) -> str:
     """`sha256` del criterio canonicalizado. **La calcula la puerta**, no quien la cruza.
 
@@ -1506,6 +1596,135 @@ def huella_de_criterio(criterio: dict) -> str:
     nuevas—. Derivada aqui, huella y criterio no se pueden separar."""
     return hashlib.sha256(
         json.dumps(criterio, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
+
+
+#: Prefijo de la autoridad que emite el **circuito de REVIEW** cuando un revisor independiente da su
+#: veredicto. No es una autoridad humana y no debe serlo: vale porque un humano encendio REVIEW con
+#: un acta, no por su forma. La puerta lo comprueba contra el historial, no contra la cadena.
+PREFIJO_REVIEW = "REVIEW:"
+
+
+def alcance_de_review(directorio) -> tuple[str, ...]:
+    """El alcance vigente, **reconstruido del historial** y de ningun otro sitio (ADR-0023).
+
+    Vive aqui, y no en `review`, porque la puerta que ESCRIBE necesita saber lo mismo que quien LEE:
+    si cada uno lo dedujera por su cuenta habria dos interpretaciones del mismo hecho, que es lo que
+    `INV-7` prohibe. `review._alcance()` delega en esta.
+
+    **Se ignora lo que no tiene forma de alcance.** El ultimo evento manda, pero una linea metida a
+    mano en el fichero con `"alcance": "todo"` no concede `('t','o','d','o')`: iterar una cadena la
+    desmenuza en letras y cada letra seria un verbo. Se exige lista o tupla de cadenas no vacias, y
+    ante cualquier otra cosa se devuelve vacio — fallo cerrado (ADR-0003)."""
+    for evento in reversed(leer_eventos(pathlib.Path(directorio))):
+        if evento.get("tipo") != "review_habilitado":
+            continue
+        crudo = (evento.get("datos") or {}).get("alcance")
+        if not isinstance(crudo, (list, tuple)):
+            return ()
+        return tuple(v for v in crudo if isinstance(v, str) and v.strip())
+    return ()
+
+
+def _alcance_valido(alcance) -> tuple[str, ...]:
+    """Un alcance es una coleccion de verbos, no un texto. Fallo cerrado ante cualquier otra forma."""
+    if isinstance(alcance, str) or not isinstance(alcance, (list, tuple)):
+        raise AutoridadNoHumana(
+            f"el alcance tiene que ser una lista o tupla de verbos, no {type(alcance).__name__}: "
+            f"una cadena suelta se iteraria letra a letra y cada letra seria un permiso")
+    limpio = tuple(v.strip() for v in alcance if isinstance(v, str) and v.strip())
+    if len(limpio) != len(tuple(alcance)):
+        raise AutoridadNoHumana(
+            "el alcance contiene entradas que no son verbos: no se adivina cuales se quisieron decir")
+    # **El alcance VACIO se acepta a proposito.** Rechazarlo cambiaria la semantica de
+    # `review.habilitar()`, que el acta manda conservar — y no concede nada: `en_alcance()` devuelve
+    # `False` para todo verbo. Es la forma de RETIRAR autoridad sin borrar historial, y como tal
+    # cuenta a efectos de monotonicidad: despues de un alcance vacio solo cabe otro vacio.
+    return limpio
+
+
+def _hubo_habilitacion(directorio) -> bool:
+    """Si existe **algun** `review_habilitado` en el historial, tenga el alcance que tenga.
+
+    Se pregunta por el EVENTO y no por el alcance a proposito. Si «vacio» contara como «no hay
+    anterior», habilitar a vacio reiniciaria la monotonicidad y el siguiente acto podria conceder lo
+    que quisiera: un rodeo de dos pasos a la regla que esta funcion existe para sostener."""
+    return any(e.get("tipo") == "review_habilitado"
+               for e in leer_eventos(pathlib.Path(directorio)))
+
+
+def registrar_review_habilitado(directorio, por: str, acta: str,
+                                alcance: tuple[str, ...] | list) -> dict:
+    """La puerta gobernada de `review_habilitado`. **Solo un humano enciende REVIEW.**
+
+    Comprueba tres cosas y en este orden: autoridad humana registrada, acta con constancia, y que el
+    alcance **no amplie** el vigente.
+
+    **Monotonicidad** (acta del CEO, 2026-09-20). `alcance_de_review()` devuelve el del ULTIMO
+    evento, sin acumular: una habilitacion posterior REEMPLAZA a la anterior. Eso ya produjo una
+    perdida silenciosa —el 2026-09-16, DR-E sustituyo a DR-D y `eliminar_codigo_muerto` salio del
+    alcance sin que nadie lo declarara—, pero el sentido peligroso es el contrario: que aparezca un
+    verbo que nadie autorizo. Aqui se impide ese. Estrechar sigue permitido; es como se retira
+    autoridad. **La primera habilitacion no esta limitada**: no hay nada anterior que ampliar, y
+    exigir «subconjunto de vacio» dejaria al CEO sin poder autorizar nunca.
+
+    La comparacion es de igualdad exacta sobre cadenas: `"CEO"` y `"ceo "` NO son `"ceo"`. Una
+    autoridad concedida por un descuido de tecleo es una autoridad concedida."""
+    directorio = pathlib.Path(directorio)
+    if por not in AUTORIDADES_HUMANAS:
+        raise AutoridadNoHumana(
+            f"{por!r} no es autoridad humana registrada {AUTORIDADES_HUMANAS}: elevar el nivel de "
+            f"autonomia es «decision del usuario/CEO, nunca automaticamente» (ADR-0003:33)")
+    if not (acta or "").strip():
+        raise AutoridadNoHumana(
+            "habilitar REVIEW exige acta: sin constancia no es una decision, es un cambio")
+
+    pedido = _alcance_valido(alcance)
+    vigente = alcance_de_review(directorio)
+    if _hubo_habilitacion(directorio):
+        nuevos = sorted(set(pedido) - set(vigente))
+        if nuevos:
+            raise AutoridadNoHumana(
+                f"una habilitacion posterior no puede AMPLIAR la autoridad vigente {vigente}: "
+                f"{nuevos} no estaban autorizados. Puede mantenerla o estrecharla; ampliarla exige "
+                f"retirar antes la anterior de forma explicita")
+
+    return _registrar_evento_gobernado(directorio, "review_habilitado",
+                                       {"por": por, "acta": acta, "alcance": list(pedido)})
+
+
+def registrar_propuesta_autorizada(directorio, id_propuesta: str, autorizada_por: str,
+                                   acta: str) -> dict:
+    """La puerta gobernada de `propuesta_autorizada`. Dos autoridades legitimas, ninguna mas.
+
+    1. **Un humano** (`AUTORIDADES_HUMANAS`), que es como autoriza `autoconstruccion.autorizar()`.
+    2. **El circuito de REVIEW** (`REVIEW:<revisor>`), que es como autoriza
+       `review.ejecutar_bajo_review()` tras un veredicto independiente.
+
+    La segunda **no se acepta por su forma**. Si bastara escribir `autorizada_por="REVIEW:yo"`, se
+    habria cerrado la puerta y abierto la ventana con otro nombre: se exige que REVIEW este
+    realmente habilitado en el historial, cosa que a su vez solo puede haber hecho un humano por la
+    puerta de arriba. La autoridad delegada vale porque hay un acta detras, no porque se nombre."""
+    directorio = pathlib.Path(directorio)
+    if not (acta or "").strip():
+        raise AutoridadNoHumana(
+            "autorizar una propuesta exige acta: sin constancia no es explicita (1.1:85)")
+
+    if autorizada_por in AUTORIDADES_HUMANAS:
+        pass
+    elif isinstance(autorizada_por, str) and autorizada_por.startswith(PREFIJO_REVIEW):
+        if not alcance_de_review(directorio):
+            raise AutoridadNoHumana(
+                f"{autorizada_por!r} invoca el circuito de REVIEW y REVIEW no esta habilitado en "
+                f"este historial: la autoridad delegada vale por el acta que la enciende, no por "
+                f"como se firme")
+    else:
+        raise AutoridadNoHumana(
+            f"{autorizada_por!r} no es autoridad humana registrada {AUTORIDADES_HUMANAS} ni el "
+            f"circuito de REVIEW: una propuesta no se autoriza sola")
+
+    return _registrar_evento_gobernado(directorio, "propuesta_autorizada",
+                                       {"id": id_propuesta, "autorizada_por": autorizada_por,
+                                        "acta": acta})
 
 
 def registrar_criterio_fijado(directorio: pathlib.Path, id_tarea: str, criterio: dict) -> dict:
@@ -1659,7 +1878,239 @@ def _retirar_cola_truncada(directorio: pathlib.Path, eventos: list[dict]) -> Non
             os.fsync(fh.fileno())
 
 
-def _registrar_sin_lock(directorio: pathlib.Path, tipo: str, datos: dict | None) -> dict:
+# ------------------------------------------------------------ ancla externa de la cabeza (D-LOG-1) --
+#
+# La cadena de hashes detecta una linea alterada o suprimida EN MEDIO, pero no que se borren los
+# ultimos eventos completos: lo que queda es una cadena perfecta, solo que mas corta. El ancla es un
+# fichero FUERA del directorio del log que guarda el ultimo `seq` confirmado y su hash. Protocolo (un
+# unico mecanismo, dentro de `_registrar_sin_lock` y por tanto bajo `lock_estado`):
+#
+#   append + fsync del evento  ->  actualizar el ancla (tmp + fsync + rename + fsync del directorio)
+#
+# Una caida entre ambos deja el ancla ATRASADA (el evento esta en el log, el ancla aun no lo dice): la
+# verificacion lo reconoce (el evento en el `seq` del ancla tiene ese hash y la cola es una extension
+# valida) y `reparar_ancla` o el siguiente escritor la adelantan. Nunca queda ADELANTADA por una caida.
+#
+# LIMITES, declarados (CLAUDE.md §5: nada «declarado != real»):
+#  * Autenticidad del origen NO garantizada: el ancla y el log son del mismo uid. Quien puede borrar la
+#    cola puede reescribir el ancla. Esto cubre fallos, restauraciones parciales y borrados
+#    accidentales, no a un atacante con el mismo usuario.
+#  * Restaurar solo el log antiguo SE detecta (el ancla esta por delante). Restaurar log Y ancla
+#    juntos NO se detecta.
+#  * Un log no vacio SIN ancla no se inicializa nunca en silencio: es `ancla_ausente` (no integro, completitud
+#    `no_demostrable`) hasta que una persona ejecuta `adoptar_ancla`, que deja constancia en el propio log.
+#
+# CONTRATO DEL ESCRITOR (decision del orquestador, 2026-10-26): **la escritura NUNCA queda bloqueada por el
+# ancla.** El evento siempre se anade (fsync): un cron que escribe `despertar_rechazado` no puede caerse ni
+# perder evidencia porque el ancla falte. Lo que el escritor decide es solo si CREA o ADELANTA el ancla:
+#
+#   caso                                          escribe el evento   toca el ancla      verificador
+#   1 log nuevo y vacio (sin ancla)               si                  genesis y luego    integro, demostrada
+#                                                                     la adelanta
+#   2 log heredado con eventos y sin ancla        si                  NO (no se crea)    no integro, no_demostrable
+#   3 cadena interna rota                         si                  NO                 no integro, no_demostrable
+#   4 ancla perdida / corrupta / incompatible     si                  NO (es evidencia)  no integro, no_demostrable
+#   5 el log no concuerda con el ancla            si                  NO (la deteccion   no integro,
+#     (truncamiento / alteracion / otro historial)                    sigue PERMANENTE)  truncada_o_alterada
+#   6 integro y ancla valida (al dia o atrasada)  si                  la adelanta        integro, demostrada
+#   7 caida durante la inicializacion             cubierto por 1: el ancla genesis (seq 0) es atomica y va ANTES
+#                                                 del primer evento; una caida entre ambos deja "ancla atrasada",
+#                                                 recuperable, nunca "log sin ancla".
+#
+# Un fallo de E/S al escribir el ancla tampoco bloquea: el evento ya esta en disco y el ancla queda atrasada
+# (visible en el verificador). Salir de 2, 4 y 5 es un acto humano explicito: `adoptar_ancla`.
+
+ANCLA_VERSION = 1
+_ENV_ANCLA_DIR = "AURA_ANCLA_DIR"
+
+
+class AnclaInconsistente(RuntimeError):
+    """El ancla y el log no concuerdan (truncamiento, hash distinto, ancla corrupta o de otro historial):
+    escribir encima reutilizaria `seq` ya anclados y perderia la evidencia. No se escribe."""
+
+
+def _dir_anclas() -> pathlib.Path:
+    """Fuera del repo y del directorio del log. `AURA_ANCLA_DIR` lo sobreescribe (pruebas)."""
+    base = os.environ.get(_ENV_ANCLA_DIR)
+    if base:
+        return pathlib.Path(base)
+    xdg = os.environ.get("XDG_STATE_HOME") or str(pathlib.Path.home() / ".local" / "state")
+    return pathlib.Path(xdg) / "aura" / "anclas"
+
+
+def ruta_ancla(directorio: pathlib.Path) -> pathlib.Path:
+    clave = hashlib.sha256(str(pathlib.Path(directorio).resolve()).encode()).hexdigest()[:16]
+    return _dir_anclas() / f"{clave}.json"
+
+
+def _asegurar_dir_ancla(ruta: pathlib.Path) -> None:
+    """0700 y propio. Solo se hace `chmod` de lo que se creo aqui; uno existente debe ser un directorio
+    real (no enlace) y del mismo usuario."""
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        os.mkdir(ruta, 0o700)
+        with contextlib.suppress(PermissionError):    # el confinamiento estricto niega chmod; mkdir ya es 0700
+            os.chmod(ruta, 0o700)                     # (el umask solo puede quitar bits, nunca anadir)
+        return
+    except FileExistsError:
+        pass
+    st = os.lstat(ruta)
+    if not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid():
+        raise AnclaInconsistente(f"{ruta} no es un directorio real y propio: no se escribe el ancla")
+    if _dir_ancla_laxo(ruta):
+        raise AnclaInconsistente(f"{ruta} tiene permisos laxos (modo {stat.S_IMODE(st.st_mode):o}): "
+                                 f"no se escribe el ancla")
+
+
+def _dir_ancla_laxo(ruta: pathlib.Path) -> bool:
+    """Un directorio de anclas EXISTENTE con algun bit de grupo u otros no es fiable: otro usuario podria
+    reescribir el ancla. Solo se evalua si existe (si no existe, se crea 0700)."""
+    try:
+        return bool(stat.S_IMODE(os.lstat(ruta).st_mode) & 0o077)
+    except OSError:
+        return False
+
+
+def _escribir_ancla(directorio: pathlib.Path, evento: dict | None, genesis: str | None,
+                    desde: int = 1) -> None:
+    """Escritura ATOMICA del ancla: temporal 0600 con nombre unico, fsync, rename y fsync del directorio.
+    Un fallo en cualquier punto deja el ancla anterior intacta. `evento=None` escribe el ancla GENESIS
+    (`seq` 0, `hash` nulo): el historial queda identificado antes de su primer evento. `desde` es el `seq` a
+    partir del cual se demuestra la completitud (1 salvo tras una adopcion)."""
+    ruta = ruta_ancla(directorio)
+    _asegurar_dir_ancla(ruta.parent)
+    contenido = {"version": ANCLA_VERSION,
+                 "historial": {"ruta": str(pathlib.Path(directorio).resolve()), "genesis": genesis},
+                 "seq": evento["seq"] if evento else 0, "hash": evento["hash"] if evento else None,
+                 "desde": desde, "momento": _ahora()}
+    tmp = ruta.with_name(f".{ruta.name}.{secrets.token_hex(4)}.tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps(contenido, sort_keys=True))
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, ruta)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            tmp.unlink()
+        raise
+    dfd = os.open(ruta.parent, os.O_RDONLY)
+    try:
+        os.fsync(dfd)
+    finally:
+        os.close(dfd)
+
+
+def _leer_ancla(directorio: pathlib.Path) -> tuple[str, dict | None]:
+    """`("ok", ancla)`, o `(codigo, None)` con `ancla_ausente` | `ancla_corrupta` | `ancla_incompatible` |
+    `dir_ancla_permisos_laxos`."""
+    ruta = ruta_ancla(directorio)
+    if _dir_ancla_laxo(ruta.parent):    # un ancla en un directorio laxo no es evidencia: se dice por que
+        return "dir_ancla_permisos_laxos", None
+    try:
+        bruto = ruta.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return "ancla_ausente", None
+    except (OSError, UnicodeDecodeError):
+        return "ancla_corrupta", None
+    try:
+        ancla = json.loads(bruto)
+    except ValueError:
+        return "ancla_corrupta", None
+    if not isinstance(ancla, dict):
+        return "ancla_corrupta", None
+    if isinstance(ancla.get("version"), int) and ancla["version"] != ANCLA_VERSION:
+        return "ancla_incompatible", None
+    historial = ancla.get("historial")
+    seq = ancla.get("seq")
+    if (ancla.get("version") != ANCLA_VERSION or not isinstance(historial, dict)
+            or not isinstance(historial.get("ruta"), str) or not isinstance(seq, int)
+            or isinstance(seq, bool) or seq < 0):
+        return "ancla_corrupta", None
+    if seq == 0:    # ancla GENESIS: sin hash ni genesis todavia
+        if historial.get("genesis") is not None or ancla.get("hash") is not None:
+            return "ancla_corrupta", None
+    elif not isinstance(historial.get("genesis"), str) or not isinstance(ancla.get("hash"), str):
+        return "ancla_corrupta", None
+    desde = ancla.get("desde", 1)
+    if not isinstance(desde, int) or isinstance(desde, bool) or desde < 1:
+        return "ancla_corrupta", None
+    ancla["desde"] = desde
+    return "ok", ancla
+
+
+def _cotejar_ancla(directorio: pathlib.Path, eventos: list[dict], ancla: dict) -> str | None:
+    """`None` si el log concuerda con el ancla (al dia o atrasada); si no, el codigo del desacuerdo."""
+    if ancla["historial"]["ruta"] != str(pathlib.Path(directorio).resolve()):
+        return "ancla_de_otro_historial"
+    if ancla["seq"] == 0:    # genesis: solo una caida puede dejar el primer evento sin anclar
+        return None if len(eventos) <= 1 else "ancla_genesis_con_cola_inexplicable"
+    if not eventos or ancla["seq"] > len(eventos):
+        return "cola_mas_corta_que_el_ancla"
+    if ancla["historial"]["genesis"] != eventos[0].get("hash"):
+        return "ancla_de_otro_historial"
+    if eventos[ancla["seq"] - 1].get("hash") != ancla["hash"]:
+        return "hash_distinto_en_el_ancla"
+    return None
+
+
+def _defecto_de_cadena(eventos: list[dict], desde: int = 0) -> dict | None:
+    """El primer punto de ruptura de la cadena a partir de la posicion `desde`, o `None`."""
+    anterior = eventos[desde - 1]["hash"] if desde else None
+    for i in range(desde, len(eventos)):
+        evento = eventos[i]
+        if evento.get("seq") != i + 1:
+            return {"seq": evento.get("seq"), "motivo": f"la secuencia salta: se esperaba {i + 1}"}
+        if evento.get("hash_anterior") != anterior:
+            return {"seq": evento.get("seq"), "motivo": "la cadena no enlaza con el evento anterior"}
+        if evento.get("hash") != _hash_de(evento):
+            return {"seq": evento.get("seq"), "motivo": "el contenido no coincide con su hash"}
+        anterior = evento["hash"]
+    return None
+
+
+#: Los valores de `completitud` que publica el verificador.
+COMPLETITUD_DEMOSTRADA = "demostrada"
+COMPLETITUD_NO_DEMOSTRABLE = "no_demostrable"
+COMPLETITUD_TRUNCADA = "truncada_o_alterada"
+
+
+def _diagnosticar(directorio: pathlib.Path, eventos: list[dict], estado_ancla: str, ancla: dict | None) -> dict:
+    """**Una sola fuente** del diagnostico, para el verificador Y para el escritor (decide si toca el ancla).
+    Determinista: solo depende del log y del ancla. Devuelve `integro`, `completitud`, `motivo_codigo`,
+    `defecto` (de la cadena) y `plan` (`"genesis"` | `"adelantar"` | `None`: lo que el escritor puede hacer
+    con el ancla, ver los 7 casos arriba)."""
+    defecto = _defecto_de_cadena(eventos)
+    if defecto is not None:                                                               # caso 3
+        return {"integro": False, "completitud": COMPLETITUD_NO_DEMOSTRABLE, "motivo_codigo": "cadena_rota",
+                "defecto": defecto, "plan": None}
+    if ancla is None:
+        if estado_ancla == "ancla_ausente" and not eventos:                               # caso 1
+            return {"integro": True, "completitud": COMPLETITUD_DEMOSTRADA, "motivo_codigo": None,
+                    "defecto": None, "plan": "genesis"}
+        return {"integro": False, "completitud": COMPLETITUD_NO_DEMOSTRABLE,              # casos 2 y 4
+                "motivo_codigo": estado_ancla, "defecto": None, "plan": None}
+    codigo = _cotejar_ancla(directorio, eventos, ancla)
+    if codigo is not None:                                                                # caso 5
+        return {"integro": False, "completitud": COMPLETITUD_TRUNCADA, "motivo_codigo": codigo,
+                "defecto": None, "plan": None}
+    return {"integro": True, "completitud": COMPLETITUD_DEMOSTRADA, "motivo_codigo": None,   # caso 6
+            "defecto": None, "plan": "adelantar"}
+
+
+def _anclar_sin_bloquear(directorio: pathlib.Path, evento: dict | None, genesis: str | None, desde: int) -> bool:
+    """Escribe el ancla sin bloquear al escritor: un fallo de E/S o un directorio de anclas no fiable dejan el
+    ancla como estaba (atrasada o ausente, visible en el verificador) y NO tumban la escritura del evento."""
+    try:
+        _escribir_ancla(directorio, evento, genesis, desde)
+        return True
+    except (OSError, AnclaInconsistente):
+        return False
+
+
+def _registrar_sin_lock(directorio: pathlib.Path, tipo: str, datos: dict | None,
+                        adoptando: bool = False) -> dict:
     previos, cola_truncada = _leer_con_cola(directorio)
     if cola_truncada:
         # El descarte es un hecho del sistema y va al propio historial: un log que se repara solo y
@@ -1668,6 +2119,14 @@ def _registrar_sin_lock(directorio: pathlib.Path, tipo: str, datos: dict | None)
         previos = [_registrar_sin_lock(directorio, "linea_truncada_descartada",
                                        {"eventos_validos": len(previos)})]
         previos = leer_eventos(directorio)
+    plan, desde = (None, 1)
+    if not adoptando:
+        estado_ancla, ancla = _leer_ancla(directorio)
+        plan = _diagnosticar(directorio, previos, estado_ancla, ancla)["plan"]
+        desde = ancla["desde"] if ancla else 1
+        if plan == "genesis":    # caso 1/7: el ancla genesis (atomica) va ANTES del primer evento
+            if not _anclar_sin_bloquear(directorio, None, None, 1):
+                plan = None
     evento = {
         "seq": previos[-1]["seq"] + 1 if previos else 1,
         "tipo": tipo,
@@ -1682,6 +2141,11 @@ def _registrar_sin_lock(directorio: pathlib.Path, tipo: str, datos: dict | None)
         fh.write(_canonico(evento) + "\n")
         fh.flush()
         os.fsync(fh.fileno())
+    genesis = previos[0]["hash"] if previos else evento["hash"]
+    if adoptando:
+        _escribir_ancla(directorio, evento, genesis, desde=evento["seq"] if previos else 1)
+    elif plan is not None:
+        _anclar_sin_bloquear(directorio, evento, genesis, desde)
     return evento
 
 
@@ -1689,7 +2153,8 @@ def _registrar_sin_lock(directorio: pathlib.Path, tipo: str, datos: dict | None)
 # tiene un solo escritor, `transicion()`, que escribe dentro del lock y **despues** de validar la
 # tabla, la autoridad y el criterio. Dejar que esta funcion lo aceptase era el bypass entero.
 _EVENTOS_DE_ESTA_PUERTA = frozenset({"criterio_fijado", "criterio_verificado",
-                                     "cuota_observada"})
+                                     "cuota_observada",
+                                     "review_habilitado", "propuesta_autorizada"})
 
 
 def _registrar_evento_gobernado(directorio: pathlib.Path, tipo: str, datos: dict) -> dict:
@@ -1712,6 +2177,12 @@ def _registrar_evento_gobernado(directorio: pathlib.Path, tipo: str, datos: dict
         return _registrar_sin_lock(directorio, tipo, datos)
 
 
+def _negar_gobernado(tipo: str) -> None:
+    raise EventoNoGobernado(
+        f"un evento {tipo!r} crudo fabricaria estado sin gobierno: "
+        f"usa la funcion gobernada que le corresponde ({_PUERTA_DE[tipo]})")
+
+
 def registrar_evento(directorio: pathlib.Path, tipo: str, datos: dict | None = None) -> dict:
     """**C1 · cierra P3.** Anade una linea al log. Nunca reescribe ninguna anterior.
 
@@ -1722,33 +2193,147 @@ def registrar_evento(directorio: pathlib.Path, tipo: str, datos: dict | None = N
         # `guardar()` —que escribe lo que le den sin interpretarlo— este evento **produce estado**:
         # la proyeccion lo aplica como bueno. Si se aceptase a pelo, el gobierno de `transicion()`
         # seria decorativo, porque bastaria rodearlo.
-        raise EventoNoGobernado(
-            f"un evento {tipo!r} crudo fabricaria estado sin gobierno: "
-            f"usa la funcion gobernada que le corresponde ({_PUERTA_DE[tipo]})")
+        _negar_gobernado(tipo)
     with lock_estado(directorio):
         return _registrar_sin_lock(directorio, tipo, datos)
 
 
+def registrar_evento_si(directorio: pathlib.Path, tipo: str, datos: dict | None, condicion,
+                        derivar=None) -> dict | None:
+    """**Comprobar y anadir, atomicamente.** `condicion()` se evalua **con el cerrojo del log tomado**, y el evento
+    solo se anade si devuelve verdadero; si no, devuelve `None` y no escribe nada.
+
+    Existe para que nadie fuera de este modulo necesite `_registrar_sin_lock`, que **no** aplica la guardia de
+    `EVENTOS_GOBERNADOS` (DP-RECUPERACION-TRAS-CAIDAS: dos supervisores no pueden planificar la misma tarea).
+    Niega los eventos gobernados igual que `registrar_evento`, **antes** de evaluar la condicion. `condicion` puede
+    leer el log (`leer_eventos` no toma el cerrojo) pero no debe escribir: el cerrojo no es reentrante.
+
+    `derivar` (opcional, DP-AUTOCONSTRUCCION D3): si se da, se llama **con el cerrojo tomado y tras la
+    condicion** y su resultado (un dict) sustituye a `datos`. Permite calcular un dato que depende del log
+    (p. ej. el siguiente `P-NNN`) y anadirlo sin que otro escritor se interponga. Igual que `condicion`,
+    puede leer pero no escribir. Sin primitiva nueva: el mismo cerrojo y el mismo escritor."""
+    if tipo in EVENTOS_GOBERNADOS:
+        _negar_gobernado(tipo)
+    with lock_estado(directorio):
+        if not condicion():
+            return None
+        if derivar is not None:
+            datos = derivar()
+        return _registrar_sin_lock(directorio, tipo, datos)
+
+
 def verificar_integridad_log(directorio: pathlib.Path) -> dict:
-    """Recorre la cadena entera. Devuelve el primer punto de ruptura, no solo un booleano: saber
-    *que* linea rompio es la diferencia entre poder investigar y solo saber que algo pasa."""
+    """Recorre la cadena entera Y la coteja con el ancla externa de la cabeza (D-LOG-1). Devuelve el primer
+    punto de ruptura, no solo un booleano: saber *que* linea rompio es la diferencia entre poder
+    investigar y solo saber que algo pasa.
+
+    * `integridad_eventos`: seq continuo, `hash_anterior` y hash de cada evento.
+    * `completitud`: `"demostrada"` (la cola llega al ancla y el hash coincide en el `seq` anclado) |
+      `"no_demostrable"` (log heredado sin ancla, ancla perdida o corrupta, cadena rota: no se puede decir
+      si falta algo) | `"truncada_o_alterada"` (el log no concuerda con su ancla). Un truncamiento deja la
+      cadena perfecta pero mas corta: solo el ancla lo delata.
+    * `completitud_desde`: el `seq` desde el que se demuestra (1; el `seq` de la adopcion tras `adoptar_ancla`).
+      `None` si la completitud no esta demostrada.
+    * `integro` es verdadero SOLO con cadena valida y (ancla valida concordante, o log vacio).
+    * `autenticidad_origen`: **`no_garantizada`**. El ancla y el log son del mismo uid; quien puede
+      borrar la cola puede reescribir el ancla.
+    * `restauracion_conjunta_log_y_ancla`: **`no_detectable`**. Restaurar solo el log antiguo si se
+      detecta; restaurar log y ancla juntos, no.
+
+    El diagnostico es DETERMINISTA (log + ancla) y lo recalcula esta funcion: no hay un canal aparte que
+    pueda divergir (E: evaluado y descartado, ver la evidencia). El ancla se lee ANTES que los eventos: un
+    escritor concurrente solo puede dejarla por detras de lo leido (anade el evento y despues la mueve), nunca
+    por delante, asi que no hay falsos truncamientos."""
+    directorio = pathlib.Path(directorio)
+    estado_ancla, ancla = _leer_ancla(directorio)
     eventos, cola_truncada = _leer_con_cola(directorio)
-    anterior = None
-    for i, evento in enumerate(eventos):
-        esperado = i + 1
-        if evento.get("seq") != esperado:
-            return {"integro": False, "cola_truncada": cola_truncada, "seq": evento.get("seq"),
-                    "motivo": f"la secuencia salta: se esperaba {esperado}"}
-        if evento.get("hash_anterior") != anterior:
-            return {"integro": False, "cola_truncada": cola_truncada, "seq": evento.get("seq"),
-                    "motivo": "la cadena no enlaza con el evento anterior"}
-        if evento.get("hash") != _hash_de(evento):
-            return {"integro": False, "cola_truncada": cola_truncada, "seq": evento.get("seq"),
-                    "motivo": "el contenido no coincide con su hash"}
-        anterior = evento["hash"]
-    return {"integro": True, "eventos": len(eventos), "cola_truncada": cola_truncada,
-            "motivo": "cadena completa" + (" (con una cola truncada por descartar)"
-                                           if cola_truncada else "")}
+    limites = {"autenticidad_origen": "no_garantizada",
+               "restauracion_conjunta_log_y_ancla": "no_detectable"}
+    diag = _diagnosticar(directorio, eventos, estado_ancla, ancla)
+    sufijo = " (con una cola truncada por descartar)" if cola_truncada else ""
+    base = {"cola_truncada": cola_truncada, "eventos": len(eventos), "integridad_eventos": diag["defecto"] is None,
+            "integro": diag["integro"], "completitud": diag["completitud"], "completitud_desde": None,
+            **limites}
+    if diag["defecto"] is not None:
+        return {**base, "seq": diag["defecto"]["seq"], "motivo": diag["defecto"]["motivo"],
+                "motivo_codigo": "cadena_rota", "ancla": {"presente": ancla is not None}}
+    if ancla is None:
+        if diag["integro"]:
+            return {**base, "ancla": {"presente": False}, "motivo": "log vacio" + sufijo}
+        presente = estado_ancla not in ("ancla_ausente", "dir_ancla_permisos_laxos")
+        return {**base, "motivo_codigo": estado_ancla, "ancla": {"presente": presente},
+                "motivo": f"{estado_ancla}: la cabeza del log no esta anclada fuera de el"}
+    if diag["motivo_codigo"] is not None:
+        return {**base, "motivo_codigo": diag["motivo_codigo"], "seq_ancla": ancla["seq"],
+                "ancla": {"presente": True, "seq": ancla["seq"]},
+                "motivo": f"{diag['motivo_codigo']}: el ancla dice seq {ancla['seq']} y el log tiene "
+                          f"{len(eventos)} eventos"}
+    sin_anclar = len(eventos) - ancla["seq"]
+    return {**base, "completitud_desde": ancla["desde"], "motivo": "cadena completa" + sufijo,
+            "ancla": {"presente": True, "seq": ancla["seq"], "atrasada": sin_anclar > 0,
+                      "eventos_sin_anclar": sin_anclar}}
+
+
+def reparar_ancla(directorio: pathlib.Path) -> dict:
+    """Adelanta un ancla ATRASADA (caida entre escribir el evento y anclarlo). **Idempotente**, **solo
+    avanza** y solo si la cadena es valida y concuerda con el ancla: jamas baja el ancla para tapar un
+    truncamiento, no la crea si falta y no la adopta (eso es `adoptar_ancla`, decision de una persona)."""
+    directorio = pathlib.Path(directorio)
+    with lock_estado(directorio):
+        eventos, _ = _leer_con_cola(directorio)
+        if _defecto_de_cadena(eventos) is not None:
+            return {"reparada": False, "motivo_codigo": "cadena_rota"}
+        estado, ancla = _leer_ancla(directorio)
+        if ancla is None:
+            return {"reparada": False, "motivo_codigo": estado}
+        codigo = _cotejar_ancla(directorio, eventos, ancla)
+        if codigo is not None:
+            return {"reparada": False, "motivo_codigo": codigo}
+        if ancla["seq"] == len(eventos):
+            return {"reparada": False, "motivo_codigo": "ancla_al_dia"}
+        _escribir_ancla(directorio, eventos[-1], eventos[0]["hash"], desde=ancla["desde"])
+        return {"reparada": True, "desde": ancla["seq"], "hasta": len(eventos)}
+
+
+def _conservar_ancla_reemplazada(directorio: pathlib.Path) -> str | None:
+    """Renombra el ancla vigente a `<ancla>.reemplazada-<momento>` (evidencia; JAMAS se borra). Devuelve el
+    nombre, o `None` si no habia fichero."""
+    ruta = ruta_ancla(directorio)
+    if not ruta.exists():
+        return None
+    destino = ruta.with_name(f"{ruta.name}.reemplazada-{_ahora().replace(':', '').replace('+', 'Z')}-"
+                             f"{secrets.token_hex(2)}")
+    os.replace(ruta, destino)
+    return destino.name
+
+
+def adoptar_ancla(directorio: pathlib.Path, por: str, motivo: str, reemplazar: bool = False) -> dict:
+    """Recuperacion EXPLICITA: crea el ancla de un log que no la tiene (despliegue sobre un log existente) o,
+    con `reemplazar=True`, sustituye un ancla perdida, corrupta o en desacuerdo. Exige autoridad humana
+    declarada (`por`, `motivo` no vacios) y cadena interna valida; deja constancia en el propio log
+    (`ancla_adoptada`: por, motivo, `seq_adoptado`, `completitud_previa`). Desde la adopcion la completitud
+    se demuestra DESDE `seq_adoptado` (`completitud_desde`): lo anterior no se puede demostrar y se dice.
+    Con `reemplazar=True` el ancla anterior se CONSERVA como `<ancla>.reemplazada-<momento>`, nunca se borra.
+    Sin `reemplazar`, un ancla existente (aunque este corrupta o en desacuerdo) no se pisa: seria la forma de
+    tapar un truncamiento."""
+    if not isinstance(por, str) or not por.strip() or not isinstance(motivo, str) or not motivo.strip():
+        raise ValueError("adoptar_ancla exige quien (`por`) y por que (`motivo`)")
+    directorio = pathlib.Path(directorio)
+    with lock_estado(directorio):
+        eventos, _ = _leer_con_cola(directorio)
+        if _defecto_de_cadena(eventos) is not None:
+            raise AnclaInconsistente("la cadena del log esta rota: no se ancla una cabeza que no se puede creer")
+        estado, ancla = _leer_ancla(directorio)
+        if estado != "ancla_ausente" and not reemplazar:
+            raise AnclaInconsistente(f"ya existe un ancla ({estado}): sustituirla exige reemplazar=True")
+        previa = _diagnosticar(directorio, eventos, estado, ancla)["completitud"]
+        conservada = _conservar_ancla_reemplazada(directorio) if estado != "ancla_ausente" else None
+        evento = _registrar_sin_lock(directorio, "ancla_adoptada",
+                                     {"por": por, "motivo": motivo, "eventos_previos": len(eventos),
+                                      "seq_adoptado": len(eventos) + 1, "completitud_previa": previa,
+                                      "ancla_previa": estado, "ancla_conservada_como": conservada},
+                                     adoptando=True)
+        return {"adoptada": True, "seq": evento["seq"], "ancla_conservada_como": conservada}
 
 
 # ------------------------------------------------------------------ proyeccion (C2) --
@@ -1795,6 +2380,352 @@ def estado_de(directorio: pathlib.Path, id_tarea: str) -> str:
     return tarea["estado"] if tarea else "UNKNOWN"
 
 
+# ----------------------------------------- F1 · deteccion de proyeccion obsoleta (C2) --
+
+#: Los cinco veredictos de `estado_de_la_proyeccion`. Exactamente uno por llamada.
+PROYECCION_ACTUAL = "PROYECCION_ACTUAL"
+PROYECCION_OBSOLETA = "PROYECCION_OBSOLETA"
+PROYECCION_AUSENTE = "PROYECCION_AUSENTE"
+PROYECCION_INVALIDA = "PROYECCION_INVALIDA"
+ESTADO_NO_VERIFICABLE = "ESTADO_NO_VERIFICABLE"
+
+#: Campos de cada tarea que DERIVAN del log (los que `proyectar` reconstruye). Son los unicos que se
+#: comparan: `previo` es de gobierno; `motivo`, `creada_sin_origen`, `actualizado` por tarea son del
+#: consumidor o del entorno. Comparar de mas garantiza un falso positivo.
+_CAMPOS_DE_TAREA_DEL_LOG = ("estado", "descripcion", "autoridad", "causa", "seq")
+
+
+def _vista_derivada_del_log(estado: dict) -> dict:
+    """La parte de un estado que PROVIENE del log, normalizada para comparar: `status`,
+    `eventos_aplicados`, `eventos_ignorados` y, por tarea, SOLO los campos del log. Se EXCLUYEN
+    `actualizado`, `cuota`, `git` y cualquier otro campo de entorno/gobierno: meterlos haria que el
+    almacenado (rico) y `proyectar()` (puro) difirieran siempre."""
+    tareas = {}
+    for id_tarea, tarea in (estado.get("tareas") or {}).items():
+        tareas[id_tarea] = {campo: tarea.get(campo) for campo in _CAMPOS_DE_TAREA_DEL_LOG}
+    return {
+        "status": estado.get("status"),
+        "eventos_aplicados": estado.get("eventos_aplicados"),
+        "eventos_ignorados": estado.get("eventos_ignorados"),
+        "tareas": tareas,
+    }
+
+
+def _seq_de_la_proyeccion(almacenado: dict) -> int | None:
+    """Hasta que `seq` del log llego la proyeccion almacenada. `eventos_aplicados` es el contador que
+    `proyectar` lleva; si falta (proyeccion antigua), se cae al mayor `seq` de tarea. `None` si no hay
+    ninguna pista."""
+    aplicados = almacenado.get("eventos_aplicados")
+    if isinstance(aplicados, int) and not isinstance(aplicados, bool):
+        return aplicados
+    seqs = [t.get("seq") for t in (almacenado.get("tareas") or {}).values()
+            if isinstance(t.get("seq"), int) and not isinstance(t.get("seq"), bool)]
+    return max(seqs) if seqs else None
+
+
+def estado_de_la_proyeccion(directorio: pathlib.Path) -> dict:
+    """**F1 · deteccion de SOLO LECTURA.** Clasifica la relacion entre el `estado.json` almacenado y
+    el log (`eventos.jsonl` + ancla) en EXACTAMENTE uno de cinco estados, SIN escribir nada, SIN
+    regenerar la proyeccion y SIN tocar historial ni ancla.
+
+        PROYECCION_ACTUAL · PROYECCION_OBSOLETA · PROYECCION_AUSENTE · PROYECCION_INVALIDA ·
+        ESTADO_NO_VERIFICABLE
+
+    Reutiliza las piezas que ya son la autoridad del sistema —`verificar_integridad_log` (integridad y
+    completitud, D-LOG-1), `cargar`, `proyectar`, `validar`/`validar_tareas`— y NO reimplementa
+    ninguna. No es un segundo escritor ni una segunda fuente de verdad: la verdad sigue siendo el log,
+    y F1 solo COMPARA el estado materializado contra `proyectar()`.
+
+    Precedencia (fallo seguro: ante cualquier duda, NUNCA se afirma ACTUAL):
+
+    1. Si el log no es integro o su completitud no esta DEMOSTRADA (ancla ausente/corrupta/incompatible,
+       directorio de anclas laxo, ancla en desacuerdo, cadena rota o truncada) -> `ESTADO_NO_VERIFICABLE`.
+       No se puede demostrar que la proyeccion refleje un log completo, asi que no se afirma que lo sea.
+    2. Con log integro y completitud demostrada, se mira la proyeccion:
+       - no existe `estado.json` -> `PROYECCION_AUSENTE`.
+       - existe pero no se puede cargar (JSON roto) o no pasa `validar`/`validar_tareas` -> `PROYECCION_INVALIDA`.
+       - su parte DERIVADA DEL LOG coincide con `proyectar()` -> `PROYECCION_ACTUAL`; si difiere ->
+         `PROYECCION_OBSOLETA`.
+
+    Cuando OBSOLETA o NO_VERIFICABLE, el consumidor NO debe presentar los valores como actuales: debe
+    informar de que la proyeccion necesita regenerarse. F1 **no** la regenera (eso es F2).
+
+    Un `estado.json.tmp` residual de una escritura interrumpida se IGNORA por completo: F1 solo mira
+    `estado.json`."""
+    directorio = pathlib.Path(directorio)
+    verif = verificar_integridad_log(directorio)
+    seq_confirmado = (verif.get("ancla") or {}).get("seq")
+
+    if not verif.get("integro") or verif.get("completitud") != COMPLETITUD_DEMOSTRADA:
+        informe = {
+            "estado": ESTADO_NO_VERIFICABLE,
+            "seq_confirmado": seq_confirmado,
+            "integridad": verif,
+            "motivo": "no se puede demostrar que el log este completo: la proyeccion no es verificable",
+        }
+        if verif.get("motivo_codigo") is not None:
+            informe["motivo_codigo"] = verif["motivo_codigo"]
+        if verif.get("seq") is not None:
+            informe["seq"] = verif["seq"]
+        return informe
+
+    try:
+        almacenado = cargar(directorio / "estado.json")
+    except (ValueError, OSError) as exc:    # JSON roto, fichero ilegible
+        return {"estado": PROYECCION_INVALIDA, "seq_confirmado": seq_confirmado,
+                "motivo": f"el estado.json existe pero no se puede cargar: {exc}"}
+
+    if almacenado is None:
+        return {"estado": PROYECCION_AUSENTE, "seq_confirmado": seq_confirmado,
+                "motivo": "no hay estado.json materializado; el log si es verificable"}
+
+    try:
+        validar(almacenado)
+        validar_tareas(almacenado)
+    except ValueError as exc:
+        return {"estado": PROYECCION_INVALIDA, "seq_confirmado": seq_confirmado,
+                "motivo": f"el estado.json no es un estado legitimo: {exc}"}
+
+    esperado = proyectar(directorio)
+    seq_proyeccion = _seq_de_la_proyeccion(almacenado)
+    if _vista_derivada_del_log(almacenado) == _vista_derivada_del_log(esperado):
+        return {"estado": PROYECCION_ACTUAL, "seq_confirmado": seq_confirmado,
+                "seq_proyeccion": seq_proyeccion, "integridad": verif,
+                "motivo": "la proyeccion coincide con la reconstruccion del log"}
+    return {"estado": PROYECCION_OBSOLETA, "seq_confirmado": seq_confirmado,
+            "seq_proyeccion": seq_proyeccion, "integridad": verif,
+            "motivo": "la proyeccion no refleja el ultimo estado del log: necesita regenerarse"}
+
+
+#: Veredictos agregados de `integridad_del_control_plane` (F3).
+INTEGRIDAD_OK = "ok"
+INTEGRIDAD_DEGRADADA = "degradada"
+INTEGRIDAD_NO_VERIFICABLE = "no_verificable"
+
+#: Estados de F1 (`estado_de_la_proyeccion`) que implican log verificable pero proyeccion
+#: desactualizada/ausente/invalida: F2 (`regenerar_proyeccion`) actuaria sobre ellos si se la
+#: invocara. F3 NO la invoca; solo lo REPORTA via `regeneracion_pendiente`.
+_PROYECCIONES_PENDIENTES_DE_REGENERACION = (PROYECCION_OBSOLETA, PROYECCION_AUSENTE,
+                                            PROYECCION_INVALIDA)
+
+
+def integridad_del_control_plane(directorio: pathlib.Path) -> dict:
+    """**F3 · INDICADOR AGREGADO de integridad, de SOLO LECTURA** (DP de integridad, Entregable D).
+
+    Consolida F1 (`estado_de_la_proyeccion`) en un veredicto unico, sin reimplementar ninguna
+    verificacion propia y sin crear una segunda fuente de verdad: todo lo que aqui se afirma viene
+    literalmente de F1.
+
+        {integridad: "ok"|"degradada"|"no_verificable", verificable, proyeccion,
+         regeneracion_pendiente, seq_confirmado, seq_proyeccion?, motivo, integridad_log?}
+
+    Mapeo (fallo seguro: nunca "ok" si no hay log verificable; ver docstring de F1):
+      - `PROYECCION_ACTUAL`     -> `integridad="ok"`,            `verificable=True`,  `pendiente=False`.
+      - `PROYECCION_OBSOLETA`,
+        `PROYECCION_AUSENTE`,
+        `PROYECCION_INVALIDA`  -> `integridad="degradada"`,     `verificable=True`,  `pendiente=True`.
+      - `ESTADO_NO_VERIFICABLE` -> `integridad="no_verificable"`, `verificable=False`, `pendiente=False`.
+
+    `regeneracion_pendiente` describe UNICAMENTE si F2 (`regenerar_proyeccion`) actuaria si se la
+    invocara a mano; esta funcion jamas la invoca (no es su alcance: solo lee y agrega F1). Lo no
+    verificable NUNCA se marca pendiente de regeneracion: F2 tampoco actua sobre un log cuya
+    completitud no esta demostrada (es responsabilidad de recuperacion, no de regeneracion).
+
+    Deliberadamente NO consulta ni mezcla:
+      - AUTORIZACION/PARADA (kill-switch, zonas, confinamiento): vive en otros modulos del
+        control-plane (orquestador/despertador), ninguno importado aqui.
+      - DISPONIBILIDAD (cola de tareas en espera, cuota): tampoco se consulta.
+    Este indicador responde UNICAMENTE "¿es fiable lo que el control-plane tiene materializado?",
+    nunca "¿se puede actuar ahora?" ni "¿hay capacidad libre?". Esas son preguntas de otras
+    garantias (5 y 6 del DP) y deben seguir siendo otras llamadas, hechas por el consumidor que las
+    necesite.
+
+    Funcion pura: ni un `open` de escritura, ni `guardar`, ni `registrar_evento`, ni
+    `regenerar_proyeccion`. Todo lo que hace es leer `estado_de_la_proyeccion(directorio)` una vez
+    y derivar el veredicto agregado de su resultado."""
+    informe = estado_de_la_proyeccion(directorio)
+    proyeccion = informe["estado"]
+    verificable = proyeccion != ESTADO_NO_VERIFICABLE
+    pendiente = verificable and proyeccion in _PROYECCIONES_PENDIENTES_DE_REGENERACION
+
+    if proyeccion == ESTADO_NO_VERIFICABLE:
+        integridad = INTEGRIDAD_NO_VERIFICABLE
+    elif proyeccion == PROYECCION_ACTUAL:
+        integridad = INTEGRIDAD_OK
+    else:
+        integridad = INTEGRIDAD_DEGRADADA
+
+    agregado = {
+        "integridad": integridad,
+        "verificable": verificable,
+        "proyeccion": proyeccion,
+        "regeneracion_pendiente": pendiente,
+        "seq_confirmado": informe.get("seq_confirmado"),
+        "motivo": informe.get("motivo"),
+    }
+    if "seq_proyeccion" in informe:
+        agregado["seq_proyeccion"] = informe["seq_proyeccion"]
+    if "integridad" in informe:
+        # Pasa a traves el informe de `verificar_integridad_log` que F1 ya adjunta, SIN
+        # renombrarlo con la misma clave que el veredicto agregado: se anida para no pisarla.
+        agregado["integridad_log"] = informe["integridad"]
+    return agregado
+
+
+def cargar_si_actual(directorio: pathlib.Path) -> dict:
+    """Guarda delgada para consumidores/panel: devuelve la proyeccion almacenada SOLO si F1 la
+    clasifica como `PROYECCION_ACTUAL`; en cualquier otro caso devuelve `proyeccion=None` y la
+    clasificacion, para que el consumidor no presente como actual lo que no lo es. No regenera nada.
+
+    El informe es el de `estado_de_la_proyeccion` mas la clave `proyeccion`. Cuando ACTUAL, el
+    comportamiento del consumidor no cambia: recibe el mismo `estado.json` que leeria con `cargar`."""
+    directorio = pathlib.Path(directorio)
+    informe = estado_de_la_proyeccion(directorio)
+    if informe["estado"] == PROYECCION_ACTUAL:
+        return {**informe, "proyeccion": cargar(directorio / "estado.json")}
+    return {**informe, "proyeccion": None}
+
+
+# ----------------------------------------------------- F2 · regeneracion controlada (DP Entregable C) --
+
+#: Campos de ENTORNO de `estado.json` que F2 preserva tal cual (del `estado.json` existente, o de
+#: `estado_inicial()` si no habia ninguno). Ninguno deriva del log: perderlos o inventarlos violaria
+#: la garantia 6 del DP. Se listan explicitamente, no por exclusion, para que anadir un campo nuevo a
+#: `estado_inicial()` no quede preservado "por accidente" sin decidirlo aqui.
+_CAMPOS_DE_ENTORNO = ("git", "cuota", "verificacion", "defectos", "decisiones_pendientes",
+                     "aprobaciones", "siguiente_tarea", "trabajo_completado", "checkpoint",
+                     "sesion_claude", "tarea_actual", "estado_ejecucion", "motivo_pausa")
+
+
+def _gobierno_por_tarea_desde_el_log(directorio: pathlib.Path) -> dict[str, dict]:
+    """Recorre el log y devuelve, por tarea, el `previo`/`creada_sin_origen` que LE CORRESPONDE a su
+    estado actual — nunca inventados.
+
+    Siembra primero desde `tarea_registrada`: una tarea solo registrada (nunca transicionada) es
+    legitima —queda en WAITING_FOR_NEXT_TASK— y su `previo` REAL es `ESTADO_SIN_REGISTRAR`
+    ('UNKNOWN'): el estado previo de una tarea recien registrada es su ausencia, su origen es el
+    propio registro. Es la misma lectura que hace `fijar_estado_tarea` (`previo = estado_de_tarea(...)`
+    devuelve 'UNKNOWN' para una tarea sin estado) y el mismo valor que `transicion` grabaria como
+    `previo` en el primer cambio de estado. Citar el log, no fabricar.
+
+    Si hay eventos `estado_de_tarea` posteriores, el `previo` del ULTIMO los sobrescribe: viene
+    literal de `datos["previo"]`, que el propio motor (`transicion`/`reconciliar_tras_caida`) escribe
+    al generar el evento.
+
+    `creada_sin_origen` es SIEMPRE False para toda tarea reconstruida del log. Los eventos que
+    conceden estado (`tarea_registrada`, `estado_de_tarea`) estan en `EVENTOS_GOBERNADOS`:
+    `registrar_evento`/`registrar_evento_si` rechazan `estado_de_tarea` en crudo (`_negar_gobernado`),
+    asi que solo se escribe por `transicion()`/`reconciliar_tras_caida()`, y ambas exigen que la tarea
+    YA exista en la proyeccion (`transicion`: "no se transiciona lo que no existe"), lo que a su vez
+    exige un `tarea_registrada` previo. El "rodeo" que haria `creada_sin_origen=True` solo lo abre la
+    ruta en memoria (`fijar_estado_tarea`), que no persiste en ningun evento. No hay nada que
+    fabricar: esa condicion no tiene forma de ocurrir en una tarea que el log puede reconstruir."""
+    gobierno: dict[str, dict] = {}
+    for evento in leer_eventos(directorio):
+        tipo = evento.get("tipo")
+        datos = evento.get("datos") or {}
+        id_tarea = datos.get("id")
+        if id_tarea is None:
+            continue
+        if tipo == "tarea_registrada":
+            # Solo siembra si no hubo ya un cambio de estado: no pisa un `previo` real con el de
+            # registro si el orden de eventos pusiera el registro despues (no ocurre hoy, pero no
+            # debe depender del orden para ser correcto).
+            gobierno.setdefault(id_tarea, {"previo": ESTADO_SIN_REGISTRAR, "creada_sin_origen": False})
+        elif tipo == _EVENTO_DE_ESTADO:
+            gobierno[id_tarea] = {"previo": datos.get("previo"), "creada_sin_origen": False}
+    return gobierno
+
+
+def _entorno_preservado(directorio: pathlib.Path) -> dict:
+    """Los campos de ENTORNO (garantia 6): del `estado.json` existente si es legible, o de
+    `estado_inicial()` si no hay ninguno. Nunca se inventan ni se pierden."""
+    try:
+        previo = cargar(directorio / "estado.json")
+    except (ValueError, OSError):
+        previo = None
+    fuente = previo if previo is not None else estado_inicial()
+    return {campo: fuente.get(campo, estado_inicial().get(campo)) for campo in _CAMPOS_DE_ENTORNO}
+
+
+def regenerar_proyeccion(directorio: pathlib.Path) -> dict:
+    """**F2 · regeneracion EXPLICITA y CONTROLADA** (DP de integridad, Entregable C, opcion 1/2).
+
+    Reconstruye `estado.json` desde el log cuando F1 (`estado_de_la_proyeccion`) la detecta
+    OBSOLETA o AUSENTE **y el log es verificable** (integro + completitud demostrada). Se invoca a
+    mano; no la llama ninguna ruta de lectura (`cargar_si_actual`, `estado_de_la_proyeccion`,
+    `proyectar`) ni el orquestador: la reparacion automatica en cada lectura queda fuera de alcance
+    (F3, no construido).
+
+    No es un segundo escritor con reglas propias: reutiliza integramente F1 para decidir si procede,
+    `proyectar()` para los campos que derivan del log, y el escritor unico `guardar()` (atomico,
+    valida `validar`+`validar_tareas` antes de tocar disco) para persistir. No reimplementa ninguno.
+
+    Devuelve siempre un informe con `regenerado: bool`:
+      - `False` con `estado_detectado="ESTADO_NO_VERIFICABLE"`: el log no demuestra su propia
+        completitud: regenerar seria afirmar una actualidad que no se puede demostrar. No escribe.
+      - `False` con `estado_detectado="PROYECCION_ACTUAL"`: no-op; ya estaba al dia. No escribe.
+      - `False` con `motivo` de rechazo de gobierno: alguna tarea no es reconstruible desde el log sin
+        fabricar su gobierno (p. ej. COMPLETED cuya autoridad en el log no es humana). No escribe
+        **nada**: regenerar las demas tareas y rechazar solo esta dejaria un estado.json que declara
+        una proyeccion parcial sin decirlo. Esto es responsabilidad del CEO (DECISION_REQUIRED), no
+        un defecto que esta funcion pueda resolver fabricando una autoridad.
+      - `True`: regenero y escribio; incluye `estado_detectado_antes` y `seq`."""
+    directorio = pathlib.Path(directorio)
+    informe_f1 = estado_de_la_proyeccion(directorio)
+    estado_detectado = informe_f1["estado"]
+
+    if estado_detectado == ESTADO_NO_VERIFICABLE:
+        return {"regenerado": False, "estado_detectado": estado_detectado,
+                "motivo": "el log no demuestra su propia completitud (ver F1): no se regenera una "
+                          "proyeccion que no se puede verificar"}
+    if estado_detectado == PROYECCION_ACTUAL:
+        return {"regenerado": False, "estado_detectado": estado_detectado,
+                "motivo": "ya actual: la proyeccion almacenada ya coincide con el log"}
+    # Solo quedan PROYECCION_OBSOLETA, PROYECCION_AUSENTE o PROYECCION_INVALIDA; las tres con log
+    # integro y completitud demostrada (si no, F1 ya habria devuelto ESTADO_NO_VERIFICABLE).
+
+    proyeccion = proyectar(directorio)
+    gobierno = _gobierno_por_tarea_desde_el_log(directorio)
+    entorno = _entorno_preservado(directorio)
+
+    tareas_regeneradas = {}
+    for id_tarea, tarea in proyeccion["tareas"].items():
+        datos_gobierno = gobierno.get(id_tarea)
+        if datos_gobierno is None:
+            # No deberia ocurrir: toda tarea en `proyectar()["tareas"]` tiene al menos el evento que
+            # la creo. Fallo seguro: no fabricar un `previo`, rechazar.
+            return {"regenerado": False, "estado_detectado": estado_detectado,
+                    "motivo": f"no reconstruible sin fabricar gobierno: {id_tarea!r} no tiene "
+                              f"ningun evento de estado en el log del que derivar su gobierno"}
+        candidata = {**tarea, **datos_gobierno}
+        if candidata["estado"] == "COMPLETED" and candidata.get("autoridad") not in AUTORIDADES_HUMANAS:
+            # El log registra un cierre COMPLETED cuya autoridad no es humana (p. ej. un evento
+            # heredado o fabricado por otra capa, previo a esta garantia). `validar_tareas` lo
+            # rechazaria de todas formas al guardar; se adelanta el rechazo para no regenerar las
+            # demas tareas y dejar un estado.json parcial.
+            return {"regenerado": False, "estado_detectado": estado_detectado,
+                    "motivo": f"no reconstruible sin fabricar gobierno: {id_tarea!r} consta "
+                              f"COMPLETED en el log con autoridad {candidata.get('autoridad')!r}, "
+                              f"que no es humana (DECISION_REQUIRED: requiere acto humano, no se "
+                              f"fabrica aqui)"}
+        tareas_regeneradas[id_tarea] = candidata
+
+    regenerado = {
+        **entorno,
+        "version": proyeccion["version"],
+        "status": proyeccion["status"],
+        "tareas": tareas_regeneradas,
+        "eventos_aplicados": proyeccion["eventos_aplicados"],
+        "eventos_ignorados": proyeccion["eventos_ignorados"],
+    }
+    validar(regenerado)
+    validar_tareas(regenerado)
+    guardar(regenerado, directorio / "estado.json")
+    return {"regenerado": True, "estado_detectado_antes": estado_detectado,
+            "seq": proyeccion["eventos_aplicados"]}
+
+
 # --------------------------------------------------- transiciones gobernadas (C2) --
 
 def validar_transicion(previo: str, valor: str, autoridad: str, causa: str) -> None:
@@ -1834,6 +2765,16 @@ def validar_transicion(previo: str, valor: str, autoridad: str, causa: str) -> N
         # adaptador podia re-afirmar `DECISION_REQUIRED` y reescribir con ello `autoridad` y
         # `causa`: el estado no cambiaba, pero si el registro de **quien** sostiene la espera — que
         # es justo lo que la hace auditable.
+        #
+        # F5/D-ORCH-6: `WAITING_FOR_HUMAN` es solo-humano SIN excepciones, EXACTAMENTE igual que
+        # `DECISION_REQUIRED`: **ambas** salidas (`-> WORKING` y `-> FAILED`) exigen autoridad humana.
+        # Una version anterior eximia `WAITING_FOR_HUMAN -> FAILED` creyendo que "abandonar no es
+        # reanudar"; dos auditorias independientes (seguridad + correccion) demostraron ejecutando
+        # que esa excepcion abria una EVASION EN DOS PASOS: una autoridad no humana hacia
+        # `WAITING_FOR_HUMAN -> FAILED` (exento) y luego `FAILED -> WORKING` (reintento preexistente,
+        # sin guarda), componiendo justo lo que la guarda debia impedir —reanudarse sin humano—.
+        # `FAILED` nunca estuvo en `ESTADOS_SOLO_HUMANO` y su "reintento contado" no tiene contador
+        # real. Fail-closed (ADR-0003, ante la duda roja): se rompe la cadena en su primer paso.
         raise TransicionInvalida(
             f"salir de {previo} exige autoridad humana registrada ({AUTORIDADES_HUMANAS}); "
             f"{autoridad!r} no lo es")
@@ -1954,3 +2895,255 @@ def reconciliar_tras_caida(directorio: pathlib.Path, *, autoridad: str, causa: s
                     "autoridad": autoridad, "causa": causa, "reconciliada": True})
                 reconciliadas.append(id_tarea)
     return reconciliadas
+
+
+# ------------------------------------------------------------------- F4 · lectura agregada (DP-RESIDENCIA) --
+
+#: Pares (evento de apertura -> evento de cierre) de "ciclos" del control-plane. Un evento de
+#: apertura sin su cierre correspondiente es un ciclo ABANDONADO (abierto). El emparejamiento es
+#: FIFO por familia: la primera apertura sin cerrar de una familia se cierra con el primer cierre de
+#: esa misma familia que aparezca despues en el log.
+_CIERRES_DE_CICLO = {
+    "motor_iniciado": "ciclo_detenido",
+    "ciclo_autonomo_iniciado": "ciclo_autonomo_terminado",
+}
+
+#: Patron de nombre de segmento sellado de `AuditLog` (observability.py): `{basename}.{12
+#: digitos}-{12 digitos}`. F4 usa el MISMO patron para su parser propio, sin importar `AuditLog` ni
+#: `observability`: instanciar `AuditLog` ejecutaria su `__init__`, que reconcilia huerfanos (y por
+#: tanto escribe) — justo lo que una funcion PURA de solo lectura no puede hacer.
+_PATRON_SEGMENTO_AUDIT_FMT = r"\.(\d{12})-(\d{12})"
+
+#: **Vocabulario CERRADO de tipos de evento del control-plane** (privacidad, 5.a auditoria de F4).
+#: El `tipo` de un evento es una cadena LIBRE: `registrar_evento` solo rechaza los `EVENTOS_GOBERNADOS`,
+#: asi que un llamador puede registrar `tipo="...IBAN ES..."` y, si F4 lo usara como clave de
+#: `recuento_por_tipo`, ese texto libre acabaria en el informe — rompiendo la garantia «SIN CONTENIDO».
+#: Por eso el recuento solo expone por NOMBRE los tipos de este conjunto cerrado (derivado del codigo:
+#: `EVENTOS_GOBERNADOS` + aperturas/cierres de ciclo + los tipos que el plano emite realmente, incluidos
+#: los del orquestador de ciclo autonomo); cualquier `tipo` fuera de el se cuenta bajo la clave fija
+#: `"otros"`, con solo el total — nunca su nombre. Asi ningun texto libre llega al informe.
+_TIPOS_CONOCIDOS_DEL_CP = frozenset(EVENTOS_GOBERNADOS) | set(_CIERRES_DE_CICLO) | {
+    cierre for cierre in _CIERRES_DE_CICLO.values()
+} | {
+    # Emitidos por el control-plane y por el orquestador del ciclo autonomo (presentes en el log real).
+    "ancla_adoptada", "linea_truncada_descartada", "tarea_registrada", "tarea_planificada",
+    "aura_despertada", "despertar_rechazado", "descubrimiento_realizado", "veredicto_emitido",
+    "propuesta_registrada", "cambio_aplicado",
+}
+
+#: Clave fija bajo la que se agrupan los `tipo` fuera del vocabulario cerrado. Es un literal del codigo,
+#: no un dato de ningun evento: nunca lleva contenido.
+_TIPO_OTROS = "otros"
+
+
+def _ciclos_del_control_plane(eventos: list[dict]) -> tuple[int, list[int]]:
+    """(nº de ciclos cerrados, lista de `seq` de las aperturas sin cierre), recorriendo `eventos` en
+    orden. Solo mira `tipo` y `seq` — nunca los `datos` de cada evento (ahi vive el contenido:
+    `motivo`, `causa`, rutas...)."""
+    pendientes: dict[str, list[int]] = {apertura: [] for apertura in _CIERRES_DE_CICLO}
+    cerrados = 0
+    cierre_de = {cierre: apertura for apertura, cierre in _CIERRES_DE_CICLO.items()}
+    for evento in eventos:
+        tipo = evento.get("tipo")
+        seq = evento.get("seq")
+        if tipo in _CIERRES_DE_CICLO:
+            pendientes[tipo].append(seq)
+        elif tipo in cierre_de:
+            apertura = cierre_de[tipo]
+            if pendientes[apertura]:
+                pendientes[apertura].pop(0)   # FIFO: cierra la apertura mas antigua sin cerrar
+                cerrados += 1
+    abiertos = sorted(s for lista in pendientes.values() for s in lista if s is not None)
+    return cerrados, abiertos
+
+
+def _bloque_control_plane(directorio: pathlib.Path) -> dict:
+    """Bloque (1) de F4: metadatos agregados del control-plane. Reutiliza `leer_eventos` (ya pura) y
+    `estado_de_la_proyeccion` (F1) para el veredicto; de `cargar` solo toma `status`/`actualizado`/
+    nº de tareas/recuento por estado — nunca `descripcion`/`causa`/texto libre."""
+    eventos = leer_eventos(directorio)
+    seqs = [e.get("seq") for e in eventos if isinstance(e.get("seq"), int)]
+    vistos: dict[int, int] = {}
+    for s in seqs:
+        vistos[s] = vistos.get(s, 0) + 1
+    duplicados_ids = sorted(s for s, n in vistos.items() if n > 1)
+    huecos = 0
+    if seqs:
+        rango_completo = set(range(min(seqs), max(seqs) + 1))
+        huecos = len(rango_completo - set(seqs))
+
+    cerrados, abiertos = _ciclos_del_control_plane(eventos)
+
+    # Vocabulario CERRADO: un `tipo` es cadena libre (solo se rechaza si esta en EVENTOS_GOBERNADOS),
+    # asi que nunca se usa como clave a pelo — seria una fuga de contenido. Los conocidos se cuentan
+    # por su nombre; el resto va bajo la clave fija `"otros"` con solo el total.
+    recuento_por_tipo: dict[str, int] = {}
+    for e in eventos:
+        tipo = e.get("tipo")
+        if tipo is None:
+            continue
+        clave = tipo if tipo in _TIPOS_CONOCIDOS_DEL_CP else _TIPO_OTROS
+        recuento_por_tipo[clave] = recuento_por_tipo.get(clave, 0) + 1
+
+    almacenado = cargar(directorio / "estado.json")
+    if almacenado is None:
+        bloque_estado_json = None
+    else:
+        tareas = almacenado.get("tareas") or {}
+        recuento_por_estado: dict[str, int] = {}
+        for tarea in tareas.values():
+            estado_tarea = tarea.get("estado") if isinstance(tarea, dict) else None
+            if estado_tarea is not None:
+                recuento_por_estado[estado_tarea] = recuento_por_estado.get(estado_tarea, 0) + 1
+        bloque_estado_json = {
+            "status": almacenado.get("status"),
+            "actualizado": almacenado.get("actualizado"),
+            "num_tareas": len(tareas),
+            "recuento_por_estado": recuento_por_estado,
+        }
+
+    veredicto_proyeccion = estado_de_la_proyeccion(directorio)
+
+    return {
+        "num_eventos": len(eventos),
+        "seq_min": min(seqs) if seqs else None,
+        "seq_max": max(seqs) if seqs else None,
+        "seq_duplicados": len(duplicados_ids),
+        "seq_duplicados_ids": duplicados_ids,
+        "huecos": huecos,
+        "ciclos_cerrados": cerrados,
+        "ciclos_abiertos": abiertos,
+        "recuento_por_tipo": recuento_por_tipo,
+        "estado_json": bloque_estado_json,
+        "proyeccion": {"estado": veredicto_proyeccion.get("estado")},
+    }
+
+
+def _leer_jsonl_solo_metadatos(ruta: pathlib.Path) -> list[dict]:
+    """Lee un .jsonl linea a linea y se queda SOLO con `seq` (int) y el nombre de `evento`/`module`
+    de cada registro — nunca `msg` ni ningun otro campo. Una linea truncada o no-JSON se descarta
+    (igual criterio que `_leer_con_cola`/`AuditLog._leer_fichero`: robusto a una cola a medias, no a
+    corrupcion en medio del fichero; aqui, al ser lectura agregada y no un log encadenado, basta con
+    ignorar la linea ilegible sin distinguir posicion)."""
+    if not ruta.exists():
+        return []
+    out: list[dict] = []
+    for linea in ruta.read_text(encoding="utf-8").splitlines():
+        linea = linea.strip()
+        if not linea:
+            continue
+        try:
+            registro = json.loads(linea)
+        except (json.JSONDecodeError, ValueError, RecursionError):
+            # No solo JSON invalido: una linea con anidamiento profundo lanza `RecursionError` al
+            # decodificar. Propagarlo convertiria un audit.jsonl malformado (o malicioso) en una
+            # negacion de servicio de la lectura agregada. Se descarta la linea, igual que una no-JSON.
+            continue
+        if not isinstance(registro, dict):
+            continue
+        seq = registro.get("seq")
+        if isinstance(seq, bool) or not isinstance(seq, int):
+            continue
+        out.append({"seq": seq, "evento": registro.get("evento"), "module": registro.get("module")})
+    return out
+
+
+def _bloque_audit(ruta_audit: pathlib.Path) -> dict:
+    """Bloque (2) de F4: parser PROPIO del audit log (NUNCA `AuditLog`: su `__init__` reconcilia
+    huerfanos = escribe). Solo lee `seq` y nombre de `evento`/`module` — nunca `msg` ni contenido.
+
+    Reproduce en lectura, sin instanciar nada que escriba, la forma de disco de
+    `observability.AuditLog`: fichero activo (`ruta_audit`) + segmentos sellados con nombre
+    `{basename}.{seq_ini:012d}-{seq_fin:012d}` + manifiesto `{ruta_audit}.manifest` (jsonl de
+    entradas con `segmento`/`seq_ini`/`seq_fin`). Un segmento con nombre de esa forma que el
+    manifiesto no anota es un HUERFANO (sellado cortado entre renombrar y anotar, o manifiesto
+    perdido)."""
+    ruta_audit = pathlib.Path(ruta_audit)
+    directorio_audit = ruta_audit.parent
+    manifiesto = ruta_audit.with_name(ruta_audit.name + ".manifest")
+
+    entradas_manifiesto = _leer_jsonl_de_manifiesto(manifiesto)
+    nombres_anotados = {e.get("segmento") for e in entradas_manifiesto}
+
+    patron = re.escape(ruta_audit.name) + _PATRON_SEGMENTO_AUDIT_FMT
+    nombres_en_disco: list[str] = []
+    if directorio_audit.exists():
+        for nombre in sorted(os.listdir(directorio_audit)):
+            if re.fullmatch(patron, nombre):
+                nombres_en_disco.append(nombre)
+
+    huerfanos = [n for n in nombres_en_disco if n not in nombres_anotados]
+
+    registros: list[dict] = []
+    for nombre in nombres_en_disco:
+        registros.extend(_leer_jsonl_solo_metadatos(directorio_audit / nombre))
+    registros.extend(_leer_jsonl_solo_metadatos(ruta_audit))
+
+    seqs = [r["seq"] for r in registros]
+    vistos: dict[int, int] = {}
+    for s in seqs:
+        vistos[s] = vistos.get(s, 0) + 1
+    duplicados_ids = sorted(s for s, n in vistos.items() if n > 1)
+    huecos = 0
+    if seqs:
+        rango_completo = set(range(min(seqs), max(seqs) + 1))
+        huecos = len(rango_completo - set(seqs))
+
+    return {
+        "lineas": len(registros),
+        "seq_min": min(seqs) if seqs else None,
+        "seq_max": max(seqs) if seqs else None,
+        "seq_duplicados": len(duplicados_ids),
+        "seq_duplicados_ids": duplicados_ids,
+        "huecos": huecos,
+        "segmentos": len(nombres_en_disco),
+        "huerfanos": len(huerfanos),
+    }
+
+
+def _leer_jsonl_de_manifiesto(ruta: pathlib.Path) -> list[dict]:
+    """El manifiesto solo guarda metadatos de sellado (`segmento`/`sha256`/`seq_ini`/`seq_fin`): no
+    hay contenido que proteger aqui, pero se lee con el mismo criterio robusto a cola truncada."""
+    if not ruta.exists():
+        return []
+    out: list[dict] = []
+    for linea in ruta.read_text(encoding="utf-8").splitlines():
+        linea = linea.strip()
+        if not linea:
+            continue
+        try:
+            registro = json.loads(linea)
+        except (json.JSONDecodeError, ValueError, RecursionError):
+            # Igual que en `_leer_jsonl_solo_metadatos`: una linea profundamente anidada no debe
+            # propagar `RecursionError` ni tumbar la lectura del manifiesto.
+            continue
+        if isinstance(registro, dict):
+            out.append(registro)
+    return out
+
+
+def lectura_agregada(directorio: pathlib.Path, ruta_audit: pathlib.Path | None = None) -> dict:
+    """**F4 · lectura agregada de residencia, privacidad-segura.** Funcion PURA de SOLO LECTURA: ni
+    un `open` de escritura, ni `guardar`, ni `registrar_evento`, ni `AuditLog`, ni
+    `regenerar_proyeccion`. Produce un informe AGREGADO y SIN CONTENIDO — solo numeros, enums de
+    estado, nombres de tipo e ids de `seq`. CERO texto libre de `msg`/datos/descripcion/`content`/
+    `motivo`/`provenance`/tokens/rutas.
+
+    Dos bloques:
+
+    1. **control_plane** (siempre, desde `directorio`): nº de eventos, rango y duplicados de `seq`,
+       huecos, ciclos del control-plane cerrados/abiertos (emparejando `motor_iniciado`/
+       `ciclo_autonomo_iniciado` con sus cierres), recuento de tipos de evento por nombre, metadatos
+       de `estado.json` (`status`/`actualizado`/nº de tareas/recuento por estado — nunca
+       `descripcion`/`causa`) y el veredicto de `estado_de_la_proyeccion` (F1).
+    2. **audit** (solo si `ruta_audit` no es `None`): parser PROPIO (nunca `AuditLog`, cuyo
+       `__init__` reconcilia huerfanos = escribe) que extrae solo `seq` y nombre de `evento`/
+       `module`: nº de lineas, rango y duplicados de `seq`, huecos, segmentos en disco, huerfanos.
+
+    No modifica ni reimplementa F1/F2/F3/`proyectar`/`guardar`/`cargar`/`_leer_ancla`/
+    `verificar_integridad_log`/`leer_eventos`: los reutiliza tal cual."""
+    directorio = pathlib.Path(directorio)
+    informe = {"control_plane": _bloque_control_plane(directorio)}
+    if ruta_audit is not None:
+        informe["audit"] = _bloque_audit(pathlib.Path(ruta_audit))
+    return informe

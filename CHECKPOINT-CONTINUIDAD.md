@@ -5278,3 +5278,6714 @@ añadir fallos» se comprueba ahora donde `D21` sigue aplicando.
 `TODO_LO_DELEGABLE`, `_MATERIA_RESERVADA`, `CRITERIOS_D22`, `Veredicto` y A8 **sin tocar** ·
 `REVIEW_HABILITADO = False` · `_EJECUTORES` en 127 · `RevisorLocal` apagado · cero ampliación de
 autoridad.
+
+---
+
+## 2026-09-21 · Blindaje del mecanismo, verificador y política post-rollback
+
+**Qué se construyó** (todo bajo `DR-E`, sin ampliar autoridad y con `PARADA` armada de principio a
+fin):
+
+- **`_INTOCABLES` de 4 a 8 entradas.** Se midió que 19 de los 22 módulos de producción del plano
+  eran escribibles por el anillo —incluida `autoconstruccion.py`, que **es** la puerta de
+  escritura—. Se añadieron `autoconstruccion.py`, `review.py`, `ciclo_autonomo.py` y
+  `planificador.py`, por **función de autoridad**, no por cantidad. `observatorio.py` se dejó fuera
+  a propósito: es el destino del incremento autorizado, y un blindaje que impide el trabajo
+  autorizado es una avería.
+- **`fuera_de_alcance` dejó de ser prosa.** `contrato.evaluar` no lo leía: cero apariciones. Ahora
+  bloquea, fallando cerrado.
+- **La tarea lleva su contrato y se comprueba antes de escribir.** `planificador.a_tarea` perdía
+  `detalle["numero"]`; ahora viaja en `tarea["contrato"]`, y `review.ejecutar_bajo_review` tiene una
+  **quinta puerta** que exige la correspondencia antes de `ac.proponer`.
+- **Eventos de autoridad gobernados.** `review_habilitado` y `propuesta_autorizada` se podían forjar
+  con `cp.registrar_evento` crudo —reproducido— y encender REVIEW con cualquier alcance. Ahora
+  tienen puerta propia, exigen autoridad humana (o el circuito REVIEW con acta real detrás) y el
+  alcance **solo puede mantenerse o estrecharse**.
+- **El verificador existe y está enchufado.** Sin él, `aura.py` pasaba `verificacion=None` y **toda**
+  tarea se revertía: ninguna podía completarse jamás. `verificador.py` implementa la capacidad
+  `ejecutar_pruebas` que la política ya tenía registrada, decide **contando** con `--junitxml` y no
+  por `returncode`, y el listón lo pone el contrato.
+- **Observabilidad reconciliada.** `observatorio.py:223` descartaba los eventos sin ciclo abierto, y
+  el CLI decía `OPORTUNIDAD_REAL=0` mientras el motor calculaba `1` **leyendo el mismo log**.
+- **Trazabilidad del presupuesto.** Una tarea que agotaba sus reintentos desaparecía en silencio;
+  ahora deja `presupuesto_de_tarea_agotado`.
+- **El perímetro del acta ya no escapa del repositorio.** Una medición en sandbox borró 49 líneas
+  del fichero real autorizado: `ficheros_autorizados()` devuelve rutas absolutas y el atajo del acta
+  concedía con cualquier `raiz`. Restaurado con `git checkout` y cerrado con
+  `_la_raiz_es_de_este_repositorio`.
+
+**Decisiones tomadas por el CEO en esta sesión:** ampliar `_INTOCABLES`; gobernar los dos eventos de
+autoridad; construir el verificador y su cableado.
+
+**Decisiones pendientes:**
+
+1. **Política tras una verificación fallida** — el ciclo entero se detiene aunque queden tareas
+   independientes. Preparado en `milestones/m3-entry/DP-POLITICA-POST-ROLLBACK.md`. **No existe ADR,
+   DP ni acta previa sobre esto**: la política vive en código y en una prueba de HEAD.
+2. Reconciliar la cardinalidad «4 entradas» de `_INTOCABLES` publicada en dos actas cerradas y en el
+   contrato de DR-E.
+3. Si `review_habilitado`/`propuesta_autorizada` deben además exigir monotonía documentada por acta.
+
+**Siguiente paso exacto:** el CEO decide sobre el DP de política post-rollback. Nada más del motor
+queda técnicamente ejecutable sin esa decisión.
+
+**Riesgos abiertos:**
+
+- **Contratos distintos NO aíslan.** Dos contratos pueden apuntar al mismo fichero y el mecanismo no
+  lo detecta ni lo declara. La única frontera con evidencia es `fichero`.
+- El Quality Gate del producto sigue en FAIL por deuda preexistente: 42 ficheros que no pasan
+  `ruff format` —incluido `orchestrator.py`, deliberadamente sin formatear para no romper anclas de
+  mutación— y 5 garantías declaradas sobre un `validador.py` que nunca existió en git.
+- `autoconstruccion.ciclo()` llama a `ejecutar()` sin pasar por las cinco puertas. Hoy no tiene
+  llamante de producción; si lo tuviera, sería ALERTA-005 otra vez. Hay centinela que lo vigila.
+
+### Estado
+
+`HEAD 6dad6af` · commits 0 · push 0 · `PARADA` **ARMADA** · `OP-100cc3d4e29a` **NO EJECUTADA** ·
+alcance `('implementar_incremento_especificado',)` **sin ampliar** · `_INTOCABLES` **8 entradas** ·
+contrato DR-E **IMPLEMENTABLE** · `OPORTUNIDAD_REAL = 1` · plano **1100 pruebas en verde** ·
+`ruff` limpio · mutación sin supervivientes en los catálogos del incremento.
+
+### Validación independiente del DP (2026-09-21)
+
+El `DP-POLITICA-POST-ROLLBACK.md` fue auditado por un agente **distinto del que lo escribió**
+(`auditor-consistencia`, solo lectura). Veredicto: **sin inconsistencias reales**. Las dos únicas
+citas `fichero:línea` de ambos documentos —`motor_autonomia.py:137` y `observatorio.py:223`— son
+correctas contra el disco. Reprodujo por su cuenta, en sandbox aislado, el coste de dos ciclos por
+tarea fallida y la recuperación del trabajo pendiente en el tercero, y verificó con ejecución las
+cifras del bloque **Estado** de arriba (8 intocables, 6 eventos gobernados, alcance, `PARADA`,
+`OPORTUNIDAD_REAL = 1`, DR-E `IMPLEMENTABLE`, 1100 pruebas).
+
+**Dos filas de la tabla §2 quedaron sin doble medición** —el redescubrimiento de dependencias y la
+colisión de dos contratos sobre un mismo fichero—: reproducirlas exigía escribir contratos TOML
+reales, fuera de un mandato de solo lectura. Constan como medidas por el autor y consistentes por
+inspección, y el DP ahora **lo dice en el propio documento** para que nadie las lea con más fuerza
+probatoria de la que tienen. Es la corrección documental que produjo esta validación.
+
+**Durante la auditoría se corrigió además un defecto real del DP**: afirmaba que la prueba de HEAD
+`test_una_VERIFICACION_fallida_detiene_y_revierte` ya contemplaba el caso de trabajo viable
+pendiente. No lo contempla —usa `verificacion=lambda: False`, así que la segunda tarea habría
+fallado igual—: acredita que el ciclo se detiene, no que se detenga desperdiciando trabajo que
+habría tenido éxito. Eso lo acredita la medición, no el test. Presentarlo de otro modo era análisis
+disfrazado de hecho.
+
+**Línea de trabajo: CERRADA A LA ESPERA DE DECISIÓN DEL CEO.** La pregunta pendiente es la de §8 del
+DP: *¿debe el motor continuar con las tareas restantes tras una verificación fallida, o seguir
+deteniendo el ciclo completo?*
+
+### Presentación formal de la decisión post-rollback (2026-09-21)
+
+Se llevó la DECISION_REQUIRED hasta su frontera de gobierno. **La decisión NO se tomó**: sigue
+íntegra y sin recomendación.
+
+**Hallazgo de gobernanza, y es el importante.** *No existe un circuito formal único para presentar
+una decisión al CEO.* Conviven cuatro convenciones parcialmente solapadas: `decisiones/alertas/`
+(la más formalizada, solo para riesgos a 5-10 años), `decisiones/pendientes.md` (rango
+constitucional, 1.1 §3.2.3, **abandonado 66 días**), actas sueltas en `decisiones/` redactadas por
+el CTO tras la decisión verbal del CEO (patrón D-M-7), y bitácoras autocontenidas
+`DECISION-REQUERIDA-*.md` que se abren y cierran en el mismo fichero. Ningún índice lista los 26
+DPs ni su estado. **El `DECISION_REQUIRED` del código no sirve para esto**: es un estado de la
+máquina del motor (`descubrimiento.py:49`, `control_plane.py:58`), fail-closed y solo desbloqueable
+por un evento con `autoridad="ceo"`, **sin puente alguno con la gobernanza documental**. No hay
+generador; los dos mundos se conectan solo por costumbre humana.
+
+**Actos de presentación ejecutados** (los que tienen regla escrita detrás):
+
+- `decisiones/pendientes.md` — reanudado y registrada la decisión como **Abierta**. Lleva advertencia
+  explícita de que **no se reconstruye** el historial de los 66 días: inventarlo sería peor que la
+  laguna.
+- `CHECKLIST-CONTINUIDAD.md` §3 — fila nueva en «Pendiente de decisión del CEO» (su §7 exige
+  mantenerlo: *«un incremento no está cerrado si este documento quedó desactualizado»*).
+
+**Ocho defectos del DP corregidos**, ninguno cambia una decisión: falta del apartado **Retorno sobre
+Tokens** (exigido por el principio 8 del estándar de 2026-07-28); **coste real de la alternativa D**
+—`TOPE_DE_REINTENTOS` está acoplado al default de `agentes.ejecutar_tarea` por
+`test_red_reintento_gobernado.py:89`, así que D toca **cuatro ficheros**, no una constante `[EJEC]`—;
+la **alternativa C**, cuyo hecho medido se separa ahora de la lectura del CTO (ver abajo);
+cita del **precedente aprobado DP-017** (mismo dilema resuelto en sentido *continuar*, pero en el
+plano de producto); declaración de que esto es **plano de desarrollo** y por tanto **D23 no aplica**;
+el **instrumento de cierre** (ADR obligatorio por 1.2 §3, siguiente libre `ADR-0025`) y la
+consecuencia de que **ratificar lo vigente también exige acto formal**; el hueco del
+**identificador**, que no se inventa; y la inaplicabilidad del formato de 4 niveles.
+
+**No se commiteó.** El estado «0 commits» lo fijó el CEO en misiones previas y esta no lo levanta.
+Riesgo declarado: un DP sin commit no es citable por un auditor ni sobrevive a un `git clean`, y el
+precedente ya se pagó —`decisiones/2026-09-09-D-A006-decision-package.md` registra que una redacción
+anterior se perdió por no commitearse—.
+
+**Observación técnica, no deuda:** no existe índice de los 26 Decision Packages; su estado se
+descubre abriendo cabecera por cabecera. **No se crea uno manual a propósito**: `CLAUDE.md` §5 avisa
+de que el trabajo manual repetitivo se abandona, y `INDICE.md`, `CHANGELOG.md` y el propio
+`pendientes.md` ya son tres casos. Se promovería a deuda si se automatiza o si alguien lo necesita
+para decidir.
+
+
+**Segunda auditoría independiente, y lo que encontró.** Un `auditor-consistencia` distinto verificó
+que no se tomó la decisión. Confirmó **todos** los hechos nuevos por ejecución —las dos anclas de
+`TOPE_DE_REINTENTOS`, el acoplamiento con `agentes.py:262`, las citas de DP-017 y de 1.2, que
+`ADR-0025` es el siguiente libre, el abandono de 66 días de `pendientes.md` por `git log`, que
+ningún `.py` se tocó (por `mtime`), `PARADA` armada y `OP-100cc3d4e29a` sin ejecutar—. Cero casos
+de «declarado ≠ real».
+
+**Pero señaló tres formulaciones del CTO que empujaban hacia una lectura**, y tenía razón en las
+tres. Corregidas:
+
+1. La alternativa C llevaba el rótulo «REFUTADA POR MEDICIÓN PROPIA» y un argumento de *«tres reglas
+   convergen en contra»*. El hecho medido —que el criterio no aísla— es un hecho; que eso la haga
+   incompatible con ADR-0003, INV-9 y la regla de 2026-08-04 es **una inferencia del CTO**. Ahora
+   están separadas y etiquetadas `[EJEC]` e `[INFER]`. Era el mismo defecto que este DP ya había
+   corregido en su §1: análisis disfrazado de hecho, esta vez cometido por quien lo corrigió.
+2. *«D sigue siendo la de menor alcance conceptual»* era un ranking implícito entre alternativas.
+   Retirado.
+3. El apartado de coste cuantificaba solo el statu quo, lo que se lee como cargo contra A. Ahora
+   declara explícitamente que describe el estado actual y **no** es un argumento contra A.
+
+Ninguna corrección cambia un hecho: cambian quién parece estar decidiendo.
+
+### Delegación a subagentes + corrección de deuda (2026-09-21)
+
+**La capacidad de subagentes NO se construyó, y la razón importa.** Se midió si existía autoridad y
+la respuesta es **no**, en los dos planos. El hallazgo que lo zanja está en el propio código:
+`"crear_autoridad"` figura literalmente en `review._MATERIA_RESERVADA` (`review.py:66-70`),
+*«Reservado al CEO por D22. No delegable ni con REVIEW habilitado»* — y crear un subagente con
+autoridad acotada **es** crear autoridad. El sistema ya lo declara sobre sí mismo en `estado.json`:
+`nunca: [… "crear autoridad nueva", "ampliar AUTO"]`, `para_ampliar: "otra acta del CEO. AURA no
+puede ampliar su alcance (probado)"`.
+
+**Hallazgo técnico central: 18 de las 19 piezas ya existen.** Autoridad delegada acotada
+(`REVIEW:<revisor>` solo vale con acta detrás), presupuesto (`TOPE_DE_REINTENTOS`, `MAX_TAREAS`),
+timeout con `os.killpg` del grupo de procesos, prevención de cadena infinita (`siguiente_agente()`
+devuelve `None`), trazabilidad con log hash-encadenado, sandbox, auditoría por cinco puertas. **Lo
+único que falta es instanciar un subagente con misión propia, y falta a propósito**: los ejecutores
+son `_no_implementado` → exit 127, porque *«lanzar un agente gasta dinero y hace trabajo, y eso
+exige una puerta explícita (INV-9)»*. Si algún día se autoriza, **no hay que construir una
+arquitectura: hay que añadir una pieza a la que existe**.
+
+**Y no es campo virgen: ya tiene expediente.** Es `D-ORCH-1` (`DP-DEVELOPMENT-ORCHESTRATOR.md`
+§25.1), *«¿Alcanza D24 a la infraestructura de desarrollo?»*, con F5 (`RevisorExterno`) **bloqueada**
+a la espera de esa decisión más **enmienda documentada de D24**. Proponer una serie de fases nueva
+habría sido la segunda arquitectura paralela que el propio encargo prohíbe.
+
+**La regla que decide el caso no es ninguna de las anteriores.** La del CEO del 2026-08-04: las
+capacidades nacen de bloqueos observados y repetidos. Revisado `PLAN-DE-FORMACION-AURORA.md` entero:
+**no hay ni un solo bloqueo registrado que una capacidad de subagentes resuelva.** Expediente en
+`milestones/m3-entry/DP-DELEGACION-A-SUBAGENTES.md`, registrado en `decisiones/pendientes.md` y en
+`CHECKLIST` §3, con seis preguntas de gobierno sin resolver.
+
+---
+
+**Deuda corregida con ejecución, no con lectura:**
+
+- **Dos anclas de mutación estaban muertas, y las había matado yo.** `TC-M1` y `TC-M5` de
+  `tarea-atada-a-su-contrato.toml` dejaron de coincidir cuando, en un incremento posterior, cambié
+  `_exigir_correspondencia_con_el_contrato(...)` por `contrato_declarado = _exigir_...` y `return`
+  por `return None`. **Las garantías llevaban días sin red y nadie se enteró.** Anclas reparadas y
+  arnés ejecutado: **5 detectados, 0 sobreviven**. El auditor de garantías pasa de **39/41 a 41/41**
+  `[EJEC]`.
+- **`estado.json` → OB-2 declaraba bloqueante un defecto ya corregido** el 2026-09-09: sostenía que
+  el auditor no resuelve rutas bajo `entorno/`. Medido hoy: `auditar_garantias('entorno/control-plane')`
+  devuelve 41 declaradas y 0 rotas. Llevaba 12 días siendo falso **en el fichero de estado que el
+  motor consulta**. Corregida; OB-5, que sí sigue vigente, no se tocó.
+- **Quality Gate del producto: de 42 ficheros a 15.** Se formatearon los **27 sin ancla de
+  mutación**, calculando la exclusión contra los 118 catálogos. Los 15 restantes **no se tocan**:
+  `orchestrator.py` solo concentra 170 mutantes en 31 catálogos, y formatearlo repetiría el
+  incidente de las 17 anclas rotas.
+- **`CHECKLIST` §2, §4.3 y §4.7 afirmaban cosas falsas.** §4.3 declaraba «RIESGO ACTIVO» un riesgo
+  **mitigado hace siete semanas** (`3e716d4`): el modelo de N2 es hoy un fichero real de 470 MB, no
+  un enlace a un directorio temporal. §4.7 decía *«nadie ha usado AURA… 8 entradas, sin memoria
+  persistida»*: hoy hay **497 entradas de auditoría y 61 recuerdos episódicos** `[EJEC]`. Corregidas
+  sin exagerar la corrección — 497 entradas de operación del CTO **no** son telemetría de usuario, y
+  así queda escrito.
+- **`CHECKLIST` §6 omitía dos deudas** que existen en disco desde agosto:
+  `DEUDA-ADR0014-MEMORIA-VACIA.md` (la garantía «24/24 sin LLM» cae a **19/24** con memoria sembrada)
+  y `DEUDA-PANEL-BLOQUEO-SIN-MOTIVO.md`. Las 7 deudas del repositorio están ahora citadas.
+- **`decisiones/alertas/README.md` declaraba ALERTA-003 «Activa — pendiente de gate extraordinario»**
+  cuando su expediente dice **«RESUELTA — parche rechazado definitivamente»**, y omitía ALERTA-004 y
+  005. No era inocuo: ALERTA-003 es el precedente que `D-ORCH-1` invoca sobre D24.
+
+**Error propio, registrado porque el método importa.** Al calcular qué ficheros eran seguros de
+formatear, mi primer script dijo «42 seguros, 0 con ancla» — habría formateado `orchestrator.py` y
+roto 170 anclas. La causa: la salida de `ruff` trae **códigos de escape ANSI** pegados al nombre del
+fichero, así que ninguna comparación coincidía. **Un cálculo de seguridad que falla en abierto es
+peor que no tenerlo.** Lo detecté porque el resultado contradecía una medición independiente y no lo
+di por bueno.
+
+**Lo que NO se tocó:** los 15 ficheros con ancla · la política post-rollback · `PLAN-DE-FORMACION-AURORA.md`
+(reclasificar capacidades no corresponde a la asistencia externa) · `CHANGELOG.md` e `INDICE.md`
+(ponerlos al día exige criterio editorial sobre 167 commits, no es mecánico) · los 5 mutantes de
+`validador.py`, cuya suerte es decisión abierta desde `D-A006`.
+
+### Auditoría independiente del trabajo anterior — y un fallo propio que encontró (2026-09-21)
+
+Un `auditor-consistencia` distinto verificó la tanda. Confirmó por ejecución lo esencial: ninguna
+capacidad construida sin autoridad (`TODO_LO_DELEGABLE` y `_EJECUTORES_CONSTRUIDOS` siguen con los
+mismos dos verbos; `politica-orquestador.toml` y `permissions.py` con diff vacío); las cinco anclas
+de `tarea-atada-a-su-contrato.toml` coinciden una sola vez en `review.py` sin residuo de mutación;
+auditor de garantías 41/41; y **el formateo respetó con precisión los 15 ficheros anclados**,
+`orchestrator.py` incluido —lo comprobó por su cuenta, recalculando la intersección contra los 118
+catálogos sin contaminación ANSI—.
+
+**Pero encontró un dato falso en mi propio informe, y era un fallo real.** Declaré «1100 passed» para
+el control-plane **sin volver a medir después de corregir `estado.json`**. La medición real daba
+1099 passed + 1 failed: `test_red_frente_autonomo.py::test_en_el_plano_real_OB3_deja_de_contarse_como_bloqueo`,
+`assert 4 == 5`.
+
+**Causa, y por qué no había que revertir nada.** Al corregir OB-2 puse `quien_desbloquea: "nadie:
+corregida"`, y `descubrimiento.bloqueos_registrados` reclasifica a `FALSO_HUECO` toda entrada cuyo
+desbloqueador declarado sea literalmente «nadie» —regla deliberada y fail-closed: *«lo ya decidido no
+vuelve a la bandeja de excepciones»*—. Los bloqueos reales pasaron de 5 a 4 y los falsos huecos de 1
+a 2. **El mecanismo hizo exactamente lo que debía**; lo que quedó desfasado fue el caso de control,
+que llevaba los números de cuando solo OB-3 estaba cerrada. Actualizado a 4 y 2, con la explicación
+dentro del propio test y manteniendo los números **literales a propósito**: derivarlos del
+`estado.json` haría que la prueba se calculase a sí misma y dejara de controlar nada. Re-medido:
+**1100 passed** `[EJEC]`.
+
+También corrigió una imprecisión menor: escribí «61 recuerdos episódicos» cuando son **61 en total —
+52 episódicos y 9 semánticos**.
+
+**La lección, que es de método y no de código:** corregí un dato falso y, al declarar el resultado
+sin volver a medir, introduje otro. El patrón «declarado ≠ real» apareció esta vez **dentro del
+propio trabajo de corrección**. Por eso la auditoría la hace alguien que no implementó: yo no lo
+habría visto.
+
+### Cierre de deuda: la red de mutación, de 41 a 53 garantías (2026-09-21)
+
+**Barrido completo de anclas primero.** Los 125 catálogos del repositorio: **1176 anclas vivas, 0
+muertas, 0 ambiguas**. El único hueco son los 5 de `validador.py` (fichero ausente), decisión
+abierta desde `D-A006`. Tras el episodio de TC-M1/TC-M5 convenía comprobar que no había más anclas
+podridas: no las hay.
+
+**Pero un ancla viva no es una garantía viva**, y ahí apareció el trabajo real. Auditado el
+cableado, el plano tenía **41 mutantes para ~1100 pruebas** y varios mecanismos de gobernanza sin
+ninguna red:
+
+- **El kill switch se consulta en CINCO puntos y solo UNO tenía mutante.** `motor_autonomia.py:96`,
+  `despertador.py:65`, `observatorio.py:518` y `orquestador.py:566` podían dejar de mirar `PARADA`
+  —`if False:`— sin que nada fallara. Es literalmente la lección que este proyecto ya pagó: el
+  mutante «la composición no enciende las automatizaciones» sobrevivió con 426 pruebas en verde.
+  Catálogo nuevo `kill-switch-cableado.toml`: **4/4 detectados**. Tres murieron con las pruebas que
+  ya existían —solo faltaba declarar la red—; **`KS-M4` sobrevivió** y hubo que escribir la prueba
+  que faltaba, con su caso de control.
+- **`_INTOCABLES`: las 4 entradas originales no tenían red.** `BM-M1..M5` cubrían solo las cuatro
+  que el acta añadió en 2026-09-20. Borrar `orquestador.py` de la tupla —donde vive la propia
+  tupla— no hacía fallar nada: la escalada más directa que existe. Añadidos `BM-M8..M11`, **11/11
+  detectados**.
+- **Cuatro barreras de gobernanza sin mutante**: `ESTADOS_SOLO_HUMANO` dentro de
+  `validar_transicion` (salir de `DECISION_REQUIRED` sin acto humano), `verificar_integridad_log`
+  (ADR-0023), `es_materia_reservada` (D22, que incluye `crear_autoridad`) y el tope duro
+  `MAX_TAREAS`. Catálogo nuevo `barreras-de-gobernanza.toml`: **4/4 detectados**.
+
+**Dos de esos supervivientes fueron culpa mía, no del código.** `BG-M1` y `BG-M3` «sobrevivieron» la
+primera vez porque declaré las pruebas equivocadas —`test_modelo_orquestador.py` comprueba la parte
+*declarativa* del modelo, no la ejecución—. El propio protocolo lo advierte: *«elegir mal las
+pruebas produce supervivientes falsos»*. Corregidas las declaraciones, mueren. **`BG-M4`
+(`MAX_TAREAS`) sí era una garantía real sin ninguna prueba** y hubo que escribirla: se mide sobre el
+evento `motor_iniciado`, no contando vueltas, porque el ciclo para antes por falta de trabajo y
+contar vueltas no distinguiría un tope de 25 de uno de 1000 — habría sido una prueba decorativa.
+
+**Cuatro pruebas nuevas**, todas con caso de control. **Cero cambios en código de producción**: solo
+catálogos y pruebas.
+
+**Verificación final, medida después del último cambio** `[EJEC]`: **1104 pruebas en verde** (1100 +
+4 nuevas) · `ruff` limpio · garantías del control-plane **53 declaradas, 0 rotas** (antes 41) · los
+**9 catálogos: 53 detectados, 0 supervivientes** · árbol sin residuo de mutación.
+
+**Error propio registrado:** al añadir los mutantes de `_INTOCABLES` reutilicé los identificadores
+`BM-M6` y `BM-M7`, que ya existían en el catálogo. El TOML admitía duplicados en silencio. Detectado
+comprobando unicidad de anclas antes de ejecutar, y renombrados a `BM-M8..M11`.
+
+### La pieza 19 construida: delegación a subagentes (CEO, 2026-09-21)
+
+**Qué existe ahora.** `entorno/control-plane/delegacion.py` — AURA delega una misión acotada a un
+subagente que **ejecuta de verdad**: `ejecutar_pruebas` (reutiliza `verificador`) y
+`verificar_calidad` (corre `ruff`), ambas en sandbox, con plazo, credencial de un solo uso,
+revocación y rastro completo. Demostrado de extremo a extremo, no descrito.
+
+**La distinción que lo hace legítimo: delegar no es crear autoridad.** La capacidad **presta** un
+permiso que el CEO ya concedió —las capacidades `[auto]` de `politica-orquestador.toml`, derivadas
+de la lista verde de ADR-0003 por acta D4, todas de efecto **lectura**— y no inventa ninguno. Si la
+capacidad no consta ya autorizada, no hay nada que prestar y se rechaza. **Nada se amplió**:
+`crear_autoridad` sigue en `_MATERIA_RESERVADA`, `TODO_LO_DELEGABLE` sigue con sus dos verbos,
+`_INTOCABLES` sigue en 8, el alcance de REVIEW no se tocó `[EJEC]`.
+
+**Una auditoría adversarial rompió tres cosas, y las tres se corrigieron en la misma misión:**
+
+1. **La credencial se fabricaba a mano.** `Delegacion` es un `dataclass` sin firma y su huella se
+   calcula con campos públicos: cualquiera construía una válida, o resucitaba una caducada con
+   `dataclasses.replace`, y `ejecutar` la aceptaba porque solo comprobaba su consistencia *interna*.
+   **Una credencial que se valida a sí misma no valida nada.** Corregido sin criptografía, con la
+   regla que el proyecto ya tiene: **ADR-0023**, el historial es la única fuente de verdad. Ahora
+   `ejecutar` exige que la credencial **conste emitida** en el log y que los campos que deciden
+   —caducidad, profundidad, sandbox, capacidad— sean los que quedaron escritos al emitirla.
+2. **La recursión era real.** `Mision.profundidad` la declaraba quien construía la misión, así que
+   el código de dentro pedía otra con `profundidad=0`. La cota funcionaba y no servía de nada: el
+   dato en el que confiaba se lo daba el atacante. Ahora la profundidad **viaja en el entorno del
+   proceso** y se hereda; un valor corrupto se trata como «ya estamos dentro» (ante la duda, roja).
+3. **Carrera en el uso único.** Cinco ejecuciones concurrentes pasaban las cinco: el `flock` protege
+   la escritura puntual, no el ciclo comprobar → ejecutar → consumir. **El primer intento de arreglo
+   fue un error mío**: envolví todo en `cp.lock_estado`, que `registrar_evento` ya toma por dentro,
+   y la batería entera se colgó —`flock` no es reentrante—. La solución buena es reserva atómica con
+   **desempate por `seq`**, el contador monotónico que ya existía.
+
+**Y una vulnerabilidad más que encontré yo antes de la auditoría:** `--exit-zero` como argumento
+devolvía `ok=True` sobre un árbol sucio — la capacidad declaraba «calidad verificada» sin verificar
+nada. El perímetro no lo veía porque `caja/"--exit-zero"` está nominalmente dentro del sandbox.
+**Comprobar la contención no basta si lo que pasa por ahí nunca fue una ruta.** Corregido con dos
+capas: los argumentos deben ser rutas existentes que no empiecen por `-`, y `--` cierra las opciones
+en la propia línea de órdenes.
+
+**Lo que NO se resolvió, y es la decisión que queda.** `ejecutar_pruebas` implica **ejecución de
+código arbitrario**: pytest ejecuta como Python real el contenido del sandbox, y desde ahí se lee y
+escribe fuera. No es un defecto del módulo —es lo que hace pytest—: aquí hay aislamiento de entorno
+y de rutas, **no de sistema operativo**. Hoy la capacidad es utilizable porque el sandbox lo prepara
+quien delega, pero eso es **una condición de uso, no una garantía del código**, y está escrita en el
+docstring del módulo para que nadie la descubra tarde. Registrada en `decisiones/pendientes.md`.
+
+**Medido después del último cambio** `[EJEC]`: **1164 pruebas en verde** · `ruff` limpio ·
+garantías del control-plane **77 declaradas, 0 rotas** (antes 53) · **10 catálogos, 77 mutantes, 0
+supervivientes, 0 no aplicados** · árbol sin residuo de mutación.
+
+**Nota de método, porque se repitió tres veces:** los mutantes que sobrevivieron —`DL-M3`, `DL-M4`,
+`DL-M11`, `DL-M16`, `DL-M17`, `DL-M19`, `DL-M23`— **no revelaron fallos del código sino guardias que
+se cubrían entre sí**. Cuando dos barreras protegen lo mismo, quitar una no rompe nada y el mutante
+sobrevive. La salida no es maquillar el catálogo: es montar el escenario donde solo queda en pie el
+guardia que se quiere medir. Cada uno tiene ahora su prueba aislada y su control.
+
+### Aislamiento de sistema operativo: la última frontera de la delegación, cerrada (2026-09-21)
+
+**La DECISION_REQUIRED anterior queda resuelta construyéndola.** Una auditoría había demostrado que
+`ejecutar_pruebas` daba **ejecución de código arbitrario**: pytest corre como Python real lo que hay
+en el sandbox, y desde ahí se leía y escribía fuera. El perímetro de `delegacion.py` acota qué
+ficheros se le nombran a la herramienta; no puede acotar qué hace el código que contienen. Esa
+frontera solo la pone el sistema operativo.
+
+**Landlock**, el LSM de autorrestricción del kernel (`aislamiento.py`). Medido en esta máquina:
+**ABI 6 sobre Linux 6.14**. Sin root, sin instalar nada, irreversible, y **heredado por los procesos
+hijos** —hay una prueba que lanza un nieto y comprueba que tampoco escapa—. Se eligió frente a
+`bwrap`, que está instalado aquí pero es un **paquete del sistema**: convertirlo en requisito haría
+que la capacidad dejara de funcionar donde no esté, y añadir dependencias de terceros es lo que D24
+acota. Segunda capa: `rlimits` de CPU, memoria y tamaño de fichero, bajando blando **y duro** —bajar
+solo el blando lo dejaría subible desde dentro—.
+
+**Fail-closed:** sin Landlock, `delegar` se niega (`EXIGIR_AISLAMIENTO`). Ejecutar declarando un
+confinamiento inexistente sería INV-9 con consecuencias de seguridad. Y la evidencia de cada misión
+**registra qué aislamiento se aplicó**, no que hubo alguno.
+
+**Cinco defectos encontrados y corregidos durante la construcción, todos míos:**
+
+1. **`/dev/null` sin permiso de escritura** — pytest moría antes de recolectar una prueba. Un
+   sandbox que lo niega todo no es seguro: es inservible, que es el otro modo de fallar.
+2. **Derechos de directorio pedidos sobre un fichero** → `EINVAL`, y el confinamiento entero
+   reventaba con `SubprocessError`. Corregido recortando los derechos **según el tipo de ruta**, no
+   con dos listas a mano que se desincronizan.
+3. **`ruff` no arrancaba**: su `__main__` hace `os.execvp` sobre un binario de `~/.local/bin`, fuera
+   de las rutas concedidas. Añadidos `site.USER_BASE` y el `PATH`, **en lectura y ejecución, nunca
+   escritura**.
+4. **`RLIMIT_NPROC` retirado, y esto importa:** cuenta procesos **del usuario entero**, no del
+   proceso confinado. Con el límite en 256, `ruff` moría por no poder crear hilos en una máquina con
+   una sesión abierta. **Un límite que no acota lo que dice acotar es peor que no tenerlo.** Acotar
+   procesos de verdad exige cgroups, que es otra decisión; queda documentado para que nadie lo
+   devuelva creyendo que cierra un hueco.
+5. **Un bug real en mi propia prueba:** `RLIM_INFINITY` vale **-1**, así que `-1 <= 4 GB` pasaba y la
+   prueba declaraba los recursos acotados mientras el subagente corría sin límite ninguno. Lo
+   destapó el mutante `AI-M6` al sobrevivir.
+
+**Y una mejora de diseño que salió de un mutante:** `AI-M2` sobrevivía porque cada capacidad
+cableaba su propio `preexec_fn`, así que olvidarlo en una rama era posible y ninguna prueba de la
+otra se enteraba. **Un control que hay que acordarse de conectar en cada sitio se olvidará en
+alguno** — ALERTA-005 aplicada al confinamiento. Unificado en `_confinador_de()`, con una prueba
+estructural que exige que haya exactamente un lanzamiento confinado por capacidad construida.
+
+**Medido después del último cambio** `[EJEC]`: **1183 pruebas en verde** · `ruff` limpio · garantías
+del control-plane **87 declaradas, 0 rotas** (antes 77) · **11 catálogos, 87 mutantes, 0
+supervivientes, 0 no aplicados, 0 ambiguos** · árbol sin residuo de mutación.
+
+**Nada se amplió:** `crear_autoridad` sigue reservada, `TODO_LO_DELEGABLE` con dos verbos,
+`_INTOCABLES` en 8, alcance de REVIEW intacto, `PARADA` armada, `OP-100cc3d4e29a` sin ejecutar.
+
+### AURA ejecuta capacidades desde la conversación (CEO, 2026-09-21)
+
+**Evolución observable, medida por el camino real del usuario.**
+
+**ANTES** `[EJEC]` — `python3 -m aura_skeleton`, usuario escribe *«audita las garantías»*:
+
+```
+AURA> Esto lo genera mi modelo local y no está verificado: Entendido.
+```
+
+**DESPUÉS** `[EJEC]`, mismo escenario:
+
+```
+AURA> Ejecuté «auditar_garantias». **No está limpio**: 5 garantia(s) declaradas que NO
+      protegen nada: arnes-validador-comandos.toml:VAL-M1 (AUSENTE), …
+AURA> Ejecuté «diagnosticar_estado». **No está limpio**: incidencia dominante: paradas de
+      emergencia (1x)
+```
+
+**Qué faltaba, y es lo interesante del hallazgo.** AURA arrancaba declarando **21 operaciones**, con
+sus adaptadores montados (`EjecutorQA`, `EjecutorAuditor`, `EjecutorDiagnostico`…), sus permisos
+clasificados en `permissions.py` y el Motor Único funcionando. Todo construido. **Lo que no existía
+era la ruta desde la conversación hasta ellos**: el catálogo prometía algo que el runtime no sabía
+hacer. «Declarado ≠ real» aplicado a lo que el usuario puede pedir.
+
+**Por qué no lo resolvía el LLM, y no es preferencia.** El orquestador degrada a `consulta`
+cualquier acción que el modelo proponga en modo cognitivo, a propósito: *«una garantía no puede
+depender de que un modelo se comporte»* (ADR-0014 §4). El Core reconoce; el modelo nunca decide qué
+se ejecuta.
+
+**Lo construido:** `aura_skeleton/core/ordenes.py` (reconocedor determinista, por segmento completo)
+y `_atender_orden_de_capacidad` en el orquestador. El camino completo: *usuario → Core reconoce →
+registro real → **Motor Único** (permisos, kill switch, auditoría) → adaptador → resultado
+verificado → respuesta*.
+
+**Lo que NO amplía:** solo capacidades que el catálogo declara **verde + lectura** —el filtro se
+calcula del catálogo, no se escribe a mano—, solo si el registro las sirve de verdad (INV-9), sin
+argumentos del usuario (la superficie ejecutable sigue cerrada), y **sin tocar** `permissions.py`,
+listas ni perímetros.
+
+**ALERTA-005 y el kill switch, demostrados ejecutando** `[EJEC]`: con `~/.aura/KILL` armado, la
+respuesta fue *«No he ejecutado «auditar_garantias»: permisos: kill switch activo (5.3 §5)»*. El
+centinela se retiró y el estado quedó restaurado; el `PARADA` del control-plane no se tocó.
+
+**Un bug propio, encontrado ejecutando.** La primera versión del redactor usaba claves que el motor
+no devuelve (`status`, `reason`), así que caía siempre al caso final y contestaba *«terminó
+correctamente»* mientras el adaptador devolvía `ok=False` y «5 garantías que no protegen nada».
+**«Declarado ≠ real» en la superficie que el usuario lee y se cree** — la versión más cara. Corregido
+contra el contrato real del motor, que además distingue `detenida` (gobierno) de `error` (avería):
+decirle al usuario «falló» cuando se le negó el permiso confundiría una barrera con una rotura.
+
+**Cuatro mutantes sobrevivieron y ninguno era un fallo del código**: eran pruebas mías que no
+discriminaban. `OC-M1` necesitaba una frase que **contuviera literalmente** la variante (*«por favor
+ejecuta las pruebas ahora»*); `OC-M6`, un turno con la orden **primera**; `OC-M3` era tautológico
+porque todas las variantes ya son verde+lectura —se aísla reclasificando una a roja—; y `OC-M7`
+pasaba con solo no mentir, cuando lo que hace falta es **avisar**.
+
+**El ancla que casi rompo.** Mi enganche se insertó entre `_atender_conversacion_general` y
+`_es_consulta_de_capacidades`, y el mutante `M4` de `conversacion-general-v1.toml` exige que sean
+contiguas. No se tocó el catálogo: se movió la superficie nueva **detrás de todas las que ya
+existían**, que además es donde debe ir — una superficie nueva no le quita frases a las anteriores.
+
+**Medido después del último cambio** `[EJEC]`: **175 anclas en `orchestrator.py`, 0 rotas** · `ruff`
+limpio · mutación `ordenes-de-capacidad`: **9 detectados, 0 supervivientes** · árbol sin residuo.
+
+### AURA lee el sistema de ficheros por orden del usuario (CEO, 2026-09-21)
+
+**Segunda evolución observable.** La primera conectó capacidades **sin argumentos** (`auditar_garantias`,
+`diagnosticar_estado`…). Esta cierra las que quedaban huérfanas por necesitar **una ruta**.
+
+**ANTES** `[EJEC]`: *«lista el directorio ~/.aura»* → `Esto lo genera mi modelo local y no está
+verificado: Entendido.`
+
+**DESPUÉS** `[EJEC]`:
+
+```
+AURA> Ejecuté «listar_directorio». 7 entrada(s): CENTRO-DE-GOBIERNO.md, audit.jsonl,
+      cursores, estado_operativo.jsonl, memoria.json, memoria.json.backups, models
+AURA> Intenté ejecutar «leer_archivo» y no pude: el adaptador rechazo la operacion:
+      ruta fuera del ambito permitido: '/etc/passwd'
+```
+
+**Por qué esta capacidad sí admite argumento.** *«Audita las garantías»* no tiene objeto —se audita
+todo—; *«lista el directorio»* **no significa nada sin decir cuál**. Negárselo no la hacía más
+segura: la hacía inservible.
+
+**Quién valida la ruta, y por qué no la superficie.** `operaciones.validar()`, la puerta única del
+sistema de ficheros: comprueba el ámbito (`raices_por_defecto()`, hoy el home), resuelve enlaces y
+rechaza lo demás. El propio adaptador lo advierte —*«el adaptador NO revalida por su cuenta: una
+validación duplicada podría divergir de la del núcleo»*— y eso vale igual aquí. La superficie
+extrae; el ámbito lo decide quien ya lo decidía. Demostrado: `/etc/passwd` rechazado.
+
+**Un bug sutil evitado midiendo antes de escribir** `[EJEC]`: el orquestador normaliza el texto
+—minúsculas, sin tildes, partiendo por el punto—, así que `Documentos` se volvía `documentos` y
+`~/Música/notas.TXT` se partía en dos. Usar el texto normalizado para la ruta habría dado «no
+existe» sobre ficheros que sí están. El prefijo se compara normalizado; **la ruta se toma literal
+del original**.
+
+**`buscar_archivo` queda fuera, y no es un olvido.** Pide **dos** argumentos (`patron`, `raiz`) y de
+la frase solo sale uno; pasar medio contrato daría un error del núcleo que el usuario leería como
+avería. La exclusión es **por construcción**, y hay una prueba que mete la capacidad en la tabla a
+propósito para comprobar que aun así no se cuela.
+
+**Contratos de adaptador inconsistentes, corregidos en la superficie.** `qa`, `auditor` y
+`diagnostico` devuelven `{ok, resumen}`; `computador` devuelve `{status, entradas|contenido}`. Leer
+solo el primero hacía que un listado real se contara como *«terminó correctamente»* **sin enseñar
+nada** — cierto e inútil. Y `status: "duplicate"` (idempotencia: **no se volvió a ejecutar**) se
+habría contado como trabajo hecho; ahora se dice lo que es.
+
+**Despacho unificado.** Las dos formas de orden —con ruta y sin ella— pasan por `_despachar_orden`.
+Duplicarlo habría sido el cableado que se olvida en una rama: la lección de ALERTA-005 y la del
+mutante `AI-M2`.
+
+**Medido después del último cambio** `[EJEC]`: producto **2129 pruebas, 2127 en verde** (la única
+fallida sigue siendo la preexistente de `validador.py`, `D-A006`) · control-plane **1183 passed** ·
+`ruff` limpio · **178 anclas en `orchestrator.py`, 0 rotas** · mutación `ordenes-de-capacidad`:
+**16 detectados, 0 supervivientes** · árbol sin residuo.
+
+### Auditoría de casos límite sobre las órdenes con ruta — tres defectos corregidos (2026-09-21)
+
+Auditar la superficie recién construida **probando casos límite, no leyéndola**, destapó tres
+defectos reales. Los tres corregidos en el mismo ciclo, con prueba, control y mutante.
+
+1. **La ruta se tragaba el resto de la frase.** *«lista el directorio ~/Documentos, gracias»* pedía
+   al núcleo la ruta `'~/Documentos, gracias'`. El núcleo la habría rechazado —no existe—, pero el
+   usuario habría leído *«no existe '~/Documentos, gracias'»* para algo que **nunca pidió**: un
+   mensaje que culpa al sistema de ficheros de un fallo de comprensión. Ahora, si detrás del prefijo
+   arranca otra oración, **no se ejecuta** (ADR-0003, ante la duda no).
+2. **Dos rutas juntas se tomaban como una.** *«lista el directorio ~/a ~/b»* no lleva ninguna marca
+   de oración y son dos rutas; cuál quiere el usuario no se adivina. Se cuentan los fragmentos que
+   parecen ruta, así que **`~/Mis Documentos` —una sola ruta con espacio— sigue pasando**: la
+   distinción no es el espacio, es cuántas rutas hay.
+3. **Un fichero binario se volcaba crudo** a la conversación (`b'\x00\x01…'`): ilegible, y con
+   caracteres de control que pueden desordenar la terminal de quien lee. Ahora se dice qué es y
+   cuánto ocupa. Los saltos de línea y tabuladores siguen siendo texto normal.
+
+**Observabilidad verificada** `[EJEC]`: cada orden deja su línea en `~/.aura/audit.jsonl`
+(*«capacidad listar_directorio ejecutada por orden del usuario»*, 19 registros).
+
+**Medido después del último cambio** `[EJEC]`: producto **2138 pruebas, 2136 en verde** (la única
+fallida sigue siendo la preexistente de `validador.py`, `D-A006`) · control-plane **1183 passed** ·
+`ruff` limpio · **179 anclas en `orchestrator.py`, 0 rotas** · mutación `ordenes-de-capacidad`:
+**18 detectados, 0 supervivientes** · árbol sin residuo.
+
+**Comportamiento con una frase que no se entiende:** cae al camino que ya existía (el modelo), no a
+un error. Es conservador a propósito — una superficie nueva no le quita turnos a las anteriores—,
+aunque una respuesta del tipo «no te he entendido, ¿qué ruta?» sería mejor experiencia. Queda como
+**observación técnica, no deuda**: no bloquea nada y su condición de promoción es que el uso real
+muestre que confunde.
+
+### AURA compone capacidades: la revisión (CEO, 2026-09-21)
+
+**Tercera evolución observable.** De órdenes aisladas a **composición**: una petición que necesita
+varias capacidades para contestarse.
+
+**ANTES** `[EJEC]`: *«haz una revisión»* → `Esto lo genera mi modelo local y no está verificado:
+Entendido.`
+
+**DESPUÉS** `[EJEC]`:
+
+```
+AURA> He revisado 3 cosa(s) y **hay 2 con incidencia**:
+• diagnosticar_estado: incidencia dominante: errores de ejecucion (5x)
+• auditar_garantias: 5 garantia(s) declaradas que NO protegen nada: …
+• consultar_estado_sistema: sin novedad
+```
+
+**No es arquitectura nueva.** Es el patrón que `_atender_conversacion_general` ya aplica a las
+intenciones —*«si las dos pueden resolverse, prefiero una respuesta más larga»* (CEO)— llevado a las
+capacidades.
+
+**Componer NO concede autoridad.** No hay un despacho «de revisión» en bloque: cada capacidad
+recorre el Motor Único por separado, con sus permisos y su kill switch. **Y una denegación no se
+compensa con los aciertos de las demás.** Demostrado con `~/.aura/KILL` armado `[EJEC]`:
+
+```
+AURA> He revisado 3 cosa(s). No encontré incidencias, pero **no pude mirarlo todo**:
+• diagnosticar_estado: no lo revisé — permisos: kill switch activo (5.3 §5)
+```
+
+Cinco clases separadas a propósito —`limpio`, `incidencia`, `bloqueado`, `error`, `sin_datos`—: un
+bloqueo **no es** una incidencia (es una barrera que funcionó, no un fallo del sistema) y tampoco es
+un limpio. El veredicto sale de **contar**, no de interpretar, así que la síntesis no puede ser más
+optimista que sus partes.
+
+**Dos defectos propios, encontrados y corregidos en el mismo ciclo:**
+
+1. **Un `duplicate` se contaba como «todo limpio».** Idempotencia significa que el adaptador **no
+   volvió a ejecutar**; declararlo limpio afirma una comprobación que no ocurrió. Ahora cuenta como
+   «no pude mirarlo todo». Lo destapó una prueba, no una lectura.
+2. **Una variante inalcanzable.** *«como va todo»* la intercepta la superficie de estado autónomo,
+   que va antes: era **código muerto disfrazado de capacidad**, con el catálogo prometiendo algo que
+   el runtime no hace. Retirada, y añadida una prueba que impide que vuelva a colarse ninguna
+   —comprueba que ninguna variante choca con las superficies anteriores—.
+
+**Medido después del último cambio** `[EJEC]`: producto **2149 pruebas, 2147 en verde** (la única
+fallida sigue siendo la preexistente de `validador.py`, `D-A006`) · control-plane **1183 passed** ·
+`ruff` limpio · **184 anclas en `orchestrator.py`, 0 rotas** · mutación `ordenes-de-capacidad`:
+**24 detectados, 0 supervivientes** · árbol sin residuo.
+
+### Auditoría del runtime observado — un intento revertido, un defecto real corregido (2026-09-21)
+
+**Auditoría de 19 puntos** sobre el comportamiento real observado ejecutando AURA. Resultado por
+letra:
+
+- **A/B (memoria degradada/N1):** correcto. RAM insuficiente para N2 en esta máquina; declarado.
+- **C («como m llamo» sin recuerdo) / D (nombre correcto):** rastreado hasta el origen `[EJEC]` — el
+  nombre viene de **memoria real** (18 registros en `memoria.json` con `trace_id`), no inventado.
+  Cinco formulaciones declaradas en `_CONSULTAS_DE_HECHO` recuperan; las demás no, por búsqueda
+  léxica.
+- **E («cómo se llama mi hija»):** correcto — nunca se declaró, ausencia real.
+- **F/G (rechazo religión/personas reales):** **D-FC-2 = B, decisión ya tomada del CEO**, no
+  degradación. Guardrail deliberado para dominios sensibles sin verificación del modelo local.
+  Confirmado en código (`intencion.py:690`, `orchestrator.py:1723`).
+- **H (proveedor mock):** **correcto por evidencia ya medida.** `qwen2.5:0.5b` tarda **25,8 s** para
+  «Hola» contra un presupuesto de 1200 ms — 78× por encima. El stack real existe, funciona
+  (`AURA_STACK_REAL=1`), y su opt-in es deliberado y ya probado (`test_stack_es_opt_in_explicito.py`).
+- **I (capacidades activas=[] vs 21 operaciones):** confusión de nombres, no bug. `activas` viene del
+  **Modelo de Activación** (ADR-0021, por hardware) y solo rastrea `memoria`; las 21 operaciones son
+  el catálogo de permisos. Dos registros distintos. **Corregido**: aclaración añadida al mensaje de
+  arranque, sin tocar la línea original ni ninguna de las 10 anclas de `__main__.py`.
+- **J–S (motor autónomo, estado.json, ciclos abandonados, scheduler):** el observatorio **ya
+  detecta y reporta correctamente** las dos contradicciones citadas —desfase de `estado.json`
+  (log íntegro, 2299 eventos) y ciclos 196/217 abandonados con certeza, no sospecha—. `ADR-0023`
+  intacto: el log manda, `estado.json` es proyección declarada. **No existe proyector automático**
+  que la regenere; es mantenimiento manual del CTO en cada checkpoint. Construir uno es capacidad
+  estratégica nueva → `DECISION_REQUIRED` (ver abajo).
+- **OPORTUNIDAD_REAL=1:** es `OP-100cc3d4e29a`, con contrato `IMPLEMENTABLE`. **No ejecutada**: el
+  propio prompt de cada misión de esta sesión la prohíbe explícitamente («NO ejecutar
+  OP-100cc3d4e29a»), y esa instrucción reiterada prevalece sobre la regla genérica de «si está
+  autorizada, ejecútala».
+- **D-ORCH-6 / D-INT-1:** ambas genuinas, verificadas contra `milestones/`. Ninguna requiere trabajo
+  técnico adicional; son decisiones del CEO.
+
+**Un defecto real corregido, con un revertido por regresión en el camino.**
+
+Corregí primero que *«como m llamo»* (errata) respondiera *«No tengo ningún recuerdo registrado
+sobre eso»* con tres hechos guardados. **El Quality Gate detectó la regresión**: rompí 3 pruebas que
+fijan una garantía deliberada de `DR-1=A` — preguntar por un **atributo específico nunca declarado**
+(«mi coche») debe dar exactamente esa ausencia, sin LLM, por diseño. Mi corrección ensanchaba esa
+puerta. **Revertida íntegra** (`ruff` limpio, 0 anclas rotas, Quality Gate confirmado: 2147/2149 en
+verde otra vez, solo la fallida preexistente de `validador.py`).
+
+Tocar la recuperación léxica de `_CONSULTAS_DE_HECHO` para reconocer erratas exigiría coincidencia
+difusa nueva —arquitectura que no está autorizada aquí—, así que queda como observación técnica, no
+como deuda: no bloquea nada, y el mensaje que da hoy («no tengo ningún recuerdo») es *el mismo* que
+la arquitectura ya declara correcto para el caso más amplio (atributo no reconocido).
+
+**Medido después del último cambio** `[EJEC]`: producto **2149 pruebas, 2147 en verde** · control-
+plane **1183 passed** · `ruff` limpio · 0 anclas rotas en `__main__.py` (10) ni `orchestrator.py`
+(184) · sin regresiones nuevas.
+
+### Continuidad entre turnos: frontera arquitectónica genuina (2026-09-21)
+
+**Medido, no supuesto.** Cinco escenarios reales ejecutando AURA:
+
+| Turno 1 | Turno 2 | Respuesta real |
+|---|---|---|
+| `lista el directorio ~/.aura` → 7 entradas reales | «¿cuántas entradas encontraste?» | «No tengo ningún recuerdo registrado sobre eso» |
+| ídem | «¿cuál era el archivo de estado?» | ídem |
+| `audita las garantias` → 5 garantías rotas | «¿qué encontraste?» | ídem |
+| `haz una revision` → 3 capacidades | «¿qué fue lo más importante?» | ídem |
+| listar → cambio de tema → «¿qué había en el directorio?» | — | **sin contaminación** |
+
+**Hallazgo positivo que conviene no pasar por alto:** no hay contaminación **ni invención**. AURA no
+finge recordar un resultado que no conserva, y el cambio de tema no arrastra contexto viejo. Es el
+comportamiento correcto según `ADR-0014`.
+
+**La Bible SÍ define la categoría, y eso cambia la pregunta.** 4.1 §1 lista cuatro memorias, y los
+resultados de ejecución no son ninguna de las tres persistentes —episódica (eventos e interacciones),
+semántica (hechos del usuario), procedimental (cómo hacer tareas)—. Corresponden a la cuarta:
+**«memoria de trabajo (efímera, en contexto): no persiste»**. Y §2 fija el criterio de escritura:
+*«no todo se guarda… el ruido conversacional no»*.
+
+**Lo que la arquitectura NO define** es la política de retención *dentro* de esa memoria de trabajo:
+cuántos turnos, qué se excluye por sensibilidad —`leer_archivo` devuelve **contenido de ficheros del
+usuario**, y retenerlo entre turnos es una decisión de privacidad (Bible 5.5)—, qué pasa con
+resultados bloqueados o `duplicate`, cómo se purga y cómo se audita. **Inventarla sería crear
+política de retención sin autoridad.** Registrada en `decisiones/pendientes.md`.
+
+**Auditoría de la memoria personal (Fase 10): funciona correctamente.** Ciclo completo medido —
+declarar → listar → olvidar → listar— sin invención. **Un defecto real encontrado**: redeclarar «me
+llamo Mauricio» **duplica** en vez de superseder, y el listado llega a mostrar el nombre tres veces.
+La causa está documentada en `identidad_memoria`: solo la familia posesiva «mi X es Y» se versiona
+con `supersedes`/`valid_until`; «me llamo X» nunca tiene `version`.
+
+**Intenté corregir la presentación y lo revertí.** Deduplicar el listado parecía inocuo, pero el
+fichero `modelo_usuario.py` ya arrastra **22 anclas de mutación rotas en HEAD** (deuda preexistente,
+verificada contra `git show HEAD`), y trabajar ahí sin resolver antes esa deuda impide distinguir lo
+que rompo yo de lo que ya estaba roto. Revertido íntegro: **0 rastro**, fichero idéntico al de
+partida. Extender el versionado a otra familia de frases rozaría además `D-AMP-3` (qué hace «olvidar»
+con el historial de un atributo), que está sin decidir.
+
+**Medido después del último cambio** `[EJEC]`: producto **2149 pruebas, 2147 en verde** (única
+fallida: la preexistente de `validador.py`) · `ruff` limpio · sin regresiones.
+
+---
+
+## M7 · Continuidad de resultados: la Misión 6 se equivocó, y cómo (2026-09-21)
+
+**Dos afirmaciones de la Misión 6 quedan RECTIFICADAS por medición.** Van primero porque cualquiera
+que retome el trabajo leyendo solo aquella entrada partiría de dos premisas falsas.
+
+### Rectificación 1 · «AURA no conserva resultados entre turnos» — FALSO
+
+Era un **artefacto de la medición**: se arrancaba un proceso por turno, y la ventana de trabajo vive
+en RAM. Medido de nuevo `[EJEC]` dentro de **un solo proceso**, `Orchestrator._dialogue` contiene:
+
+```
+[hecho] 'Ejecuté «listar_directorio». 7 entrada(s): CENTRO-DE-GOBIERNO.md, audit.jsonl, …'
+```
+
+Y está gobernada por **`DR-4`, aprobada por el CEO el 2026-09-15**: `_DIALOG_N=6`, `_DIALOG_MAX=9`,
+`_RECORTE_AURA=160`. **La retención de resultados en memoria de trabajo ya estaba aprobada y ya
+funcionaba.** Lo que ocurre en el turno 2 es distinto: la pregunta la intercepta la superficie
+determinista de memoria (`dominio=memoria` → `recall` 0 hits → puerta de ausencia de `ADR-0014`), que
+contesta «No tengo ningún recuerdo registrado sobre eso» **sin mirar la ventana que tiene la
+respuesta**. Cero prompts llegaron al proveedor en los seis escenarios.
+
+### Rectificación 2 · «22 anclas rotas preexistentes en `modelo_usuario.py`» — FALSO
+
+Medido con `tomllib` + `str.count`, y reverificado por una auditoría independiente: **0 anclas rotas**,
+ni en HEAD ni en el árbol. El «22» salía de sumar 21 mutantes de **`ejecutor_modelo_usuario.py`**
+—fichero distinto, mismo sufijo— más uno de un TOML **sin versionar**, cuya ancla no puede existir en
+HEAD por definición. Fue un error de método mío, no deuda del proyecto. **Consecuencia práctica: el
+bloqueo que impidió corregir los duplicados en la Misión 6 no existía.**
+
+### Hallazgo de privacidad, medido `[EJEC]`
+
+El contenido de un fichero del usuario **reentra en el prompt del turno siguiente**, aunque ese turno
+trate de otra cosa:
+
+```
+(previo) tu: lee el archivo /…/privado.txt | AURA [HECHO]: Ejecuté «leer_archivo».
+Esto es lo que dice:
+IBAN ES91-2100-0418 clave del router colibri-verde-1978]
+Usuario: cuéntame algo interesante sobre los pájaros
+```
+
+No es un fallo: es `DR-4` operando sobre un dato que **no existía cuando se aprobó** —`leer_archivo`
+como orden conversacional llegó después, y el expediente de `DR-4` no menciona privacidad—. Acotado
+hoy porque el único proveedor es local (`D24`, verificado: sin endpoint ni clave); el día que haya uno
+remoto, `Bible 5.5 §2` no tendría nada que la haga cumplir sobre esta ventana.
+
+### Corregido en esta misión
+
+1. **El registro forense mentía.** `_despachar_orden` escribía «capacidad X **ejecutada** por orden
+   del usuario» incondicionalmente. Traza real: `seq 1047 ERROR leer_archivo` → `seq 1048 … ejecutada`.
+   Al usuario se le contaba bien; el defecto vivía solo donde nadie mira hasta que hay que reconstruir
+   qué pasó. Ahora el mensaje lee el desenlace del motor (`ejecutada`/`detenida`/`error`).
+2. **Duplicados en la memoria personal.** «me llamo Mauricio» tres veces se listaba tres veces.
+   Corregido en `describir_conocimiento`, que es **proyección** (`ADR-0023`): el historial conserva las
+   tres declaraciones. **No** se tocó el versionado de identidad — que «me llamo Pedro» supersediera a
+   «me llamo Mauricio» roza `D-AMP-3` y queda elevado.
+
+### Fijado como garantía (no crea política, clava la que rige)
+
+`walking-skeleton/tests/integration/test_frontera_continuidad.py` — 8 pruebas: la ventana **sí**
+retiene · **no** tiene respaldo en disco · el resultado **no** llega a `memoria.json` · el audit log
+**no** lleva payload y ninguna superficie lo lee para conversar · el contenido **sí** reentra en el
+prompt · el proveedor **es** local.
+`walking-skeleton/mutaciones/frontera-continuidad.toml` — **7 mutantes, 7 detectados, 0 supervivientes.**
+
+### Elevado, no resuelto
+
+`milestones/m3-entry/DECISION-REQUERIDA-CONTINUIDAD-DE-RESULTADOS.md` — doce preguntas (A–L) redactadas
+para poder contestarse sin rehacer la investigación. La más punzante es la **L**: hoy las seis
+situaciones distintas —no conservado, conservado pero no autorizado, nunca existió, falló, lo impidió
+el gobierno— producen **la misma frase**. No se tocó la puerta de ausencia de `ADR-0014`: ampliarla ya
+rompió tres pruebas de `DR-1 = A` en un intento anterior, y decidir qué distingue AURA al responder
+**es** la decisión pendiente.
+
+---
+
+## M8 · El puente a la ventana de trabajo: recuperar una ejecución anterior (CEO, 2026-09-22)
+
+**El problema nunca fue de almacenamiento, sino de recuperación.** `DR-4` ya retenía el resultado;
+la pregunta de seguimiento no llegaba a él.
+
+### BEFORE, medido `[EJEC]` en 12 escenarios antes de tocar nada
+
+**8 de 12** daban la ausencia engañosa: `recall` buscaba en la memoria PERSONAL —donde un resultado
+de ejecución no está ni debe estar (`Bible 4.1 §1`)—, 0 coincidencias, y disparaba la puerta de
+`ADR-0014` **mientras la ventana contenía la respuesta entera**. Los escenarios 10 y 11 (memoria
+personal) ya eran correctos, incluida su ausencia honesta.
+
+Dos escenarios NO se midieron y **no se fabricaron**: `duplicate` no es alcanzable por vía
+conversacional —exige reentregar el mismo `event_id`, que es idempotencia del bus, no de la
+conversación— y `timeout` exigiría tocar código.
+
+### Qué se construyó
+
+`core/recuperacion.py`: reconocedor **positivo y cerrado** por segmento completo, evaluado DESPUÉS
+de las diez superficies existentes y ANTES de la pared — el mismo patrón usado por la aritmética,
+`D-FC-3` y las órdenes de capacidad. **No se tocó** `_es_consulta_de_memoria`, ni `es_interrogativa`,
+ni la puerta de `ADR-0014`: una prueba parametrizada comprueba que el reconocedor no se queda
+**ninguna** de las 24 frases que sostienen esa garantía. Son dos gramáticas distintas —el mundo del
+usuario frente a algo que hizo AURA— y por eso se separan sin ensanchar nada.
+
+La ventana pasó de `(usuario, say, estatus)` a `recuperacion.Turno(..., dominio)`. **No es una
+memoria nueva ni retiene más**: es la metadata mínima para hallar el último turno de ejecución sin
+deducirlo releyendo el texto. Solo se recupera lo que produjo el Core (`dominio=orden_de_capacidad`):
+una propuesta del modelo **nunca** puede salir de ahí convertida en hecho.
+
+### AFTER `[EJEC]`, las tres rutas separadas
+
+| pregunta | ruta | respuesta |
+|---|---|---|
+| «¿cuántas entradas encontraste?» | ventana de trabajo | repite el resultado real, diciendo que no volvió a ejecutar |
+| «¿cómo me llamo?» | memoria personal | «Te llamas Mauricio.» |
+| «¿cuál es mi nombre?» *tras* ejecutar | memoria personal | «Todavía no me has dicho cómo te llamas.» — sin contaminar |
+| «¿qué encontraste?» *tras* declarar el nombre | ventana | el listado, **no** el nombre |
+| «¿qué encontraste?» sin ejecutar nada | ventana vacía | ausencia **propia**, distinta de la de `ADR-0014` |
+| «¿Cuál es el nombre de mi abuela?» | pared | «No tengo ningun recuerdo…» — intacta |
+| «¿qué fue lo más importante?» | ventana | **se niega a jerarquizar** y entrega el dato |
+
+Los desenlaces no se aplanan: un bloqueo por kill switch se recupera como bloqueo, un error como
+error. No se duplicó la lógica — se repite el texto que M7 ya había hecho honesto.
+
+### Lo que encontró el propio vigilante
+
+Cambiar la forma de la ventana **desarmó en silencio 4 garantías ajenas** (`frontera-cognitiva:FC-M4`,
+`ventana-de-dialogo:VD-M4` y `VD-M6`, `voz-degrada:VZ-M14`) y una mía (`frontera-continuidad:FC-M6`).
+Las cazó `test_todas_las_garantias_declaradas_siguen_vigentes`, que para eso existe. **Las cinco
+anclas se repararon** y sus catálogos vuelven a matar: 25 + 7 + 14 + 9 detectados, 0 supervivientes.
+
+### Métricas
+
+Producto **2272 · 2267 passed · 3 skipped · 1 xfail · 1 failed** (la preexistente `VAL-M1..M5`,
+`validador.py` ausente) · control-plane **1183 passed** · `ruff` limpio · mutación del incremento
+**10 declarados, 10 detectados, 0 supervivientes**.
+
+### Base de autoridad, declarada
+
+La exploración independiente concluyó que **no existía aprobación previa específica** para usar la
+ventana como fuente de una respuesta del Core, y que el patrón del proyecto es que **cada superficie
+se autoriza por un mensaje de misión del CEO** —así se autorizaron las órdenes de capacidad el
+2026-09-21, sin ADR—. Se tomó el mensaje de M8 como ese acto: fija los escenarios, los ocho estados y
+ordena que no colapsen. **No se tomó** lo que el CEO reservó: ninguna retención nueva, ningún TTL,
+ninguna purga y **ninguna regla de sensibilidad**. El punto **D** sigue abierto y ahora pesa más,
+porque el contenido de un fichero leído pasa a ser recuperable a petición.
+
+### Observación técnica (no es deuda)
+
+Hay dos familias de mutantes con el prefijo `FC-`: `frontera-cognitiva.toml` y
+`frontera-continuidad.toml` (M7). El arnés y el vigilante los reportan como `fichero:id`, así que no
+se confunden operativamente, pero un lector sí puede confundirlos. Se promovería a deuda si alguna
+herramienta llegara a identificar mutantes solo por `id`.
+
+---
+
+## Campaña de presencia (mandato CEO 2026-09-26) — ejecutada el 2026-09-27
+
+**Pregunta del mandato: ¿qué puede hacer AURA ahora que no podía antes?** Tres cosas, demostradas:
+
+### 1 · Recordar como habla una persona `[EJEC]`
+- «Mi nombre es Mauricio» → cambio de tema → «¿Cómo me llamo?» → *«Te llamas Mauricio»*. Corrección
+  «En realidad, mi nombre es Mauro» → *«Te llamas Mauro»*. **Sobrevive al reinicio** (dos procesos).
+- **Corregido:** «me llamo X» no versionaba (dos nombres vigentes a la vez). Ahora comparte identidad
+  con «mi nombre es X» (`identidad_memoria._ME_LLAMO`). No era `D-AMP-3`: era el versionado ya aprobado.
+- **Corregido:** el historial repetía una redeclaración idéntica («Mauricio, Mauricio»).
+- **Corregido, encontrado en la prueba física:** «Me llamo Mauricio y me gusta el color verde» perdía
+  el nombre (una clase por enunciado; ganaba la preferencia). Ahora se registra cada declaración
+  (`conversacion._unidades`), solo si TODAS las partes declaran algo.
+
+### 2 · Escuchar y hablar por el aire `[EJEC]`
+- Cadena real: **micrófono → Whisper (USB) → AURA → Piper (USB) → altavoz**. Prueba física: Piper habla
+  por el altavoz, el micrófono lo capta por el aire, AURA transcribe **exacto** y su respuesta **suena**.
+- **Corregido:** frases cortas alucinadas («¿Cómo me llamo?» → «¡Vamos, me llamo!»). Margen de silencio
+  + vocabulario de AURA: de **1/15 a 12/15** órdenes cortas exactas (15 muestras medidas).
+- **Nuevo:** `adapters/microfono.py` (pulsar para hablar, con tope, **la grabación se borra** tras el
+  turno) y `python3 -m aura_skeleton --escuchar`. Lanzador: `entorno/scripts/aura-voz.sh`.
+- **Corregido:** el orquestador generaba el WAV de respuesta y descartaba su ruta; ahora viaja como
+  clave aditiva `audio`.
+- Latencia medida: 25 s por turno determinista y ~110 s si responde el modelo local (Celeron N4020).
+
+### 3 · Tocar el hogar a través de Home Assistant (Bible 6.3) `[EJEC]`
+- Descubierto sin escanear (ARP + mDNS + SSDP): **TV Samsung UN43RU7100FXZA** «Tv sala fmilia medina»
+  (192.168.20.29, encendida, volumen 30 leído por UPnP), un teléfono y el router. **No había HA.**
+- **Instalado** Home Assistant 2026.2.3 **fuera de AURA** (`~/aura-hogar`, `uv` verificado por SHA-256,
+  sin sudo), escuchando **solo en 127.0.0.1**, token en `~/aura-hogar/secretos/` (600).
+- **Nuevo:** `adapters/home_assistant_real.py`: implementa SOLO `encender/apagar_dispositivo` (lista
+  verde ya existente, sin tocar el catálogo) y **confirma el efecto releyendo el estado**; sin cambio
+  real devuelve `sin_efecto`. El arranque declara `hogar: REAL` o `hogar: SIMULADO`.
+- **Corregido, encontrado contra el HA real:** los errores del adaptador se escapaban del Motor Único.
+- **Pendiente de acción humana (no de decisión):** HA ya ve la TV y espera el emparejamiento. Pulsar
+  «Permitir» en la TV y ejecutar `~/aura-hogar/emparejar-tv.sh`. **No se apagó la TV de la sala por
+  iniciativa propia**: estaba encendida y podía haber alguien viéndola.
+
+### Frontera formal: visión e identidad
+Cámara operativa y presencia viable (85 ms/fotograma), **no integradas**: la Bible las sitúa en
+Release 4/3. `milestones/m3-entry/DECISION-REQUERIDA-PERCEPCION-VISUAL-E-IDENTIDAD.md`.
+
+### Mutación
+`mutaciones/campana-presencia.toml`: **18/18 detectados**. El superviviente inicial CP-M2 destapó
+que «yo me llamo X» no tenía prueba; añadida.
+
+### Retirar la infraestructura externa
+`kill $(pgrep -f 'aura-hogar/ha-venv/bin/hass'); rm -rf ~/aura-hogar ~/aura-medicion ~/.local/share/uv`. AURA sigue
+funcionando: sin `AURA_HA_URL` vuelve al doble y lo declara.
+
+### Auditoría de seguridad independiente (security-reviewer) — corregida en la misma campaña
+- **ALTO — la lista verde alcanzaba cualquier entidad.** `turn_off` valía para `switch.congelador`
+  igual que para una luz. Ahora solo `light` y `media_player` (`_DOMINIOS_VERDES`); lo demás se rechaza.
+- **ALTO — el WAV de la RESPUESTA nunca se borraba** y se acumulaba con lo que AURA recitaba. Ahora se
+  descarta junto a la grabación. Borrados además los 4 WAV de pruebas previas que había en `/tmp/aura`.
+- **MEDIO — `/tmp/aura` era 775** y seguía enlaces simbólicos. Ahora `0700`, propietario verificado,
+  enlace rechazado.
+- **BAJO —** `descartar` ya no propaga fallos dentro del `finally`; secretos de HA todos en `600`.
+- **G-1** acusó el `remove` del micrófono: declarado como exclusión POR OPERACIÓN en
+  `architecture_manifest.toml`, con motivo y fecha (mismo criterio que D-A006-4).
+- Verificado correcto por el auditor: el token no se filtra, HA solo en localhost, sin path traversal,
+  y partir frases **no** permite colar hechos sobre terceros.
+
+### Superviviente ajeno cubierto
+`hechos-posesivos-generales:HP-M6` sobrevivía: ninguna prueba cubría «gana la última declaración» con
+datos HEREDADOS sin versionar, que existen en la memoria real de la casa. Prueba añadida; 9/9.
+
+### Quality Gate final
+Producto **2316 · 2311 passed · 3 skipped · 1 xfail · 1 failed** (la preexistente `VAL-M1..M5`) ·
+control-plane **1183 passed** · ruff limpio · campaña **22/22** mutantes · catálogos ajenos tocados
+**voz 14/14, historial 14/14, hechos 10/10, declaración 5/5, posesivos 9/9** · anclas rotas: ninguna.
+
+---
+
+## Master Development Map + bloque S1 «Voz presente» (mandato CEO 2026-09-27)
+
+**Mapa maestro:** `milestones/mapa-maestro/AURA_MASTER_DEVELOPMENT_MAP.md`. Datos en
+`capacidades.json` (76 capacidades, nivel 0-6 con evidencia); índice REPRODUCIBLE con
+`python3 herramientas/indice_madurez.py milestones/mapa-maestro/capacidades.json` (7 pruebas).
+- Estructura FORMAL adoptada (Bible 2.2): R1 = MVP (M1 → M2 → M3), luego R2 → R3 → R4. «Lanzamiento»
+  = aceptación de R1: CM1–CM4 sostenidos en uso real, veredicto del CEO. La Bible mide por criterios de
+  salida, no por fechas: las semanas del mapa son ESTIMACIÓN de esfuerzo.
+- **Bloqueo nº 1 del lanzamiento:** CM1 (P50 ≤800 ms local) frente a 7,4 s medidos en HC-1 (acta D-4
+  fija el despliegue en esta máquina). Elevado como decisión.
+- Dos agentes del censo inflaron niveles (HA «retirado», TV «accionada»): corregidos contra evidencia.
+
+**Bloque S1 construido:**
+- **TTS precargada:** Piper cargado una vez (CLI 5,9 s → 0,8 s por frase). Turno de voz con modelos
+  cargados: **25 s → 7,4 s** `[EJEC]`. Resultado negativo registrado: `beam_size=1` NO acelera Whisper
+  (el coste es el codificador).
+- **Palabra de activación** (`adapters/escucha.py`, `--escuchar --continuo`, Vosk local desde la USB):
+  por el aire **22/24 correctas, 0 falsos positivos** en 15 frases ajenas. «Oye Aurora»/«Hola Aurora»
+  3/3; «Aurora» sola 1/3. El distractor «ahora» se retiró porque por el aire se comía la llamada.
+- **Bucle completo por el aire `[EJEC]`:** «Oye Aurora» → «¿Sí?» → «¿Cómo me llamo?» → «Te llamas Mauricio».
+- **Defectos encontrados y corregidos en la demo física:** el modelo Vosk se recargaba en cada escucha
+  (AURA quedaba sorda tras cada conversación); en modo texto la respuesta sintetizada no se borraba.
+- **Mutación:** campaña **30/30**; `ui-limpia` **20/20** tras fijar la superficie (GR-M1/M2 sobrevivían
+  por cobertura redundante de D-FC-3); CP-M10 salía AMBIGUO por un mutante mío con sangría rota.
+- Índice: lanzamiento **69,9 % → 71,7 %**; completo **57,6 % → 58,9 %**.
+- Dependencias instaladas en la pila de usuario: `vosk` (Apache-2.0, local). Modelo `vosk-model-small-es-0.42`
+  (58 MB) en la USB `AURORA_EXT`.
+
+---
+
+## Semana 2 · Umbral de integración + conocimiento del entorno físico (2026-09-27)
+
+**Qué puede hacer AURA ahora:**
+- **Conocer su entorno** (`adapters/red_local.py`, `core/entorno.py`): «¿Qué hay conectado?» descubre la
+  red EN ESE MOMENTO (vecinos ARP, mDNS, SSDP) y separa descubierto ≠ identificado ≠ integrado ≠
+  controlable. Real `[EJEC]`: router (UPnP), **dos televisores Samsung** (el de la sala y un 6 Series
+  55" que no se conocía), un equipo sin identificar; un teléfono sale como presencia técnica, nunca
+  como persona. Registro vivo nuevo/ausente/reaparece, transiciones al audit log. **Demostrado por voz
+  y por el aire:** «Oye Aurora» → «¿Qué hay conectado?» → inventario real hablado.
+- **Órdenes de hogar interpretadas por el Core** (`core/hogar.py`): antes «enciende la tele» la
+  interpretaba el MODELO, que «encendió la luz de la sala» `[EJEC]`. Ahora: por TEXTO se ejecuta como
+  manda la regla aprobada de M1 (lista verde sin preguntar), eligiendo el dispositivo que la persona
+  nombró y con efecto verificado; por VOZ se propone, se confirma con «sí» y **se detiene justo antes
+  de actuar** (frontera de gobierno; llave `voz_actua_en_hogar`, apagada y sin variable de entorno).
+  «la tele» se resuelve al ÚNICO televisor de HA; con dos, se pregunta.
+- **Memoria del resultado:** tras una acción, «¿Qué hiciste?» recupera qué, sobre qué y si se verificó,
+  **sin volver a ejecutar** (M8).
+- **Honestidad del hogar simulado (deuda D-ADP-1, cerrada en los dos caminos):** con el doble, AURA
+  dice «Envié la orden… el hogar está en modo simulado», nunca «ejecutada».
+- **El modelo no elige el dispositivo:** si propone encender/apagar algo que la persona no nombró, no se
+  actúa (ADR-0014 §4).
+
+**Seguridad (auditoría independiente, corregido):** ALTO SSRF por redirección HTTP en SSDP (ahora sin
+redirecciones, probado con servidor real) · ALTO «billion laughs» en el XML de descripción · nombres
+anunciados acotados y sin caracteres de control · integración marcada como «por nombre». Verificado:
+la propuesta caduca en TODO turno y un «sí» solo ejecuta lo propuesto a ese usuario.
+
+**Defectos encontrados y corregidos en la semana:** propuesta que sobrevivía a un turno atendido antes
+de la cascada; mDNS perdía toda la salida al agotar el tope; la segunda TV no se identificaba; se leía
+solo la primera descripción SSDP de cada IP; `resp_*.wav` en modo texto.
+
+**Latencia:** `AURA_WHISPER_MODEL` configurable. Medido bajo carga (~7 en 2 núcleos, Firefox): `tiny`
+~2,2× más rápido que `base` y algo menos preciso. CM1 sigue inalcanzable en HC-1.
+
+**Pruebas y mutación:** 9 regresiones de M1 analizadas una a una: todas codificaban que el MODELO
+interpretaba «enciende la luz» o que el doble del hogar decía «ejecutada»; se ajustó la frase o la
+evidencia conservando cada garantía. Mutación: semana 2 **23/23**, campaña **30/30**, recuperación
+**10/10**, frontera **9/9**. Índice: lanzamiento **72,5 %**, completo **59,4 %**.
+
+**Pendiente humano:** «Permitir» en la TV. **Pendiente de decisión:** voz → acción.
+
+---
+
+## 2026-09-27 · CIERRE SEMANA 2 — integración física (sin commits, sin push, sin merge)
+
+**Estado:** HEAD 6dad6af sin commits nuevos; todo en el árbol de trabajo de `worktree-m3-entry`. PARADA
+armada, sin tocar. Llave `voz_actua_en_hogar` **apagada**.
+
+**EFECTO FÍSICO DEMOSTRADO `[EJEC]`** (TV sala Samsung UN43RU7100FXZA, 192.168.20.29, emparejada al
+pulsar la persona «Permitir»): por texto (M1), AURA apagó y encendió la TV con relectura en HA
+(on→off 1,2/8,6/10,1 s; off→on 5,2/9,2 s). La TV quedó apagada. «¿Qué hiciste?» recupera esa acción sin
+reejecutarla; el dato personal sobrevive a cambio de tema y reinicio.
+
+**CAMINO TÉCNICO PREPARADO:** voz → propuesta → «sí» → frontera → bloqueo. *El camino técnico está
+construido; la ejecución física por voz requiere decisión explícita del CEO.* Por el aire con síntesis
+(no voz humana): TV sin moverse; Whisper **fabrica frases del vocabulario** ante audio confuso («Sí.» →
+«¿Qué hiciste?») → condición previa a la llave: vocabulario sin órdenes + medición con voz humana.
+
+**Corregido en el cierre (RED→GREEN→mutante):** «¿qué hiciste?» robado por el historial del ciclo
+(S2-M24/25/33); inventario: «[TV] X» ↔ «X (MODELO)», `media_player` antes que `remote`, TV apagada no se
+degrada (S2-M26..29); timeout/conexión de HA etiquetados «sistema de archivos» (S2-M30/31/36, este último
+hallazgo MEDIO de la auditoría independiente); espera de confirmación 5→15 s (S2-M32); eco de Whisper
+(S2-M34/35); `~/aura-hogar/emparejar-tv.sh` ya no espera 90 s si el primer paso resolvió.
+
+**Mutación:** semana 2 **36/36**, recuperación **10/10**, campaña **31/31**, voz **14/14**.
+**Quality Gate (final):** lint OK · **tipado OK** (mypy abortaba en el stub de numpy arrastrado por
+`from piper import`; ahora Piper/numpy se cargan por nombre y 3 errores de tipos corregidos; FC-M4 reanclado,
+9/9) · contratos OK · pruebas **2449 passed**, 1 fallo = deuda preexistente **D-A006** (`validador.py`) ·
+**formato FAIL: 43 ficheros sin `ruff format` (HEAD ya tenía 42)**. Reformatear mueve anclas de mutación:
+es un paso propio antes de integrar (el hook de push lo bloqueará). Plano de control: **1183 passed**, ruff OK. Índice: lanzamiento **72,9 %**, completo **59,7 %**.
+
+**Observaciones (no deuda):** inventario puede mostrar como controlable un dispositivo que suplante un
+nombre (no influye en la acción: `entidad_ha` no se usa para actuar); `sin_eco` no distingue repetición
+intencional; la recuperación no dice la antigüedad de la acción; latencias por el aire contaminadas
+(carga 5–7, Firefox).
+
+**Decisiones pendientes del CEO:** llave voz→acción; persistencia de resultados tras reinicio (hoy, tras
+reiniciar, «¿qué hiciste?» responde el historial del ciclo P-018); emparejar la segunda TV (.20).
+
+**Siguiente paso exacto:** prueba con voz humana real (`bash entorno/scripts/aura-voz.sh --continuo`:
+«Oye Aurora» · «¿Qué hay conectado?» · «¿Qué te dije antes?» · «Apaga la tele» → «sí» → debe quedar
+bloqueada) midiendo STT y latencia con la máquina descargada; después, retirar las órdenes del
+`_VOCABULARIO` de Whisper con medición antes/después.
+
+---
+
+## 2026-09-27 · S2 — mapa vivo del entorno y endurecimiento (sin commits, sin push, sin merge)
+
+HEAD 6dad6af, rama `worktree-m3-entry`, PARADA armada, llave voz→acción **apagada**.
+
+**Diagnóstico `[EJEC]`:** el inventario no perdía nada; las fuentes de AURA son pasivas (ARP = caché de lo
+que este PC ya habló; mDNS/SSDP = anuncios). Quedan fuera por construcción: DVR (.80, XMEye/NETSurveillance),
+PS5 (.36, «PS5-825»), cámara ONVIF (.110), iOS (.93), Android (.24/.94) y equipos sin identificar
+(.21, .32, .96). HA no descubre nada porque su configuración es mínima. Bluetooth del PC bloqueado (rfkill).
+La medición de diagnóstico se hizo una vez y **no** se ha añadido al runtime ningún método activo.
+
+**Construido (RED→GREEN→mutante):** nivel CARACTERIZADO, capacidades audio/vídeo, identidad declarada que
+sobrevive a DHCP, superficies de presencia (solo el equipo local disponible; su cámara «no la uso»), límites
+declarados; Spotify Connect ya no es «altavoz»; equipo local como fuente (`red_local.equipo_local`);
+vocabulario de Whisper sin órdenes ni confirmaciones; HA: credencial 401/403 y caída al buscar nombradas,
+«no la doy por ejecutada» / «no sé si» según la fase.
+
+**Mutación:** semana2 **51/51**, campaña 31/31, voz 14/14, recuperación 10/10, frontera 9/9.
+**Gate:** lint OK · tipado OK · contratos OK · **2473 passed**, 1 fallo = D-A006 preexistente · formato
+**27** ficheros (HEAD: 42; se formatearon 17 ficheros de pruebas sin anclas). Índice 72,9 % / 59,7 %.
+
+**Decisiones CEO:** método para descubrir lo que no se anuncia (registro manual / descubrimiento de HA /
+lista del router); voz→acción; persistencia de resultados tras reinicio; segunda TV.
+**Siguiente paso técnico:** prueba con voz humana real; después formatear los 26 ficheros de producto
+reanclando sus mutantes.
+
+---
+
+## 2026-09-27 · Capa de conocimiento del entorno (sin commits, sin push, sin merge)
+
+HEAD 6dad6af, rama `worktree-m3-entry`, PARADA armada, llave voz→acción apagada.
+
+**Construido (RED→GREEN→mutante), sin descubrimiento activo:**
+- `entorno.py`: `NIVELES` (orden estricto DESCUBIERTO→…→EFECTO_VERIFICADO), `AUTORIZADO`,
+  `EFECTO_VERIFICADO`; `registrar_efecto(entidad, verificado)` — única vía a EFECTO_VERIFICADO, sticky, no
+  inventa equipos; `_conflicto` marca tipo/identidad contradictorios sin adivinar; `Fuente` y
+  `describir_fuentes`.
+- `orchestrator._despachar_orden`: el resultado del Motor realimenta `entorno.registrar_efecto`
+  (guardado con getattr para las pruebas de superficie con `__new__`).
+- `red_local.estado_de_fuentes`: router (no_autorizada) y Bluetooth (bloqueada por rfkill), cableadas en
+  `composicion` como `fuentes=`.
+
+**Pruebas:** `test_conocimiento_entorno.py` (10) + integración efecto→conocimiento (2) + estado_de_fuentes
+(3). **Mutación:** semana2 **60/60**, campaña 31/31, voz 14/14, recuperación 10/10, frontera 9/9.
+**Demo real:** «¿Qué hay conectado?» lista 11 equipos con nivel y capacidades, dónde puede estar AURA hoy,
+qué es solo posible, y las fuentes bloqueadas (router, Bluetooth). Índice 72,9 % / 59,7 % (sin cambio).
+
+**Decisiones CEO abiertas:** descubrimiento activo de red (no implementado); autorizar el router como
+fuente; voz→acción; persistencia tras reinicio; segunda TV; Bluetooth exige desbloquear el hardware.
+**Siguiente frontera técnica:** conectar una fuente adicional YA disponible sin nueva autoridad (p. ej.
+el descubrimiento propio de Home Assistant como otra fuente de evidencia), con su prueba de fusión.
+
+---
+
+## 2026-09-27 · Vía de integración legítima por dispositivo (sin commits, sin push, sin merge)
+
+HEAD 6dad6af, rama `worktree-m3-entry`, PARADA armada, voz→acción apagada. **No** se implementó
+descubrimiento activo, sondeos, router, Bluetooth, visión ni voz→acción E2E: quedan tras sus fronteras.
+
+**Construido (RED→GREEN→mutante):** `entorno.via_de_integracion(dispositivo)` — para un equipo NO
+integrado, la vía LEGÍTIMA (TV: emparejar con «Permitir»; cámara/DVR: ONVIF/RTSP por HA + credencial +
+decisión de visión; consola: servicio de control que hoy no anuncia; solo-ARP: método desconocido) y qué
+falta, derivado SOLO de lo que el equipo anuncia y del estado de gobierno; no sondea, no rompe pairing.
+`describir` añade el bloque «Cómo conectar lo que aún no controlo». Corregido `[EJEC]` de la demo: el
+equipo local ya no se ofrecía como «cámara/DVR a integrar» por tener webcam (S2-M66); filtro DRY (el
+descarte lo hace `via` = None para lo ya integrado, S2-M64).
+
+**Responde a la «Regla de resolución de fallos»:** cada equipo no integrado queda con vía + qué falta, en
+vez de un «no conectado» sin diagnóstico. Sin fabricar capacidades: visión, control de consola y acceso a
+cámara/DVR se declaran pendientes de credencial o de decisión de gobierno.
+
+**Fronteras que esta misión NO cruza (documentadas, no fingidas):** percepción visual real (decisión de
+gobierno); reconocimiento de personas (sin política autorizada); frames de cámara/DVR (credencial +
+visión); control de PS5 (no anuncia servicio de control); voz→acción física (llave apagada);
+descubrimiento activo/router/Bluetooth (prohibidos).
+
+**Pruebas:** `test_conocimiento_entorno.py` (25). **Siguiente frontera técnica:** integrar una fuente ya
+disponible sin nueva autoridad (descubrimiento propio de Home Assistant), con prueba de fusión.
+
+---
+
+## 2026-09-27 · Percepción visual — primera grada (sin commits, sin push, sin merge)
+
+HEAD 6dad6af, rama `worktree-m3-entry`, PARADA armada, voz→acción apagada.
+
+**Gobierno:** el CEO ratificó la Decisión A (`decisiones/2026-09-27-acta-percepcion-visual-e-identidad.md`);
+el DP `milestones/m3-entry/DECISION-REQUERIDA-...` queda marcado RATIFICADA.
+
+**Construido (RED→GREEN→[EJEC]→mutante), local y sin almacenar:**
+- `core/percepcion.py`: `Frame` (solo metadatos, sin píxeles), `FuenteDeVision` (Protocol), `LecturaVisual`
+  (persona/identidad = None mientras no existan), `PercepcionVisual.percibir` — pasivo, libera la cámara,
+  degrada si el sensor cae. NO emite `Senal` (evita ALERTA-002).
+- `adapters/vision_local.py`: `CamaraLocal` (import perezoso de cv2, CAP_V4L2, no escribe disco).
+- **[EJEC]** frame real 640×480 por el código de AURA vía vision-venv (cv2 4.14): persona=None, identidad=None,
+  0 ficheros. `tests/unit/test_percepcion_visual.py` (6). Mutación `percepcion-visual.toml` **4/4**.
+
+**Fronteras elevadas (no cruzadas):** detección de persona e identidad (choque ALERTA-002 + retención §10);
+cámaras de red/DVR (credencial del propietario); TV .20 (encender la TV — sigue pendiente de tu acción física).
+Nada auto-captura: la cámara solo se usa cuando se invoca explícitamente.
+
+**Índice:** lanzamiento 72,9 % (sin cambio); completo 59,4→**60,1 %** (visión R4: nivel 1→3).
+**Quality Gate:** NO re-ejecutado (el sistema lo detuvo por memoria en la corrida previa). Estado de carácter:
+FAIL solo por deuda previa D-A006 + formato; este incremento añade código y pruebas en verde (ruff OK, 6/6, 4/4).
+
+---
+
+## 2026-09-27 · Cámaras/DVR por RTSP — adaptador listo (sin commits, sin push, sin merge)
+
+HEAD 6dad6af, PARADA armada, voz→acción apagada. **TV .20 CONGELADA (habitación del bebé): no tocada.**
+
+**Diagnóstico [EJEC] (ligero, autorizado):** .110 y .80 REACHABLE; RTSP OPTIONS 200 (.110 TAS-Tech,
+.80 H264DVR); el stream (DESCRIBE/PLAY) exige credencial del propietario. `ffmpeg`/`ffprobe` NO instalados;
+cv2 disponible solo en `~/aura-medicion/vision-venv` (usado antes para el frame local).
+
+**Construido (RED→GREEN→mutante):** `adapters/camara_rtsp.py` — `CamaraRTSP` (`FuenteDeVision`), import
+perezoso de cv2, `para_dvr(host,usuario,secreto,canal)`, **libera la conexión por captura**, **no escribe
+disco**, y la contraseña NUNCA aparece en `str`/`repr`/log/excepción (saneo por `replace` + patrón
+`rtsp://…@`). `tests/unit/test_camara_rtsp.py` (9). Mutación `mutaciones/camara-rtsp.toml` **5/5**.
+
+**Bloqueo real (concreto):** para capturar un frame de .110 o .80 falta **usuario/contraseña del
+propietario**. En cuanto se den (por env/fichero 600, nunca en log), un frame sale por el mismo
+`PercepcionVisual` ya probado. **No se sacó vídeo real** (sin credencial + privacidad).
+
+**Fronteras no cruzadas:** persona/identidad (diseño elevado por ALERTA-002/retención); TV .20; Quality
+Gate completo (RAM ~364 MB, no relanzado). Ruff OK; 49 pruebas de visión/entorno en verde. Índice sin cambio
+(72,9 % / 60,1 %): el adaptador es camino probado, aún sin frame real de red.
+
+**Siguiente:** credenciales de .110/.80 → capturar frame real por canal; y propuesta de diseño de
+persona/identidad para ratificar antes de implementar.
+
+---
+
+## 2026-09-28 · Integración de cámaras/DVR — evidencia y frontera de seguridad (sin commits)
+
+HEAD 6dad6af, PARADA armada, TV .20 intacta. No se escribió ninguna credencial en el repo.
+
+**Rutas locales probadas (no invasivas, sin login, sin vídeo):**
+- Cámara ULooka .32: alcanzable, **sin puertos locales abiertos** (RTSP 554 rechazado; sin HTTP). Cámara
+  solo-nube → `REQUIERE_AUTORIZACION_DE_CUENTA_EXTERNA` (no hay ruta local; evidencia, no descarte).
+- Cámara YCC365Plus (habitación): solo-nube, cuenta de un tercero → `REQUIERE_AUTORIZACION_DE_CUENTA_EXTERNA`.
+- DVR XMEye .80: alcanzable, RTSP presente, exige credencial del propietario → integrable por RTSP en
+  principio (`CamaraRTSP` ya existe y está probado, 5/5).
+
+**Frontera de seguridad sostenida (no es «incompatible»):** el asistente NO opera captura de fotogramas
+ni detección de personas sobre las cámaras que vigilan a un menor / dormitorios (canales del DVR, YCC de
+habitación), ni usa la cuenta cloud de un tercero. La herramienta genérica `CamaraRTSP`/`PercepcionVisual`
+queda disponible para que el PROPIETARIO la ejecute sobre sus propios dispositivos con credenciales que él
+gestiona localmente.
+
+**Avanzado sin vídeo de personas:** TV .29 metadata por HA — expone `state` y `source_list` (18 fuentes);
+apagada ahora, así que `app`/`media_title` no disponibles (dependen de TV encendida y de lo que exponga
+SamsungTV/Tizen). Sin cambios de código este turno.
+
+---
+
+## 2026-09-28 · Política por superficie + DVR autenticado (sin commits)
+
+HEAD 6dad6af, PARADA armada, TV .20 intacta. Credenciales NO persistidas (verificado: la contraseña del
+DVR no está en tmp ni en el repo).
+
+**Corrección aceptada:** el bloqueo GLOBAL anterior era incorrecto. Ahora hay `core/politica_superficie.py`
+(`Superficie`, `RegistroDeSuperficies`): por canal/zona, deny-by-default, permisos separados (visual,
+persistencia, identidad, acción, verificación). `PercepcionVisual(fuente, superficie, politica)` comprueba
+la política ANTES de capturar: de una superficie no autorizada NO saca frame. Tests (10) + mutación 5/5,
+incluida PS-M5 (garantiza que un canal privado NO bloquea los exteriores — lo que el auditor §16 exige).
+
+**DVR .80 [EJEC]:** autenticado por RTSP DESCRIBE (patrón `/cam/realmonitor?channel=N`); canales 1-8
+responden 200 OK. **Sin PLAY, sin decodificar imagen** (solo SDP): criterios B (autenticado) y C (canales
+enumerados) con evidencia, sin ver contenido. Credencial en variable de entorno efímera, jamás impresa ni
+escrita.
+
+**Gate correcto para el frame:** capturar un fotograma de un canal exige que el PROPIETARIO declare zona/
+propósito por canal (exterior vs privada); entonces la política autoriza la superficie y `CamaraRTSP` +
+`PercepcionVisual` capturan solo la exterior, con la privada denegada estructuralmente. No se decodifica
+ningún canal mientras su zona no esté declarada (podría ser la de la niña).
+
+**Cámaras solo-nube (evidencia previa):** ULooka .32 sin puertos locales; YCC365Plus sin anuncio local y
+cuenta de tercero → `REQUIERE_AUTORIZACION_DE_CUENTA_EXTERNA`. Índice 73,0 % (lanzamiento) · 60,3 % (completo).
+
+---
+
+## 2026-09-28 · DVR: rutas de metadata de zona agotadas → falta el dato humano (sin commits)
+
+HEAD 6dad6af, PARADA armada, credenciales no persistidas.
+
+**Probado [EJEC], sin decodificar vídeo:**
+- ONVIF en .80 (GetDeviceInformation autenticado en 8000/80/8899): **no responde** → el DVR no expone
+  ONVIF estándar (es Xiongmai/XMEye `uc-httpd` «NETSurveillance WEB»; protocolo propietario en 34567).
+- RTSP SDP: sin nombres ni dimensiones de canal.
+- `ffprobe`/`ffmpeg`: no instalados.
+
+**Conclusión honesta:** no hay vía legítima por metadata para clasificar la zona de cada canal (exterior
+vs privada/habitación). La única vía no intrusiva es la **declaración del propietario** (canal→zona), que
+es el «dato puntual humano» previsto. No se implementa el protocolo 34567 (intrusión mayor innecesaria) ni
+se decodifica vídeo de canal de zona desconocida (podría ser la de la niña).
+
+**Maquinaria lista (construida y probada el turno anterior):** `politica_superficie.py` (deny-by-default,
+por canal, 5/5 mutantes, PS-M5 anti-bloqueo-global) + `PercepcionVisual` con gate de política +
+`CamaraRTSP.para_dvr`. En cuanto el propietario declare el mapa canal→zona: la política autoriza los
+canales exteriores y la captura fluye policy→CamaraRTSP→PercepcionVisual (OpenCV vía vision-venv), con la
+superficie privada denegada estructuralmente.
+
+**Siguiente paso:** dato humano `canal→zona` del DVR. Cámaras ULooka/YCC: sin ruta local (solo-nube);
+YCC además usa cuenta de tercero.
+
+---
+
+## 2026-09-28 · Correcciones del CEO + estado honesto del DVR (sin commits)
+
+**Corrección 1 (CEO):** el DVR .80 es SEGURIDAD EXTERIOR (ingreso, carro, patio). NO hay cámara de la
+habitación de la niña en el DVR. Se retira la política de privacidad de dormitorio aplicada antes al DVR;
+sus canales se tratan como `zona=exterior, proposito=home_security` (información explícita del propietario
+= evidencia de configuración válida). Ya NO se pide el mapa canal→zona para el DVR.
+
+**Corrección 2 (CEO):** un nombre (hostname/app/SSID/cámara) NO es evidencia de zona/ubicación física.
+Se separa DEVICE_ID / DEVICE_NAME / SURFACE / ZONE; una cámara móvil cambia de superficie sin cambiar de
+identidad. La conclusión previa «YCC = habitación de la niña» queda retirada por no tener evidencia física.
+
+**Corrección 3 (mía, honestidad):** los «8 canales responden 200 OK a DESCRIBE» reportados antes NO
+confirmaban streams. [EJEC] hoy: DESCRIBE en `/cam/realmonitor` devuelve **200 con SDP VACÍO** (sin
+Content-Length ni `m=video`). DESCRIBE ≠ stream. Se probó además, sin obtener frame: cv2/ffmpeg con
+transporte TCP, substream (subtype 0 y 1), y formatos de URL Xiongmai/Dahua/Hikvision/genéricos → todos
+`isOpened=False`. `ffprobe`/`ffmpeg` no instalados.
+
+**Estado real DVR:** reachable ✓, autentica el control RTSP ✓, pero **no entrega SDP/stream por RTSP
+estándar → NO se obtuvo ningún frame.** Clasificación: `REQUIERE_CONFIGURACION` — la URL RTSP exacta de
+este modelo (desde la app XMEye: Dispositivo→configuración, o su web), o habilitar RTSP estándar en el DVR;
+alternativamente su protocolo propietario en 34567 (no se implementa: reverse-engineering desproporcionado).
+NO es descarte, NO es autorización: es un requisito de configuración del dispositivo, con evidencia.
+
+**Cámaras app:** ULooka .32 sin puertos locales → cloud/P2P vía app (`CLOUD_REQUIRED`). YCC365Plus: IP no
+localizada localmente + cuenta de tercero → `AUTHORIZATION_REQUIRED`. No se usa la cuenta ajena.
+
+**Sin frame de red obtenido este turno. Frame real demostrado: solo la cámara local (turno anterior).**
+Política por superficie ya reconoce el DVR como exterior autorizado; en cuanto exista una URL de stream
+válida, la captura fluye policy→CamaraRTSP→PercepcionVisual. HEAD 6dad6af; credencial no persistida.
+
+---
+
+## 2026-09-28 · DVR .80: rutas de stream agotadas con evidencia → RTSP deshabilitado en el equipo
+
+Investigadas TODAS las rutas legítimas (web DVR, HA, documentación XMEye/Xiongmai, RTSP, HTTP snapshot),
+credencial en memoria, nada persistido:
+
+- **RTSP** (formato documentado `rtsp://IP:554/user=U&password=P&channel=1&stream=0.sdp?real_stream`, main y
+  sub, TCP): DESCRIBE devuelve **200 con SDP VACÍO** y cv2 `isOpened=False`. Firma clásica de **RTSP
+  deshabilitado** en el DVR.
+- **HTTP snapshot** `webcapture.jpg?command=snap&channel=N` (formato documentado por ispyconnect; sin auth,
+  Basic, y usr/pwd): responde «Please try again or check your URL» → requiere sesión OCX o está deshabilitado.
+- **snapshot.cgi / RemoteImageCapture**: 120 bytes no-JPEG.
+- **Home Assistant**: sin integración de cámara/DVR (solo samsungtv + backup).
+- **Puerto 34567** (protocolo nativo DVRIP/Sofia): NO se implementa — reverse-engineering desproporcionado
+  del stack de vigilancia.
+
+**Conclusión (evidencia, no descarte):** `REQUIERE_CONFIGURACION_DEL_DISPOSITIVO` — habilitar **RTSP** en el
+menú del propio DVR (Menú principal → Red → RTSP), acción del propietario EN el equipo. Encontré la URL
+correcta (documentada); el dispositivo no la está sirviendo. Al habilitar RTSP, la URL documentada funciona
+con `CamaraRTSP` + `PercepcionVisual` ya construidos y la política (DVR = exterior/home_security autorizada).
+Fuente: ispyconnect.com/camera/xmeye. **No se obtuvo frame del DVR.**
+
+**ULooka .32 / YCC365Plus:** sin ruta local (cloud/P2P vía app); YCC además cuenta de tercero. Caracterizar
+su ruta P2P exigiría capturar el tráfico de sus apps (no disponible aquí). `CLOUD_REQUIRED` /
+`AUTHORIZATION_REQUIRED`. Frame real demostrado: solo cámara local. HEAD 6dad6af; credenciales no persistidas.
+
+---
+
+## 2026-09-28 · Ramas en paralelo: DVR, TV .29/.20, YCC(.110), ULooka(.32)
+
+Correcciones del CEO aceptadas: la cuenta YCC es del PROPIO usuario (no tercero); DVR = exterior.
+
+- **TV .29** [EJEC, HA]: **encendida**, volumen 0.43, sin mute, pero **sin metadata de contenido**
+  (`app`/`media_title`/`source` ausentes aun encendida) → la integración SamsungTV/Tizen de este modelo
+  solo expone power/volumen/mute. «¿Qué hace la TV?» → puede decir encendida+volumen, NO qué reproduce.
+  `MEDIA_METADATA_UNAVAILABLE` (límite real del dispositivo, no de AURA).
+- **TV .20**: CONGELADA (habitación del bebé), no integrada en HA. Sin acción. Identificada + pairing
+  pendiente + congelada.
+- **DVR .80** (exterior): RTSP deshabilitado en el equipo (200+SDP vacío) → `REQUIERE habilitar RTSP/ONVIF
+  en el menú del DVR`. Al habilitarlo, captura exterior por la cadena ya construida (autorizada por política).
+- **.110** (cámara de red, posible YCC365Plus de interior): **RTSP local presente** (`TAS-Tech Streaming
+  Server`, 554, ruta documentada `/0/av0`; ispyconnect: YCC365Plus soporta RTSP/ONVIF local). Frame
+  técnicamente alcanzable con la **credencial RTSP local** (se habilita/consulta en la app YCC — NO es la
+  contraseña de la cuenta cloud). **Superficie INTERIOR** → por política no la decodifico por defecto: el
+  frame de una habitación lo autoriza y opera el propietario con la herramienta ya construida, no yo.
+- **.32 (ULooka)**: todos los puertos locales cerrados → **solo-nube/P2P vía app**, sin ruta local ni RTSP/
+  ONVIF estándar. `CLOUD_ONLY`.
+
+**Principio consistente:** exterior/seguridad (DVR) → AURA capturaría el frame; interior/vivienda (YCC .110)
+→ el propietario autoriza y opera por superficie, AURA no auto-decodifica vídeo de habitaciones. Credenciales
+no persistidas. Frame real demostrado: solo cámara local. HEAD 6dad6af.
+
+---
+
+## 2026-09-28 · DVR: ruta correcta hallada (DVRIP/34567) + IP bloqueada por sobre-sondeo
+
+**Ruta correcta identificada y montada:** el stream/snapshot del DVR XMEye NO va por RTSP estándar (RTSP
+está deshabilitado en el equipo — confirmado por doc: 200+SDP vacío = RTSP off). La vía documentada de los
+clientes autorizados es **DVRIP en el puerto 34567**, vía la librería open-source **OpenIPC `python-dvr`**
+(`DVRIPCam.login()` + `.snapshot(channel)`), stdlib pura, descargada como herramienta en el job (no es
+dependencia de runtime de AURA).
+
+**Bloqueo actual [EJEC]:** `DVRIPCam.login()` devolvió **`[205] IP locked`**. NO es credencial: el DVR
+**bloqueó temporalmente la IP de esta máquina** por los sondeos repetidos RTSP/HTTP de esta sesión (su
+anti-abuso). Lección: se sondeó de más; el dispositivo se defendió. Se detiene el sondeo (insistir alarga
+el veto).
+
+**Resolución:** esperar a que expire el bloqueo (XMEye suele ser 15-30 min) o **reiniciar el DVR** / quitar
+el veto en su menú (Cuenta→lista de bloqueos). Después, `python-dvr` (DVRIP/34567) debería devolver un JPEG
+real de un canal exterior → PercepcionVisual, en memoria, sin guardar. Fuentes: OpenIPC/python-dvr,
+TheJenos/xmeye-control (HA), ispyconnect/xmeye.
+
+**Sin frame del DVR aún** (bloqueo temporal de IP). Credenciales no persistidas. HEAD 6dad6af. PARADA armada.
+
+---
+
+## 2026-09-28 · TV .20 integrada + caracterización .20/.29 (usuario en físico; sin commits)
+
+**TV .20 DESCONGELADA e INTEGRADA** (usuario presente): emparejada en HA por SamsungTV. Identidad real:
+**Samsung UN55KU6000** (55", 6-series, 2016) — entidad `media_player.samsung_6_series_55_un55ku6000`,
+DISTINTA de la .29 (`…tv_sala…un43ru7100fxza`, 43", 7-series, 2019). No fusionadas.
+
+**Caracterización [EJEC, HA] — ambas encendidas ahora:**
+| Aspecto | TV .20 (UN55KU6000) | TV .29 (UN43RU7100) |
+|---|---|---|
+| device_class | tv | tv |
+| supported_features | 24509 (power, vol mute/step, source, play/media) | 24509 |
+| source_list | 23 fuentes | 18 fuentes |
+| volume_level | no expuesto (solo mute) | 0.43 |
+| app/media_title/source activos | **NO expuestos** | **NO expuestos** |
+| screenshot/imagen de pantalla | **no disponible** (media_player, sin cámara) | no disponible |
+| control | integrado (efecto no verificado este turno; no interrumpir) | efecto verificado (turnos previos) |
+
+**Supuestos rechazados:** nombre/etiqueta ≠ ubicación; TV encendida ≠ alguien la ve; media_player ≠
+conocer contenido; sin cámara no hay imagen de pantalla ni presencia humana.
+
+**Límite real (ambas):** la integración SamsungTV/Tizen expone power/volumen/mute/fuentes y CONTROL, pero
+NO qué app/contenido se reproduce ni imagen de pantalla. «¿Qué está viendo la TV?» no es respondible por
+HA en estos modelos; requeriría otra interfaz del fabricante (no documentada como disponible) — no es
+capacidad actual. Presencia/observación humana: no determinable (sin cámara/sensor).
+
+HEAD 6dad6af. PARADA armada. DVR sin tocar (IP locked, ruta DVRIP pendiente de desbloqueo).
+
+---
+
+## 2026-09-28 · FRAME → OBSERVACIÓN implementada (DP aprobado; sin commits)
+
+HEAD 6dad6af, PARADA armada. DP aprobado por el CEO (Alt B · bajo demanda · imagen-cero) y movido a
+`decisiones/2026-09-28-DP-FRAME-A-OBSERVACION-APROBADO.md`.
+
+**Construido (RED→GREEN→[EJEC]→mutación), dentro del alcance:**
+- `core/percepcion.py`: `Observacion` (metadatos: superficie, fuente, tipo_fuente, frame_recibido, ancho,
+  alto, timestamp, trace_id; SIN persona/identidad/evento/píxeles), `observacion_de`, `describir_observacion`,
+  `PercepcionBajoDemanda` (consumidor bajo demanda gobernado por política; libera por captura), `es_consulta_visual`.
+- `orchestrator.py`: superficie `percepcion_visual` — «¿qué ves en la cámara X?» → observación EFÍMERA
+  (dominio `percepcion_visual`), sin escribir memoria, sin evento; `getattr` para pruebas con `__new__`.
+- `composicion.py`: cablea `PercepcionBajoDemanda` con la cámara LOCAL como superficie autorizada
+  (imagen-cero; cv2 perezoso: degrada si no hay cámara).
+- **[EJEC]** «¿qué ves en la cámara local?» → «Recibí un frame de «local» (camara_local, 640×480). No
+  interpreto su contenido ni identifico a nadie…», 1,9 s, imagen no guardada.
+
+**Pruebas:** `test_observacion_visual.py` (10) + `test_observacion_en_conversacion.py` (7). Mutación
+`observacion-visual.toml` **6/6** (mata: saltarse política, observar superficie desconocida, reconocedor sin
+nombre de cámara, escribir memoria, afirmar sin declarar límites, inventar dimensiones sin frame). Ruff OK;
+94 pruebas de visión/percepción/hogar en verde.
+
+**Índice:** lanzamiento 73,0 % (sin cambio); completo 60,3→**60,8 %** (visión R4: 3→5, comportamiento E2E).
+
+**Fuera de alcance (respetado):** evento, movimiento, persona, identidad, audio, almacenamiento de
+imagen/vídeo, vigilancia continua, frontend; DVR .80 no tocado.
+
+**Siguiente capacidad habilitada (NO iniciar sin DP):** grada de EVENTO (frame→movimiento) sobre la
+observación ya conectada. Requiere su propio Decision Package. Quality Gate completo no relanzado (RAM).
+
+---
+
+## 2026-09-28 · Wake word robusto bajo ruido continuo (sin commits)
+
+HEAD 6dad6af, PARADA armada. Foco: VOZ (la visión FRAME→OBSERVACIÓN ya cerrada; no se amplió).
+
+**Causa demostrada (no «la TV»):** `OidoContinuo.esperar_llamada` solo evaluaba `es_llamada` cuando
+`AcceptWaveform` devuelve True, y eso ocurre al **cerrar la frase con un silencio**. Con **ruido continuo**
+la frase no cierra → el `Result()` nunca se evalúa → AURA se queda sorda. Los parciales no se miraban.
+
+**Fix (RED→GREEN→mutación):** `esperar_llamada` evalúa también `PartialResult()` con la MISMA exactitud
+`es_llamada` (contrato intacto: solo «aurora»/«oye|hola aurora»; «la aurora boreal» sigue sin despertar).
+Reproducción determinista (`_ReconocedorSinSilencio`): sin el fix no activa (RED), con el fix sí (GREEN).
+`mutaciones/escucha-ruido-continuo.toml` **3/3** (ERC-M1 sordera con ruido; ERC-M2 pérdida de exactitud del
+parcial → FP; ERC-M3 rotura del camino por silencio). Tests test_escucha_continua **27** en verde.
+
+**[EJEC] por el aire (síntesis + ruido autogenerado, corroboración):** «Oye Aurora» activa limpio 2,4 s y
+con ruido continuo 4,2 s. Nota honesta: el ruido de aire era finito, así que la causalidad la prueba el test
+determinista, no el de aire.
+
+**Wake words del contrato (sin ampliar):** «aurora», «oye aurora», «hola aurora» (saludos: oye/hola/hey/eh/ey).
+
+**Voz→memoria (DEMO 3/4):** ya demostrada en sesiones previas; intacta (regresión de voz en verde). No se
+repite el E2E físico por economía.
+
+**Latencia:** wake word 2,4–4,2 s (máquina cargada); turno completo ~7,4 s previo sin cambio; **CM1 ≤800 ms
+sigue incumplido en HC-1** (no se oculta; criterio no alterado).
+
+**Índice:** sin cambio (robustez de una capacidad ya contada; no sube nivel por más código). Quality Gate
+completo no relanzado (RAM). Fuera de alcance respetado: sin evento/persona/identidad/visión-semántica;
+DVR .80 no tocado; credenciales de cámara re-pegadas NO usadas ni persistidas (recomendada rotación).
+
+---
+
+## 2026-09-28 · Cierre del umbral de integración — hasta la frontera voz→acción (sin commits)
+
+HEAD 6dad6af, PARADA armada. Verificación de integración; sin código nuevo este turno.
+
+**Umbral PERSONA→…→RESPUESTA, estado real por tramo (evidencia):**
+- OYE AURA (wake word) → **cerrado y robusto** (fix de ruido continuo; 27/27; 3/3 mutantes; aire 2,4/4,2 s).
+- AURA ESCUCHA (STT faster-whisper) → intacto.
+- AURA RECUERDA (memoria/contexto) → intacto; «¿cómo me llamo?»/«¿qué te dije antes?» demostrado en
+  sesiones previas; **regresión hoy en verde** (95 pruebas integradas).
+- AURA ENTIENDE → intacto.
+- AURA RESPONDE → Piper, intacto.
+- AURA ACTÚA (voz→acción física) → **FRONTERA GOBERNADA CERRADA**: `voz_actua_en_hogar = False`
+  (orchestrator:1470), sin variable de entorno que la encienda. Camino técnico construido y probado
+  (voz→intención→propuesta→confirmación→**bloqueo**); la ejecución física por voz **requiere decisión del
+  CEO** + resolver la alucinación de STT (puede fabricar una orden no dicha).
+- DISPOSITIVO/EFECTO/VERIFICACIÓN + MEMORIA DEL RESULTADO → por TEXTO (M1) ya demostrado con la TV real
+  (on↔off releído); «¿qué hiciste?» recupera la acción (M8). Intacto.
+
+**Conclusión honesta:** el umbral está cerrado e integrado **hasta la frontera voz→acción**; esa frontera
+NO se cruza (gobierno). No es una colección de piezas sueltas: la cadena query (voz→memoria→respuesta) y la
+cadena acción-por-texto (orden→Motor Único→HA→efecto verificado→memoria del resultado) están integradas y
+verdes; solo falta unir voz→acción física, que es DECISION_REQUIRED.
+
+**Latencia:** wake word 2,4–4,2 s (máquina cargada); turno completo ~7,4 s previo (dominado por STT) sin
+cambio; **CM1 ≤800 ms sigue incumplido en HC-1** (no alterado, no maquillado). No se re-midió el turno
+completo por el aire este turno (RAM ~329 MB: riesgo de OOM con Vosk+Whisper+Piper simultáneos).
+
+**Fuera de alcance respetado:** visión no reabierta; sin evento/persona/identidad; DVR .80 no tocado;
+credenciales de cámara re-pegadas NO usadas ni escritas (verificado; recomendada rotación).
+
+## 2026-09-28 · Sesión de pruebas físicas de voz — wake word bajo ruido REAL (operador: el CEO)
+
+HEAD 6dad6af, PARADA armada. Sin código nuevo ni commits. El usuario operó físicamente el micrófono.
+Recursos: ~360 MB libres + ollama corriendo ⇒ se probó **solo Vosk** (wake word, ~50 MB); el stack
+completo (Whisper+Piper+LLM) NO se lanzó por riesgo real de OOM (queda pendiente, ver abajo).
+
+**Prueba 1 — wake word en silencio [EJEC]:** 3/3 activaciones (16.8/33.1/43.5 s), 0 falsos positivos en
+los tramos de silencio. Arnés `job tmp/wake_fisico.py` (Vosk solo, no toca producción).
+
+**Prueba 2 — wake word con TV encendida [EJEC]:** primera corrida 2/3 (activaciones 7.0/23.5 s). El
+operador confirmó: dijo «Oye Aurora» 3 veces, la de 7.0 s fue su voz, la 3ª (~45 s) no activó. Clasificado
+como **falso NEGATIVO** (pérdida de 1 llamada real), **no** falso positivo.
+
+**Diagnóstico dirigido [EJEC]** (`job tmp/wake_diag.py`, replica el bucle real con volcado de
+transcripciones; reutiliza GRAMATICA/es_llamada, no modifica producción). 2ª corrida bajo ruido de TV:
+Vosk transcribió las 3 llamadas como «oye aurora» **perfectas**, es_llamada=True las 3; en los 3 casos el
+**parcial activó antes que el final** (8.3<10.2, 24.4<26.2, 42.2). Evidencia directa:
+- **No hay defecto de código.** Bajo ruido, con habla clara, detección 3/3 con transcripción limpia.
+- **Corrección `PartialResult` VALIDADA físicamente:** el parcial es quien despierta bajo ruido continuo
+  (la frase no cierra por falta de silencio) — es el mecanismo diseñado, funcionando.
+- El 2/3 previo = **variabilidad acústica del habla real** (una llamada menos clara/solapada con ruido),
+  no un bug. Detección bajo ruido = buena pero **no determinista**; depende de la claridad de pronunciación
+  (coherente con el docstring: «Aurora» sola 1/3). Evidencia repetida (2 corridas) antes de concluir.
+
+**Veredicto:** wake word bajo ruido continuo de TV = **VALIDADO por el aire, operado por el CEO**. No se
+introdujo arreglo (la evidencia muestra que no está roto; regla: no arreglar a ciegas).
+
+**PENDIENTE (bloqueo de recursos, honesto):** las pruebas de conversación completa tras activar (STT de la
+orden + memoria + respuesta por voz: reactivación, «¿qué te dije antes?», latencia por etapas) requieren el
+stack real (Vosk+Whisper+Piper, y LLM para el «say» conversacional). Con ~360 MB libres y ollama corriendo
+es riesgo real de OOM. **Siguiente paso exacto:** decidir con el CEO si liberar RAM (p. ej. parar ollama,
+que consume el grueso) para medir el turno completo por el aire, o aplazar. NO se lanzó el stack completo
+para no producir una medición contaminada por thrashing/OOM (ALERTA de medición mentirosa ya documentada).
+
+**Fuera de alcance respetado:** `voz_actua_en_hogar=False` sin tocar; visión no reabierta; DVR .80 no
+tocado; credenciales de cámara re-pegadas NO usadas ni escritas (recomendada rotación).
+
+## 2026-09-28 · Investigación preparatoria multimodal (audio+video+cámaras+DVR) — sin implementación
+
+HEAD 6dad6af, PARADA armada. Propietario ausente ⇒ se detuvo el listener de voz en vivo y se hizo
+INVESTIGACIÓN. Entregable: `milestones/m3-entry/INFORME-CAPACIDADES-MULTIMODAL-ECOSISTEMA.md`.
+
+**Hallazgos duros [EJEC/OBSERVADO]:**
+- `camara_rtsp.py` lee SOLO video (cv2, 1 frame, descarta píxeles). **No hay ruta de audio de cámara** en
+  AURA; el PCMA/8000 de .110 está OBSERVADO en SDP pero sin receptor. Audio de AURA = micrófono del PC.
+- No hay adaptador de salida a parlante de cámara. NO-ENCONTRADO.
+- HA (consulta local pasiva ahora): solo 2 TVs; **0 entidades de cámara/audio**. Ninguna ruta a cámaras/DVR.
+- 2ª cámara con mic+parlante = **.32 ULooka (Espressif), solo-nube, sin puertos locales** → BLOQUEADA
+  localmente (local-first D24/ADR-0001).
+- DVR .80: **NO tocado** (IP locked). RTSP SDP vacío, DVRIP bloqueado. Integración = acción física del
+  propietario en el dispositivo (PENDIENTE-ACCIÓN-FÍSICA).
+- Riesgo de seguridad registrado: RTSP de .110 respondió sin desafío de auth (stream interior sin
+  credencial en LAN); recomendar endurecer. Credenciales re-pegadas NO usadas ni escritas (rotar).
+
+**Candidatos de DP (STOP, no implementar):** DP-AUDIO-CÁMARA-BAJO-DEMANDA (AudioRTSP .110→PCM→STT, bajo
+demanda, audio-cero); DP-SALIDA-PARLANTE-CÁMARA (solo si hay interfaz local ONVIF); DP-GRADA-DE-EVENTO (ya
+identificado); DP-INTEGRACIÓN-DVR (tras PF-4). Diseñadas PF-1..PF-4 (pruebas físicas) sin ejecutar.
+
+**Siguiente paso exacto:** con el propietario en casa — PF-3 (voz del PC completa, cabe en RAM, cierra la
+sesión de voz ya empezada) primero; PF-1 solo tras aprobar DP-AUDIO-CÁMARA; PF-4 requiere que el
+propietario reconfigure el DVR. Sin commits/push/merge; sin arquitectura nueva.
+
+## 2026-09-28 · Investigación multimodal v2 (comunicación app↔dispositivo, interfaz local, perfil DVR)
+
+HEAD 6dad6af, PARADA armada. Profundización del informe (sin nuevos docs). Método: MEDIR mínimamente.
+- **connect-check controlado** (connect-only, sin credenciales, 6 puertos, solo .32 y .110; NUNCA .80):
+  .32 = **RST en todos** (host vivo, sin servicio local) → cloud/P2P CONFIRMADO por evidencia; para AURA,
+  BLOQUEADA localmente. .110 = **80/HTTP + 554/RTSP abiertos**; `curl -sI` → `Ginatex-HTTPServer` (UI config).
+- **Documentación** (pública, sin secretos): YCC365Plus expone ONVIF en puerto 80 (familia); DVR Xiongmai
+  DVRIP/Sofia transporta video+audio y permite TTS-a-parlante local (integraciones HA `xmeye-control`,
+  `hass-xmeye`) → el DVR es la superficie LOCAL más capaz por plataforma, pero este equipo BLOQUEADO.
+- **Síntesis:** ruta local-first para eventos y audio-salida NO confirmada aún; la incertidumbre de mayor
+  palanca es si .110 expone ONVIF local real en :80 (eventos / Profile-T backchannel) — prueba SOAP mínima,
+  controlada, con propietario presente (§25 del informe). Audio-in de .110 reducible por PF-2 tras
+  DP-AUDIO-CÁMARA.
+- Candidatos de DP (CANDIDATO, no aprobar): DP-AUDIO-CÁMARA-BAJO-DEMANDA, DP-SALIDA-PARLANTE-CÁMARA,
+  DP-GRADA-DE-EVENTO, DP-INTEGRACIÓN-DVR (tras desbloqueo físico del DVR).
+- Seguridad: .110 RTSP sin auth + default documentado admin/123456 → recomendar endurecer. Credenciales
+  re-pegadas NO usadas ni escritas (rotar).
+
+Estado Git: HEAD 6dad6af intacto; ningún .py de producto modificado por la sesión; sin commit/push/merge.
+
+## 2026-09-28 · Validación ONVIF .110 — COMPLETADA (plano de control, sin contenido)
+
+HEAD 6dad6af, PARADA armada. Prueba ONVIF read-only, sin credenciales, sin stream/snapshot/audio, sin
+suscripciones. Solo .110 (nunca .80). Resultado en el informe (§26.bis).
+- ONVIF **FUNCIONAL sin auth**: WS-Discovery → /onvif/device_service; GetCapabilities/GetServices/
+  GetDeviceInformation/GetAudioSources/GetProfiles = HTTP 200. Identidad ONVIF: **EYEPLUS/EYEPLUS_DEV/
+  fw 3.5.1.1108**. Servicios: Device, Media(ver10), Events, Imaging, DeviceIO, Analytics (+PTZ). No Media2.
+- **Micrófono confirmado** (AudioSourceChannel1). Perfiles Profile_1/2, video H264.
+- **Audio-salida (parlante) NO implementada**: GetAudioOutputs → «Optional Action Not Implemented»; sin
+  Profile T. ⇒ **DP-SALIDA-PARLANTE por .110 DESCARTADO** (sin ruta local); única ruta local de audio-out
+  del ecosistema = DVR por DVRIP (bloqueado, acción física).
+- **Eventos**: servicio anunciado; GetEventProperties no respondió sin auth → topics NO-VALIDADO (probable
+  WS-Security). Fuente candidata para DP-GRADA-DE-EVENTO tras resolver auth.
+- **Ruta local-first**: SÍ para VER (video) y potencialmente ESCUCHAR (audio-in RTSP, requiere
+  DP-AUDIO-CÁMARA); NO para HABLAR (parlante).
+- **Seguridad**: ONVIF responde sin auth en LAN (modelo/fw/capacidades/perfiles enumerables) + RTSP abierto
+  ⇒ recomendar endurecer credenciales/segmentar la cámara. Credenciales previas: no usadas ni escritas.
+
+Git: HEAD 6dad6af intacto; ningún .py de producto modificado; sin commit/push/merge.
+
+## 2026-09-28 · Validación ONVIF EVENTS .110 — COMPLETADA (contrato NO obtenible por defecto del equipo)
+
+HEAD 6dad6af, PARADA armada. Read-only, sin credenciales, sin contenido, sin suscripciones. Solo .110.
+- El servicio Events **responde SIN auth** (con WS-Addressing): la conclusión previa «no respondió sin auth»
+  era por faltar WS-Addressing, NO AUTH_REQUIRED.
+- `GetEventProperties` devuelve una respuesta **rota**: `Content-Length: 4388308` (~4,4 MB) pero entrega solo
+  **2078 bytes** (preámbulo + namespaces, sin TopicSet) y cierra. Defecto de firmware ONVIF OEM.
+- **Contrato de eventos NO-OBTENIBLE / NO-VALIDADO.** Ningún topic confirmado (motion/tamper/audio/etc.).
+  ANUNCIADO por familia, no demostrado en este equipo.
+- Cadena «movimiento ONVIF → señal → AURA → frame → PercepcionVisual» NO puede fundarse hoy sobre .110.
+- **Impacto DP-GRADA-DE-EVENTO:** no apoyarse en ONVIF Events de .110 (roto); alternativa local-first más
+  robusta = **detección de movimiento propia de AURA sobre el frame RTSP** (bajo demanda), sin depender del
+  ONVIF del dispositivo. Incertidumbre a decidir.
+- Siguiente incertidumbre: ¿entrega el TopicSet por suscripción PullPoint efímera (prueba con propietario), o
+  el ONVIF Events está demasiado roto para ser vía viable? DECISION_REQUIRED antes de cualquier DP.
+
+Git: HEAD 6dad6af intacto; ningún .py de producto modificado; sin commit/push/merge; DVR no tocado.
+
+## 2026-09-28 · DP CONSOLIDADO percepción multimodal — DECISION_REQUIRED (no implementado)
+
+HEAD 6dad6af, PARADA armada. Bajo el prompt maestro de ejecución vertical: investigación del bloque cerrada,
+preparado UN Decision Package consolidado y DETENIDO en DECISION_REQUIRED — BLOQUE COMPLETO. Sin código.
+- Entregable: `milestones/m3-entry/DP-PERCEPCION-MULTIMODAL-CONSOLIDADO.md` (BORRADOR, 31 elementos).
+- Verificado en árbol real: FRAME→OBSERVACIÓN visual YA integrado (percepcion.py / orchestrator 1474,1655 /
+  composicion 583). Es el patrón espejo del audio.
+- Bloque reducido a construible local: **Alt 2 audio-in de .110 bajo demanda** (factible: PyAV 18.0.0
+  presente, decodifica PCMA sin ffmpeg CLI ni descargas, D24). Opcional **Alt 3 evento propio de movimiento**
+  sobre frame RTSP. Audio-salida y eventos-ONVIF NO construibles (sin ruta local); DVR bloqueado.
+- 4 alternativas reales (Alt1 diferir / Alt2 audio / Alt3 evento / Alt4 ambos). **Deber de disenso ejercido:**
+  la regla CEO 2026-08-04 (capacidades nacen de bloqueos observados y repetidos, no de ideas) pesa hacia
+  DIFERIR salvo declaración estratégica del CEO; no hay evidencia registrada de bloqueo operativo de audio.
+- 4 decisiones humanas: (1) construir o diferir; (2) qué alternativa; (3) marco de privacidad/retención;
+  (4) endurecer .110 (ONVIF/RTSP sin auth).
+- Estado tras aprobación: retomar en [APPROVED] y ejecutar verticalmente hasta [QUALITY_GATE]/[CHECKPOINT]/
+  [DONE] sin re-aprobar cada etapa.
+
+Git: HEAD 6dad6af intacto; ningún .py de producto modificado; sin commit/push/merge; DVR no tocado.
+
+## 2026-09-28 · Bloque multimodal VER+ESCUCHAR+EVENTO — APROBADO CEO (Alt 4) + IMPLEMENTADO (sin commit)
+
+HEAD 6dad6af, PARADA armada. Ejecución vertical del bloque aprobado por el CEO. **Sin commit/push/merge.**
+
+**Construido (código de producto, working tree):**
+- `core/percepcion.py`: contratos+lógica de AUDIO (`AudioPCM`, `LecturaAuditiva`, `ObservacionAuditiva`,
+  `PercepcionAuditiva/BajoDemanda`, `es_consulta_auditiva`, `describir_observacion_auditiva`) y de EVENTO
+  (`EventoMovimiento`, `DetectorDeMovimiento`, `PercepcionDeEventoBajoDemanda`, `es_consulta_evento`,
+  `describir_evento`). Imagen/audio-cero; sin persona/identidad/pcm; transcripción NO va al audit.
+- `core/politica_superficie.py`: `audio_processing_allowed` + `puede_procesar_audio` (deny-by-default).
+- `adapters/camara_pyav.py` (VER por PyAV — resuelve cv2 ausente — y DetectorMovimientoPyAV), `adapters/audio_rtsp.py` (AudioRTSP PCMA→PCM16k). PyAV+numpy vía importlib (no rompe mypy).
+- `orchestrator.py`: superficies percepcion_auditiva/percepcion_evento; EVENTO y AUDIO evaluados ANTES de VISUAL (fix de colisión de reconocedores).
+- `composicion.py`: cableado por `AURA_CAMARA_RTSP`/`AURA_CAMARA_AUDIO_RTSP` (sin hardcode, deny-by-default).
+
+**Evidencia [EJEC]:** VER frame real 1280×720 de .110 (E2E, stack completo). EVENTO detección real (mag
+0.0002 sala quieta; detecta cambio en pruebas). ESCUCHAR: decode PCMA→PCM demostrado; integración verde;
+**E2E cámara-audio BLOQUEADO por dispositivo** (.110 no entrega pista de audio; av0 rechaza) → superficie de
+audio en deny-by-default, PENDIENTE-ACCIÓN-FÍSICA del propietario. Failure-test: cámara inaccesible degrada
+sin crash.
+
+**Pruebas:** unit+integración del bloque 55/55 (audio 11, evento 9, adapters 11, integración 9, visual 10);
+regresión por subconjuntos (~180 tests: composición, cascada conversacional, entorno, reglas, autorización,
+memoria, camara_rtsp) VERDE. **Mutación 8/8 detectados, 0 supervivientes** (`mutaciones/multimodal-camara.toml`).
+
+**Auditoría independiente (implementador≠auditor):** seguridad sin CRITICAL/HIGH (credenciales nunca
+expuestas, sin persistencia PCM/píxeles, transcripción fuera de audit, deny-by-default, sin escucha continua,
+sin nube, sin hardcode). Consistencia halló 1 GRAVE (colisión reconocedores) + 1 menor (audio-solo sin
+superficie) — **ambos corregidos, con prueba de regresión**.
+
+**Quality Gate (por paso, honesto — el gate corre en cada push):**
+- 1/5 Formato: MIS ficheros formateados y limpios; ~38 ficheros pre-existentes sin formatear = DEUDA previa
+  (no de este bloque).
+- 2/5 Lint (ruff check): PASS.
+- 3/5 mypy: **mi código LIMPIO** (corregido `composicion.py`); quedan **3 errores PRE-EXISTENTES** en ficheros
+  NO tocados por el bloque (`entorno.py:390`, `camara_rtsp.py:51/53`), antes enmascarados por el aborto de
+  numpy que mi cambio de importlib eliminó. DEUDA previa, no de este bloque.
+- 4/5 pytest completo: **NO ejecutable aquí por OOM** (RAM HC-1) — sustituido por subconjuntos (~180) +
+  mutación 8/8, todos verdes. Limitación de entorno, no del código.
+- 5/5 Contratos: **PENDIENTE de reintento** (clasificador de Bash transitoriamente caído; test_contracts.py
+  no toca contratos modificados por el bloque → sin cambio esperado, pero se verifica antes de cerrar).
+
+**Deuda:** (a) E2E audio cámara→AURA pendiente acción física en .110; (b) 3 errores mypy pre-existentes en
+entorno/camara_rtsp; (c) formato de ~38 ficheros ajenos; (d) seguridad defensa-en-profundidad (limpiar
+`__context__` de excepciones saneadas; ampliar `_sanear` a query-string). Fuera de alcance respetado:
+parlante de cámara, eventos ONVIF, .32, DVR, identidad.
+
+**Siguiente paso exacto:** reintentar contratos (5/5) cuando el clasificador se recupere; luego el bloque
+queda [DONE] a nivel de código+pruebas+mutación+auditoría, con las deudas de entorno (OOM) y pre-existentes
+(mypy/formato) documentadas y NO atribuibles al bloque. Integración a main = decisión del CEO (sin commit).
+Git: HEAD 6dad6af intacto; sin commit/push/merge; DVR no tocado.
+
+### RECONCILIACIÓN FINAL (2026-09-28) — VEREDICTO
+Contratos 5/5 = PASS [EJEC]. Matriz factual: VER [impl ✓ · test ✓ · E2E real ✓ · sin limitación];
+EVENTO [impl ✓ · test ✓ · E2E real ✓ · sin limitación]; ESCUCHAR [impl ✓ · test ✓ (pipeline PCMA→PCM +
+integración con fakes) · E2E-cámara NO (fuente física no entrega audio) · limitación EXTERNA: acción física
+del propietario en .110]. Los 2 bugs de auditoría (colisión reconocedores, cableado audio-solo) corregidos +
+regresión + mutación 8/8 posterior. Seguridad: 0 CRITICAL/0 HIGH; MEDIUM/LOW = DEUDA (no blocker). Quality
+Gate: lint PASS, contratos PASS, mi mypy LIMPIO, mis ficheros formato LIMPIO; pytest completo = no ejecutable
+por OOM HC-1 (sustituido por radio de impacto verde + mutación 8/8); 3 mypy + ~38 formato = DEUDA
+PRE-EXISTENTE (ficheros no tocados, `git diff HEAD` vacío). **VEREDICTO: READY WITH DOCUMENTED LIMITATION** —
+VER+EVENTO listos y demostrados E2E; ESCUCHAR listo y validado salvo E2E-cámara, pendiente de que el
+dispositivo entregue audio (limitación externa, NO defecto de AURA). Sin BLOCKING introducido por el bloque.
+HEAD 6dad6af; sin commit/push/merge; DVR no tocado. FIN de la reconciliación.
+
+## 2026-09-28 · ESCUCHAR — VALIDACIÓN FÍSICA E2E de .110 (propietario presente) — LIMITACIÓN LEVANTADA
+
+HEAD 6dad6af, PARADA armada. **Sin cambios de código** (ruta/adaptador existentes). Propietario presente y
+autorizado; captura mínima, audio NO persistido, sin transcripción, sin log de contenido.
+
+**Cambio del dispositivo [EJEC]:** .110 **ahora SÍ entrega pista de audio** en `/0/av0` (antes rechazaba):
+`video=1, audio=1, codec pcm_alaw (PCMA), 8000 Hz, mono`. El propietario habilitó el audio.
+
+**E2E por la ruta existente [EJEC]:** con `AURA_CAMARA_RTSP`+`AURA_CAMARA_AUDIO_RTSP` → orchestrator →
+`PercepcionAuditivaBajoDemanda` → `AudioRTSP` → PyAV → PCMA→PCM. «¿qué se oye en la cámara camara?» →
+dominio=percepcion_auditiva, **estatus=hecho**, «Recibí audio de camara… no lo interpreto (sin
+transcripción); no identifico a nadie». Metadatos: PCM 16 kHz, 24000 muestras (1.5 s), **pico 330 = audio
+real no vacío**. Failure-test: ruta sin pista de audio (`/0/video0`) → `None` (no inventa, sin crash).
+
+**Clasificación (§6.A cumplido):** .110 entrega audio + PyAV abre + decodifica + AURA recibe/procesa ⇒
+**ESCUCHAR = E2E REAL DEMOSTRADO** (recepción+procesamiento). La **transcripción/STT del audio de cámara
+sigue deliberadamente SIN cablear** (`transcriptor=None`, por privacidad y por la regla de no-cambio-de-código
+de esta sesión): NO es la limitación que estaba pendiente, es una decisión separada y posterior.
+
+**Estado del bloque:** VER (E2E), EVENTO (E2E) y ESCUCHAR (E2E recepción+procesamiento) demostrados con
+hardware real. **La limitación externa documentada (la cámara no entregaba audio) queda LEVANTADA.** Deuda
+que permanece (ajena al bloque): 3 mypy pre-existentes + ~38 formato + pytest completo OOM en HC-1.
+
+**Veredicto actualizado:** el alcance aprobado (recibir/procesar/observar audio de cámara bajo demanda) está
+**E2E DEMOSTRADO**. Pendiente separado y NO bloqueante: cablear el transcriptor (STT) del audio de cámara =
+decisión de privacidad + cambio de código (fuera de esta sesión). Git: HEAD 6dad6af; sin commit/push/merge;
+DVR no tocado.
+
+## 2026-09-28 · Ejecución controlada — L4 re-verificado + L3 VOZ PC prueba presencial (usuario presente)
+
+HEAD 6dad6af, PARADA armada. **Sin commit/push/merge** (§29). Usuario físicamente presente.
+
+**L4 (multimodal) — re-verificado READY [EJEC]:** frontera de imports limpia (percepcion/politica/camara_pyav/
+audio_rtsp/vision_local importan solo `observability` + self, sin L1/L3); tests del bloque 55/55; mutación
+`multimodal-camara.toml` 8/8, 0 supervivientes. Integración real (commit) queda pendiente de autorización de
+commit (no se commiteó nada).
+
+**L3 (voz del PC) — DESCONGELADA, prueba presencial [EJEC]:** stack real `--continuo` (Vosk wake + Whisper
+base + orchestrator + Piper) lanzado; wake word implementado = **«Aurora»** (no «Aura»). El usuario habló;
+el log del producto muestra el pipeline cerrado 2 turnos completos + 1 activación en curso:
+- Wake «Aurora» detectado **3×** (cada uno → «¿Sí?» hablado). CAPTURA + ACTIVACIÓN = OK.
+- Orden grabada → STT (Whisper) → routing → respuesta. STT funcional (produjo texto enrutable; exactitud no
+  medida este run; contenido verbal NO volcado, privacidad).
+- Respuestas por el **LLM local qwen2.5:0.5b** (no OOM pese a RAM ~373 MB): turno 1 rechazo genérico con el
+  prefijo honesto «Esto lo genera mi modelo local y no está verificado…»; turno 2 «Hola. ¿En qué puedo
+  ayudarte hoy?». RESPUESTA = OK (calidad del 0.5b baja, marcada no-verificada).
+- TTS Piper → `paplay` (altavoz): las líneas `AURA>` se reprodujeron. TTS + PARLANTE = OK.
+- **E2E DE VOZ = DEMOSTRADO físicamente** (voz→captura→wake→STT→routing→AURA→respuesta LLM→TTS→altavoz),
+  camino conversacional, con el disclaimer de honestidad en la salida del LLM.
+- Nota de diseño: «Oye Aura» (sin -ora) no dispara por gramática cerrada; el nombre es «Aurora».
+
+**L3 y L4 independientes** (L4 no importa L3; transcriptor de cámara sigue None). Audio no persistido; sin
+logs de contenido verbal. Git: HEAD 6dad6af intacto; sin commit/push/merge; DVR no tocado.
+
+## 2026-09-28 · Consolidación quirúrgica L4 — BLOQUEADO (interleaving con trabajo ajeno)
+
+HEAD 6dad6af intacto. **Sin commit, índice limpio, trabajo ajeno del worktree intacto.**
+Objetivo: commitear L4 funcional sobre 6dad6af sin arrastrar L1/L2/L3.
+**Resultado: BLOCKED — DECISION_REQUIRED.** Evidencia [EJEC]:
+- Ficheros nuevos de L4 (percepcion/politica_superficie/camara_pyav/audio_rtsp/vision_local/tests/mutación/docs)
+  son **untracked y puros** → commiteables limpiamente, PERO sin el cableado quedan **no funcionales**.
+- El cableado L4 vive en `orchestrator.py` y `composicion.py`, **interleaved con ~900 líneas ajenas L1/L2**
+  dentro de los mismos git-hunks: orch Hunk#2 (2 perc/203 ajenas), Hunk#4 (26/109), Hunk#5 (1/110);
+  comp Hunk#5 (30/56). `git add -p` NO los aísla sin arrastrar L1/L2; separarlos = edición manual de hunks
+  (alto riesgo, no clasificable con seguridad).
+- Causa raíz: L4 se desarrolló en el mismo working tree y en las mismas funciones que ~900 líneas de L1/L2
+  sin commitear, sin aislar L4 en un commit propio antes.
+- Opciones (estratégicas, para el CEO, NO ejecutadas): (1) commitear primero el trabajo L1/L2 sin commitear
+  como su(s) propio(s) commit(s) y luego L4 queda como capa superior y comitea limpio; (2) reconstruir el
+  cableado L4 sobre un HEAD limpio en una copia/worktree aparte (esfuerzo dedicado, sin destruir el worktree
+  actual); (3) aceptar integración no-quirúrgica (arrastra L1/L2) — rechazada por la misión.
+- L3 Voz PC = E2E físico demostrado, independiente de L4 (no se reabre).
+Git: HEAD 6dad6af intacto; sin commit/push/merge; DVR no tocado.
+
+## 2026-09-28 · L4 CONSOLIDADO quirúrgicamente en rama aislada (commit f81361a)
+
+Decisión aplicada: reconstrucción aislada de L4 sobre HEAD limpio, **sin tocar el worktree original**.
+- Worktree nuevo: `.claude/worktrees/l4-clean`, rama **l4-multimodal**, base **6dad6af**.
+- Reconstrucción (no copia ciega): 15 ficheros puros de L4 copiados; cableado (import percepcion, 3 inits,
+  ramas EVENTO/AUDIO/VISUAL en on_turn, bloque de composición) **re-aplicado a mano** sobre el orchestrator/
+  composicion limpios de 6dad6af (NO se copiaron los hunks contaminados; NO se reformateó código ajeno).
+- Diff del cableado: orchestrator +51/−1, composicion +41 → **91 líneas, puro L4** (frente a las ~900 líneas
+  intermezcladas del worktree original).
+- Validación [EJEC] en l4-clean: import OK; 66 tests del bloque verde; **mutación 8/8, 0 supervivientes**;
+  lint PASS; contratos PASS. E2E físico (visual+audio+evento .110) demostrado en sesiones previas, no re-
+  ejecutado (evidencia vigente).
+- **Commit f81361a** (padre 6dad6af): **19 ficheros, +2828/−1, exclusivamente L4** (5 core/adapter, 2
+  cableado, 8 tests, 2 mutación, 2 docs). Contaminación L1/L2/L3 descartada por construcción (worktree partió
+  de 6dad6af limpio; staging explícito solo de L4).
+- Dependencias mínimas satisfechas por 6dad6af: `observability`, `core/estatus` (Estatus), firma
+  `_finalizar_turno(dominio,estatus)`. Sin L1/L2/L3.
+- **Estado preservado:** main = d933a08 intacto; worktree original m3-entry = 6dad6af con 203 ficheros sin
+  commit **intacto** (no reset/clean/borrado). Sin push, sin merge.
+- L3 Voz PC = E2E físico demostrado, independiente, NO incorporado al commit L4.
+
+Deuda: format pre-existente de 6dad6af en orchestrator/composicion NO se tocó (para no reformatear código
+ajeno); mis líneas L4 son lint-limpias. Integración a main = decisión posterior del CEO (merge no hecho).
+
+## 2026-09-28 · Cierre vertical L4 — revisado+validado; MERGE bloqueado por decisión estratégica
+
+Rama l4-multimodal @ f81361a (= 6dad6af + L4). Revisión: 2 auditorías previas (seguridad+consistencia) con
+2 bugs ya corregidos; revisión estructural de esta sesión NO halla bugs nuevos. Una observación no-bug
+(EVENTO ante cámara inaccesible devuelve detectado=False, fail-safe) queda como DEBT documentada.
+Re-validación [EJEC] en f81361a: ~74 tests verde (bloque + contratos), mutación 8/8 0-supervivientes, lint
+PASS, imports OK. Sin correcciones necesarias.
+
+**INTEGRACIÓN (merge) = BLOCKED — DECISION_REQUIRED.** Evidencia:
+- f81361a es descendiente directo de 6dad6af.
+- Destino main (d933a08): merge añade **30 commits (29 L1/L2 committeados + 1 L4)** → NO es «L4 solamente»;
+  meter la línea entera en main es decisión estratégica.
+- Destino worktree-m3-entry (6dad6af): ff añadiría **solo L4 (+1)**, PERO su árbol está **sucio (203 sin
+  commit, incl. orchestrator/composicion)** → ff/merge bloqueado; desbloquear exigiría commitear/mover los
+  203 ficheros L1/L2 (prohibido) o destruir el worktree (prohibido).
+- Decisión del CEO necesaria: (A) aceptar el merge a main con los 29 commits L1/L2, o (B) resolver primero
+  el estado sin commitear de worktree-m3-entry (commitear/ordenar la línea L1/L2) y luego ff limpio de L4.
+- **L4 queda consolidado y mergeable** en f81361a; solo falta la decisión de destino. main d933a08 intacto;
+  worktree original intacto; sin push/merge; L3 no incorporado.
+
+## 2026-09-28 · Destino de L4 según cronograma — DIFERIR a R4 (no merge)
+
+Determinación documental (AURA_MASTER_DEVELOPMENT_MAP.md 2026-09-27; no decisión nueva):
+- Estructura Bible: M1+M2+M3 = R1 (MVP) → R2 políglota → R3 guardián/identidad → **R4 = «presencia total:
+  cámaras y visión»**. El mapa lista **visión como R4, «bloqueada por gobierno»**, gated por «decisión A».
+- 6dad6af = tip committeado de la línea R1/MVP-era (M1/M2/M3 + control-plane/autonomía). No integrado a main
+  por orden permanente del CEO; su integración = aceptación de R1, **bloqueada duro por CM1** (7,4 s vs
+  ≤800 ms en HC-1).
+- f81361a (L4 multimodal, visión+audio+evento de cámara) = capacidad **R4 construida por adelantado**
+  (autorizada esta sesión como formación/anticipo), apoyada en 6dad6af.
+- **Destino correcto de f81361a: NO integrar ahora.** Permanece consolidado en la rama `l4-multimodal` como
+  capacidad R4 lista; su merge corresponde al horizonte R4 (tras aceptación de R1 + R2 + R3, y «decisión A»).
+  Integrarlo ahora en main/MVP sería fuera de orden del cronograma.
+- Siguiente acción del cronograma: NO es el merge de L4. Es la vía R1 (uso real sostenido para CM2; el
+  bloqueo duro CM1 es de hardware). L4 queda en espera; L3 independiente; worktree original y main intactos.
+
+## 2026-09-28 · CM1 (R1) — medido; BLOQUEO DE HARDWARE, DECISION_REQUIRED
+
+Retorno al cronograma activo R1/CM1 (L4 diferido a R4, no tocado; L3/main intactos). Sin cambios de código
+(solo medición). Objetivo CM1: P50 ≤ 800 ms.
+- Evidencia previa [EJEC 2026-09-15, HC-1 Celeron N4020 2 núcleos]: STT base 27,5 s · TTS Piper 13,3 s ·
+  turno determinista 29,4 s · turno con LLM 374,7 s (STT 58,7 / LLM 285,9 / TTS 30,0).
+- Medición fresca [EJEC 2026-09-28] STT de orden corta (2 s de audio): **whisper-tiny 4,79 s**, **base
+  10,99 s** (cargas 6–9 s). Incluso tiny = ~6× el objetivo, y es SOLO STT.
+- **Cuello de botella = inferencia CPU-bound** (Whisper STT + Piper TTS + qwen LLM) en Celeron N4020 sin
+  GPU/NPU. Ninguna optimización de código alcanza 800 ms; base→tiny (~2,3×) no basta.
+- **CM1 = BLOQUEO DE HARDWARE** (confirma el master map: «CM1 no alcanzable en HC-1»). No hay fix de código
+  dentro del alcance.
+- **DECISION_REQUIRED (estratégica, del CEO):** (A) hardware con acelerador (GPU/NPU) o más núcleos; (B)
+  arquitectura de STT distinta (streaming/parcial, vía rápida por gramática cerrada para órdenes comunes,
+  modelo acelerado); (C) renegociar el umbral CM1 dependiente de hardware (choca con la regla de no publicar
+  techos no derivables; es criterio Bible). No se improvisa ni se aplica ninguna aquí.
+- No se declaró CM1 resuelto (no lo está). Autonomía ≠ latencia: no se toca autonomía.
+Estado: L4 en f81361a (R4, diferido); L3 voz E2E demostrado (R1); main d933a08 y worktree original intactos;
+sin push/merge; sin cambios de producto esta sesión.
+
+## 2026-09-28 · DP-CM1 preparado — DECISION_REQUIRED (sin implementar)
+
+Entregable: `milestones/m3-entry/DP-CM1-CUELLO-DE-BOTELLA-R1.md` (22 secciones + análisis A/B1/B2/B3/C).
+Sin implementar ninguna alternativa, sin cambiar CM1, sin tocar STT/TTS/hardware/L3/L4/main/código.
+- Evidencia: STT tiny 4,79 s / base 10,99 s (orden 2 s); TTS Piper ~13,3 s; turno determinista 29,4 s.
+- Cuello de botella: inferencia CPU-bound (Whisper+Piper+qwen) en Celeron N4020 sin acelerador.
+- Alternativas para el CEO: A hardware acelerado · B1 STT streaming · B2 vía rápida Vosk (gramática cerrada,
+  ya presente) + abordar TTS · B3 modelo cuantizado · C reconsiderar criterio CM1.
+- Observación (no decisión): el turno completo exige atacar STT Y TTS; B2 es el candidato más prometedor a
+  MEDIR para STT de órdenes comunes, pero solo no cierra CM1 sin solución de TTS.
+- Ninguna afirmación «cumple CM1» sin medición (INV-9). Decisión + autorización de experimentos = del CEO.
+Estado: L4 f81361a (R4, diferido), L3 voz E2E (R1), main d933a08, worktree original intactos; sin cambios de código.
+
+## 2026-09-28 · Acta de decisión CEO CM1 preparada — DECISION_REQUIRED (puerta de gobierno)
+
+Entregable: `milestones/m3-entry/ACTA-DECISION-CEO-CM1.md` (12 secciones, neutral: sin elegir/rankear).
+Verificado: HEAD 6dad6af, main d933a08, l4-multimodal f81361a; DP-CM1 y ACTA existen; 0 .py de producto
+modificados por esta sesión (solo docs + checkpoint). Sin experimentos, sin cambios de código, CM1 sin tocar.
+Estado: DP-CM1 = PREPARADO · ACTA CEO = PREPARADA · CM1 = DECISION_REQUIRED · IMPLEMENTACIÓN NO AUTORIZADA ·
+EXPERIMENTACIÓN NO AUTORIZADA. L3 (voz E2E, R1), L4 (f81361a, R4 diferido), main y worktree original intactos.
+Pregunta abierta al CEO: ¿qué camino (A/B1/B2/B3/C o combinación) y qué mediciones concretas se autorizan?
+
+## 2026-09-28 · CM1 bloque vertical (A+B1+B2+B3 autorizados; C no) — NO ALCANZADO con evidencia
+
+CEO: CM1 se mantiene (P50≤800ms), C no autorizada. Ejecutado el bloque: medir→diagnosticar→experimentar.
+Sin cambios de código de producto (solo mediciones). L3/L4/main intactos.
+
+**Baseline por etapa [EJEC 2026-09-28, HC-1 Celeron N4020, 2 núcleos, sin GPU/NPU]:**
+- A (hardware): sin GPU NVIDIA; iGPU renderD128 (Intel UHD 600) **no cableada**; ctranslate2 solo CPU. No hay
+  acelerador utilizable sin cambio de arquitectura. No se adquiere hardware.
+- B2 (Vosk STT, gramática cerrada): **415 ms** para 2 s de audio → resuelve el STT de órdenes cerradas
+  (vs Whisper tiny 4,79 s / base 10,99 s). Carga única ~4,3 s.
+- B3 (TTS): Piper **precargado** «Sí.» (3c)=**559 ms**, «Te llamas Mauricio.» (19c)=**2231 ms**, 31c=3107 ms.
+  Escala ~100 ms/char. Solo una voz (medium) en la USB; sin voz «low» local (D24 prohíbe descargar).
+  Whisper tiny (STT) 4,79 s — superado por Vosk para órdenes cerradas.
+- B1 (streaming): mejora time-to-first-response, NO el P50 del turno completo (y usarlo como sustituto de P50
+  sería C, prohibida).
+
+**Piso del turno (mejor caso): STT Vosk 415 ms + TTS Piper ≥559 ms ≈ 974 ms > 800 ms.** Respuesta real → 2–3 s.
+**CM1 = NO ALCANZADO en HC-1.** Causa demostrada: inferencia neuronal CPU-bound (STT+TTS) sin acelerador;
+incluso la combinación óptima autorizada supera 800 ms. No se falseó, no se cambió CM1, no se usó C.
+
+**Levers agotados con evidencia:** A (sin HW), B1 (no arregla turno completo), B2 (STT 415 ms, bueno pero
+insuficiente solo), B3 (sin TTS más rápida local; tiny superado por Vosk). Ninguna combinación cierra el gate.
+
+**Frontera que queda (decisión de hardware/arquitectura, fuera de A+B1+B2+B3):** acelerar TTS/STT por iGPU/
+oneAPI/OpenVINO (cablear renderD128 = cambio de arquitectura, nuevo DP), o una TTS fundamentalmente más
+rápida, o un dispositivo con acelerador. Es §32 (hardware no disponible + decisión fuera de los levers).
+No se implementó parcial (B2 solo no cierra CM1). B2 queda como lever validado (415 ms) para el futuro.
+Estado: L3 voz E2E (R1), L4 f81361a (R4 diferido), main d933a08, worktree original intactos; 0 .py producto.
+
+## 2026-09-28 · DP-CM1-HW-ACCEL preparado — investigación HW/aceleración — DECISION_REQUIRED (sin implementar)
+
+Entregable: `milestones/m3-entry/DP-CM1-HW-ACCEL.md` (20 secciones). Misión: estudiar las rutas de
+hardware/aceleración/TTS que podrían romper el muro físico de CM1, SIN cambiar CM1, SIN tocar L3/L4/main,
+SIN repetir B1/B2/B3, implementar solo si autorizado+reversible; si no, preparar el DP. No se instaló nada.
+
+**Verificación física de backends [EJEC 2026-09-28, HC-1]:**
+- **iGPU Intel UHD 600 (GeminiLake) PRESENTE:** `/dev/dri/renderD128`, driver **i915 cargado**. Accesible.
+- **Backends de aceleración TODOS AUSENTES:** `openvino`, `onnxruntime-openvino`, `pyopencl`, `level-zero`,
+  `clinfo` — ninguno instalado.
+- **onnxruntime PRESENTE pero solo `CPUExecutionProvider`** (+Azure); sin OpenVINO EP, sin GPU.
+- **ctranslate2 (Whisper): 0 CUDA**, sin backend iGPU → **el STT no puede usar la iGPU**. Vosk (Kaldi) = CPU.
+- **Piper importa onnxruntime** → la iGPU solo sería aplicable a **TTS**, y solo con onnxruntime-openvino (ausente).
+
+**Conclusión [HECHO]:** la iGPU existe pero **no es alcanzable por el stack STT/TTS actual sin instalar
+backends** (OpenVINO runtime + onnxruntime-openvino + level-zero). Instalarlos = **descargas = decisión D24**.
+Aun instalados, acelerarían **solo Piper TTS** sobre una UHD 600 gama baja — **[HIPÓTESIS] no medido**, incierto
+que baje de 800 ms; el STT seguiría en CPU (Vosk 415 ms ya resuelve STT). El muro es **Piper TTS** (CPU, 559 ms–3 s).
+
+**DECISION_REQUIRED al CEO (qué exactamente y qué habilita):**
+- (1) **Habilitar iGPU**: autorizar instalación local (excepción D24) de OpenVINO + onnxruntime-openvino +
+  level-zero para **medir** Piper por la UHD 600 (única aceleración disponible hoy, solo TTS).
+- (2) **TTS más rápida**: autorizar descargar/evaluar una voz/motor TTS local más ligero (tradeoff calidad).
+- (3) **Hardware con acelerador** (NPU/dGPU): decisión de alcance/hardware; cambia el suelo HC-1.
+- (0) **No hacer nada**: CM1 permanece NO ALCANZADO en HC-1; R1 bloqueado por hardware.
+Nada se implementa ni se instala sin la decisión. Ninguna afirmación «cumple CM1» sin medición (INV-9).
+
+Estado: HEAD 6dad6af · main d933a08 · L4 f81361a (R4 diferido) · L3 voz E2E (R1) · worktree original intacto ·
+0 .py de producto modificados por esta misión (solo `DP-CM1-HW-ACCEL.md` añadido) · sin instalaciones · sin
+push/merge/commit · PARADA armada.
+
+## 2026-09-29 · CM1 bloque vertical iGPU UHD 600 + TTS alternativa — CM1 = NO ALCANZADO (medido E2E)
+
+CEO: CM1 se mantiene (P50 ≤ 800 ms). Autorizados (1) experimento iGPU y (2) TTS local más rápida. No autorizados:
+hardware, cambio de CM1. Informe completo: `milestones/m3-entry/RESULTADO-CM1-HW-ACCEL.md`. Evidencia en
+`milestones/m3-entry/evidencia-cm1-hw/`: mediciones (json/log/md), arneses y via-rapida-v2 (código retirado).
+
+**Criterio (Bible 2.5 §5.1):** fin-de-habla → inicio-de-respuesta hablada. Se midió con AURA real (`--escuchar --continuo`),
+la persona por el altavoz y un observador independiente en el micrófono (solo RMS, sin audio).
+
+**Resultados [EJEC]:**
+- **iGPU:** OpenVINO 2026.4/2024.6 y NEO 23.43 extraídos sin root en `~/.aura-exp/cm1-hw`.
+  - La GPU se enumera, pero **GPU HANG del i915 en cualquier kernel**: 4 hangs (`kernel_i915_gpu_hang.log`).
+  - Level Zero: `zeInit=0x78000001`.
+  - Se detuvo para proteger el escritorio.
+- **OpenVINO CPU:** 50-58 s por inferencia. `Convolution ref_any_f32` (99,6 %); la CPU solo tiene SSE4.2.
+- **TTS (P50 inferencia, «Sí.» / 19 caracteres / 34 caracteres):**
+  - Piper medium: 626 / 2222 / 3406 ms.
+  - Piper x_low: 552 / 1032 / 1409 ms (suelo ≥ 550).
+  - **espeak-ng «es» 175 ppm: 0,56 / 2,3 / 5,1 ms.**
+  - WER de ida y vuelta: espeak 0,33-0,35 frente a Piper 0,18 (regresión real).
+- **Otras mediciones:**
+  - `parecord` por defecto: **~2000 ms de búfer**. Con `--latency-msec=20` y `paplay` a 30 ms: 85 ms de ida y vuelta.
+  - Turno determinista del orquestador: 17-27 ms.
+- **E2E físico:**
+  - **Línea base (Whisper + Piper, ventana de 5 s): P50 32,1 s** (4/8 válidos).
+  - Vía rápida v1 (espeak + Vosk libre): **P50 995 ms** (8/24 válidos, 0/5 correctas).
+  - Vía rápida v2 (+ gramática del Core, fin de habla 450 ms): **P50 1070 ms** (7/24, 0/8 correctas).
+  - Caso favorable: 820 y 880 ms.
+  - **La vía rápida corrompió la memoria** («Tu color favorito es en.»).
+- **Suelo físico:** fin de habla sin cortar (≥ 450 ms) + decodificación (≥ ~170 ms) + arranque del audio (≥ ~76 ms). A eso se suma
+  la precisión insuficiente de Vosk small en habla libre, mientras que Whisper tarda 4,8-11 s.
+
+**Estado del código (sin commit, trabajo en el worktree):**
+- **Se conserva:**
+  - `adapters/tts_espeak.py` (nuevo; estado global de libespeak-ng a nivel de módulo).
+  - `WhisperPiperVoice(sintetizador=)` y `composicion._sintetizador_de_entorno`: **`AURA_TTS_MOTOR=espeak` es OPCIONAL; el defecto es Piper**.
+  - `escucha._FlujoDelMicrofono` con `--latency-msec=20`.
+  - `microfono.reproducir` con `--latency-msec=30`.
+  - Pruebas: `test_tts_espeak.py`, `test_voz_motor_seleccionable.py`, `tests/integration/test_composicion_motor_de_voz.py`, más añadidas en `test_escucha_continua.py` y `test_microfono.py`.
+  - Mutación: `mutaciones/cm1-voz-espeak.toml`.
+- **Se retiró:** la vía rápida de STT (`escuchar_orden`, VAD, `ORDENES_DE_VOZ`, `AURA_ORDEN_VOSK`). La copia está en `evidencia-cm1-hw/via-rapida-v2/`.
+
+**Verificación [EJEC]:**
+- Auditoría independiente: APROBADO CON OBSERVACIONES, todas corregidas.
+- Mutación: **20/20** (exit 0).
+- Quality Gate: FAIL solo por causas previas:
+  - 31 ficheros previos sin formatear;
+  - mypy en `entorno.py:390` y `camara_rtsp.py:51,53`;
+  - 2 pruebas previas: `test_cognicion_local` y `test_garantias_vigentes`, con 30 garantías obsoletas ajenas.
+- Suite completa: **2612 passed**. Contratos: 8/8.
+
+**Rollback:**
+- Entorno: `rm -rf ~/.aura-exp/cm1-hw` (756 MB; se conserva por si el CEO quiere repetir).
+- Código: ver §6 del informe.
+- Con `AURA_TTS_MOTOR` sin definir, el comportamiento es Piper como antes.
+
+**Riesgos abiertos:**
+- Los 30 mutantes obsoletos ajenos (ya conocidos) y el fallo de `test_cognicion_local` hacen que el gate falle con independencia de esto.
+- El plugin `ralph-loop` tiene el hook Stop roto (CRLF) y se dispara en cada pausa. Es ajeno a AURA.
+
+**Siguiente decisión (CEO):** CM1 no se alcanza con el hardware autorizado. Las palancas que quedan están fuera de la autorización:
+- hardware con aceleración o CPU con AVX2 (vía 3);
+- runtime de GPU con root u otro kernel (con riesgo de estabilidad);
+- aceptar la calidad de espeak y la cobertura cerrada de órdenes, que aun así no bajan de 800 ms en lo medido.
+
+Estado: HEAD 6dad6af · main d933a08 · L4 f81361a (R4 diferido) · L3 intacto · sin commit/push/merge · PARADA armada.
+
+## 2026-09-29 · Misión continua R1→R4→main→autoevolución — DETENIDA en la puerta CM1 (decisión de hardware)
+
+Orden del CEO: ejecución vertical continua y detenerse solo ante una decisión de gobierno no autorizada. Resultado:
+la cadena se detiene en la **primera puerta**, porque todo lo demás depende de ella.
+
+**Hechos [EJEC]:**
+- **Git.** HEAD 6dad6af, main d933a08 = origin/main, l4-multimodal f81361a. Nada en stage; worktree 29 commits por delante de
+  main. Ficheros tocados por CM1-HW, con el marcador de inicio real de la misión (07:34):
+  - nuevos: `tts_espeak.py`, `test_tts_espeak.py`, `test_voz_motor_seleccionable.py`, `test_composicion_motor_de_voz.py`,
+    `mutaciones/cm1-voz-espeak.toml`;
+  - modificados: `voice_real.py`, `composicion.py`, `__main__.py`, `escucha.py`, `microfono.py`, `test_escucha_continua.py`,
+    `test_microfono.py`;
+  - docs: el resto es trabajo previo (L1/L2/L4) y no se tocó.
+- **`entorno/control-plane/eventos.jsonl` cambió hoy, pero NO por esta misión.** Son 19 eventos `despertar_rechazado`
+  («kill switch activado») del cron `*/30 despertar-aura.sh`, desde las 00:00. Prueba física de que **PARADA está armada**.
+- **Reconciliación CM1-HW.** Se conserva espeak opcional (defecto Piper) y los flags de latencia. La vía rápida está
+  retirada, con 0 referencias. Se aclararon 2 comentarios que podían leerse como «cumple CM1» (`microfono.py:88`,
+  `test_voz_motor_seleccionable.py:3`).
+- **Verificación.** Pruebas dirigidas exit 0 (146 passed, 1 xfail previo). Mutación 20/20 exit 0.
+- **Quality Gate.** FAIL con **delta 0 de esta misión**. Todo fallo está en ficheros no tocados: 31 ficheros previos sin
+  formatear, mypy en `entorno.py`/`camara_rtsp.py`, y 2 pruebas previas (`test_cognicion_local`, `test_garantias_vigentes`
+  con 30 garantías obsoletas ajenas).
+- **Dependencias oficiales** (mapa maestro §13 y §16): «ACEPTACIÓN R1 ◄── bloqueo duro CM1» y «Post-R1: R2 → R3 → R4».
+  `capacidades.json` confirma que toda capacidad de nivel inferior a 4 depende de una decisión, un release, hardware, uso
+  real o una acción humana.
+- **Documentos actualizados** (sin duplicar): cabecera de `DP-CM1-HW-ACCEL.md` (EJECUTADO → NO ALCANZADO), fila CM1 y
+  registro del mapa maestro.
+
+**Estado por bloque:**
+
+| Bloque | Estado |
+|---|---|
+| R1 | BLOQUEADO (CM1 = HARDWARE/ARQUITECTURA BLOCKED; CM2/CM4 necesitan semanas de uso real) |
+| CM1 | NO ALCANZADO, P50 E2E 995-1070 ms en la mejor vía; defecto 32,1 s |
+| R2, R3, R4 | BLOQUEADOS por dependencia de la aceptación de R1 |
+| L4 | f81361a, DIFERIDO a R4, sin integrar |
+| main | sin integrar (ningún bloque completo) |
+| Autoevolución | PARADA vigente; reactivarla exige la decisión ADR-0025 / delegación. No se tocó |
+
+**Decisión requerida (CEO), la única que desbloquea la cadena:** hardware objetivo del despliegue con aceleración o con AVX2
+(vía 3), o autorizar rutas de GPU con root (con riesgo de estabilidad). CM1 no se cambia.
+
+**No se hizo:** no se desarrolló barge-in (sin evidencia de uso real ni DP; PLAN-DE-FORMACION), no hubo commit, push ni merge,
+no se tocó el hook externo `ralph-loop` (CRLF; ajeno a AURA).
+
+## 2026-09-29 · Vía 3 (hardware) autorizada — sin hardware candidato disponible; DETENIDA en «adquirir hardware»
+
+**Decisión del CEO:** CM1 no cambia; se autoriza la vía 3 (hardware con aceleración y/o AVX2); no se insiste en la UHD 600 con root;
+no se compra hardware de forma automática.
+
+**Hechos [EJEC]:**
+- **Inventario físico:** solo HC-1 (N4020, **solo SSE4.2**, 3,6 GB, UHD 600). Sin aceleradores USB/PCI; en la red solo hay televisores y
+  teléfonos de dueño desconocido. **No hay hardware candidato que medir.**
+- **Acta D-4 vigente:** «no comprar ni introducir hardware · no asumir hardware futuro · lo no medido no es evidencia». Por eso,
+  adquirir hardware es una decisión del CEO.
+- **Kit de medición portátil creado y validado en HC-1:**
+  - `evidencia-cm1-hw/arneses/kit_cm1.py` (por etapas: Piper, espeak, Whisper tiny/base, Vosk) → `mediciones/kit_cm1_HC-1.json`;
+  - `e2e_cm1.py` ahora es portátil (`AURA_WS`, `AURA_USB`).
+  - En HC-1, Piper midió 305/837/1318 ms esta vez frente a 626/2222/3406 con Firefox: **~2,5× de sensibilidad a la carga**.
+  - Whisper sin márgenes: «¿Cómo me llamo?» → «¡Pomo me llamo!»/«¡Polo me llavo!».
+- **Requisito derivado** (addendum §8 de `entorno/ANALISIS-PLATAFORMA-OBJETIVO-R1.md`; no es un documento nuevo):
+  - presupuesto de cómputo ≈ 265 ms (800 − 85 de audio de E/S − 450 de fin de habla);
+  - factor frente a HC-1: **Whisper base 44-73×**, **Piper medium 8-34×** [cálculo sobre lo medido];
+  - clase recomendada (hipótesis, no decisión): **x86 + NVIDIA CUDA ≥ 8 GB + CPU AVX2 de ≥ 6 núcleos + 16 GB**. Es la opción C de
+    julio, donde el stack actual tiene backend acelerado sin cambiar de motor.
+  - El hardware solo no basta: la ventana fija de 5 s obliga a añadir captura con fin de habla → Whisper. **No se construye
+    antes del hardware** (la referencia está en `via-rapida-v2`).
+  - La aceptación está en §8.5: kit + E2E con ≥ 24 turnos, P50 ≤ 800 ms, cero hechos falsos y voz Piper.
+- **Código de producto:** sin cambios en este bloque (`cmp` idéntico a la versión con mutación 20/20).
+
+**Estado:**
+- R1 BLOQUEADO (CM1 por hardware; CM2/CM4 por uso real).
+- R2, R3, R4 BLOQUEADOS por dependencia.
+- L4 f81361a, DIFERIDO.
+- main d933a08 sin integrar.
+- PARADA vigente (cron `despertar_rechazado` cada 30 min).
+
+**Decisión requerida:** adquirir o poner a disposición un equipo de la clase §8.3 para ejecutar §8.5.
+
+## 2026-09-29 · Sobre de capacidad: DetectorHardware real implementado; siguiente puerta DP-CAPACIDADES-POR-HARDWARE
+
+**Orden del CEO:** «hardware = sobre de capacidad, no bloqueo». No se pide comprar hardware; se ejecuta todo el trabajo autorizado
+e independiente. CM1 no cambia; PARADA vigente.
+
+**Qué había [LECT, inventario del explorador]:**
+- ADR-0021 y ADR-0020 **accepted** ya definían Registry + Manager puro + `PerfilHardware` (solo métricas) + el contrato
+  `DetectorHardware`. El detector real estaba «latente-previsto».
+- El único detector era `_PerfilInyectado`, con perfil VACÍO: el Manager decidía la memoria con `ram_mb=0` («declarado ≠ real»).
+- No se creó ninguna taxonomía paralela.
+
+**Qué se hizo [EJEC]:**
+- **Nuevo** `adapters/detector_hardware.py` (`DetectorHardwareLocal`):
+  - mide `ram_mb`, `ram_disponible_mb`, `nucleos`, `isa_sse4_2`, `isa_avx`, `isa_avx2`, `isa_fma`, `isa_avx512f`, `carga_1m`,
+    `disco_libre_mb` (MiB) y `gpu_render`;
+  - la ISA solo se declara si está en TODAS las CPU;
+  - una métrica que falla se omite (no se inventa) y deja un WARN;
+  - sin subprocess, sin red, sin marcas.
+- **`composicion.py`:**
+  - `Configuracion.detector`, que `desde_entorno()` cablea en el camino de producto (`__main__:357`);
+  - `componer()` usa `config.detector or _PerfilInyectado`;
+  - BOOT auditado con las métricas y la causa correcta cuando falta alguna;
+  - `Sistema.perfil_hardware`.
+- **`__main__.py`:** línea «perfil de hardware» en `--verificar`.
+- **Medido en el producto:** `ram_mb=3719, nucleos=2, isa_avx2=0, isa_sse4_2=1, gpu_render=1`. La auditoría independiente lo
+  contrastó con /proc. La memoria sigue en N1, ahora por medición.
+- **Pruebas:** `test_detector_hardware.py`, `tests/integration/test_composicion_detecta_hardware.py` y `test_informe_perfil_hardware.py`.
+  El doble de `test_configuracion_proveedor.py` se ajustó con el campo nuevo, sin debilitar aserciones.
+- **Verificación:**
+  - auditoría independiente: APROBADO CON OBSERVACIONES; las 4 menores están corregidas (causa falsa en el BOOT, docstring falso,
+    omisión sin WARN, línea del informe sin prueba) y se aplicaron 2 mejoras (intersección de ISA entre CPU, prueba de claves permitidas);
+  - mutación `mutaciones/detector-hardware.toml`: **17/17** (exit 0). Dos supervivientes reales (DH-M6/M8, fichero presente sin
+    el campo) se cerraron con pruebas nuevas;
+  - Quality Gate: **2641 passed** (+29) y los mismos 2 fallos previos; formato, mypy y garantías sin delta (30/1348 obsoletas
+    ajenas); contratos 8/8.
+- **`DP-COGNICION-LOCAL-Y-RENDIMIENTO.md`:** su estado decía «Construcción NO iniciada», pero estaba EJECUTADO (commits 58e67cb,
+  5ebdce4). Se corrigió; no había trabajo pendiente ahí.
+- **Índice (`capacidades.json`):** fila nueva en la dimensión A, nivel 5 → lanzamiento 73,0 → 73,2 %.
+
+**No se hizo (y por qué):**
+- No se tocaron Manager, Builder, Registry, catálogo ni manifiesto.
+- No se añadieron capacidades al catálogo: exige una decisión por capacidad (D46) → **`DP-CAPACIDADES-POR-HARDWARE.md`**
+  (razonar_local, transcribir_voz y sintetizar_voz, con umbrales calculados o probados, no constantes). Choca con el límite del
+  acta D-3 «0.5B no se agranda», así que es una decisión del CEO.
+
+**Estado de bloques:**
+- R1 BLOQUEADO (CM1 por hardware; CM2/CM4 pendientes de uso real).
+- R2, R3 y R4 BLOQUEADOS por dependencia; no hay trabajo preparatorio con DP aprobado.
+- L4 DIFERIDO.
+- main sin integrar.
+- PARADA vigente. El detector no es autoevolución.
+
+**Siguiente puerta:** decisiones §7 de `DP-CAPACIDADES-POR-HARDWARE.md`.
+
+---
+
+## 2026-10-04 · NODO-01 (segundo PC, Atom N450) — OPERATIVO en hardware real, reinicio físico incluido
+
+**Misión del CEO (2026-09-30):** convertir el Packard Bell en AURA-NODE-01, un nodo de infraestructura
+(sin cognición). DP: `milestones/m3-entry/DP-NODO-01.md`. Resultado: `milestones/m3-entry/RESULTADO-NODO-01.md`.
+Evidencia física: `milestones/m3-entry/evidencia-nodo-01/` (p1..p6).
+
+**Qué hay, desplegado y funcionando [EJEC]:**
+- **Transporte:** NATS + TLS con CA privada (ADR-0018, E2). SSH se usa solo para administrar. Un usuario NATS por
+  nodo, que solo puede publicar en `nodo.latido.<id>`.
+- **Código:**
+  - `core/nodos.py`: esquema cerrado del latido, estado ONLINE/DEGRADED/OFFLINE/UNKNOWN y registro de nodos;
+  - `adapters/identidad_nodo.py`: uuid persistente;
+  - `adapters/receptor_nodos.py`: el receptor de HC-1;
+  - `nodo_agente.py`: el agente del nodo;
+  - `detector_hardware.py`: amplía las métricas de presencia;
+  - `bus_nats.py`: toma el `type` del `msg.subject`;
+  - `__main__.py`: órdenes `--nodos` y `--receptor-nodos`.
+- **Operación:** `entorno/nodos/` contiene:
+  - `red_hc1.py` (PKI, `nats.conf`, alta y baja, `regenerar-pki`);
+  - `instalar-hc1.sh` y `retirar-hc1.sh`;
+  - `desplegar-nodo.sh` y `retirar-nodo.sh`;
+  - `instalar-runit-nodo.sh`;
+  - `empaquetar_nodo.py`.
+- **HC-1:** `aura-nats.service` y `aura-receptor-nodos.service` como servicios de usuario, con linger activo. El
+  material de red está en `~/.aura-red`.
+- **Nodo:** `MariaJose@192.168.20.139`, nodo_id `bac41ce92abc4fb9bac4187cec6d727d`. Corre bajo un runsvdir de
+  usuario arrancado por `@reboot` (no hay sudo), con los datos en `~/.aura-nodo`. Consume 26 MB de RSS.
+- **Consulta:** `cd walking-skeleton && AURA_RED=~/.aura-red python3 -m aura_skeleton --nodos` muestra el
+  envelope de HC-1 y el del nodo, y la decisión del CapabilityManager para cada uno.
+
+**Verificación:**
+- **Pruebas:** 291 de la misión en verde.
+- **Mutación:** 67/67 en `nodo-01` (incluye R13 reanclado) y 32/32 en el detector.
+- **G-1:** 24/24, con las declaraciones R-B aprobadas por el CEO el 2026-10-04.
+- **Quality Gate:** delta de la misión 0, aunque FAIL global por deuda preexistente.
+- **Auditorías:** una de seguridad, cuyos hallazgos H-1, M-1, M-2, M-4, M-5 y L-2 a L-4 están cerrados, y una
+  reauditoría de consistencia sin hallazgos graves.
+
+**Reinicio físico del N450: DEMOSTRADO** (p7). Volvió solo vía `@reboot`, con la misma identidad y `reinicios` de 2 a 3.
+
+**NO demostrado:**
+- el reinicio completo de HC-1;
+- el firewall que restrinja el 4222 a la IP del nodo (necesita sudo en HC-1);
+- la rotación de la PKI con nodos ya desplegados;
+- la cobertura de los scripts por pruebas automáticas.
+
+El nodo no resuelve `.local` y usa la IP de HC-1 como respaldo de configuración.
+
+**Fronteras:**
+- CM1, R1, R2, R3, R4 y D-3 sin cambios.
+- L4 diferido.
+- `main` sin tocar.
+- PARADA vigente.
+- Todo el trabajo sigue SIN COMMIT en `worktree-m3-entry`.
+
+**Siguiente paso exacto:**
+1. Pendiente de una persona con sudo en HC-1: aplicar la regla `ufw` del 4222.
+2. Sigue pendiente la decisión del CEO sobre `DP-CAPACIDADES-POR-HARDWARE.md` §7.
+
+---
+
+## 2026-10-04 · Continuación post NODO-01 — siguiente incremento identificado: S3 «reloj de CM2» — DECISION_REQUIRED
+
+**Pregunta del CEO:** ¿qué es lo siguiente que AURA ya tiene establecido tras NODO-01?
+
+**Respuesta, desde las fuentes [LECT]:**
+- R1 sigue BLOQUEADO por CM1 en HC-1 (entradas del 2026-09-29; mapa maestro §18-19). R2, R3 y R4 dependen de R1.
+- La rama de hardware espera `DP-CAPACIDADES-POR-HARDWARE.md` §7 (DECISION_REQUIRED).
+- NODO-01 está cerrado (p1-p7). Sus pendientes no bloquean: el firewall necesita sudo y el reinicio completo de HC-1 es
+  una observación.
+- El mapa maestro §16 programa **S3 (‖ S2): «reloj de CM2 automático» → «registro CM2 funcionando»**, sin asterisco de
+  decisión. El §13 la declara paralelizable y dice que el uso real «tiene que empezar ya».
+- **No existe DP ni código de CM2** (`grep`: 0 resultados). `capacidades.json`: «medición en uso real nunca realizada».
+
+**Lo hecho:**
+- Preparado `milestones/m3-entry/DP-S3-RELOJ-CM2.md` (DECISION_REQUIRED). Reutiliza `MemoryStore`, los hechos declarados
+  y el audit log, sin ciclo autónomo.
+- El DP ofrece las opciones A (hechos declarados, sin guardar contenido nuevo), B (marcado explícito, que requiere antes la
+  decisión D de privacidad), C (inferencia por el LLM, descartada por ADR-0014) y D (aplazar).
+
+**Lo que NO se hizo:** ningún código ni prueba nueva, nada de mutación ni Quality Gate (no hay delta de código), no se
+adelantaron R2, R3, R4 ni L4, y no se tocó NODO-01.
+
+**Estado:**
+- PARADA armada (último evento `despertar_rechazado`).
+- `main` d933a08 intacta; HEAD 6dad6af; todo sin commit.
+
+**Siguiente paso exacto:** que el CEO decida §7 de `DP-S3-RELOJ-CM2.md` (set de evaluación A, B, A+B o aplazar; ejecución
+fuera del ciclo autónomo; valor para el gate R1). Con A aprobada, la secuencia sería: RED con reloj inyectado → sondas a
+7/14/28 días en el audit log sin texto → `--medir-cm2` → mutación → Quality Gate.
+
+Siguen abiertas en paralelo: `DP-CAPACIDADES-POR-HARDWARE.md` §7 y la regla `ufw` del 4222 (necesita sudo).
+
+---
+
+## 2026-10-04 · Reanudación post-pausa: línea evolutiva reconstruida · Quality Gate PASS · siguiente eslabón voz→acción = DECISION_REQUIRED
+
+**Reconstrucción [LECT]:**
+- **Dónde se paró la línea original** (2026-09-28): el umbral de integración quedó cerrado **hasta la frontera
+  voz→acción**. La cadena de consulta por voz y la de acción por texto (TV real, efecto verificado, memoria del resultado)
+  están integradas. La llave `voz_actua_en_hogar = False` espera la decisión del CEO y la mitigación de la alucinación de
+  STT.
+- **La pausa** (2026-09-29): puerta CM1 por hardware. La palabra «stand-by» no aparece en las fuentes.
+- **NODO-01** (Atom N450) **no** es el hardware que CM1 pedía: está por debajo de HC-1 en todas las métricas de cómputo
+  (986 frente a 3719 MB, 1 frente a 2 núcleos físicos, sin SSE4.2, 32 bits). Aporta presencia distribuida, periféricos y
+  disco. **No desbloquea** STT, TTS, un modelo mayor ni la memoria N2. Deber de disenso registrado.
+- **Siguiente eslabón real:** la frontera voz→acción. Preparado `milestones/m3-entry/DP-VOZ-ACCION.md`
+  (DECISION_REQUIRED: A cerrar, B abrir la lista verde reversible con salvaguardas medidas, C B + wake word).
+  `DP-S3-RELOJ-CM2.md` sigue siendo una rama paralela válida (mapa §16), no el siguiente eslabón.
+
+**Deuda del Quality Gate CORREGIDA [EJEC]:**
+- **`test_cognicion_local`:** falso FAIL. La prueba buscaba «say» en el texto y la disparaba un comentario. Ahora inspecciona
+  con AST los argumentos de `memory.write`. Su control: con `{say}` en la escritura, falla.
+- **mypy (3 errores):** anotaciones de tipo en `entorno.py` y `camara_rtsp.py`, sin tocar las líneas ancla.
+  `camara-rtsp.toml` 5/5 y S2-M64 1/1 siguen detectados.
+- **Formato:** 30 ficheros formateados. Se reanclaron 55 garantías (30 previas + 25 rotas por el formato), y 50 mutantes
+  se verificaron detectados en 21 TOML parciales.
+- **5 garantías VAL-M1..M5:** su código (el validador del arnés OpenCode) se desinstaló por decisión registrada (CHECKPOINT
+  «OpenCode — cerrado, no reabrir»). El catálogo pasó a `mutaciones/retiradas/` con `LEEME.md`; no se borró.
+- **`./quality-gate.sh`: PASS.**
+  - formato 268 ficheros OK;
+  - ruff OK;
+  - mypy OK (88 ficheros);
+  - **2919 passed, 0 failed**, 1 skipped, 1 xfailed;
+  - contratos 8/8.
+
+**Estado:**
+- **NODO-01 OFFLINE [EJEC], DEFECTO ENCONTRADO.** HC-1 cambió de IP por DHCP (.38 → .202). El nodo no resuelve `.local`
+  y su IP de respaldo era la antigua, así que no puede reencontrar a HC-1. Además el nodo no responde en .139: apagado o
+  con otra IP. HC-1 informa OFFLINE correctamente, sin inventar ONLINE.
+- **En curso:** un resolutor mDNS en stdlib dentro del agente (sin IP rígida, como exigía la misión de NODO-01).
+- PARADA armada.
+- `main` d933a08 intacta; HEAD 6dad6af.
+- Sin commit, sin push.
+
+**Siguiente paso exacto:** que el CEO decida `DP-VOZ-ACCION.md` §7. Si elige B o C:
+1. medición de la alucinación de STT con ruido real, en memoria y sin guardar audio;
+2. RED de las salvaguardas;
+3. abrir la llave por composición explícita, solo para la TV de la sala;
+4. E2E por el aire: voz → propuesta → «sí» → efecto releído en HA → «¿qué hiciste?»;
+5. mutación de la llave y de las salvaguardas;
+6. Quality Gate.
+
+Siguen abiertas en paralelo:
+- `DP-S3-RELOJ-CM2.md` §7;
+- `DP-CAPACIDADES-POR-HARDWARE.md` §7;
+- la regla `ufw` del 4222 (necesita sudo).
+
+**Adenda 2026-10-04 (misma sesión) — defecto de NODO-01 corregido en código, despliegue pendiente:**
+- **Corrección:** `adapters/resolutor_mdns.py` (stdlib, consulta mDNS A + QU, parser puro con tope de saltos y paquetes,
+  nunca lanza). `nodo_agente._fabrica_nats` traduce `tls://x.local:p` a `tls://ip:p` en cada intento de conexión; si no
+  resuelve, conserva la URL original.
+- **RED:** ImportError y TypeError en 5 pruebas. **GREEN.**
+- **Prueba real en HC-1:** `resolver_ipv4("majo1230-Lenovo-100e-2nd-Gen.local")` → 192.168.20.202 [EJEC].
+- **Mutación:** MD1..MD4 4/4. G-1 24/24.
+- **Calidad:** ruff y formato limpios (281 ficheros), mypy limpio (89), 78 pruebas dirigidas en verde.
+- **Quality Gate completo tras el resolutor:** NO repetido. Claude Code mató la ejecución por memoria baja del sistema;
+  no es un fallo del gate. El último PASS completo es el anterior al resolutor (2919 passed).
+- **Pendiente:**
+  - redesplegar el agente (`entorno/nodos/desplegar-nodo.sh MariaJose@<ip-actual-del-nodo>`) cuando el N450 vuelva a
+    estar alcanzable (no responde en .139);
+  - demostrar la reconexión tras el cambio de IP de HC-1;
+  - repetir el Quality Gate con memoria suficiente.
+
+---
+
+## 2026-10-04 · DP-VOZ-ACCION OPCIÓN C (CEO) — implementada y verificada; falta el E2E físico con voz humana
+
+**Decisión del CEO (2026-10-04):** opción C.
+- **Alcance:** solo la TV de la sala (`media_player.tv_sala_fmilia_medina_un43ru7100fxza`).
+- **Acciones:** solo encender y apagar (lista verde reversible).
+- **Condición:** palabra de activación en el turno de la orden y en el del «sí».
+- **Fuera:** la TV .20 (`samsung_6_series_55_un55ku6000`). Corrección del DP: no está «congelada», está integrada en HA
+  desde el 2026-09-28; por eso hace falta la allowlist por ENTIDAD.
+
+**Implementado [EJEC]** (contrato en DP-VOZ-ACCION §8):
+- **C1 · activación.** `handle_utterance(..., activado)` la publica en el payload. Solo `_escuchar_continuo` la declara;
+  pulsar-para-hablar y el teclado no.
+- **C2 · llave.** `voz_actua_en: frozenset`. `composicion.VOZ_ACTUA_EN` = {TV de la sala}; ninguna variable de entorno la
+  cambia.
+- **C3 · resolución y propuesta.** Resolución explícita solo dentro de la llave, con
+  `HomeAssistantReal.resolver_dispositivo(..., dentro_de)` (un único resolutor). La propuesta nombra el dispositivo.
+- **C4 · confianza del STT.** `WhisperPiperVoice.ultima_confianza` (no_speech máx., logprob mín.). Umbrales **medidos**:
+  `UMBRAL_NO_HABLA=0.15` y `UMBRAL_LOGPROB=-1.2` (`evidencia-voz-accion/medicion-confianza-stt.md`, 135 casos sin audio).
+- **C5 · sin cambios:** Motor Único (`_despachar_orden`), PARADA, efecto releído en HA, M8.
+
+**Hallazgos de la medición:**
+- No se fabricó ninguna orden de hogar. Se fabricó 1 «sí» («Vale.», voz cortada) que el umbral NO frena; lo frena la
+  activación (C1).
+- Whisper `base` no entiende la voz de Piper para «apaga» (0/63; oye «para»), así que el **E2E físico necesita voz humana**.
+
+**Defectos encontrados y corregidos en esta misión:**
+- La garantía S2-M34 quedó sin ancla por el cambio de C4 (`segments` → `segmentos`): reanclada, 1/1.
+- Los umbrales provisionales en la prueba de borde: casos reajustados a los medidos.
+- Regresión en `test_microfono.py` (3 FAIL; los dobles de `_turno` no aceptaban `activado`): corregida. Se añadió la
+  aserción «pulsar-para-hablar ⇒ activado=False», con caso de control (si se declarara True, falla).
+
+**Mutación:**
+- `voz-accion-opcion-c.toml` 16/16;
+- S2-M3, M16, M17, M18 4/4;
+- S2-M34 1/1;
+- FC-M25 1/1.
+
+**Quality Gate: PASS** (2993 passed, 0 failed; formato, ruff y mypy limpios; contratos 8/8).
+
+**Memoria:** el corte anterior del Quality Gate lo causaron Firefox (~1,7 GB) y LibreOffice abiertos en un HC-1 de
+3,6 GB. Cerrados, quedaron 2,1 GB libres y el gate terminó.
+
+**Home Assistant:** no era servicio y no volvió tras el reinicio de HC-1 (04:24). Se rearrancó con
+`ha-venv/bin/hass -c config` (nohup, `~/aura-hogar/ha.pid`). Ambas TVs están presentes y la de la sala, apagada.
+
+**NODO-01:** ONLINE. Resolutor mDNS desplegado y demostrado (`evidencia-nodo-01/p8`).
+
+**Pendiente para cerrar la misión:** el E2E físico por el aire con voz humana. El arnés es
+`milestones/m3-entry/evidencia-voz-accion/arnes_e2e_voz_accion.py` (AURA real + HA real; lee el estado de la TV por la
+API fuera de AURA; sin audio). Guion:
+1. «Oye Aurora» → «enciende la televisión».
+2. «Oye Aurora» → «sí» → efecto.
+3. «Oye Aurora» → «¿qué hiciste?».
+4. Control: orden sin «Oye Aurora».
+5. Apagar para restaurar.
+
+**Estado:** PARADA armada. `main` intacta. Sin commit.
+
+## 2026-10-04 · E2E físico voz→TV LOGRADO · latencia de voz reducida · modelo evaluado (NO se cambia)
+
+**E2E físico (Opción C) — LOGRADO [EJEC]:** TV de la sala apagada→encendida a las 21:35:53 y encendida→apagada a las
+21:38:37, por voz humana con «Oye Aurora» + «sí», efecto releído en HA. Causa raíz de los fallos previos: ganancia del
+micrófono al 150 % (74 % de muestras saturadas) → fijada a 27 % en `aura-voz.sh` (`AURA_GANANCIA_MICRO`) + detección de
+saturación. Correcciones con mutación `voz-e2e-fisico.toml` 9/9: recorte VAD (600 ms de margen), turno sin habla →
+«no te oí» sin memoria/LLM, orden de TV no entendida → «no entendí la orden» (en vez de «No tengo ningún recuerdo»),
+variante «enciente». Evidencia: `milestones/m3-entry/evidencia-voz-accion/`.
+
+**Latencia de voz — implementada [EJEC]** (detalle y cifras: `milestones/m3-entry/evidencia-latencia-voz/RESULTADO-LATENCIA-Y-MODELO.md`):
+- Escucha continua: captura con fin de habla (700 ms de silencio tras ≥250 ms de habla; 5 s sin voz; tope 6 s).
+  Pulsar-para-hablar intacto (5 s fijos).
+- «¿Sí?» sintetizado una sola vez (sin memoria ni LLM; sin escritura extra: G-1 R-B = 0 violaciones).
+- Precarga de Whisper/Piper antes de «AURA está atenta».
+- Trazas `[LAT]`.
+- Nombres humanos («la TV de la sala») en propuesta y respuesta; el Motor Único sigue recibiendo el `entity_id`.
+  Lista verde sin cambios.
+- Pruebas: `tests/unit/test_voz_latencia.py` (21). Mutación `voz-latencia.toml` **8/8**.
+- **Quality Gate PASS** (3041 passed, 1 skipped, 1 xfailed).
+
+**Modelo [EJEC]:** benchmark en serie sin presión de memoria. 0.5b: 6–16 s en caliente, ~2,9 tok/s, +0,5 GB.
+1.5b: 8–24 s, ~2,1 tok/s, +1,1 GB, y **fabrica acciones** («¡Listo! La televisión está encendida.»). 3b descartado
+(colapso en swap medido antes). **Decisión: mantener qwen2.5:0.5b**; el LLM no está en la ruta voz→TV.
+`qwen2.5:1.5b` queda descargado en Ollama (986 MB; `ollama rm qwen2.5:1.5b` lo retira si el CEO lo prefiere).
+
+**Siguiente paso exacto:** E2E físico mínimo de latencia con voz humana (guion en el informe final): arrancar
+`entorno/scripts/aura-voz.sh` con HA levantado, «Oye Aurora» → «enciende la televisión» → «sí» → comprobar TV y leer
+las líneas `[LAT]` (acuse, captura con `corte=silencio`, turno). Luego apagar la TV.
+
+**Estado:** PARADA armada. `main` intacta. **Sin commit** (pendiente de autorización del CEO).
+
+## 2026-10-06 · BLOQUE CERRADO: latencia + robustez voz → acción física (S2, rama voz→acción)
+
+**Evidencia:** `milestones/m3-entry/evidencia-latencia-voz/RESULTADO-LATENCIA-Y-MODELO.md` §7 +
+`e2e-latencia-2026-10-06.jsonl` [EJEC].
+
+**E2E físico (2026-10-06):**
+- **On→off por voz humana**, verificado en HA. Respuesta: «Listo: la TV de la sala está apagada; lo he comprobado.»
+- **Latencia en los turnos «apaga» comparables:**
+  - orden 16,1 → 12,3 s;
+  - «sí» 19,3 → 12,3 s (−36 %);
+  - fin de la respuesta hablada (T10) 16,4 s.
+- **CM1 NO CUMPLE:** P50 de fin de habla a respuesta ≈ 7,9 s frente a ≤ 800 ms. El criterio no se cambia.
+- **Cuello de botella:** el STT (Whisper base ≈ 5,5 s). Reducirlo requiere una decisión de modelo de STT o de hardware,
+  ambas ya registradas.
+- **TV a `on` a las 09:18:47 sin orden de AURA** (mando o la propia TV, [INFER]). La auditoría de AURA registra una sola
+  acción.
+
+**Cambios de esta sesión (sin commit):**
+- Traza `[LAT] respuesta` (T10) en `__main__.py`. TDD, mutante VL-M9; `voz-latencia.toml` queda 9/9.
+- 5 pruebas de robustez en `test_voz_accion_opcion_c.py`, cada una con mutante de control: `mutaciones/voz-robustez-cierre.toml` 4/4 + VE-M5 (turno vacío, comprobado aislado).
+- Fila S2 de §16 del Master Map actualizada (voz→acción ✅, TV real ✅).
+- Docstring de `_turno_de_voz` restaurado.
+
+**Quality Gate:** PASS, con 3046 passed, 1 skipped y 1 xfailed.
+
+**Modelo vigente:** `qwen2.5:0.5b`. `qwen2.5:1.5b` **eliminado** (986 049 856 bytes liberados); no tenía referencias
+operativas.
+
+**Master Map:**
+- La capacidad «Orden por voz → dispositivo sin pasar por el modelo» sube de 4 a 5.
+- Índices: lanzamiento 73,3 %, completo 61,0 %.
+- Registro del 2026-10-06 añadido.
+- **Ojo:** `milestones/mapa-maestro/` no está versionado en git.
+
+**Deudas y observaciones abiertas:**
+- WAV de entrada huérfano tras un SIGTERM a mitad de turno. La purga de arranque lo cubre; pasaría a deuda si AURA corriera
+  como servicio.
+- `corte=tope` con la TV sonando.
+- Identidad del hablante: R3, DECISIÓN B.
+
+**Siguiente bloque oficial:** S3 · «Memoria en la vida real» (reloj de CM2), según Master Map §16. Espera la decisión del CEO
+en `milestones/m3-entry/DP-S3-RELOJ-CM2.md` §7. **NO iniciado.**
+
+**Estado:** PARADA armada. `main` = `origin/main` = `d933a08`. HEAD = `6dad6af`. Sin commit ni push.
+
+## 2026-10-06 · DP-S3-RELOJ-CM2 listo para votación (v4) · S3 BLOQUEADO por decisión del CEO · continuidad COO
+
+**Estado del DP:** `milestones/m3-entry/DP-S3-RELOJ-CM2.md` v4. Sigue en **DECISION_REQUIRED / BORRADOR. NO APROBADO**. Sobre el
+borrador del 2026-10-04 se hicieron tres revisiones documentales autorizadas (v2, v3 y v4); el detalle está en su §9.
+
+**Decisiones del CEO pendientes** (DP §7):
+- Q1, conjunto de evaluación: A / B / A+B / D, con C propuesta para descarte.
+- Q2a, medición bajo demanda, en tres niveles: diseño, implementación e inicio del reloj.
+- Q2b, medición al cierre de sesión; hoy no existe ese punto de integración.
+- Q3, si A es indicador o evidencia para R1.
+- Q4, D-AMP-3: política A o B.
+- Q5, definiciones de CM2.
+- **E-Q1:** persistencia de lo olvidado.
+- **E-Q2:** umbral de latencia de R1.
+
+**Hallazgos que cambian el contexto `[LECT]`:**
+- **El texto olvidado no se borra.** Sigue en el JSONL de memoria (línea original y lápida) y en el **audit log inmutable**, donde
+  está desde que se declaró, incluidos los segmentos sellados. La purga física no existe.
+- **Contradicción entre fuentes aprobadas, sin reconciliar:**
+  - Bible 5.5 §3 («elimina el dato y su rastro»);
+  - G-6 y G-7 (DP-D-M-8), ADR-0023 y ADR-0017.
+  - Por 1.1 §3.2.3 debe quedar como pendiente visible. **`decisiones/pendientes.md` NO se ha tocado:** espera autorización del CEO.
+- **Hay dos paradas distintas:**
+  - (a) `entorno/control-plane/PARADA`, el ciclo autónomo: **armada**.
+  - (b) `<AURA_DATOS>/KILL`, la «PARADA» de ADR-0024: **no armada**.
+  - Si se armara (b), A no registraría hechos nuevos.
+- **Hueco de pruebas sin cerrar:** un eco retirado sigue saliendo en los `hits` de `recall` y ninguna prueba lo fija. No se tocó
+  porque depende de E-Q1 y D-AMP-3.
+
+**Corrección hecha por el COO (B · corregir y continuar):**
+- Se corrigieron los docstrings desfasados de `modules/memory.py::olvidar` y `core/modelo_usuario.py::borrar`, que decían «reescribe
+  el almacén» cuando desde G-7 se anexa una lápida. Solo cambia el texto; el comportamiento queda igual.
+- Verificación: ruff limpio; 45 pruebas de olvido y memoria en verde; Quality Gate (ver la entrada siguiente o el informe).
+
+**Siguiente paso exacto:** los votos del CEO sobre el DP §7. Con Q1 y Q5 decididas y Q2a(i) autorizada, empieza el diseño del reloj de
+CM2. **Nada de S3 está iniciado.** Hay además tres autorizaciones pendientes, todas independientes de S3:
+1. el commit del trabajo acumulado (285 entradas sin commit desde `6dad6af`);
+2. anotar E-Q1 en `decisiones/pendientes.md`;
+3. guardar los diffs del DP en `milestones/m3-entry/evidencia-dp-s3/`. Hoy están en `~/.claude/jobs/d6cb894c/tmp/`, que es
+   temporal.
+
+**Estado:** PARADA (a) armada; kill switch (b) sin armar. `main` = `origin/main` = `d933a08`. HEAD = `6dad6af`. Sin commit ni
+push.
+
+## 2026-10-06 · Incremento independiente de CM2: SIGTERM en la escucha continua sin dejar audio en disco (D39)
+
+**Por qué este bloque:**
+- En el mapa §16, S3 depende de los votos del DP-S3, y S4-S5 (M3.2b) está **congelado** por el acta fundacional (2026-07-21).
+- Se eligió trabajo admitido por **D39** (reduce deuda, fortalece la seguridad, mejora el runtime). Es un defecto observado `[EJEC]`
+  el 2026-10-06: un SIGTERM a mitad de turno dejaba `entrada_<tid>.wav` en `/tmp/aura`, contra la regla «no se almacena audio».
+
+**Cambio:**
+- `__main__.py`: `_hasta_sigterm`, que con SIGTERM cancela la tarea en vez de matar el proceso, así que los `finally` de
+  `_turno_de_voz` descartan la grabación. Se añade `_ejecutar_escucha_continua`, que `main` usa en `--escuchar --continuo`. Es el
+  mismo patrón que `_receptor_nodos`.
+- `adapters/escucha.py`: `OidoContinuo.detener()` cierra el flujo de `parecord` en curso, para que el hilo de Vosk no bloquee el
+  cierre.
+- **Fuera de alcance, sin cambios:** pulsar-para-hablar y el modo texto. Usan `input()` síncrono y un manejador de asyncio
+  retrasaría la parada.
+
+**Verificación:**
+- TDD: `tests/unit/test_voz_sigterm.py`, 7 pruebas con SIGTERM real y una red de seguridad. RED → GREEN.
+- Regresión de voz: 136/136.
+- Mutación: `mutaciones/voz-sigterm.toml` **7/7**; `voz-latencia.toml` sigue en **9/9**.
+- **Quality Gate PASS** (3053 passed, 1 skipped, 1 xfailed). Un primer FAIL de mypy, introducido por el cambio, se corrigió.
+- G-1 R-B: 0 violaciones.
+- **E2E real** (`milestones/m3-entry/evidencia-voz-sigterm/sigterm-en-espera-2026-10-06.jsonl`): AURA atenta con Vosk y
+  `parecord` reales, detenida con SIGTERM en menos de 1 s, sin procesos restantes. En `/tmp/aura` solo queda el «¿Sí?»
+  cacheado, que es una frase fija y no audio del usuario.
+- **No probado por el aire:** el SIGTERM a mitad de un turno con voz humana. Lo cubren pruebas unitarias.
+
+**Estado:** sin commit. PARADA (a) armada; kill switch (b) sin armar. El DP-S3 sigue en DECISION_REQUIRED.
+
+## 2026-10-06 · D39 completado: parada limpia por SIGTERM en pulsar-para-hablar y texto · grabador sin huérfanos
+
+**Cambio:**
+- `__main__.py`:
+  - `_ejecutar_conversacion` con manejador **híbrido**: dentro de `_espera_sincrona` (`input()`, grabación, reproducción) SIGTERM
+    interrumpe como Ctrl-C; fuera, cancela la tarea principal, sin cortar código a medias.
+  - La primera señal deja las siguientes en `SIG_IGN`.
+  - Restauración a prueba de `None`.
+  - Tras `asyncio.run` se borran los **restos del último turno**, por nombre exacto (`entrada_/resp_<tid>.wav`): el TTS en un hilo
+    podía escribir la respuesta después de la cancelación.
+- `adapters/microfono.py`:
+  - `_ejecutar_en_grupo` es el ejecutor por defecto. Crea una sesión propia y, al interrumpirse, termina el **grupo**
+    (`timeout` + `parecord`).
+  - Antes `parecord` seguía grabando huérfano tras un Ctrl-C o SIGTERM; reproducido `[EJEC]`.
+  - `escuchar` borra el WAV parcial si se interrumpe.
+  - `descartar_restos(tid)`.
+- **Fuera de alcance:** el «¿Sí?» cacheado **no se borra al apagar**. Su nombre es fijo y compartido en `/tmp/aura`, y podría ser
+  de otro proceso vivo. Lo purga el arranque.
+
+**Verificación:**
+- TDD con dos ficheros de pruebas:
+  - `test_voz_sigterm_conversacion.py`: 13 pruebas.
+  - `test_voz_sigterm.py`: 8 pruebas.
+- Regresión de voz y texto: 156/156.
+- Mutación:
+  - `voz-sigterm-conversacion.toml`: **17/17**.
+  - `voz-sigterm.toml`: **7/7**.
+  - `voz-latencia.toml`: **9/9**.
+- **Quality Gate PASS** (3067 passed, 1 skipped, 1 xfailed). G-1 R-B: 0.
+- **E2E real con el stack real:**
+  - texto: salida 0 en 0,06 s;
+  - pulsar-para-hablar a mitad de grabación: salida 0 en 0,37 s; `parecord` 0/1/0; el WAV se borra.
+- **Revisiones ECC:**
+  - `architect` (diseño): «seguir con cambios», aplicado.
+  - `code-reviewer` (diff): APROBAR. Se corrigieron el restore con `None`, la carrera con el bucle cerrado y el WAV de respuesta
+    escrito tras la cancelación, que se reprodujo con RED antes de corregirlo.
+
+**Incidencias del proceso:**
+- El arnés de mutación anterior murió por un `timeout` externo y dejó `__main__.py` mutado (VC-M6) y un `pytest` colgado 48 min.
+  Se restauró desde la copia en verde, sin git, y se paró por PID.
+- Causa: la prueba dejaba un `input()` doble sin fin. Se corrigió y ahora mide el tiempo.
+
+**Riesgo residual:**
+- Si SIGTERM llega durante una llamada larga al LLM, que corre en un hilo, el proceso no termina hasta que la llamada vuelve, o
+  hasta SIGKILL. El audio ya está borrado para entonces.
+- Con SIGTERM durante `input()` el mensaje es «hasta luego» (cosmético).
+
+**Graphify:** `graphify update` (0.9.65) regeneró el grafo en `graphify-out/` **dentro del worktree**, sin rastrear y no ignorado
+por git.
+
+**Estado:** sin commit. PARADA (a) armada; kill switch (b) sin armar. El DP-S3 sigue en DECISION_REQUIRED.
+
+## 2026-10-06 · D39: el arnés de mutación ya no deja huérfanos ni ficheros mutados (`herramientas/mutar.py`)
+
+**Causa raíz `[EJEC]`:**
+- pytest corre en su propia sesión (`start_new_session=True`), así que una señal al arnés no le llegaba.
+- SIGTERM mataba al arnés sin ejecutar ningún `finally`: el fichero quedaba **mutado** y pytest **huérfano**. Ocurrió el
+  2026-10-06: VC-M6 quedó mutado y pytest siguió 48 min.
+- Ctrl-C solo mataba el grupo en `TimeoutExpired`.
+- `killpg` no alcanzaba a los descendientes que abren su propia sesión.
+
+**Corrección:**
+- **Interrupción** (`_ejecutar_pytest`): ante cualquier interrupción mata el árbol, también desde dentro de la rama del timeout.
+- **Descendientes:** se fotografían `(pid, starttime)` antes del `killpg` y se matan por `pidfd`, comprobando que siguen siendo el
+  mismo proceso. Si `pidfd` falla, se usa `os.kill` con la misma comprobación.
+- **pytest** muere con el arnés (`PR_SET_PDEATHSIG`; `prctl` se resuelve al importar).
+- **Escritura** atómica (temporal + `os.replace`, sin dejar temporales y respetando los enlaces simbólicos). La restauración
+  corre con las señales bloqueadas y la máscara del llamador se restaura.
+- **Diario** `.mutar-en-curso.json` para sobrevivir a un SIGKILL. Al arrancar se recupera con prudencia: solo si el fichero
+  sigue siendo el mutado y el arnés dueño está muerto. Si no, avisa y no toca nada.
+- **`main`:** SIGTERM, SIGHUP y SIGINT detienen limpio y devuelven el código **130**. Las señales siguientes se ignoran, y se
+  respeta un `SIG_IGN` heredado (`nohup`).
+- **Límites declarados:** un proceso que hizo doble fork en su propia sesión antes de la foto no se encuentra. `PDEATHSIG` solo
+  alcanza al pytest.
+
+**Verificación:**
+- **Pruebas:** `tests/unit/test_arnes_ciclo_de_vida.py`, 17 pruebas con procesos reales marcados por PID y orden y limpieza
+  garantizada. Se adaptó una meta-prueba (la costura del sabotaje) y se añadió una prueba a M2 de `arnes-timeout.toml`.
+- **Mutación:** `arnes-ciclo-de-vida.toml` **19/19**; `arnes-timeout.toml` **4/4**.
+- **Quality Gate PASS** (3084 passed, 1 skipped, 1 xfailed). Sin procesos, diario ni temporales residuales.
+- **ECC:** el diseño (`architect`) salió «seguir con cambios», aplicado; la revisión del código (`code-reviewer`) pidió
+  cambios, también aplicados.
+- **Durante el trabajo** se encontraron y corrigieron dos pruebas vacuas, dos supervivientes por pruebas débiles y una fuga de
+  procesos de las propias pruebas en RED.
+
+**Observación, sin cambiar:** `entorno/control-plane/verificador.py` tiene el mismo patrón (solo mata en `TimeoutExpired`). Es
+código del control-plane, fuera de este cambio.
+
+**Estado:** sin commit. PARADA (a) armada; kill switch (b) sin armar. El DP-S3 sigue en DECISION_REQUIRED.
+
+## 2026-10-06 · Ciclo de vida de procesos en `entorno/control-plane/verificador.py` (incremento autorizado)
+
+**Causa raíz `[EJEC]`, reproducida en RED:**
+1. **Interrupción** (Ctrl-C, excepción del llamante): solo se mataba el árbol en `TimeoutExpired`. pytest y sus nietos
+   quedaban huérfanos.
+2. **Nietos en su propia sesión:** `killpg` no los alcanzaba ni en el timeout.
+3. **Muerte del llamante** (SIGTERM/SIGKILL): pytest seguía vivo.
+4. **Arnés de mutación arrancado a mitad de la batería:** el veredicto se emitía sobre un árbol mutado.
+
+**Corrección:**
+- `_matar_arbol` congela el grupo (SIGSTOP), fotografía `(pid, starttime)` de los descendientes (≤5 rondas) y, en un
+  `finally`, aplica `killpg` SIGKILL y luego SIGKILL a cada pid de la foto por `pidfd`, comprobando su identidad. Si la
+  foto revienta, el grupo no queda parado.
+- `_preparar_hijo` aplica `PR_SET_PDEATHSIG` y compone el confinador existente.
+- `_esperar` vigila el arnés cada `_VIGILANCIA_S` y lanza `ArnesEnCurso`. Hay además una comprobación final tras la
+  batería.
+- `except BaseException`: ante cualquier interrupción mata el árbol y drena la salida.
+
+**Verificación:**
+- **Pruebas:** `test_red_verificador_ciclo_de_vida.py`, 14 pruebas con procesos marcados.
+  - Junto con las del verificador existente: 32/32.
+  - Consumidores (delegación, tarea_atada, aislamiento, autoconstrucción): 141/141.
+  - Suite del control-plane: 1192 passed y 1 fallo **preexistente**. Es `test_los_nombres_de_fichero_no_se_truncan`: el
+    renombrado preparado `arnes-validador-comandos.toml -> retiradas/` rompe `observar_git`.
+- **Mutación:**
+  - `mutaciones/verificador-ciclo-de-vida.toml`: **11/11**.
+  - `mutaciones/verificador.toml`: **8/8**. A VF-M8 se le añadió una prueba.
+  - `arnes-ciclo-de-vida.toml`: **20/20**, con AL-M20 nuevo para la identidad en la rama pidfd.
+- **Quality Gate PASS:** 3085 passed, 1 skipped, 1 xfailed.
+- **ECC:** `code-reviewer` encontró un hallazgo MEDIO (el grupo podía quedar en SIGSTOP), que se demostró en RED y se
+  corrigió.
+- **Graphify:** actualizado.
+- **Residuos:** ningún proceso, proceso parado ni temporal.
+
+**Límites declarados:**
+- No se encuentra un doble fork que ya cuelga de init antes de la foto.
+- `PDEATHSIG` solo alcanza a pytest y se dispara por hilo.
+- Si pytest terminó pero un nieto retiene el pipe, la rama de interrupción no lo mata.
+- Tras un SIGKILL del llamante queda `/tmp/aura-verificador-*`.
+
+**Observaciones fuera del alcance, sin tocar:**
+- `delegacion.py`: el Popen de ruff solo se mata en `TimeoutExpired`.
+- Una prueba preexistente del control-plane escribe en el `eventos.jsonl` real: evento 2994, `descubrimiento_realizado`.
+
+**Estado:** sin commit. PARADA (a) armada; kill switch (b) sin armar.
+
+## 2026-10-06 · Incremento integrado de continuidad: verificador (2.ª fase) · observar_git · Ralph Loop · NODO-01
+
+**Verificador: descendientes desvinculados `[EJEC]`.**
+- **Defecto:** un nieto lanzado con doble fork y `start_new_session` sobrevivía al verificador. Ocurría también cuando la
+  batería terminaba con normalidad, con `sano=True` en 0,9 s: el nieto cuelga de init, fuera de la foto por ppid y del grupo.
+- **Corrección:**
+  - `secrets.token_hex(16)` como marca de la ejecución, solo en el entorno del hijo (`AURA_VERIFICADOR_EJECUCION`);
+  - `_marcados` lee `/proc/*/environ` y comprueba el starttime antes y después de leerlo;
+  - `_barrer_marcados` (SIGSTOP en rondas, SIGKILL en `finally` con identidad) corre en el `finally` de
+    `ejecutar_pruebas`.
+- **Límite declarado:** la marca la pierde todo descendiente lanzado con un entorno construido (`env -i`,
+  `Popen(env=...)`); si además se desvincula, sobrevive. El barrido tiene un tope de 5 rondas.
+- **Pruebas:** `test_red_verificador_ciclo_de_vida.py` pasa de 14 a 19 pruebas.
+  - Doble fork, con la batería terminada y con el plazo agotado.
+  - La marca no se filtra al proceso que llama.
+  - Plazo e interrupción con `entorno_construido`. Separa las dos capas: el barrido volvía redundantes VV-M1 y VV-M9,
+    que sobrevivieron; ahora mueren.
+- **Mutación:** `verificador-ciclo-de-vida.toml` **15/15** (VV-M12 a VV-M15 nuevos); `verificador.toml` **8/8**.
+
+**`observar_git` `[EJEC]`.**
+- **Causa del fallo `test_los_nombres_de_fichero_no_se_truncan`:** el parser por líneas de `--porcelain` no contemplaba
+  `R  viejo -> nuevo` ni las rutas entrecomilladas (espacios, tildes). Es un defecto latente en HEAD, que se manifestó con
+  el renombrado staged preexistente `arnes-validador-comandos.toml -> retiradas/`.
+- **Corrección:** `--porcelain -z` más `_rutas_de_porcelain_z`, que devuelve la ruta nueva en renombrados y copias.
+  `limpio` sale ahora del mismo `status` (revisión ECC).
+- **Pruebas:** `test_red_observar_git_renombrado.py`, 3 pruebas sobre un repositorio temporal.
+- **Mutación:** `mutaciones/observar-git.toml` **5/5**.
+
+**Validación:**
+- **Suite del control-plane:** **1205/1205**.
+  - 1203 corrieron en una copia aislada, porque la suite escribe en `eventos.jsonl`.
+  - Las 2 de `test_red_capacidad_completada.py` dependen de la ruta absoluta del contrato y del id `TA-…` derivado de
+    ella, y solo se miden en el árbol real: 14/14 allí, con el log intacto.
+- **Quality Gate PASS:** 3085 passed, 1 skipped, 1 xfailed.
+- **mypy:** `verificador.py` limpio. `control_plane.py` tiene 3 errores **preexistentes**, idénticos antes y después.
+- **ECC:** `code-reviewer` APROBAR, con 1 MEDIO y 4 BAJOS. Están aplicados todos salvo el tope de 5 rondas, que queda
+  declarado.
+- **Graphify:** actualizado.
+
+**Ralph Loop: NO funcional en HC-1 `[EJEC]`, prueba real BLOQUEADA.**
+- `setup-ralph-loop.sh` tiene CRLF (204 CR, `bash -n` falla en la línea 15) y no tiene bit de ejecución, pero el comando
+  lo invoca directamente («Permiso denegado»).
+- `jq` no está instalado: `stop-hook.sh` sale con 127 en la línea 32 y nunca bloquea la parada.
+- `stop-hook.sh` ya no tiene CR: se modificó en la caché el 2026-10-04 a las 15:32, antes de esta sesión.
+- **Corrección propuesta**, que requiere autorización:
+  1. `sudo apt install jq`;
+  2. convertir `setup-ralph-loop.sh` a LF y darle `chmod +x` en la caché, o reinstalar el plugin.
+- Hay una copia corregida, fuera de la caché, en el directorio temporal del job.
+
+**NODO-01: integración real entre dos equipos `[EJEC]` 2026-10-06 17:24.**
+- `--nodos` da nodo-01 ONLINE: latido de hace 2 s, secuencia 5018, 4 reinicios.
+- mDNS de HC-1 = 192.168.20.38; SSH del nodo abierto.
+- `MANIFIESTO.txt` del nodo **idéntico** al paquete local: 40 ficheros, i686, Python 3.13.5.
+- El mapa maestro no tiene fase de NODO-01. Pendientes de `RESULTADO-NODO-01` §5, que necesitan decisión: ufw/sudo,
+  reinicio completo de HC-1, aviso de rotación de la PKI y pruebas de los scripts (N-4).
+
+**Dependencias entre frentes:** no hay interfaz técnica. Graphify solo une `verificador.py` y `nodo_agente.py` por la
+biblioteca estándar `dataclasses`, y Ralph no aparece en el código.
+
+**Codex/OpenCode:** no disponibles en PATH; no se instalaron.
+
+**Estado:** sin commit ni push. PARADA (a) armada y kill switch (b) sin armar. HEAD 6dad6af; main = origin/main = d933a08.
+
+## 2026-10-06 · Ralph Loop reparado y demostrado en Claude Code (autorización del CEO) — herramienta externa a AURA
+
+**Instalación:** `ralph-loop@claude-plugins-official` 1.0.0 en `~/.claude/plugins/cache/claude-plugins-official/ralph-loop/1.0.0`,
+habilitado.
+- **Respaldo y recuperación:** `~/.claude/plugins/respaldos/ralph-loop-1.0.0-20261006/`. Contiene `LEEME.md`,
+  `INVENTARIO.txt` (antes), `INVENTARIO-FINAL.txt` (después) y la regresión `regresion-stop-hook.sh`.
+- **Ningún fichero de AURA cambió:** el estado de git es idéntico a la línea base, y no se ejecutaron ni el Quality Gate
+  ni Graphify.
+
+**Defectos `[EJEC]` y corrección:**
+1. `setup-ralph-loop.sh` tenía CRLF (204 CR) y `bash -n` fallaba. Se pasó a LF; el contenido lógico es idéntico.
+2. El mismo script estaba en 664. Se le dio 755.
+3. Faltaba `jq`, y el hook salía con 127. El CEO lo instaló con `apt`: `jq` 1.7.1-3ubuntu0.24.04.2 más `libjq1` y
+   `libonig5`.
+4. `stop-hook.sh` aceptaba la promesa SIN etiquetas `<promise>`. Se añadió una guarda de 1 condición.
+- `commands/*.md` conserva el CRLF: Claude Code lo normaliza, y una sesión real lo demuestra.
+
+**Pruebas reales** (`claude -p`, haiku, directorios en `mktemp` fuera del repositorio):
+- **A · inicialización:** `/ralph-loop:ralph-loop` se reconoce; los argumentos llegan sin `\r` y se registra el
+  `session_id`.
+- **B/C · repetición y promesa:** 3 iteraciones con bloqueo del hook en cada una. Cada iteración ve la anterior (0→1→2→3
+  líneas) y `<promise>TRES</promise>` sale solo cuando es verdad.
+- **D · límite:** con la tarea imposible, para en exactamente 5 iteraciones, sin promesa falsa y retirando el estado.
+- **E · aislamiento:** una sesión ajena, con un bucle ilimitado de otra sesión en el mismo directorio, termina en 1 turno
+  y deja ese estado intacto (hash). Una sesión sin Ralph termina con normalidad.
+- **F · recuperación:** con la iteración corrupta y con el prompt vacío, sale en 1 turno y retira el estado.
+  `cancel-ralph` necesita aprobación humana del `rm`, porque Claude Code trata `.claude/` como sensible.
+- **Regresión:** 19/19. La contraprueba con el hook sin corregir falla solo en «promesa sin etiqueta».
+- **ECC:** `code-reviewer` APROBAR (0 críticos y 0 altos).
+  - Hallazgo MEDIO del CRLF en los `.md`: refutado por la prueba A.
+  - Hallazgo MEDIO del estado sin `session_id`: queda documentado.
+  - Se añadieron los casos de etiqueta multilínea y de etiqueta en mayúsculas.
+- **Codex/OpenCode:** no disponibles.
+- **Residuos:** ninguno. Se retiraron los directorios de prueba y el `/tmp/ralph_test` que dejó un intento.
+
+**Riesgos del diseño, sin cambiar:**
+- `$ARGUMENTS` va sin comillas: los metacaracteres de shell del prompt se ejecutan. Se reprodujo, y dejó un bucle
+  ilimitado ligado a esa sesión.
+- Por defecto el bucle es ilimitado.
+- Un estado sin `session_id` es legacy y atrapa a cualquier sesión.
+- Corregir el primero exige rediseñar el paso de argumentos, lo que necesita decisión.
+
+**Dependencias con AURA:** ninguna. Ralph no aparece en el código del repositorio.
+
+**NODO-01 (solo lectura, 18:15):** ONLINE (secuencia 5324); mDNS → .38; el paquete desplegado es idéntico al local.
+Siguen sin autorización vigente los pendientes de §5: ufw/sudo, reinicio de HC-1, rotación de la PKI y pruebas de los
+scripts (N-4).
+
+**Siguiente paso del mapa (§16):** S3, a la espera del voto del CEO sobre `DP-S3-RELOJ-CM2` §7.
+
+**Estado:** sin commit ni push. PARADA armada. HEAD 6dad6af.
+
+## 2026-10-06 · Ralph Loop endurecido: los argumentos se transportan como DATOS (herramienta externa a AURA)
+
+**Causa raíz `[EJEC]`.** `commands/ralph-loop.md` ejecutaba `setup-ralph-loop.sh $ARGUMENTS` en un bloque `!`, y
+Claude Code sustituye `$ARGUMENTS` textualmente en bash.
+- Con un plugin sonda, los marcadores `;`, `>`, `$( )` y `` ` `` se EJECUTARON.
+- Un heredoc entrecomillado también se rompió con una línea igual al delimitador.
+- La medición del transporte antiguo da 12/32.
+
+**Corrección**, con un mecanismo nativo (hook `UserPromptSubmit`, que recibe el prompt como JSON):
+- `hooks/start-hook.sh` nuevo:
+  - tokeniza con GNU `sed -z` y analiza las opciones en bash sin `eval`;
+  - crea el estado con `mktemp` y `ln -T`, de forma atómica;
+  - bloquea con `decision=block`.
+- `commands/ralph-loop.md`: sin bloque `!`.
+- `hooks/hooks.json`: registra `UserPromptSubmit`.
+- `hooks/stop-hook.sh`:
+  - lee y actualiza solo la primera cabecera, con el prompt íntegro;
+  - usa `mktemp` en lugar de `.tmp.$$` y rechaza los enlaces simbólicos;
+  - lee los números en base 10.
+- **Cambio de contrato:** `--max-iterations` es obligatorio; `0` significa ilimitado de forma explícita y el tope es 1000.
+- `setup-ralph-loop.sh` queda sin uso.
+
+**Validación:**
+- **Copia aislada antes de instalar** (`--plugin-dir` + plugin oficial desactivado). Argumentos **47/47**, Stop hook **25/25** (la versión anterior da 20/25), y E2E real del bucle y del rechazo.
+- **ECC:** 2 revisiones con `security-reviewer`.
+  - La 1.ª dio 1 ALTO (symlink en el temporal; venía del original), 4 MEDIOS y 3 BAJOS. Corregidos todos salvo la carrera residual de microsegundos, documentada.
+  - La 2.ª verificó las correcciones e hizo un fuzz de 1500 cadenas por locale sin pérdida de bytes. Encontró 2 MEDIOS (estado convertido en directorio; portabilidad) y 3 BAJOS. Corregidos con su prueba de control.
+- **Rendimiento:** 20 000 palabras en ~1,5–2 s; antes, más de 120 s.
+- **Instalación activa** idéntica a la copia validada. Baterías 47/47 y 25/25.
+- **E2E reales en la instalación activa:**
+  - **B/C con sonnet:** 3 iteraciones; la promesa `TRES; HECHO` solo salió al haber 3 líneas.
+  - **Con haiku, el modelo emitió una promesa FALSA** (2 de 3 líneas). Es una limitación de Ralph, no del hook: el hook solo detecta la etiqueta exacta.
+  - **D · límite:** 2 de 2.
+  - **E · aislamiento:** el arranque se bloquea si hay un bucle ajeno; una sesión normal termina sin tocar ese estado; una sesión sin Ralph termina con normalidad.
+  - **F · recuperación:** un estado corrupto se retira.
+- **Recuperación** probada: los respaldos se restauran byte a byte según sus inventarios.
+
+**Respaldos:**
+- `~/.claude/plugins/respaldos/ralph-loop-1.0.0-20261006/` (original);
+- `…-reparado-20261006/` (antes del endurecimiento);
+- `…-endurecido-20261006/` (actual).
+
+`LEEME.md` contiene el procedimiento y las limitaciones.
+
+**Cancelación**, separada del arreglo: `cancel-ralph` necesita aprobar el `rm`, porque Claude Code trata `.claude/` como sensible. No hay otro mecanismo documentado.
+
+**Residuos:** ninguno. **AURA:** sin cambios. Git idéntico, `estado.json` intacto, en el log solo el cron (`despertar_rechazado`) y PARADA armada. No se ejecutaron ni el Quality Gate ni Graphify, porque no cambió código del repositorio. NODO-01, S3 y CM2 no se tocaron.
+
+## 2026-10-06 · Cierre técnico de Ralph Loop · auditoría integral · reanudación gobernada (sin cambios en AURA)
+
+**Ralph Loop: PASS CON LIMITACIONES `[EJEC]` 20:1x.**
+- La instalación activa es idéntica byte a byte al respaldo `ralph-loop-1.0.0-endurecido-20261006`: 7 ficheros, permisos y CR.
+- `bash -n` OK; `hooks.json` registra `Stop` y `UserPromptSubmit`; ningún bloque `!` contiene `$ARGUMENTS`.
+- Entorno: `jq` 1.7, bash 5.2.21, GNU sed 4.9 y Claude Code 2.1.292.
+- Baterías repetidas: argumentos **47/47** y Stop hook **25/25**. Las E2E A–F no se repitieron porque no hubo cambios desde que se registraron.
+- **Residuos retirados:** 7 estados en `/tmp/tmp.*`, creados por los dos revisores de seguridad de la sesión anterior. La procedencia está demostrada por la hora (19:24–19:38) y el contenido (`victim`, `w.sh`, `b500/b1000/b2000.json`, sesiones `S`/`S1`).
+- **Limitaciones vigentes:**
+  - el hook detecta la etiqueta de la promesa, no su verdad (con haiku se emitió una falsa);
+  - `cancel-ralph` necesita aprobación humana;
+  - las sesiones antiguas pueden conservar el comando en caché;
+  - `--max-iterations` o `--completion-promise` dentro del texto de la tarea se toman como opciones;
+  - solo funciona en Linux con GNU.
+
+**AURA `[EJEC]`:**
+- HEAD 6dad6af; main = origin/main = d933a08 (`ls-remote`). 299 entradas: 179 `??`, 119 ` M` y 1 `R` staged, todas preexistentes.
+- El DP-S3 y el mapa maestro **no están en git**. El sha256 es la única garantía de integridad: DP `55d48642…`, mapa `738e8f7f…`.
+- PARADA (a) armada. Kill switch (b) `~/.aura/KILL` **no existe**, es decir, no está armado.
+- Procesos: nats-server, `--receptor-nodos` y hass (anteriores, más de 2 días). `estado.json` intacto; en `eventos.jsonl` solo el cron.
+
+**Último incremento:**
+- Último bloque cerrado: **S2**, cierre técnico del 2026-10-06 (CHECKPOINT :7679; mapa §16 «✅ técnico»), sin acta del CEO y sin commit.
+- Las entradas posteriores (D39, verificador, observar_git, Ralph) son informes de proceso, no cierres de producto.
+- **Siguiente paso oficial:** S3, «reloj de CM2». **No iniciado**: espera el voto del CEO sobre `DP-S3-RELOJ-CM2.md` §7.
+
+**DP-S3 v4 `[EJEC]`:** 639 líneas, sha256 `55d486426287f5c1…`, «BORRADOR. NO APROBADO» y DECISION_REQUIRED.
+- Q1, Q2a, Q2b, Q3, Q4 (D-AMP-3), Q5, E-Q1 y E-Q2 están **PENDIENTES**. No hay voto en `decisiones/`, CHECKPOINT ni `eventos.jsonl`.
+- Las etiquetas E-Q1 y E-Q2 solo existen en el CHECKPOINT (:7736); en el DP corresponden a los «puntos separados» (:593-613).
+- Los 4 semanas de CM2 siguen vigentes: Bible 2.5:111, umbrales ratificados en 2.5:32.
+- **Error documental del DP v4 (:48-49),** sin corregir por falta de autorización: llama «propuesto» a lo que 2.5:32 declara ratificado.
+
+**Memoria `[EJEC]`:**
+- 114 pruebas de memoria en verde: lápida G-7, vigencia, olvido por entrada, audit log, frontera cognitiva y evocación.
+- **Sonda:** un eco marcado `retirada` **sigue apareciendo en los `hits` de `recall`**, también tras reiniciar. Solo lo filtra `_da_por_cierto` en el orquestador (`orchestrator.py:2066`), así que un consumidor de `recall` que no filtre lo vería.
+- Es el «hueco de pruebas» de :7750. Depende de E-Q1 y D-AMP-3; no se tocó.
+- No existe nada específico de CM2: ni sondas, ni reloj, ni replay. El audit log es append-only, sellado y verificable por segmento, con cursor persistente.
+
+**NODO-01 `[EJEC]` 20:13:** ONLINE (secuencia 6022); mDNS → .38 (= IP real de HC-1); SSH OK; manifiesto idéntico (40 ficheros, i686, Python 3.13.5).
+- El 4222 escucha en `*`; `ufw` no se puede verificar sin sudo.
+- Certificado del servidor hasta el 2029-01-06; la CA, hasta 2036; sigue sin aviso de rotación.
+- Pendientes sin autorización: ufw, reinicio de HC-1, aviso de la PKI y pruebas de los scripts (N-4).
+
+**Herramientas:**
+- Graphify 0.9.65: no se actualizó porque no cambió código desde las 18:05.
+- Codex/OpenCode: no disponibles.
+- GitHub: sin workflows, sin ejecuciones y sin PR abiertas.
+- Quality Gate: no se ejecutó, porque no hubo cambios de código.
+
+**Estado:** sin commit ni push. Esta sesión solo modificó esta entrada del CHECKPOINT.
+
+## 2026-10-06 · S3 desbloqueado por orden ejecutiva del CEO: puerta ADR-0014 corregida + mecanismo del reloj de CM2 (NO iniciado)
+
+**Autoridad:** orden del CEO en sesión («ORDEN DE CONTINUACIÓN EJECUTIVA», 2026-10-06), transcrita en
+`milestones/m3-entry/RESOLUCION-S3-CM2-ORDEN-CEO-2026-10-06.md`. Es una **resolución del Director Técnico por delegación**,
+no un voto del CEO registrado en `decisiones/`. El DP-S3 v4 sigue intacto, BORRADOR (sha256 55d48642…).
+
+**Decisiones técnicas (resolución §2):**
+- Q1 = A ahora + B tras la decisión de retención.
+- Q2a = (i) + (ii), **sin (iii)**.
+- Q2b = no por ahora.
+- Q3 = indicador preliminar; el criterio de 2.5 no se toca.
+- Q5 = §5.2 como base provisional: población de hechos declarados tipados, ecos fuera; excluir solo las retiradas
+  iniciadas por el usuario; revisión humana por muestreo, con «fabricación» **no evidenciada** mientras tanto; pregunta
+  tipo por atributo.
+- E-Q2 = CM1 se mantiene en 800 ms.
+- **Reservado al CEO (§3):** Q4/D-AMP-3 y E-Q1 (Bible 5.5 §3 frente a ADR-0023/G-6/G-7), B de Q1, el inicio oficial, la
+  alineación de 2.5:102 y el error del DP en :48-49.
+
+**Construido `[EJEC]`:**
+- **Puerta ADR-0014** (`core/orchestrator.py`):
+  - decide con lo vigente (`_da_por_cierto`), no con los `hits` crudos;
+  - si todos los `hits` son no vigentes, repite el `recall` con un `k` amplio antes de afirmar ausencia. Corrige un
+    hallazgo ALTO de ECC: con 4 o más versiones, la vigente quedaba fuera de k=3 y la puerta afirmaba una ausencia falsa.
+  - `recall`, `es_recuperable` y el olvido **no cambian**.
+  - Pruebas: `tests/integration/test_puerta_adr0014_vigencia.py`, 7.
+  - Actualizada `test_hechos_posesivos_generales.py::test_una_entrada_refutada_no_alimenta_la_ruta`, que codificaba la
+    consecuencia anterior.
+- **Reloj de CM2:**
+  - `core/ejecutor_modelo_usuario.py`: `hecho_id` opaco (`uuid4`), heredado entre versiones y aparte de los cuatro campos
+    de D-AMP-1 = B; eventos `cm2.hecho_registrado` y `cm2.hecho_retirado`, sin texto.
+  - `core/reloj_cm2.py` nuevo:
+    - población y calendario 7/14/28 regenerables desde el audit, idempotentes, con deduplicado por registro completo;
+    - sonda de solo lectura, que reutiliza `_proyectar` y `_responder_hecho`, sin LLM ni escritura;
+    - tasa a 28 días con tolerancia provisional de 7 días y edad por versión ≥ 28; mínimo provisional de 20; política
+      parametrizada; «sin datos suficientes» por defecto;
+    - el inicio es un **evento** `cm2.inicio`, solo con `--iniciar-cm2 --confirmo-inicio` y validando los datos.
+  - `__main__.py`: `--medir-cm2`, `--iniciar-cm2` y `--confirmo-inicio`, mutuamente excluyentes.
+  - Pruebas: `tests/unit/test_reloj_cm2.py` y `tests/integration/test_reloj_cm2_integracion.py`, 90 en verde.
+  - `test_historial_y_vigencia.py` permite `hecho_id` **por nombre**.
+- **Verificación:**
+  - **Mutación:** `puerta-adr0014-vigencia.toml` **4/4**; `reloj-cm2.toml` **27/27** (el `timeout_s` pasó de 60 a 400: la
+    base tarda 135 s).
+  - **Reanclados por esta sesión,** ambos detectados: `conversacion-general-v1` M1 (la puerta) y `historial-y-vigencia`
+    HV-M8 (ancla duplicada por `_hecho_id`).
+  - **Quality Gate PASS:** 3182 passed, 1 skipped, 1 xfailed; ruff y mypy (90 ficheros) limpios; contratos 8/8.
+  - **ECC:** `code-reviewer` dio 1 ALTO y 3 MEDIOS, todos corregidos. `auditor-consistencia`: contrato CUMPLE, con 5
+    menores corregidos.
+  - **Graphify:** actualizado (15 823 nodos). `reloj_cm2` solo lo consumen `__main__` y sus pruebas; `composicion` no lo
+    enciende.
+- **Demostración real:**
+  - `python -m aura_skeleton --medir-cm2` → «reloj de CM2: NO iniciado», 0 hechos registrados.
+  - `--iniciar-cm2` sin confirmación → no hace nada.
+  - Los 9 ficheros de `~/.aura` quedaron idénticos (hash) y no hay ningún evento `cm2.` en el audit real.
+
+**Fases del reloj:**
+1. Mecanismo: **HECHO**.
+2. Integración y validación: **HECHO**.
+3. Inicio oficial: **NO autorizado, no ejecutado**.
+4. Cuatro semanas naturales: no han empezado.
+5. Evaluación: CEO.
+
+La población empieza en 0: solo los hechos declarados después de este cambio llevan `hecho_id`.
+
+**Operativo `[EJEC]` 22:49:**
+- NODO-01 ONLINE (secuencia 6942); HC-1 sin reinicio desde el 2026-10-04.
+- El 4222 escucha en `*` y es alcanzable desde el nodo; **ufw sin verificar** (sudo).
+- **Reinicio de HC-1 NO ejecutado:** reinicia la máquina de esta sesión y no hay verificación posible sin una persona.
+- PARADA (a) armada; `~/.aura/KILL` ausente.
+
+**Desviaciones y observaciones:**
+- Un ingeniero ejecutó a mano el mutante PV-M4 sobre el fichero real mientras otro probaba en paralelo. Ese mutante no
+  afecta a las pruebas del otro; se repitió todo con el arnés, en serie.
+- Edité una prueba antes de respaldarla. El cambio es mínimo y está documentado.
+- `/tmp` acumula 808 directorios `tmp*` de `tempfile` (390 de hoy), un patrón preexistente de la suite. No se borraron
+  porque su procedencia por directorio no está demostrada.
+
+**Estado:** sin commit ni push. HEAD 6dad6af. Ficheros nuevos de esta sesión:
+- la resolución;
+- `reloj_cm2.py`;
+- 3 ficheros de pruebas;
+- 2 TOML de mutación.
+
+Modificados: `orchestrator.py`, `ejecutor_modelo_usuario.py`, `__main__.py`, 2 pruebas y 3 TOML.
+
+## 2026-10-07 · Post-S3: T11 cerrado, CM2 estabilizado, contrato de olvido v2, frente HC-1 preparado (sin commit)
+
+**Recuperación tras dos cortes por límite de sesión.** No se perdió trabajo:
+- El ingeniero B dejó el origen efectivo del reloj; las 11 regresiones se arreglaron y la suite del reloj pasa a 109/109
+  y luego a 110.
+- El ingeniero A dejó la batería adversarial y una implementación de D-N2-5 y `restore`. Esa implementación se guardó
+  como **parche no promovido** (`milestones/m3-entry/propuestas/D-N2-5-y-restore.patch`, aplica limpio) y el árbol se
+  restauró.
+- La evaluación del arquitecto (Opus) se completó.
+
+**Memoria (`CONTRATO-OLVIDO-Y-RETENCION.md` v2):**
+- **T11 `[EJEC]`:** «olvida que mi ciudad favorita es Valencia» guardaba su propio eco como `episodica` vigente después
+  de la lápida, y el dato volvía al contexto del modelo.
+- **T11b (ECC ALTO) `[EJEC]`:** «olvídalo, mi cumpleaños es el 3 de junio» se capturaba como declaración vigente.
+- **Corrección** (`core/orchestrator.py::_finalizar_turno`): un turno de soberanía (`dominio == "modelo_usuario"`) no
+  persiste eco **ni** captura señales. No se guarda tampoco como `historico`, que sería otra copia en claro.
+- **Pruebas:** `tests/integration/test_eco_de_soberania_t11.py` (7) y `test_olvido_adversarial.py` (21 passed y 16
+  `xfail(strict, raises=…)`).
+- **BLOQUEADO por autoridad, no por ingeniería:**
+  - D-N2-5 (N2 sin `_items`/`olvidar`/`marcar`): el verificador G-1 da R-A; exige una declaración en el manifiesto
+    (aprobación del CEO) y el gate de DEUDA-N2.
+  - T8 `restore`: `_persist()` reescribe el historial (G-7, ADR-0023). Sin llamador en producción.
+  - T13, ventana `_dialogue` (ECC ALTO A2): la declaración y la orden siguen en el prompt durante la sesión. DR-4 está
+    aprobado y su privacidad no está decidida.
+  - Borrado físico (§5): Bible 5.5 §3 frente a ADR-0023/G-6/G-7. Se recomienda el borrado criptográfico; las
+    decisiones que requiere están listadas en el contrato.
+  - El registro del conflicto en `decisiones/pendientes.md` sigue esperando autorización.
+- **Hallazgos registrados:** `backup` declarado neutro en el manifiesto cuando reescribe y destruye lápidas; el catálogo
+  declara `olvidar` como «destruye» cuando no destruye.
+
+**CM2:**
+- El origen es `max(valid_from, inicio)`: el tiempo anterior a `cm2.inicio` no cuenta y sin inicio no hay calendario.
+- `_iniciado` está unificado con `inicio_del_reloj`.
+- Hay procedimiento de inicio en `milestones/m3-entry/PROCEDIMIENTO-INICIO-CM2.md`; no autoriza el inicio.
+- **El reloj NO está iniciado:** `--medir-cm2` en real da «NO iniciado» y 0 hechos; `~/.aura` quedó idéntico antes y
+  después; hay 0 eventos `cm2.` en el audit real.
+
+**Calidad `[EJEC]`:**
+- Mutación con el arnés y en serie: `puerta-adr0014-vigencia` 4/4, `olvido-adversarial` 4/4 (OA-M3, M7, M8 y M9) y
+  `reloj-cm2` 32/32. Las 275 anclas sobre ficheros tocados son únicas.
+- **Quality Gate PASS:** 3230 passed, 1 skipped, 17 xfailed; ruff y mypy (90 ficheros) limpios; contratos 8/8.
+- **ECC** (`code-reviewer`): 2 ALTOS (A1 corregido; A2 aislado), 1 MEDIO (C1, documentado) y 4 BAJOS (corregidos o
+  documentados).
+- **Graphify:** actualizado (15 960 nodos).
+
+**HC-1 / NODO-01 `[EJEC]`:**
+- **El cortafuegos del sistema NO está activo** (`ufw.conf` → `ENABLED=no`). Se corrigió `RESULTADO-NODO-01.md` §5.3,
+  que decía lo contrario.
+- **Expuesto a la LAN:** 4222 (NATS, TLS + credencial por nodo) y los puertos de HA (SSDP 1900, mDNS 5353 y dos TCP
+  efímeros).
+- **Procedimiento con reglas exactas, verificación y reversión:** `entorno/nodos/PROCEDIMIENTO-FIREWALL-Y-REINICIO-HC1.md`.
+  Requiere sudo.
+- **Home Assistant:** la unidad `aura-hogar-ha.service` está **habilitada** para el próximo arranque y **no arrancada**;
+  la instancia manual sigue en marcha.
+- **Verificador tras reinicio:** `entorno/nodos/verificar-tras-reinicio-hc1.sh`. Su comparación de arranque se corrigió
+  y tiene caso de control. Hoy da FAIL solo en la unidad de HA inactiva, que es lo esperado.
+- **No se reinició HC-1:** requiere presencia.
+- **NODO-01** ONLINE (secuencia 8756).
+
+**Codex/OpenCode:** no fueron necesarios.
+
+**Estado:** sin commit ni push; HEAD 6dad6af; PARADA (a) armada; `~/.aura/KILL` ausente.
+
+## 2026-10-07 · Avance del mapa: CM2 listo y pendiente de orden explícita · M3.2b sigue congelado · reinicio de HC-1 demostrado
+
+**CM2: NO iniciado (decisión del Director).**
+- La orden de hoy condiciona el inicio a que «el mecanismo de gobierno confirme que la orden vigente lo autoriza». La
+  orden post-S3 lo excluía y el DP-S3 Q2a(iii) exige una orden explícita del CEO. El inicio es irreversible (audit
+  append-only), así que no se infiere.
+- **Precondiciones de `PROCEDIMIENTO-INICIO-CM2.md`:**
+  - QG PASS y mutación del reloj 32/32: cumplidas.
+  - `AURA_DATOS` = `~/.aura`, con `memoria.json`: cumplida.
+  - Reloj «NO iniciado»: cumplida.
+  - **Preflight: NO APTO.** Los modelos de Ollama están en el disco interno por un override de root
+    (`/etc/systemd/system/ollama.service.d/override.conf` → `OLLAMA_MODELS=~/.ollama/models`); el USB no tiene
+    `ollama_models`. No lo causó el reinicio y no afecta al reloj, pero el procedimiento lo exige.
+- **Dato para decidir:** la memoria real tiene actividad en solo 2 días (septiembre). Sin uso diario de AURA, la ventana
+  de 4 semanas no acumulará hechos.
+
+**M3.2b: NO se implementa.**
+- **Corrección de un error del Director:** la entrada del mapa del 2026-10-07 lo daba como rama sin decisión. Está
+  congelado por el CEO: acta fundacional del 2026-07-21 §1, con §2/D34 y D39.
+- **Datos reales `[EJEC]`** (agregados, sin contenido; `~/.aura` intacto): 100 líneas, 11 `hecho_declarado`,
+  **0 preferencias observadas**, actividad en 2 días distintos. La condición «datos reales suficientes» no se cumple.
+- Corregidos el mapa (§ registro) y esta continuidad.
+
+**HC-1, reinicio completo DEMOSTRADO `[EJEC]`:**
+- HC-1 arrancó el 2026-10-07 a las 02:17 sin intervención de ninguna sesión.
+- `aura-nats`, `aura-receptor-nodos` y `aura-hogar-ha` (la unidad nueva) volvieron por linger.
+- `entorno/nodos/verificar-tras-reinicio-hc1.sh "2026-10-04 04:24"` → **PASS**, con latido nuevo 10003 → 10005.
+- Evidencia: `milestones/m3-entry/evidencia-nodo-01/p9-reinicio-completo-hc1.txt`. Se actualizó `RESULTADO-NODO-01.md`
+  §5.2.
+- **Sigue pendiente:** el cortafuegos (ufw desactivado; procedimiento preparado; sudo).
+
+**Sin código nuevo:** no se ejecutaron ECC, mutación, Quality Gate ni la actualización de Graphify. Graphify se usó una
+vez (`query` de M3.2b) para localizar fuentes.
+
+**Estado:** sin commit ni push; HEAD 6dad6af; PARADA (a) armada; `~/.aura/KILL` ausente.
+
+## 2026-10-07 · Preflight NO APTO por Ollama: diagnóstico y migración PREPARADA (no ejecutada) · CM2 sigue sin iniciar
+
+**Orden del CEO:** no iniciar CM2. El inicio requiere su autorización explícita y el preflight APTO; no se acepta
+ninguna excepción. M3.2b sigue CONGELADO. El cortafuegos es un asunto aparte.
+
+**Diagnóstico `[EJEC]`, solo lectura:**
+- **Modelo:** `qwen2.5:0.5b`, 379 MB, 5 blobs íntegros (sha256 = nombre), en `/home/majo1230/.ollama/models` (disco
+  interno).
+- **Configuración:** `ollama.service` de sistema, con override
+  `/etc/systemd/system/ollama.service.d/override.conf` del 2026-09-04 (`User=majo1230`,
+  `OLLAMA_MODELS=~/.ollama/models`, `OLLAMA_HOST=127.0.0.1:11434`).
+- **USB:** AURORA_EXT = `/dev/sdb1`, ext4, UUID `c8847222-…`, en fstab con `nofail`, montado en
+  `/media/majo1230/AURORA_EXT`, 2,3 GB libres. AURORA_BAK = `/dev/sda`, 3,3 GB libres.
+- **Qué exige el preflight:** `OLLAMA_MODELS` en el dispositivo del USB y ningún blob de más de 100 MB en
+  `/home`, `/usr` ni `/opt`.
+
+**Preparado:** `entorno/scripts/migrar-modelos-ollama-usb.sh`, v2 tras la revisión de seguridad de ECC (2 ALTOS y 5
+MEDIOS corregidos).
+- Copia a `AURORA_EXT/ollama_models`, verificando cada blob leído del medio (O_DIRECT).
+- Añade un drop-in propio, `zz-usb.conf` (`RequiresMountsFor` + `OLLAMA_MODELS`), sin tocar el override.
+- Reinicia Ollama y prueba una generación real.
+- Guarda un respaldo verificado en AURORA_BAK y solo entonces retira la copia interna.
+- Termina con el preflight.
+- Con `--solo-comprobar` (solo lectura) da OK. **No se ejecutó `--migrar`** y no se usó sudo.
+
+**Pendiente de la persona:** ejecutar `--migrar` en HC-1 (pide sudo dos veces); después, la verificación.
+
+## 2026-10-07 · Ollama en el USB HECHO (por el CEO) · preflight APTO · migración de swap PREPARADA (no ejecutada)
+
+**Ollama:** la persona ejecutó `migrar-modelos-ollama-usb.sh --migrar` con resultado correcto (5 blobs verificados en el
+USB, drop-in `zz-usb.conf`, generación OK, respaldo en AURORA_BAK, copia interna retirada). **No hay que repetirlo.**
+
+**Preflight `[EJEC]`: `ESTADO: APTO` (exit 0).**
+- El swap interno es un **`warn`** («Riesgos abiertos»), no un bloqueo: el veredicto solo cuenta los `bad`.
+- La precondición «preflight APTO» de CM2 queda cumplida.
+- **CM2 sigue SIN iniciar:** falta la autorización explícita del CEO.
+
+**Preflight corregido (sección 6, Swap):**
+- Antes miraba solo el primer swap de la lista, así que tras migrar habría etiquetado zram (RAM) como «disco interno».
+- Ahora evalúa todos los swaps, trata `/dev/zram*` como RAM y avisa si hay swap en el disco interno o ninguno en el USB.
+- Sigue siendo `warn`. ECC: sin falso OK.
+
+**Swap: auditoría `[EJEC]`.**
+- `/swapfile`: 4 GB, root 600, interno, 0 B en uso.
+- `zram0`: 1,5 GB en RAM, prioridad 100.
+- `AURORA_EXT/swapfile_aurora`: 4 GiB, sin huecos, firma SWAPSPACE2, pero **majo1230 755 (inseguro)**.
+- No hay `resume=` (sin hibernación).
+
+**El comando que proponía el preflight era inseguro y no persistente:** permisos 755, `fstab` sin tocar y borrado sin
+reversión.
+
+**Preparado:** `entorno/scripts/migrar-swap-usb.sh`, v2 tras ECC (1 ALTO y 3 MEDIOS corregidos).
+- El fichero va a `AURORA_EXT/.swap/` (root 700) con permisos root 600.
+- Se activa el swap del USB **antes** de retirar el interno.
+- Se comenta `/swapfile` en `fstab` y se añade la línea del USB con `nofail,pri=10`, con copia del `fstab` anterior.
+- **No se borra `/swapfile`.** `--retirar-swap-interno` exige un reinicio posterior y que systemd haya activado el swap
+  del USB desde `fstab`.
+- `--revertir` es quirúrgico.
+- La edición y la reversión de `fstab` se probaron sobre una copia: la reversión deja el fichero idéntico al original
+  (la primera prueba detectó un defecto de regex en la marca, ya corregido).
+
+**Riesgos residuales declarados:** la raíz del USB es de majo1230 (renombrado posible); el swap no va cifrado.
+
+**Sin ejecutar:** `--migrar` (sudo). Nada cambió en el sistema real.
+
+## 2026-10-07 · Swap en el USB HECHO (por el CEO) · la «FALLA» era una segunda ejecución · script v3
+
+**Diagnóstico `[EJEC]`:** la migración salió bien a las 10:04.
+- Se creó `.swap/`; `fstab` se modificó a las 10:04:44; copia en `/etc/fstab.antes-swap-usb-20261007`.
+- Hubo un reinicio a las 10:06:24, y el swap del USB volvió solo desde `fstab`: la unidad generada está activa a los 8 s del arranque.
+- La «FALLA: no existe …/AURORA_EXT/swapfile_aurora» la produjo una **segunda** ejecución de `--migrar`, con el fichero
+  ya movido a `.swap/`.
+- Causa: un defecto del script al repetirse. **No** hay inconsistencia de rutas: la ruta canónica `AURORA_EXT/.swap/swapfile_aurora`
+  coincide en el script, `fstab` y `/proc/swaps`.
+
+**Estado `[EJEC]`:**
+- Swap: USB 4 GiB, prioridad 10, más zram0.
+- `/swapfile` inactivo y comentado en `fstab`. **El fichero sigue en disco** (4 GB).
+- Preflight: **APTO y sin riesgos abiertos**.
+
+**Correcciones (código, sin ejecutar nada que cambie el sistema):**
+- `migrar-swap-usb.sh` v3 detecta un estado ya migrado. `--solo-comprobar` y `--migrar` informan y salen con 0 si el
+  estado está COMPLETO; si está a medias, fallan y remiten a `--revertir`.
+- `--retirar-swap-interno` exige además la activación por systemd en el arranque (≤120 s, reloj monotónico).
+- Preflight: sube por los directorios padre cuando `df` no puede leer la ruta (dir root 700). Era un falso «disco INTERNO ()».
+- Dos revisiones ECC: 0 CRÍTICO y 0 ALTO; los MEDIOS aplicados.
+
+**Pendiente opcional:** `--retirar-swap-interno` libera 4 GB internos. Solo con el visto bueno del CEO.
+
+**Aparte (RESUELTO el mismo 2026-10-07):** el `OFFLINE` que vio el verificador era coherente con que el CEO estaba
+**fuera de la LAN doméstica** (HC-1 llegó a estar en `.209`); no era un fallo del nodo ni del N450.
+- De vuelta en la LAN, `ssh MariaJose@192.168.20.139` desde HC-1 autentica: HC-1 → NODO-01 confirmado.
+- Verificador `[EJEC]` a las 17:24 (HC-1 ahora en `192.168.20.38`): **PASS**.
+  - receptor `aura-receptor-nodos.service` active/enabled (linger);
+  - heartbeat NUEVO 12230 → 12232 en 20 s;
+  - mDNS `…Lenovo-100e….local → 192.168.20.38` (= IP real), descubrimiento dinámico sin IP estática;
+  - estado lógico `nodo-01 [bac41ce9…] ONLINE`.
+- **NODO-01 queda operacionalmente verificado**, no solo accesible por SSH. No requiere acción física.
+
+CM2 NO iniciado · M3.2b CONGELADO · firewall HC-1 sin tocar · sin commit.
+
+## 2026-10-11 · Barrido del siguiente incremento técnico → BLOCKED (sin construcción aprobada-y-no-ejecutada)
+
+**Objetivo de la sesión:** determinar y, si estaba desbloqueado, EJECUTAR el siguiente bloque de trabajo técnico,
+sin tocar CM2, M3.2b, S3 ni la latencia CM1/R1. No se construyó nada: el barrido terminó en BLOCKED legítimo.
+
+**Verificado al cierre `[EJEC]`:** HEAD `6dad6af`; CM2 intacto (1 evento `cm2.inicio`, seq 1314); `estado_operativo.jsonl`
+intacto (4-ago). **`memoria.json` creció 17559 → 17722 B el 10-oct 23:55, fuera de esta sesión y sin mi intervención**
+(no se leyó su contenido): posible uso real de AURA entre sesiones — observación para el Consejo de Formación, no se tocó.
+
+**Barrido (yo + explorador-repositorio independiente, 54 tool-uses):** Repository + Bible + ADR + DP + CHECKPOINT +
+`decisiones/` + `estado.json` + `TABLERO-DECISIONES-CEO-M3.md`. Conclusión binaria del explorador: **no existe ninguna
+construcción inequívocamente aprobada-y-no-ejecutada** fuera de lo ya cerrado o vetado.
+
+**Lo ya cerrado/ejecutado (no es trabajo):** DP-Cognición-Local (`58e67cb`,`5ebdce4`); AMP-AURA etapas 1-2 / D-AMP-1=B
+(`961d9a7`); D-FC / declaraciones sin LLM (`6dad6af`); S3 reloj-CM2 + CM2 iniciado; FRAME→Observación; percepción
+multimodal; voz→acción (S2, cerrado 2026-10-06); D-M-8 motor de mutaciones (F0–F6); 017 límite de reintentos; D-M-7/M-1.
+
+**Candidatos de mayor valor — ambos BLOCKED por falta de voto formal del CEO (no por ingeniería):**
+1. **D-AMP-2 · Memory Context Builder.** Cierra una fuga YA MEDIDA (`AMP-AURA-DECISIONES.md` §D-AMP-2,
+   `orchestrator.py:1223`: el `recall` entra al prompt sin filtro de scope/clase/pertinencia; el modelo repitió datos de
+   terceros `[EJEC]`). Recomendado «aprobar en principio, construir DESPUÉS de B». B ya está hecho. **Pregunta pendiente
+   de voto; sin acta.**
+2. **D-M-1 · Recuperación exacta (algoritmo A′ del recuperador léxico N1).** `DP-D-M-1-RECUPERACION-EXACTA.md:3`:
+   «APROBADO COMO DOCUMENTO DE DECISIÓN … **la implementación NO está autorizada todavía**», supeditada a D-M-2
+   (ya resuelta vía D-M-7). `DEUDA-N1-RECUPERADOR.md:106`: «pendiente de aprobación del CEO». No implementado
+   (`memory.py:154` sigue citando el defecto). **Su bloqueo original cayó, pero falta la autorización de construir.**
+
+**Congelado por regla de no-trabajo-anticipado (CEO 2026-08-04), no tocar:** DEUDA-PANEL-BLOQUEO-SIN-MOTIVO (D-2),
+DEUDA-ADR0014-MEMORIA-VACIA (D-3).
+
+**Siguiente acción (del CEO):** un acto de autoridad que apruebe **D-AMP-2** (recomendado: es el de mayor valor con
+evidencia de uso real y riesgo acotado por construcción) o **D-M-1 A′**. Con el voto, el incremento se ejecuta completo
+(RED→GREEN→mutación→QG→auditoría) en la siguiente sesión. Sin commit/push/merge en ésta.
+
+## 2026-10-11 · D-AMP-2 re-verificado → BLOCKED (sin aprobación formal) · evidencia fresca del defecto
+
+**Mandato:** ejecutar D-AMP-2 (Context Builder) SI existe autorización formal; si no, BLOCKED (condición puesta por el CEO).
+
+**Re-verificación formal `[EJEC]` (sin presuponer):**
+- `AMP-AURA-DECISIONES.md` frontmatter: «NADA implementado. Requiere aprobación del CEO», `decide: CEO`.
+- `decisiones/`: NINGUNA acta menciona D-AMP-2 (las dos posteriores a 2026-09-10 son percepción visual y FRAME→Observación).
+- `eventos.jsonl`, `estado.json`, `audit.jsonl`: CERO eventos de D-AMP-2.
+- **Conclusión: no existe aprobación formal de construcción.** → BLOCKED — DECISION_REQUIRED. No se tocó código de producción.
+
+**Evidencia `[LECT]` fresca del defecto (la línea histórica 1223 ya no aplica):**
+- `orchestrator.py:2033` `vigentes = [h for h in hits if _da_por_cierto(h)]` y `:2085` `ctx` se construye de `vigentes`.
+- Ese filtro es de **VIGENCIA** (refutada/superseded/ecos retirados; D-M-5 + resolución S3 del CEO 2026-10-06), **NO de
+  scope/terceros/pertinencia/sensibilidad**, que es lo que D-AMP-2 debe excluir. Un hecho de un tercero «dado por cierto»
+  pasa a `ctx`.
+- `orchestrator.py:2081-2084` declara el RESIDUO: el eco episódico «usuario dijo: …» no lleva `refutada` ni `valid_until`,
+  el filtro de vigencia no lo alcanza → vector de fuga de terceros SIGUE abierto. **El trabajo de D-AMP-2 sigue siendo real.**
+
+**Incidencia de herramienta (RESUELTA el 2026-10-11):** `graphify` no está en el PATH, pero SÍ existe el binario histórico
+`~/.graphify/venv/bin/graphify` (v0.9.65) y el grafo `graphify-out/graph.json` (23 MB, 7-oct, 15960 nodos). Verificado
+`[EJEC]`: `query` sobre el flujo recall→prompt responde correctamente. **Para usarlo invocar la ruta completa del venv**
+(no `graphify` a secas). Durante la verificación formal de D-AMP-2 (gobierno, no código) se usó Read/Grep, que era lo
+correcto; para el análisis estructural de la ejecución se usará ese binario.
+
+**Actividad de AURA entre sesiones (no tocar):** `memoria.json` 17559→17722 B y `audit.jsonl` 260827→264291 B, ambos
+10-oct 23:55, ajenos a esta sesión. Posible uso real → evidencia para el Consejo de Formación. No se leyó el contenido.
+
+**Decisión requerida del CEO:** responder la pregunta binaria D-AMP-2 de forma registrable (acta en `decisiones/` o
+respuesta inequívoca «apruebo construir el Context Builder»). NO se puede fabricar esa acta desde una orden genérica
+(CLAUDE.md: nada se construye sin DP aprobado; «no inventes votos ni aprobaciones»). Con el voto, se ejecuta completo
+(RED→GREEN→mutación→QG→ECC) en la siguiente sesión. Alternativa de menor alcance: D-M-1 A′ (también sin autorización de
+construir). Sin commit/push/merge. CM2 intacto · S3 sin reabrir · M3.2b congelado.
+
+## 2026-10-11 · D-AMP-2 Memory Context Builder CONSTRUIDO Y VERIFICADO (autorización CEO)
+
+**Autorización:** directiva ejecutiva del CEO «D-AMP-2 · MEMORY CONTEXT BUILDER». Registrada según el
+protocolo (patrón D-M-7) en `decisiones/2026-10-11-D-AMP-2-aprobacion-construccion.md`, sobre
+`AMP-AURA-DECISIONES.md §D-AMP-2`. No se fabricó acta ni evento: se registró la decisión emitida.
+
+**Qué cambió (producto):** se interpone una **función pura** entre la memoria recuperada (`recall`) y el
+prompt del modelo. Cierra el defecto medido de D-AMP-2: el eco episódico de un tercero
+(«usuario dijo: mi abuela es enfermera») reentraba al `[contexto memoria]` del modelo.
+- Nuevo `core/sujeto.py`: la regla léxica de terceros (`TERCERO`/`habla_de_tercero`/`normalizar`) se
+  movió aquí desde `conectores/conversacion.py` (una sola definición; `conversacion.py` la reimporta).
+  Respeta la dirección de dependencias (core no importa de conectores).
+- Nuevo `core/contexto_memoria.py::construir_contexto(vigentes)`: excluye del contexto los recuerdos
+  que hablan de un tercero. Reutiliza `_da_por_cierto` (vigencia, ya aplicada) y la regla de sujeto.
+- `orchestrator.py`: el `ctx` inline se reemplaza por la llamada al Builder (cableado mutado y protegido).
+
+**Orquestación:** arquitecto-evaluador (diseño: CABE CON CONDICIONES), explorador-repositorio (inventario:
+no duplicar), security-reviewer y code-reviewer (ECC). Cada uno respondió una pregunta concreta con evidencia.
+
+**Verificación `[EJEC]`:**
+- RED→GREEN: `tests/integration/test_contexto_de_memoria_vigente.py`, sección TERCEROS con CONTROL.
+  RED reprodujo la fuga (`recall ... -> 1 hit`, eco de tercero en el ctx); GREEN 8/8.
+- Mutación `mutaciones/context-builder-d-amp-2.toml`: **4/4 detectados, 0 sobreviven** (CB-M1 filtro,
+  CB-M2 inversión, CB-M3 regla compartida captura+salida, CB-M4 cableado del orquestador — ALERTA-005).
+- **Quality Gate: PASS** (3232 passed, 1 skipped, 17 xfailed; ruff y mypy limpios; contratos 8/8).
+- Regresión del refactor: dos mutantes de incrementos previos (`hechos-declarados.toml:H4`,
+  `hechos-posesivos-generales.toml:HP-M3`) quedaron huérfanos al mover la regla; se **re-anclaron** a
+  `core/sujeto.py` (misma garantía, nuevo fichero). `test_garantias_vigentes` vuelve a verde (1561).
+
+**ECC:** code-reviewer sin CRÍTICOS/ALTOS; 1 MEDIO (acceso inconsistente a `content`) corregido.
+security-reviewer reportó 1 CRÍTICO + 2 ALTOS, todos de la MISMA naturaleza: el incremento cierra la vía
+`recall` pero no es garantía cerrada. Resueltos como **corrección de veracidad** (no de lógica): el
+arquitecto ya dictaminó NO filtrar el buffer `recent` (rompería continuidad conversacional legítima y
+está fuera del alcance del DP). Se corrigió la sobre-afirmación («frontera única») y se **declararon los
+límites** en el docstring de `contexto_memoria.py`, en el acta y aquí.
+
+**LÍMITES DECLARADOS (no es garantía de privacidad cerrada):**
+1. El buffer de diálogo `recent` NO pasa por el Builder (otra vía al prompt; continuidad conversacional;
+   comportamiento previo al incremento). Una política para el buffer requiere decisión del CEO.
+2. Detección léxica parcial (lista `TERCERO` cerrada): falsos negativos con fraseos no listados.
+3. Filtrado por registro completo, sin redacción parcial de la cláusula del tercero.
+4. PERTINENCIA y SENSIBILIDAD: no implementadas (sin criterio en DP/Bible/ADR ni campo en el dato);
+   punto de extensión que requiere decisión del CEO. PROPUESTAS: sin vector medido (no llegan por recall).
+
+**Estado:** HEAD `6dad6af`, sin commit/push/merge. CM2 intacto (1 evento, seq 1314). `~/.aura` sin cambios
+por mi mano (`memoria.json` 10-oct es actividad ajena entre sesiones). S3 sin reabrir. M3.2b congelado.
+Ficheros del incremento: `core/sujeto.py`, `core/contexto_memoria.py` (nuevos), `conversacion.py`,
+`orchestrator.py`, `test_contexto_de_memoria_vigente.py`, `context-builder-d-amp-2.toml`, re-anclaje de
+`hechos-declarados.toml`/`hechos-posesivos-generales.toml`, acta de aprobación.
+
+**Siguiente candidato (NO ejecutar sin decisión):** el buffer `recent` como vía de terceros (requiere
+política del CEO sobre continuidad vs. privacidad); o D-M-1 A′. D-AMP-3/4/5 siguen pendientes de voto.
+
+## 2026-10-11 · M3.2a Exportar: VERIFICADO que el método existe sin ruta · DP de cableado PROPUESTO (no aprobado)
+
+**Sesión de verificación y propuesta (sin código).** Siguiente paso del cronograma tras D-AMP-2 =
+completar M3.2a (soberanía del modelo del usuario), pieza EXPORTAR.
+
+**Hallazgo `[EJEC]` 2026-10-11 (verificación dirigida, sin barrido general):**
+- `exportar` YA EXISTE: `aura_skeleton/core/modelo_usuario.py:107-113` (JSON con usuario/ts/entradas, en claro).
+- **Pero NO está cableado al usuario:** `grep` de llamadores vacío; no está en `intencion`, orquestador,
+  ejecutor ni CLI. Patrón «declarado ≠ real» (como la capacidad 009). Las otras tres de M3.2a SÍ están
+  cableadas: ver (`orchestrator.py:2248`), corregir/refutar (`:2327`), borrar (Motor Único).
+- **Tensión de la Bible, no resuelta unilateralmente:** 4.4 §2 dice «cifrado»; 4.1 §5 y el docstring
+  dicen «legible sin AURA» (JSON en claro). Es decisión del CEO (opciones A/B/C en el DP).
+
+**Entregable:** `milestones/m3-entry/DP-M3.2a-EXPORTAR-MODELO-USUARIO.md` — PROPUESTA, no aprobada. La
+brecha NO es construir exportación (existe), sino **cablearla** + resolver el cifrado. DECISION_REQUIRED:
+(1) ¿aprobar el cableado?; (2) formato claro (A) / cifrado (B) / ambos (C).
+
+**Separado y pendiente (no incluido en el DP):** el riesgo del buffer `recent` (terceros en la ventana
+de diálogo) sigue como decisión de alcance independiente del CEO. D-AMP-3/4/5, D-M-1 A′: no autorizados.
+
+**Estado:** HEAD `6dad6af`, sin commit/push/merge. No se tocó código de producción. CM2 intacto. S3 sin
+reabrir. M3.2b congelado. Ficheros nuevos de esta sesión: el DP (arriba) y esta entrada.
+
+## 2026-10-11 · RECONCILIACIÓN: la entrada del inicio oficial de CM2 (7-oct) estaba en el fichero equivocado
+
+**Defecto de continuidad detectado y corregido hoy.** La entrada formal del INICIO OFICIAL de CM2 se
+había escrito el 2026-10-07 en `walking-skeleton/CHECKPOINT-CONTINUIDAD.md` (un fichero creado por error
+de `cwd`, fuera del CHECKPOINT canónico de la raíz). El canónico solo la referenciaba de pasada. Se
+rescata aquí su contenido íntegro y se elimina el fichero huérfano. Es el patrón «trabajo manual que se
+desvía» (CLAUDE.md §5); el acto en sí (inicio de CM2) fue correcto y está intacto en `~/.aura` (1 evento
+`cm2.inicio`, seq 1314). Contenido rescatado:
+
+### 2026-10-07 · CM2 INICIADO Y VERIFICADO (autorización operativa delegada)
+
+**Autorización:** el CEO delegó autorización operativa para ejecutar el inicio de CM2 en esa sesión.
+Registrada como autorización operativa delegada; no se fabricó voto, firma ni acta de autoridad humana.
+
+**Precondiciones (todas verdes, `PROCEDIMIENTO-INICIO-CM2.md` §1):** Quality Gate PASS `[EJEC]`; mutación
+del reloj 32/32 (árbol sin cambios); preflight APTO; `AURA_DATOS`=`~/.aura` con `memoria.json`/`audit.jsonl`;
+reloj NO iniciado antes; PARADA armada y `KILL` ausente (ninguno impide: el reloj solo audita).
+
+**Inicio `[EJEC]`:** `python3 -m aura_skeleton --iniciar-cm2 --confirmo-inicio` (exit 0) → `reloj de CM2:
+iniciado`. Un evento `cm2.inicio`, `ts=1791413212.6118252`, `seq=1314`. **Inicio: 2026-10-07T22:46:52+00:00**
+(17:46:52 local). Idempotencia: repetir → `ya iniciado; no se modifica`, conteo sigue en 1. `~/.aura`
+íntegro (solo creció `audit.jsonl` por el append). Estado: 0 hechos, 0 sondas, `sin datos suficientes`,
+`fabricacion: no evidenciada`.
+
+**Ventana canónica:** CM2 START 2026-10-07T22:46:52Z · 28 días naturales (no se simulan) · tasa solo con
+≥20 sondas de día 28 · primera sonda de día 28 posible 2026-11-04 · revisión final (fase 5) del CEO ·
+origen de cada hecho `max(valid_from, inicio)` · `--medir-cm2` se lanza en cada ventana.
+
+CM2 INICIADO · M3.2b congelado · S3 sin reabrir · firewall aparte · sin commit.
+
+## 2026-10-11 · Revisión final del DP M3.2a-exportar: la tensión de cifrado se disuelve con 4.1 §5
+
+**Revisión documental (sin código).** Al leer el texto EXACTO de Bible 4.1 §5 «Soberanía, cifrado y
+portabilidad», la supuesta contradicción «cifrado (4.4 §2) vs. legible (4.1 §5)» NO existe:
+- 4.1 §5 L62 «Local y cifrada»: cifrado del **almacén en reposo** y de los **respaldos** que salen.
+- 4.1 §5 L64 «Exportación total»: el usuario exporta en **formato neutral** («el usuario es el dueño», D1).
+Son objetos distintos (almacén vs. artefacto exportado). **Recomendación: opción A** (export en formato
+neutral legible, sin cifrar; el método actual ya lo cumple). Cifrar el export contradiría la soberanía.
+El cifrado del almacén en reposo (ADR-0001) es requisito SEPARADO, no objeto de este DP.
+
+**DP actualizado:** `DP-M3.2a-EXPORTAR-MODELO-USUARIO.md` — la DECISION_REQUIRED se reduce a UNA pregunta
+(¿aprobar el cableado con formato neutral?); el cifrado deja de ser decisión pendiente. Sigue PROPUESTA,
+no aprobado. Integridad verificada: la entrada de inicio de CM2 está completa en el canónico (7 piezas
+clave), reconciliación documentada, huérfano eliminado, CM2 intacto (1 evento).
+
+**Estado:** HEAD `6dad6af`, sin commit/push/merge. Cero código de producción tocado. CM2/S3/M3.2b intactos.
+
+## 2026-10-11 · M3.2a Exportar CONSTRUIDO (opción A) · QG+ECC en curso al cierre de sesión
+
+**Autorización:** CEO aprobó el DP opción A (acta `decisiones/2026-10-11-M3.2a-exportar-aprobacion.md`):
+cablear la exportación existente con formato neutral legible. No ampliar alcance; no tocar CM2/S3/M3.2b.
+
+**Construido (producto):** se cableó la exportación, que existía como método sin ruta (`modelo_usuario.py:107`).
+- `orchestrator.py`: `_PAT_MODELO_EXPORTAR` (~L250) + rama en `_atender_modelo_usuario` (~L2261, ANTES de
+  `_PAT_MODELO_VER` porque «exporta lo que sabes de mi» contiene «que sabes de mi»): `return await
+  self.modelo_usuario.exportar(uid)`. Lectura pura: no muta, no pasa por el Motor; la PARADA no la bloquea
+  (como `ver`). Formato neutral legible (Bible 4.1 §5 L64); el artefacto NO se cifra (el cifrado es del
+  almacén en reposo, L62 — fuera de alcance).
+- Pruebas `tests/e2e/test_modelo_usuario_flujo.py`: `test_exportar_entrega_el_modelo_en_formato_neutral`
+  (JSON parseable, con las entradas, con control de que `ver` NO es JSON) y `test_exportar_esta_aislado_por_usuario`.
+
+**Verificación `[EJEC]`:**
+- RED→GREEN: RED reprodujo que «exporta…» caía en VER (no JSON); GREEN 4/4 (2 nuevas + 2 soberanía intactas).
+- Mutación `mutaciones/m3-2a-exportar.toml`: **3/3 detectados, 0 sobreviven** (EXP-M1 rama no exporta, EXP-M2
+  patrón no reconoce «exporta», EXP-M3 uid fijo → aislamiento).
+- ruff + mypy de `orchestrator.py`: limpios.
+- **Quality Gate: EN CURSO** (background `b7q61mmdp`) al redactar esta entrada.
+- **ECC: EN CURSO** (security-reviewer + code-reviewer) — pendiente de leer veredicto y aplicar correcciones.
+
+**Si la sesión se corta antes de cerrar:** leer el veredicto del QG (`b7q61mmdp.output`) y de los dos ECC;
+si QG PASS y ECC sin CRÍTICO/ALTO, el incremento está COMPLETO (actualizar esta entrada a «VERIFICADO»). Si
+hay hallazgos, aplicarlos y re-verificar. Nada que revertir: la rama es lectura pura, sin efecto en el store.
+
+**Estado:** HEAD `6dad6af`, sin commit/push/merge. CM2 intacto. S3 sin reabrir. M3.2b congelado. Ficheros:
+`orchestrator.py` (patrón+rama), `test_modelo_usuario_flujo.py` (2 pruebas), `mutaciones/m3-2a-exportar.toml`,
+acta de aprobación. El método `exportar` NO se reconstruyó (ya existía).
+
+## 2026-10-11 · M3.2a Exportar: ECC ALTO corregido (guarda de dominio) · mutación 4/4 · QG final en curso
+
+**ECC:** code-reviewer APPROVE (0 hallazgos). security-reviewer **1 ALTO** (válido, de privacidad):
+`_PAT_MODELO_EXPORTAR` usaba subcadena «exporta»/«exportar» sin guarda de dominio → frases mundanas
+(«mi empresa exporta café», «exportar este Excel») volcaban el modelo completo del usuario. Mismo
+precedente que `_PAT_OLVIDO_REFLEXIVO` (ALERTA-006): un marcador aislado no basta.
+
+**Corrección aplicada (TDD):** RED con 4 frases mundanas que filtraban el modelo → GREEN con guarda de
+dominio: `_es_peticion_de_exportar(t)` exige VERBO (`_PAT_EXPORTAR_VERBO`) **y** OBJETO del dominio del
+usuario (`_PAT_EXPORTAR_OBJETO`: «lo que sabes de mi», «mis datos», «mi modelo»...). La rama pasa a
+`if _es_peticion_de_exportar(t)`.
+- GREEN: `test_modelo_usuario_flujo.py` 8/8 (exportar + 4 mundanas bloqueadas + aislamiento + soberanía).
+- Mutación `m3-2a-exportar.toml`: **4/4 detectados, 0 sobreviven** — EXP-M1 (rama), EXP-M2 (GUARDA DE
+  DOMINIO: si se quita el objeto, la frase mundana vuelca el modelo → detectado), EXP-M3 (aislamiento uid),
+  EXP-M4 (verbo). El fix del ALTO queda protegido por prueba y por mutante.
+- ruff + mypy: limpios.
+- **Quality Gate final: EN CURSO** (background `bhqwkzlg5`).
+
+**Si la sesión se corta:** leer `bhqwkzlg5.output`; si PASS → incremento COMPLETO/VERIFICADO. Nada que
+revertir (lectura pura). CM2 intacto, S3/M3.2b sin tocar, sin commit.
+
+## 2026-10-11 · M3.2a Exportar: QG final PASS tras `ruff format` · ECC focalizado del fix en curso
+
+El primer QG tras la guarda de dominio falló SOLO en el paso 1/5 (formato): el patrón multilínea no cumplía
+`ruff format`. Aplicado `ruff format aura_skeleton/core/orchestrator.py` (solo reformatea mi código; el resto
+ya estaba formateado). Re-mutación tras el reformato: **4/4 detectados**. **QG final: PASS** (`b7fhrczma`):
+1/5 formato OK · 2/5 lint OK · 3/5 tipado OK · 4/5 pruebas **3238 passed**, 1 skipped, 17 xfailed · 5/5 contratos 8/8.
+
+**Pendiente antes de declarar VERIFICADO:** ECC focalizado del cambio POSTERIOR al ALTO (la guarda
+`_es_peticion_de_exportar`): confirmar que cierra el falso positivo sin introducir falsos negativos peligrosos
+ni romper el aislamiento. En curso. Si sin CRÍTICO/ALTO → VERIFICADO.
+
+**Fase exacta:** QG PASS logrado; esperando dictamen ECC del fix. HEAD `6dad6af`, sin commit. CM2 intacto.
+
+## 2026-10-11 · M3.2a Exportar: ALTO RESIDUAL corregido (objeto reflexivo) · QG+re-ECC en curso
+
+**ECC focalizado del 1er fix encontró un ALTO RESIDUAL** (válido): la guarda de objeto usaba subcadenas
+genéricas («mis datos», «mi informacion», «mi memoria», «mi perfil») que, con un verbo, volcaban el modelo
+ante lenguaje mundano (5 frases: datos de ventas, nómina, info fiscal de una app, memoria USB, perfil de
+videojuego). Era la misma clase de defecto, desplazada del verbo al objeto.
+
+**Corrección (TDD):** RED con las 5 frases residuales (volcaban) → GREEN acotando `_PAT_EXPORTAR_OBJETO`
+a referencias REFLEXIVAS inequívocas a lo que AURA sabe («lo que sabes/tienes/has aprendido/recuerdas de
+mi», «mi modelo de usuario»); eliminados TODOS los genéricos (incl. «mi perfil de usuario», que colisiona
+con videojuegos). Añadidos verbos de entrega (dame/mandame/enviame) para cubrir «dame todo lo que sabes de
+mí». Decisión declarada: «quiero mis datos» (ambiguo) NO vuelca — ante la duda no se expone PII.
+- GREEN: `test_modelo_usuario_flujo.py` 17/17 (9 mundanas/residuales bloqueadas + 3 reflexivas legítimas +
+  exportar formato + aislamiento + soberanía + olvidar).
+- Mutación `m3-2a-exportar.toml`: **5/5 detectados, 0 sobreviven** (EXP-M5 reintroduce «mis datos» → las
+  pruebas residuales lo matan: protege la acotación).
+- formato/lint/mypy: limpios.
+- **QG final: EN CURSO** (`bsatvbhyu`). **re-ECC focalizado del residual: EN CURSO** (`a29e94bee648d2b85`).
+
+**Si la sesión se corta:** leer `bsatvbhyu.output` (QG) y el dictamen del re-ECC. Si QG PASS y re-ECC = ALTO
+CERRADO sin CRÍTICO/ALTO → declarar M3.2a-exportar **VERIFICADO**. Nada que revertir (lectura pura).
+
+**Fase exacta:** 2ª corrección aplicada (objeto reflexivo); esperando QG + re-ECC. HEAD `6dad6af`, sin commit.
+CM2 intacto, S3/M3.2b sin tocar.
+
+## 2026-10-11 · M3.2a Exportar: 3er bypass del guard léxico → aplico CLAUDE.md §C, escalo la FORMA al CEO
+
+**El re-ECC adversarial encontró un TERCER bypass del MISMO mecanismo.** `_es_peticion_de_exportar`
+(`orchestrator.py:282-283`) es `_cae_en(VERBO) and _cae_en(OBJETO)` sobre TODA la frase (`_cae_en` =
+subcadena, `:395`), sin exigir que verbo y objeto estén en la misma cláusula. Frases de dos cláusulas
+inconexas vuelcan el modelo: «Dame limón. Lo que sabes de mi novio no me interesa.», «Descarga mi modelo
+de usuario para la demo del hackathon.». El residual anterior (5 frases) SÍ quedó cerrado; la CLASE no.
+
+**DECISIÓN (deber de disenso + CLAUDE.md §C): dejo de refinar el léxico.** Van 3 rondas de guarda
+(patrón → objeto reflexivo → ahora adyacencia), y el reviewer sigue encontrando bypass del mismo fondo.
+§C es explícito: una guarda que necesita lista negra creciente tiene la FORMA equivocada; la garantía debe
+moverse al **consentimiento informado**, no al filtrado de entrada («debí salir de esa carrera una ronda
+antes»). Para una operación que vuelca PII, la forma correcta es **confirmar antes de exponer** (como el
+HITL de lista roja / `_DESAMBIGUAR`): un falso positivo produciría a lo sumo «¿exporto lo que sé de ti?»,
+nunca una fuga. Eso cierra la CLASE entera, no una instancia.
+
+**Pero es un CAMBIO DE DISEÑO** más allá de «cablear la exportación existente» (lo aprobado): cambia la UX
+(exportar pasa a pedir confirmación) y requiere estado de confirmación entre turnos. **Lo escalo al CEO**;
+NO lo implemento por mi cuenta ni declaro VERIFICADO.
+
+**Estado del código:** la ruta de exportar funciona y el QG (en curso) previsiblemente pasa, PERO tiene un
+falso positivo ALTO conocido (frases de dos cláusulas). NO se declara VERIFICADO. Sin commit. Nada que
+revertir con urgencia: es worktree sin integrar; la decisión de forma precede a cerrar. HEAD `6dad6af`.
+CM2 intacto, S3/M3.2b sin tocar.
+
+**DECISION_REQUIRED al CEO:** ¿(A) autorizar mover la garantía a CONFIRMACIÓN antes de exportar (cambio de
+diseño, cierra la clase); (B) aceptar la guarda léxica con su límite documentado (riesgo: frases
+artificiales de dos cláusulas vuelcan PII; bajo en uso real monousuario); o (C) otra vía?
+
+## 2026-10-11 · M3.2a Exportar opción A (CONFIRMACIÓN) implementada · QG+ECC final en curso
+
+**Autorización:** CEO opción A (acta `decisiones/2026-10-11-M3.2a-exportar-confirmacion-opcion-A.md`).
+Codex/opencode NO en PATH (registrado; no se instala). Revisión externa = ECC (security+code).
+
+**Cambio (CLAUDE.md §C: consentimiento, no lista):** la exportación ya NO se vuelca por detección de
+texto. En `orchestrator.py`:
+- `__init__`: `self._export_pendiente: set[str] = set()` (pendiente por uid, vive un turno).
+- `_atender_modelo_usuario` inicio: si hay pendiente para el uid → `discard`; SOLO `_confirma_export(t)`
+  ejecuta `exportar(uid)`; cualquier otra cosa lo descarta. Exportar es lectura (la PARADA no la bloquea).
+- Rama `_es_peticion_de_exportar`: ya no vuelca; marca pendiente y PREGUNTA «¿Quieres que la exporte? Dime
+  «sí, exporta»». Un falso positivo de detección produce a lo sumo esta pregunta, nunca una fuga.
+- `_confirma_export`: rechaza negaciones; exige frase afirmativa inequívoca de export.
+
+**Verificación `[EJEC]`:**
+- GREEN: `test_modelo_usuario_flujo.py` 22/22 — solicitud→pregunta; solo «sí, exporta» exporta; 9
+  mundanas/bypasses (incl. los 3 de dos cláusulas) NUNCA vuelcan directo; bypass sin confirmar no vuelca;
+  confirmación sin solicitud no exporta; negativa/cambio de tema descartan; confirmación de OTRO usuario
+  no exporta; aislamiento por uid; soberanía original intacta.
+- Mutación `m3-2a-exportar.toml`: **5/5 detectados, 0 sobreviven** (CF-M1 solicitud-no-vuelca, CF-M2
+  confirmación-inequívoca, CF-M3 pendiente-un-turno, CF-M4 aislamiento-uid, CF-M5 confirmación-exige-pendiente).
+- formato/lint/mypy: limpios.
+- **Quality Gate final: EN CURSO** (`bt7znzevo`). **ECC security del flujo de confirmación: EN CURSO** (`af22d535b1851b480`).
+
+**Si la sesión se corta:** leer `bt7znzevo.output` (QG) y el dictamen ECC. Si QG PASS y ECC = CLASE CERRADA
+sin CRÍTICO/ALTO → declarar M3.2a-exportar **VERIFICADO**. Nada que revertir (lectura pura + estado en RAM).
+
+**Fase:** implementación opción A completa; esperando QG + ECC. HEAD `6dad6af`, sin commit. CM2 intacto.
+
+## 2026-10-11 · M3.2a Exportar: CRÍTICO de confirmación cerrado (match exacto) · ECC clase cerrada · QG re-corriendo (flaky NATS)
+
+**ECC CRÍTICO (previo):** `_confirma_export` reconocía la confirmación por SUBCADENA → tras un bypass, un
+turno mundano con un verbo («Exportalo a otro formato de video») confirmaba y volcaba el modelo.
+
+**Corrección (TDD):** RED con 3 confirmaciones mundanas → GREEN cambiando `_confirma_export` a
+**igualdad exacta del turno COMPLETO normalizado** contra `_CONFIRMA_EXPORT_EXACTO` (frozenset), no
+subcadena. No es otra ronda léxica: la confirmación es un universo pequeño y cerrado (CLAUDE.md §C).
+- GREEN: `test_modelo_usuario_flujo.py` **25/25** (3 confirmaciones mundanas bloqueadas + confirmaciones
+  válidas + transiciones + aislamiento + soberanía).
+- Mutación `m3-2a-exportar.toml`: **6/6 detectados, 0 sobreviven** (CF-M1..M6; CF-M6 reintroduce la
+  subcadena y la prueba del CRÍTICO lo mata).
+- formato/lint/mypy: limpios.
+- **ECC security re-review: CLASE CERRADA**, sin CRÍTICO/ALTO abierto (verificado en ejecución; frases
+  cortas del frozenset como turno completo son el consentimiento esperado, no un bypass). code-reviewer
+  previo: APPROVE.
+- **Quality Gate:** el run `bj5o8fim7` FALLÓ por **1 test FLAKY ajeno** —`test_nodo_e2e_nats.py::
+  test_ciclo_de_vida_del_nodo_online_offline_reinicio_y_reconexion`, E2E de NATS/NODO-01, nada que ver
+  con M3.2a—; **pasa aislado** `[EJEC]` (NATS activo en 4222). Re-corriendo QG limpio: `bmwo2c5jk`.
+
+**Integración ECC↔Graphify (verificado, no supuesto):** graphify v0.9.65 (venv) + grafo + **hook
+PreToolUse activo en settings global** (alcanza a todos los agentes); agentes ECC en `~/.claude/agents/`,
+reglas en `~/.claude/rules/ecc/`. No hay acoplamiento automático en las definiciones de agente; la
+integración operativa es el hook global + la ficha de evidencia que inyecto en cada prompt de subagente.
+NO se modificó settings (pedido: no alterar config).
+
+**OmniRoute:** NO instalado. Disenso registrado: enruta código privado de AURA a proveedores de terceros
+(riesgo de exfiltración, choca con D24 local-first); innecesario para cerrar M3.2a; requiere que el CEO
+defina proveedor autorizado. Pendiente de su decisión; no bloquea el incremento.
+
+**Si la sesión se corta:** leer `bmwo2c5jk.output`. Si PASS → M3.2a-exportar VERIFICADO (el flaky NATS es
+ajeno y pasa aislado). HEAD `6dad6af`, sin commit. CM2 intacto, S3/M3.2b sin tocar.
+
+## 2026-10-11 · M3.2a Exportar — VERIFICADO (confirmación por match exacto, opción A)
+
+**QG re-ejecutado `bmwo2c5jk`: PASS** — 1/5 formato · 2/5 lint · 3/5 tipado · 4/5 pruebas **3254 passed**,
+1 skipped, 17 xfailed · 5/5 contratos 8/8. El flaky NATS del run previo NO se repitió (pasa aislado; ajeno
+a M3.2a). CRÍTICO de confirmación CERRADO (match exacto); ECC security = clase cerrada; mutación 6/6;
+code-reviewer APPROVE. **M3.2a-exportar VERIFICADO.** HEAD `6dad6af`, sin commit. CM2 intacto, S3/M3.2b sin tocar.
+
+## 2026-10-11 · Protocolo de orquestación PERSISTIDO · Codex/OpenCode ausentes · OmniRoute no instalable (timeout)
+
+**A · Protocolo persistido (fuente única, sin duplicar):**
+- NUEVO `.claude/rules/orquestacion-herramientas.md` — única copia del protocolo (Graphify orienta · ECC
+  agentes/capacidades · Claude Code coordina · Codex/OpenCode revisión independiente si están · OmniRoute
+  externo; reglas de eficiencia; manejo de error técnico vs. elevar gobernanza).
+- `CLAUDE.md §8` (nuevo) REMITE a esa regla — mecanismo de herencia: CLAUDE.md se carga en cada sesión.
+- Los **4 agentes** del proyecto (`explorador-repositorio`, `arquitecto-evaluador`, `auditor-consistencia`,
+  `verificador-mutacion`) REMITEN a la regla en su system prompt (verificado: 4/4). Hook Graphify global ya
+  alcanza a todos (sin tocar `settings.json`). Sin hooks duplicados; el contenido vive en UN solo fichero.
+- Herencia verificable por estructura (CLAUDE.md + system prompts) + hook activo; no se lanzó un agente solo
+  para «probar» (sería ceremonia, el mecanismo es el nativo de Claude Code).
+
+**Herramientas (verificado `[EJEC]`):**
+- Graphify: operativo (venv v0.9.65, grafo, hook global). ECC: agentes/reglas disponibles y usados.
+- **Codex / OpenCode: NO en PATH** (`command -v` vacío). No instalados (no hay necesidad técnica que lo exija).
+- **OmniRoute: NO instalado.** Paquete real (npm `omniroute` v3.8.51, «unified AI router, 358 providers»).
+  `npm install -g omniroute` (fuera del repo, prefijo nvm): 1er intento **denegado por el clasificador**;
+  2º **timeout a 300 s (SIGTERM)** — paquete pesado (desktop/PWA/358 proveedores). Prefijo global quedó
+  limpio (sin residuo), npm sano. **No se validó salud/enrutamiento/recuperación.** No más intentos
+  (directiva). PENDIENTE: instalación con ventana mayor + proveedor autorizado (ninguno configurado; no se
+  enruta código privado de AURA a terceros sin autorización — D24).
+
+**Límites respetados:** sin commit/push/merge; no se tocó `~/.aura`, CM2, S3, M3.2b, settings globales ni
+Bible/ADR/DP. M3.2a-exportar sigue VERIFICADO (no se re-tocó).
+
+**Siguiente paso exacto:** (1) si quieres OmniRoute, autorizar `npm install -g omniroute` con ventana >10 min
+y decirme el **proveedor autorizado** para la prueba de enrutamiento; (2) si no, el protocolo ya rige por sí
+solo en futuras sesiones. No hay incremento técnico pendiente salvo tu decisión sobre el buffer `recent`.
+
+## 2026-10-12 · Doble frente: AURA (desarrollo autorizado agotado) + OmniRoute (no instalable, 3 intentos)
+
+**FRENTE A — AURA.** Verificación DIRIGIDA (no barrido): los dos incrementos de construcción ejecutables
+(D-AMP-2 Context Builder, M3.2a-exportar) están COMPLETOS Y VERIFICADOS. Ninguna acta de octubre aprueba
+construcción nueva no ejecutada; **D-M-1 A′ sigue SIN autorización de construir**. El desarrollo autorizado
+y no bloqueado se agotó (lo anticipó `ROADMAP-M3-REORDENADO.md §4`). No se inventa incremento.
+- Trabajo legítimo hecho (sin cruzar barrera formal): cerré el DP `DP-M3.2a-EXPORTAR-MODELO-USUARIO.md` a
+  estado **EJECUTADO Y VERIFICADO** (corrige «declarado≠real»: decía PROPUESTA pese a estar construido).
+- **DECISION_REQUIRED (siguiente incremento, todos requieren tu decisión):** (a) autorizar construir
+  **D-M-1 A′** (recuperador léxico N1; su bloqueo D-M-2 ya cayó, falta aprobación); (b) política del buffer
+  **`recent`** (terceros en la ventana de diálogo — decisión de alcance); (c) descongelar M3.2b (no); (d)
+  M3.1/M3.3/M3.4 (dependían del escenario de despliegue, ya resuelto, pero el roadmap exige decisión).
+
+**FRENTE B — OmniRoute.** Paquete real (npm v3.8.51). NO instalado tras 3 intentos: (1) denegado por el
+clasificador; (2) timeout 300 s; (3) timeout 580 s (~10 min) con `--no-audit --no-fund --omit=dev`. Causa:
+`npm install -g omniroute` no completa en <10 min en este entorno (paquete pesado: desktop/PWA/358
+proveedores). **Docker NO disponible** (alternativa oficial descartada). Entorno limpio (sin residuo
+parcial, npm sano). No se validó servicio/salud/enrutamiento. No más intentos (directiva).
+- **Siguiente paso para reanudar OmniRoute:** instalarlo en una terminal SIN límite de tiempo
+  (`! npm install -g omniroute`, fuera del repo), o habilitar Docker. Aunque se instale, el enrutamiento
+  real requiere un **proveedor autorizado** (ninguno configurado); NO se enruta código privado de AURA a
+  terceros sin autorización (D24). Respetados los controles de permisos (no se eludió la denegación).
+
+**Límites:** sin commit/push/merge; `~/.aura`, CM2, S3, M3.2b, Bible/ADR/DP intactos. HEAD `6dad6af`.
+M3.2a-exportar VERIFICADO. Protocolo de orquestación persistido (sesión previa) sigue vigente.
+
+## 2026-10-12 · D-M-1 A′: propuesta de decisión preparada (NO ejecutada) · OmniRoute en background
+
+**FRENTE A — D-M-1 A′ evaluado; NO autorizado para construir.** `DP-D-M-1-RECUPERACION-EXACTA.md:3-11`:
+documento aprobado, pero «implementación NO autorizada, supeditada a resolver D-M-2 antes». Precondición
+D-M-2 **sin confirmar** (su DP: «Op-5 NO AUTORIZADA»; indicios de D-M-7 pero sin cierre formal). El propio
+DP admite que el defecto **no se ha observado en uso real** (§2.4/§7.2). → **No ejecuto** (falta
+autorización + precondición + evidencia de uso real; construir sería trabajo anticipado, regla CEO
+2026-08-04).
+- Entregable: `milestones/m3-entry/DECISION-REQUERIDA-D-M-1-RECUPERACION-EXACTA.md` — propuesta concisa
+  (alcance A′, defecto, evidencia ausente, riesgos, pruebas, recomendación **APLAZAR** / opciones A/B/C).
+  Remite al DP, no lo duplica.
+- No hay otra construcción autorizada-no-bloqueada (verificado). Desarrollo autorizado agotado tras
+  D-AMP-2 + M3.2a.
+
+**FRENTE B — OmniRoute.** `npm install -g omniroute` relanzado en **segundo plano** (`bjhlhwvmn`) para
+esquivar el timeout de ~10 min del primer plano (vía legítima, no elusión de permisos; el clasificador lo
+permitió en background). EN CURSO al redactar. Si completa → verificar versión/salud. Si falla/cuelga →
+instrucciones manuales (terminal sin límite: `! npm install -g omniroute`) + Docker. Enrutamiento real
+sigue requiriendo proveedor autorizado (ninguno); no se enruta código privado (D24).
+
+**Estado:** HEAD `6dad6af`, sin commit. `~/.aura`/CM2/S3/M3.2b/Bible/ADR/DP intactos. M3.2a VERIFICADO.
+Ficheros nuevos de esta sesión: la propuesta D-M-1, estado del DP M3.2a (→VERIFICADO, previo), CHECKPOINT.
+**Siguiente acción exacta:** AURA → tu voto A/B/C sobre D-M-1; OmniRoute → resultado del install background.
+
+## 2026-10-12 · OmniRoute INSTALADO y CLI operativo (servidor sin arrancar) · D-M-1 propuesta lista
+
+**FRENTE B — OmniRoute: instalado y verificado (parcial).**
+- `npm install -g omniroute` en background (`bjhlhwvmn`) completó **exit 0**. Versión **3.8.51**, binario
+  `~/.nvm/versions/node/v24.18.0/bin/omniroute`, módulo en el prefijo global — **fuera del repo de AURA**.
+- CLI operativo: `omniroute --help` y `omniroute health` responden (exit 0 y diagnóstico válido). `esbuild`
+  nativo compilado (bin presente); hay `omniroute runtime/repair` si faltara alguna dep nativa.
+- `health`: **«servidor no en ejecución»** (correcto; no se arrancó). Config en `~/.omniroute/.env` (fuera de
+  AURA); generó `STORAGE_ENCRYPTION_KEY` ahí (secreto local, no en el repo ni en logs).
+- **Pruebas superadas:** instalación, versión, carga del CLI, componente de salud. **NO probado:** servidor
+  en ejecución, enrutamiento, herramientas, fallback, recuperación de sesión — requieren `omniroute serve`
+  **+ un proveedor autorizado** (ninguno configurado). No se enruta código privado de AURA (D24). No se
+  simula relevo funcional.
+- **Reanudar OmniRoute:** (1) `omniroute serve` (arranca servidor; Linux: `omniroute autostart` = systemd
+  de usuario); (2) configurar un **proveedor autorizado** (`omniroute oauth`/API key en `~/.omniroute/.env`);
+  (3) `omniroute health`/`status`; (4) probar enrutamiento con datos ficticios. **Desinstalar:**
+  `npm uninstall -g omniroute` + borrar `~/.omniroute/`.
+
+**FRENTE A — D-M-1 A′:** propuesta de decisión lista en
+`milestones/m3-entry/DECISION-REQUERIDA-D-M-1-RECUPERACION-EXACTA.md` (recomienda APLAZAR; no autorizado,
+precondición D-M-2 sin confirmar, sin evidencia de uso real). **No ejecutado.** Esperando voto A/B/C del CEO.
+
+**Estado:** HEAD `6dad6af`, sin commit. `~/.aura`/CM2/S3/M3.2b intactos. M3.2a VERIFICADO.
+**Siguiente acción exacta:** AURA → voto A/B/C sobre D-M-1. OmniRoute → `serve` + proveedor autorizado (tu
+decisión del proveedor) para validar enrutamiento.
+
+## 2026-10-12 · Orquestación eficiente: ficha de evidencia compartida (mecanismo PROBADO) · D-M-2 RESUELTO
+
+**Optimización (ámbito de proyecto, sin tocar config global):**
+- `.claude/rules/orquestacion-herramientas.md` ampliada con el mecanismo **«Ficha de evidencia compartida»**:
+  una ficha por incremento en `.claude/ficha-evidencia.md` (efímera, no en `~/.aura`); el primer agente la
+  puebla con UNA consulta dirigida de Graphify; los demás la LEEN primero y solo consultan el grafo para lo
+  nuevo; el orquestador la pasa en el prompt y la consolida. Reduce re-exploración → menos llamadas/lecturas
+  → menos disparos del hook. Cambio mínimo; no se recreó la regla.
+- **Herencia verificada:** la regla ya la remiten CLAUDE.md §8 y los 4 agentes locales (4/4); los agentes ECC
+  reciben la ficha por prompt. No se duplicaron hooks ni agentes.
+- **Hook global `graphify hook-guard`** (en `~/.claude/settings.json`, matchers `Bash|Grep|Read|Glob`) es la
+  fuente del recordatorio repetido. Silenciarlo exige tocar config GLOBAL (afecta a todos los proyectos):
+  **NO se hace sin tu autorización**. Queda como opción si quieres reducir ese aviso.
+
+**Prueba de coordinación observable (superada):** el agente `auditor-consistencia`, con la ficha + Graphify
+dirigido, cerró el punto abierto sin re-explorar y respondió conciso (veredicto + 3 anclas). Evidencia de
+que el mecanismo funciona.
+
+**Hallazgo útil — precondición D-M-2 RESUELTA (verificado):** `intencion.py:548` `debe_almacenarse` →
+`if es_interrogativa(texto): return False`; `orchestrator.py:3253/3278/3288` no escribe el eco de una
+pregunta; `tests/integration/test_correcciones_producto.py:65-105` (`test_DM2_repetir_una_pregunta_NO_desactiva_ADR0014`)
+pasa. → La propuesta `DECISION-REQUERIDA-D-M-1-...md` se actualizó: la precondición de D-M-1 YA está
+satisfecha; quedan como barreras solo (a) autorización formal y (b) evidencia de uso real. Recomendación
+sigue siendo **APLAZAR** (regla 2026-08-04). D-M-1 NO construido.
+
+**Codex/OpenCode:** NO en PATH (sin cambio). **OmniRoute:** v3.8.51 instalado (sesión previa), servidor sin
+arrancar; sin cambios hoy (no se reinstala).
+
+**Estado:** HEAD `6dad6af`, sin commit. `~/.aura`/CM2/S3/M3.2b intactos. M3.2a VERIFICADO.
+**Siguiente acción exacta:** AURA → voto A/B/C sobre D-M-1 (precondición ya resuelta; decides por evidencia).
+OmniRoute → `serve` + proveedor autorizado (tu decisión) para validar enrutamiento. Orquestación → opcional:
+autorizar reducir el aviso del hook global.
+
+## 2026-10-12 · D-M-1 A′ CONSTRUIDO (recuperación exacta N1) · QG+ECC en curso
+
+**Autorización CEO** (acta `decisiones/2026-10-12-D-M-1-aprobacion-construccion.md`). Precondición D-M-2
+resuelta (verificado). Prioridad A del prompt de ejecución integral.
+
+**Cambio (producto):** `aura_skeleton/modules/memory.py::PersistentMemory.recall` — generación de candidatos
+**A′**: filtro de prefijo (`n−m+1` listas más cortas, `m=ceil(0.60·n)`, palomar exacto) + **cota α=1**
+(`Σ|prefijo| > _conteo_usuario[user] → barrido completo` de los N recuerdos del usuario). Reemplaza el salto
+heurístico de términos ubicuos que producía el falso negativo de D-M-1 (ADR-0014 negaba un recuerdo
+existente). Añadido contador `_conteo_usuario` (dict por usuario; `__init__`/`write`/`_reconstruir_indice`;
+no persistido). `_COBERTURA_MINIMA`, tokenización y criterio de aceptación INTACTOS. Docstring corregido.
+
+**Verificación `[EJEC]`:**
+- `tests/unit/test_recall_exacto_d_m_1.py` **6/6** (oráculo fuerza bruta; contraejemplo ubicuo; diferencial
+  aleatorio semilla 20260803 = 0 discrepancias; cota activa exacta; aislamiento con barrido; límites;
+  determinismo). Regresión: batería de memoria + soberanía 39/39.
+- Mutación `mutaciones/d-m-1-recuperacion-exacta.toml`: **3/3 detectados, 0 sobreviven** (DM1-M1 prefijo,
+  DM1-M2 unión, DM1-M3 aislamiento del barrido). NOTA: DM1-M3 SOBREVIVIÓ en la 1ª corrida porque el test de
+  aislamiento no activaba la rama de barrido; se corrigió el test (consulta de 3 términos, 2 ubicuos) y
+  ahora muere. (La mutación hizo de revisor: destapó una prueba que no ejercitaba la garantía.)
+- ruff/mypy de memory.py: limpios.
+- **Quality Gate final: EN CURSO** (`b6zjlrqvt`). **ECC code-reviewer: EN CURSO** (`adb2e508e3e158f76`).
+
+**Límite declarado (no fingido):** el defecto D-M-1 NO se ha observado en uso real (DP §2.4/§7.2); se
+construyó la corrección exacta; la observación real queda pendiente de telemetría.
+
+**Si la sesión se corta:** leer `b6zjlrqvt.output` (QG) + dictamen ECC. Si QG PASS y ECC sin CRÍTICO/ALTO →
+D-M-1 A′ VERIFICADO; actualizar DP a EJECUTADO. HEAD `6dad6af`, sin commit. `~/.aura`/CM2/S3/M3.2b intactos.
+
+## 2026-10-12 · D-M-1 A′: M4 re-anclado · 9 fallos del arnés = ambientales (OmniRoute) · QG re-corriendo
+
+**Diagnóstico del FAIL del QG previo (`b6zjlrqvt`, 10 fallos):**
+- **1 real (mi cambio):** `test_garantias_vigentes` → `memoria-cobertura.toml:M4` huérfano. M4 protegía MA.2a
+  vía el salto de términos ubicuos (`continue`) que A′ ELIMINÓ. RE-ANCLADO con equivalencia semántica: la
+  misma garantía la sostiene ahora `listas = sorted(..., key=len)` + prefijo (tomar las más cortas). Mutante
+  nuevo: `key=len` → `key=lambda x:-len(x)` (orden descendente → el prefijo toma la lista ubicua → coste
+  lineal). Prueba: `test_escalabilidad_memoria::test_el_recall_no_recorre_el_corpus_ni_examina_terminos_ubicuos`.
+  Verificado `[EJEC]`: `test_garantias_vigentes` PASA; mutación `memoria-cobertura.toml` **5/5 detectados**
+  (M4 re-anclado mata). La garantía NO se debilitó.
+- **9 ambientales (NO mi código):** `test_arnes_ciclo_de_vida`/`test_arnes_mutacion` fallaron porque dejé
+  **OmniRoute `serve` corriendo en paralelo** con el QG; esos tests lanzan el arnés de mutación con
+  subprocesos/timeouts y son sensibles a la carga (CLAUDE.md §2). OmniRoute detenido (`ps` vacío; error:
+  usé `pkill -f` una vez, corregido a `kill` por PID). **Arnés re-ejecutado AISLADO: pasa completo** (~37
+  tests). Confirmado ambiental, no defecto.
+
+**Quality Gate único: EN CURSO** (`biguekxp5`), omniroute detenido, nada en paralelo. Si PASS → D-M-1 A′
+VERIFICADO; actualizar DP a EJECUTADO. OmniRoute se validará DESPUÉS del QG (no durante el arnés).
+
+**Estado:** D-M-1 A′ construido; 6/6 pruebas propias, mutación 3/3 (d-m-1) + 5/5 (memoria-cobertura), ECC
+sin CRÍTICO/ALTO. HEAD `6dad6af`, sin commit. `~/.aura`/CM2/S3/M3.2b intactos.
+
+## 2026-10-12 · D-M-1 A′ VERIFICADO (QG PASS) · OmniRoute validado y detenido
+
+**FRENTE A — D-M-1 A′ VERIFICADO.** QG re-ejecutado (`bcj0v8349`): **PASS** — formato/lint/tipado OK,
+**3260 passed**, 1 skipped, 17 xfailed, contratos 8/8. El flaky del arnés del run previo
+(`test_con_pidfd_real...`, `subprocess.TimeoutExpired` bajo carga) NO se repitió; verificado que pasa
+AISLADO → era ambiental (timing de subprocesos del arnés bajo la carga del QG), ajeno a memory.py.
+- Área de D-M-1 verde (recall exacto, escalabilidad/M4, garantías, batería), mutación d-m-1 3/3 +
+  memoria-cobertura 5/5 (M4 re-anclado), ECC sin CRÍTICO/ALTO.
+- DP `DP-D-M-1-RECUPERACION-EXACTA.md` actualizado a **EJECUTADO Y VERIFICADO** (sin reescribir su historia).
+- Límite declarado: defecto no observado en uso real (pendiente de telemetría). NO se fingió evidencia.
+
+**FRENTE C — OmniRoute validado (aislado, tras el QG) y detenido.** v3.8.51 (ya instalado, no reinstalado).
+`omniroute serve` → `health`: **healthy** (0 solicitudes). Sin proveedor configurado → enrutamiento,
+streaming, herramientas, fallback y recuperación **NO validados** (no se envía código privado; D24).
+Detenido con el comando oficial `omniroute stop` («Servidor detenido», PID 78978) para no interferir con
+futuros arneses/QG. Config/secreto en `~/.omniroute/.env` (fuera de AURA). **Reanudar:** `omniroute serve` +
+`omniroute oauth providers`/conectar un proveedor autorizado + probar con datos ficticios.
+NOTA de proceso: `pgrep -f`/`ps|grep omniroute` dan falsos «aún vivo» (se matchean a sí mismos); el estado
+real se confirma con el comando oficial.
+
+**FRENTE B — Orquestación:** ficha `.claude/ficha-evidencia.md` usada por el code-reviewer (reutilizó
+contexto sin re-explorar). Graphify orientó cada fase. Codex/OpenCode: NO en PATH.
+
+**Estado:** HEAD `6dad6af`, sin commit/push/merge. `~/.aura`/CM2/S3/M3.2b/Bible/ADR/DP intactos.
+Ficheros del incremento D-M-1: `memory.py`, `tests/unit/test_recall_exacto_d_m_1.py`,
+`mutaciones/d-m-1-recuperacion-exacta.toml`, `mutaciones/memoria-cobertura.toml` (M4 re-anclado), DP, acta,
+`.claude/ficha-evidencia.md`, CHECKPOINT.
+**Siguiente acción exacta:** AURA → no hay otra construcción autorizada pendiente (M3.2a, D-AMP-2, D-M-1
+cerrados); el resto requiere decisión del CEO. OmniRoute → configurar proveedor autorizado para validar
+enrutamiento.
+
+## 2026-10-17 · Reanudación: D-M-1 A′ re-verificado · matriz D-M-3..6 · OmniRoute en marcha sin cliente /v1
+
+**AURA — D-M-1 A′: YA CONSTRUIDO Y VERIFICADO (2026-10-12); NO se reconstruyó.** Re-verificación `[EJEC]`
+hoy: `test_recall_exacto_d_m_1` + `test_escalabilidad_memoria` + `test_bateria_memoria` +
+`tests/integration/test_correcciones_producto.py` (D-M-2) → **22 passed**. Sin cambios de código desde el QG
+PASS (3260) → mutación/QG/ECC previos siguen vigentes; no se repitieron.
+
+**Matriz D-M-3..6** (agente `explorador-repositorio`, solo lectura, reutilizó la ficha; Graphify sin nodos
+propios para D-M-3..6):
+- D-M-3 coletilla · D-M-4 recuerdo largo · D-M-6 desempate (`memory.py:222-225`, gana idx menor):
+  **abiertos en código, SIN acta ni DP de construcción** → DECISION_REQUIRED. El acta D-M-1 (:31) excluye
+  tocar `_COBERTURA_MINIMA`/tokenización/criterio. D-M-4 probablemente ligado a D-M-7 `[INFER]`.
+- D-M-5 refutado→prompt: **resuelto en capa orquestador** (`orchestrator.py:595-606` `_da_por_cierto`,
+  `:2110` vigentes; prueba `tests/integration/test_contexto_de_memoria_vigente.py:92`) vía orden CEO
+  2026-10-06. Residuo (eco episódico sin marca) pertenece a D-AMP-2. `DEUDA-N1-RECUPERADOR.md:197-214` quedó
+  desfasado (lo describe abierto) — observación, no editado.
+- **Ningún trabajo autorizado y no ejecutado.**
+
+**OmniRoute (fuera de AURA, NO reinstalado):** v3.8.51; servidor **en marcha** (PID 2785, escucha
+`0.0.0.0:20128` — expuesto a la LAN; observación de seguridad), `health` healthy. Proveedores: codex (OAuth),
+gemini («main», clave de proveedor), kiro (OAuth); `validate` 3/3 OK; `test-all`: gemini OK, codex/kiro SKIP
+(OAuth sin sonda). Combo: `aura-v2` (priority, enabled, no activo); `auto/coding:free` **no listado**.
+`/v1/models` → **401**: no existe clave de CLIENTE de OmniRoute → **enrutamiento NO validado**; Claude Code
+de esta sesión **no** usa OmniRoute (`ANTHROPIC_BASE_URL` no definida). No se crearon claves ni se tocó config.
+
+**Siguiente acción exacta:** AURA → CEO decide (DECISION_REQUIRED): D-M-3, D-M-4, D-M-6, buffer `recent`,
+D-AMP-3/4/5, M3.2b (congelado). OmniRoute → el CEO crea/autoriza una clave de cliente local (`omniroute keys`
+o dashboard), decide combo (`aura-v2` o `auto/coding:free` si existe) y se prueba `POST /v1/messages` con datos
+ficticios comprobando el proveedor que respondió; después, sesión nueva de Claude Code con
+`ANTHROPIC_BASE_URL=http://localhost:20128` + token. HEAD `6dad6af`, sin commit/push/merge.
+
+## 2026-10-17 (b) · AURA V2 en OmniRoute: composición real ≠ ruta acordada (BLOQUEO de gobernanza)
+
+**AURA:** sin incremento autorizado pendiente (ver sección anterior); nada construido; D-M-1 A′/D-M-2/D-M-5
+se mantienen cerrados. No se iniciaron D-M-3/4/6, `recent`, D-AMP-3/4/5 ni M3.2b.
+
+**Sesión de Claude Code:** esta sesión NO pasa por OmniRoute (`ANTHROPIC_BASE_URL`/`ANTHROPIC_MODEL`/token no
+definidos; la conexión se fija al arrancar). La sesión AURA V2 debe lanzarla el CEO (`read -rsp` interactivo).
+
+**Composición REAL de `aura-v2`** `[EJEC]` (`omniroute combo list --output json`; strategy `priority`):
+1 `gemini/gemini-3.1-flash-lite` · 2 `kiro/claude-haiku-4.5` · 3 `kiro/deepseek-3.2` · 4 `kiro/minimax-m2.1` ·
+5 `kiro/minimax-m2.5` · 6 `kiro/glm-5` · 7 `kiro/qwen3-coder-next`.
+**Contradice la ruta acordada** (Codex principal + Gemini respaldo, Kiro y BazaarLink excluidos): **no hay
+ningún modelo codex** y Kiro ocupa 6 de 7 posiciones. Caso «declarado ≠ real». **NO se modificó** (el CEO
+prohibió alterar proveedores/prioridades por iniciativa propia) → DECISION_REQUIRED.
+**Proveedor efectivo:** no atribuible. `omniroute cost --group-by combo|model` → vacío; por proveedor
+(histórico, todas las rutas) hay uso de Kiro 54, Gemini 12, Codex 91, BazaarLink 113… sin atribución a
+`aura-v2`. Ninguna solicitud nueva enviada (cuota preservada). Fallback: **NO validado**.
+
+**Siguiente operación exacta:** (1) CEO decide recomponer `aura-v2` a [codex/<modelo>, gemini/gemini-3.1-flash-lite]
+(dashboard u `omniroute combo`), o confirma la composición actual; (2) CEO lanza la sesión con las variables
+de AURA V2 y su clave de cliente; (3) en esa sesión: una petición breve con datos ficticios y comprobar en
+`omniroute providers metrics`/logs qué proveedor respondió. HEAD `6dad6af`, sin commit/push/merge.
+
+## 2026-10-17 (c) · `aura-v2` RECOMPUESTA por autorización del CEO
+
+Autorización CEO (2026-10-17): recomponer `aura-v2` como [codex, gemini/gemini-3.1-flash-lite].
+`[EJEC]` `omniroute test codex gpt-5.6-luna-medium` → conexión OK. `combo delete aura-v2` + `combo create aura-v2
+--strategy priority --models "codex/gpt-5.6-luna-medium,gemini/gemini-3.1-flash-lite"`. Verificado con
+`combo list`: 1 codex/gpt-5.6-luna-medium · 2 gemini/gemini-3.1-flash-lite (sin Kiro ni BazaarLink).
+Pérdida declarada: la CLI no fija `config` (antes maxRetries 1, retryDelayMs 2000, handoffThreshold 0.85…) ni
+la descripción → ahora valores por defecto. Respaldo de la versión anterior (7 modelos) fuera del repo:
+`~/.claude/jobs/d6cb894c/tmp/aura-v2-backup.json`.
+Línea base de uso (2026-10-17T11:02-05:00): Codex 91 · Gemini 12 · Kiro 54 solicitudes.
+**Ruta y fallback: aún NO validados** (esta sesión no tiene clave de cliente). **Siguiente operación:** una
+petición breve con datos ficticios desde la sesión AURA V2 del host y comparar `omniroute cost --group-by
+provider` contra la línea base: si sube Codex → principal verificado; fallback a Gemini solo se valida con
+Codex indisponible (no forzado).
+
+## 2026-10-17 (d) · Corrección CEO: `aura-v2` es agente lógico único; no se toca
+
+Directriz CEO: `claude/combo/aura-v2` se usa tal cual quedó; prohibido re-investigar su composición, asignar
+roles por modelo, modificarlo o extrapolar pruebas individuales a la ruta del combo. Las pruebas individuales
+previas (codex `test` OK, gemini `test-all` OK) se conservan SOLO como pruebas individuales.
+**Esta sesión:** `ANTHROPIC_BASE_URL`/`ANTHROPIC_MODEL`/token NO definidos (solo
+`CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY`) → no pasa por OmniRoute; prueba E2E NO realizada (cuota intacta).
+**AURA:** sin trabajo autorizado pendiente. Único pendiente de orquestación registrado (reducir el aviso del
+hook global `graphify hook-guard`) es opcional y exige autorización del CEO para tocar `~/.claude/settings.json`
+→ no ejecutado.
+**Siguiente operación:** en la sesión que el CEO abra con las variables de AURA V2, una única petición breve
+de extremo a extremo; registrar el resultado (o analizar solo el error observado).
+
+## 2026-10-17 (e) · Optimización ECC+Graphify: único pendiente = aviso `hook-guard` → BLOQUEADO por autorización
+
+Estado `[EJEC]`: HEAD `6dad6af`; worktrees main `d933a08`, l4-clean `f81361a`, m3-entry. Lo demás de la
+orquestación ya está hecho (regla fuente única `.claude/rules/orquestacion-herramientas.md`, ficha
+`.claude/ficha-evidencia.md`, 4 agentes locales remitidos). Sin duplicar nada.
+**Causa del ruido (lectura del código graphifyy 0.9.65, `cli.py:814-900`):** `~/.claude/settings.json` define
+PreToolUse `Bash|Grep` → `GRAPHIFY_OUT=/home/majo1230/.graphify/aura/graphify-out graphify hook-guard search` y
+`Read|Glob` → `hook-guard read`. Con `GRAPHIFY_OUT` fijo, el grafo «existe» SIEMPRE → el aviso «MANDATORY…»
+(~47 tokens) se inyecta en cada Bash con grep/rg/find **en todos los proyectos de la máquina**, no solo AURA.
+Frecuencia medida en el transcript de esta sesión: 3655 apariciones del aviso (incluye duplicados del
+registro; orden de magnitud, no cifra exacta).
+**No hay corrección a nivel de proyecto:** `hook-guard` no lee variable de silencio (`GRAPHIFY_NO_TIPS` solo
+afecta a `update`; `GRAPHIFY_HOOK_STRICT` lo endurece), y los settings de proyecto no pueden desactivar un
+hook global concreto. → Requiere tocar `~/.claude/settings.json` = DECISION_REQUIRED (no ejecutado).
+**Corrección mínima propuesta (no aplicada):** en el hook `search`, cambiar el matcher `Bash|Grep` → `Grep`
+(conserva el aviso en la herramienta Grep y el guard `read`; elimina el aviso en pipelines Bash). Alternativa
+más estricta: además, acotar a AURA quitando `GRAPHIFY_OUT=` fijo (entonces el guard solo actúa donde exista
+`graphify-out/` en el cwd — AURA lo tiene). Reversible copiando el bloque actual.
+**Siguiente operación:** CEO autoriza (o no) esa edición de `~/.claude/settings.json`; tras ella, verificar con
+un `grep` en Bash que no aparece el aviso y que `Grep`/`Read` lo siguen mostrando.
+**Reanudar en «aura v2 prueba»:** leer esta sección + (d); no hay incremento AURA autorizado pendiente.
+
+## 2026-10-17 (f) · Hook `search` de Graphify corregido (autorizado) · verificación funcional
+
+Cambio autorizado por el CEO en `~/.claude/settings.json` (fuera del repo): matcher del hook `hook-guard search`
+`Bash|Grep` → `Grep`. `GRAPHIFY_OUT`, hook `read` y resto del fichero intactos (diff de 1 línea; comparación
+campo a campo). Respaldo: `~/.claude/settings.json.bak-hookguard-20261017` (permisos 600; contiene la clave
+Firecrawl en claro igual que el original → observación de seguridad para el CEO: mover a env y rotar).
+Verificación `[EJEC]`: **Bash PASS** (llamadas con `grep` sin aviso, en dos sesiones de trabajo) · **Read PASS**
+(aviso del hook `read` presente) · **Grep real BLOCKED**: la herramienta Grep no existe en esta sesión; solo
+simulación (`hook-guard search` con payload Grep → emite el aviso).
+Codex/OpenCode: CLI no en PATH; Codex solo existe como proveedor dentro de OmniRoute, y esta sesión no tiene
+ruta ni clave de cliente → no disponible como agente aquí.
+**ECC+Graphify:** sin otra optimización autorizada abierta → frente CERRADO salvo la prueba Grep real.
+**AURA:** sin incremento autorizado pendiente (D-M-3/4/6, `recent`, D-AMP-3/4/5, M3.2b requieren decisión).
+**Siguiente operación:** en una sesión con la herramienta Grep (p. ej. «aura v2 prueba»), una llamada Grep real
+y comprobar que aparece el aviso; después, esperar decisión del CEO sobre el siguiente incremento.
+
+## 2026-10-18 · Mensajero de relevo: investigado; construcción → DP (DECISION_REQUIRED); E2E bloqueado
+
+Agentes: `explorador-repositorio` (inventario control plane + gobernanza) y `claude-code-guide` (señales de
+cuota y mensajería). Resultado en `milestones/m3-entry/DP-MENSAJERO-RELEVO.md` (PROPUESTA, nada construido).
+`[EJEC]`: CLI `control_plane.py handoff` funciona y no escribe (md5 de `estado.json`/`eventos.jsonl` iguales),
+pero su carga útil está **desfasada** (`estado.json` actualizado 2026-09-01) → «declarado ≠ real» si se usara
+como relevo. `SendMessage` a «aura v2 conectada» y a `aura-project-bible-2e` (PID 3220, `claude --model
+claude/combo/aura-v2`, viva, peerProtocol 1) → **not reachable**; esa sesión no aparece en `ListAgents`.
+Entrega E2E **NO demostrada**. Señal de cuota: solo statusLine `rate_limits` (docs); ningún hook.
+Nombre correcto de la receptora según el CEO: **«aura v2 conectada»**.
+**Siguiente operación:** CEO decide D-REL-1/2/3 del DP. Mientras tanto, el relevo operativo es el CHECKPOINT
+(pull): la sesión receptora lo lee al arrancar (CLAUDE.md §0). HEAD `6dad6af`, sin commit/push/merge.
+
+## 2026-10-18 (b) · Retomar desarrollo: verificado que NO hay incremento autorizado ejecutable
+
+`[EJEC]` rama `worktree-m3-entry`, HEAD `6dad6af`, `main`=`origin/main`=`d933a08`; la rama va **29 commits por
+delante** de main y main 0 por delante (la rama es el estado más avanzado; integrar es `D-INT-1`, del CEO).
+340 cambios pendientes (209 sin seguimiento), preexistentes, intactos. `PARADA` armada.
+Actas/DP nuevos desde 2026-10-12: solo D-M-1 (ejecutado) y `DP-MENSAJERO-RELEVO` (propuesta). Graphify
+(`acta aprobacion construccion autorizada pendiente`) no aporta autorizaciones nuevas.
+`decisiones/pendientes.md` «Abiertos» (todas DECISION_REQUIRED, ninguna autorizada): continuidad de
+resultados (punto D, privacidad) · percepción visual e identidad (A/B) · proyector automático de
+`estado.json` · política post-rollback (ADR-0025) · delegación a subagentes (6 preguntas). Más: D-M-3/4/6,
+`recent`, D-AMP-3/4/5, M3.2b (congelado), D-REL-1/2/3, D-ORCH-6, D-INT-1.
+Historial «HILO AURORA / NODO DE AURORA 2PC»: **sin artefacto en el repo** (grep vacío); conversaciones de
+ChatGPT no accesibles desde esta sesión.
+**Siguiente operación:** el CEO elige y autoriza uno de los pendientes; se ejecuta completo
+(RED→GREEN→mutación→QG→ECC). Sin commit/push/merge.
+
+## 2026-10-18 (c) · Barrido ampliado: sin obra ejecutable · dossier de decisiones · RIESGO: 5 semanas sin commit
+
+Barrido `explorador-repositorio` (roadmap 2.2, milestones, actas, CHECKLIST, PLAN-DE-FORMACION, l4-clean):
+12 candidatos autorizados → YA-HECHOS, BLOQUEADOS por decisión concreta o sin evidencia de uso. Ninguno
+EJECUTABLE-AHORA. «Formatear 26 ficheros» (:6369) YA-HECHO (QG 2026-10-12 formato OK).
+**Hallazgo `[EJEC]`:** último commit `6dad6af` = 2026-09-13; desde entonces 130 versionados modificados
+(+11 991/−1 152) y ~360 nuevos sin seguimiento (excl. `graphify-out/cache`), incluido todo lo VERIFICADO
+(D-AMP-2, M3.2a, D-M-1 A′). Riesgo de pérdida de información → P1 del dossier.
+Informe: `milestones/m3-entry/DOSSIER-DECISIONES-2026-10-18.md` (no normativo; P1 commit local · P2 D-INT-1 ·
+P3 percepción A/B · P4 continuidad punto D · P5 D-M-3/4/6 · P6 post-rollback · P7 proyector/D-REL · P8
+delegación/D-ORCH-6 · saneamiento documental).
+**Siguiente operación:** decisión del CEO, empezando por P1. Sin commit/push/merge; PARADA armada.
+
+## 2026-10-18 (d) · Graphify actualizado · Diagnóstico de rendimiento HC-1 (solo lectura)
+
+**Graphify** `[EJEC]`: grafo del worktree (2026-10-07) desfasado frente a 8 `.py` modificados (D-AMP-2/M3.2a/
+D-M-1) → `graphify update .` (AST, sin LLM): 15 960→16 149 nodos, 33 362 aristas; `test_recall_exacto_d_m_1`
+ya indexado. Respaldo previo en `~/.claude/jobs/d6cb894c/tmp/graph-antes-update.json`. No se ejecutó
+`graphify label` (usa LLM). El hook global apunta a OTRO grafo más viejo (`~/.graphify/aura`, 2026-09-21) —
+observación, no tocado (config global).
+`eventos.jsonl` cambió hoy: lo explica el cron del despertador (`*/30`), que con PARADA registra
+`despertar_rechazado`. Esperado.
+
+**Diagnóstico HC-1 `[EJEC]` 2026-10-18:** Lenovo 100e 2nd Gen · Celeron N4020 2C/2T · 3,6 GiB RAM · Mint 22.3,
+kernel 6.14 · up 16 h. Carga 6,6/9,0/14,0 (2 núcleos). RAM disponible 1,2 GiB; Committed_AS 9,0 GB; zram 1,5 GiB
+**lleno** + swap en fichero sobre **tarjeta USB** (`/dev/sdb1` AURORA_EXT) 450 MiB. PSI 300 s: memoria full
+14,5 %, E/S full 15 %, CPU some 19 %. Disco del sistema **eMMC 58 GB al 97 %** (1,9 GB libres); salud eMMC
+normal (life_time 0x03/0x02, pre_eol 0x01). Kernel: Firefox `QuotaManager IO` y `systemd-timesyncd` en estado D
+>122 s (23:29). Temp 56 °C (sin throttling). 0 OOM en 7 días. `du` de directorios de usuario >25 s cada uno.
+`/swapfile` 4,1 GB en `/` **inactivo** (no en `/proc/swaps`). Journal 585 MB.
+Procesos: Claude Code ×2 sesiones + daemon (~620 MiB RSS), OmniRoute 314 MiB + 264 MiB en swap, Firefox
+~0,8 GiB + 405 MiB en swap; hass 33 MiB, ollama 13 MiB (sin modelo cargado), nats 9 MiB, receptor 17 MiB.
+**Causa probable (confianza alta):** combinación A+B — memoria agotada → paginación a zram y a USB lento, sobre
+un eMMC casi lleno; CPU débil agrava. Térmico descartado.
+**NODO-01** (Atom N450, 986 MiB, i686): ONLINE (ping 6 ms); función de infraestructura (DP-NODO-01 §15-21);
+no puede alojar Claude Code/OmniRoute/LLM → no hay descarga real de carga posible sin nueva decisión.
+**Plan NO ejecutado (requiere CEO):** (1) detener OmniRoute cuando no se use (`omniroute stop`) y cerrar la
+sesión de Claude Code que no se use; (2) retirar el `/swapfile` inactivo de 4,1 GB (ya registrado:
+`--retirar-swap-interno`, CHECKPOINT ~8355) y acotar el journal; (3) menos pestañas de Firefox; (4) no lanzar QG/
+graphify update mientras se navega.
+**Siguiente operación:** decisión del CEO sobre (1) y (2). Sin commit/push/merge; nada modificado en el sistema.
+
+## 2026-10-18 (e) · Optimización HC-1: 5,3 GB recuperados (cachés regenerables) · hass al 100 % CPU
+
+**Antes `[EJEC]`:** eMMC 1,9 GB libres (97 %) · RAM disp. 1,47 GiB · swap 1,55 GiB · PSI full 300 s memoria 38,5 %,
+E/S 38,6 % · carga 17,0/20,3/18,0. `sudo` exige contraseña → ninguna acción root posible.
+**Revisión independiente:** agente `security-reviewer` aprobó 4 acciones (3 con condición; condiciones
+verificadas: sin instalaciones en curso, Chrome cerrado, `_npx` y `~/.config/google-chrome` intactos).
+**Ejecutado (usuario, sin root; log `~/.claude/jobs/d6cb894c/tmp/limpieza.log`):** `pip3 cache purge` +140 MiB ·
+caché Chrome `~/.cache/google-chrome/Profile 1` +211 MiB · `npm cache clean --force` (`_cacache`) +4 977 MiB.
+`uv cache clean` OMITIDO: no hay binario `uv` (caché `~/.cache/uv` 1,26 GB queda; parte enlazada por hardlink
+al venv de HA). Recuperación: cachés regenerables por descarga (npx/pip/uv necesitan red la primera vez).
+**Después `[EJEC]`:** eMMC **7,1 GB libres (87 %)** · servicios usuario `aura-nats`/`aura-receptor-nodos`/
+`aura-hogar-ha` active · 6 `playwright-mcp` vivos · venv HA importa · graphify OK · NODO-01 responde.
+RAM/swap sin cambio material (la limpieza de disco no libera RAM); la bajada de PSI no se atribuye a la
+limpieza (fluctúa).
+**Hallazgo:** `hass` (PID 975) con 1 hilo al **100 % CPU sostenido** (49 min acumulados en 17 h; pico reciente);
+log con `async_upnp_client.ssdp … Network is unreachable` desde 23:15 `[HIPO: bucle tras cambio de red]`.
+**Pendiente (requiere CEO):** (1) `systemctl --user restart aura-hogar-ha` (reversible; servicio esencial);
+(2) parar OmniRoute / cerrar la sesión de Claude Code sobrante (~0,9 GiB RAM); (3) `sudo rm /swapfile`
+(4,1 GB; inactivo, comentado en fstab desde 2026-10-07, no en /proc/swaps) — necesita contraseña del CEO;
+(4) `sudo journalctl --vacuum-size=200M` (~385 MB) y `sudo apt clean` (129 MB); (5) caché uv (1,26 GB) solo
+con `uv cache clean` si se instala uv, o decisión explícita de borrado directo.
+**Preservado:** `~/.claude`, `~/Documentos`, `~/.graphify`, `graphify-out`, `~/.aura`, OmniRoute (2,9 GB).
+Graphify: sin cambios de código → no requiere `update`. Sin commit/push/merge.
+
+## 2026-10-18 (f) · hass: bucle de CPU en el hilo principal (causa no demostrada) · NODO-01 desconectado de NATS
+
+**hass (PID 975) `[EJEC]`:** el hilo principal (bucle asyncio, TID 975) consume **99–100 % de un núcleo** de forma
+sostenida (497/500 ticks en 5 s; 3 muestras de 3 s ≈100 %); `wchan=0` (ejecutando, no esperando); 0 syscalls de
+lectura/escritura de ficheros; 24 fds; sockets UDP SSDP (1900) y mDNS (5353). Inicio estimado ≈ **2026-10-18
+09:59** (por CPU acumulada: ~15 min a uptime 16 h27 → 79 min a 17 h40). Ningún evento del sistema lo explica a esa
+hora (cron 10:00 timeshift+despertador; WiFi reconectó 10:22, después). Errores SSDP «Network is unreachable» de
+23:15/23:23 son **anteriores** y no coinciden. Pila Python **no obtenible**: `py-spy` no instalado y
+`ptrace_scope=1` impide gdb/strace sin root. **Causa: NO DEMOSTRADA.** Intervención mínima propuesta: reinicio
+controlado `systemctl --user restart aura-hogar-ha` (reversible) → **requiere autorización CEO** (servicio esencial).
+**NODO-01 `[EJEC]` (corrige informes previos que se apoyaban solo en ping):** `nats-server` registra **1 949**
+`TLS handshake error: EOF` desde 192.168.20.139 entre 2026-10-17 01:03 y hoy 11:04 (cada ~50 s) y **0**
+conexiones correctas → el nodo **no está conectado** a AURA aunque responda al ping. Receptor de nodos: 171
+trazas (reconexión NATS con `TimeoutError`, `nats/aio/client.py:1657/2160`). Causa no investigada (lado nodo:
+reloj/certificado/IP de respaldo `[HIPO]`); diagnóstico requiere `ssh MariaJose@192.168.20.139` (solo lectura).
+**Memoria `[EJEC]`:** OmniRoute **en uso** por la sesión interactiva AURA V2 (PID 3220, `ANTHROPIC_BASE_URL=
+http://localhost:20128`) y su proceso hijo → **NO se propone pararlo** mientras esa sesión siga abierta.
+Sesiones Claude: 16439 «Aurora 2» (bg, trabajando) y 3220 (interactiva, idle; repo principal sin cambios
+pendientes). Ninguna cerrada. Métricas ahora: carga 2,1/1,5/3,6 · RAM disp. 1,80 GiB · swap 1,52 GiB · PSI full
+memoria ~0,1 %, E/S 0,5 % (300 s) · eMMC 7,1 GB libres. La bajada de carga no se atribuye a ninguna acción.
+**Disco:** `/swapfile` revalidado inactivo (0 líneas exactas en `/proc/swaps`), comentado en fstab, sin `resume=`
+en cmdline ni initramfs → retirada segura pero exige `sudo` (CEO). Caché `~/.cache/uv`: solo **237 MiB** liberables
+(el resto son hardlinks del venv de HA) → beneficio bajo, no se borra.
+**Siguiente operación exacta:** autorización CEO para (1) reiniciar `aura-hogar-ha` y medir CPU 10 min después;
+(2) diagnóstico de solo lectura de NODO-01 por ssh. Sin commit/push/merge.
+
+## 2026-10-18 (g) · hass reiniciado (autorizado): CPU ~0 % y HTTP 200 · NODO-01: último enlace 10-12, SSH bloqueado
+
+**Home Assistant `[EJEC]`** (autorización CEO, una sola vez, 11:12:17): antes PID 975, hilo principal 99 %,
+TIME 01:25:33, **HTTP :8123 sin respuesta en 15 s** (servicio caído de facto aunque `active`). `systemctl --user
+restart aura-hogar-ha` → exit 0, PID 46807, `NRestarts=0`. Muestreo 10 min (cada 60 s, ventana 10 s; script
+`~/.claude/jobs/d6cb894c/tmp/muestreo-hass.sh`, log `muestreo-hass.log`): CPU <1 % en las 10 muestras, HTTP 200
+en todas, carga 1,38→0,00, RAM disp. ~1,68 GiB, PSI memoria full ~0. Único aviso: zlib_ng no disponible
+(preexistente). **No volvió a saturarse en 10 min → mitigación, NO reparación de causa raíz** (causa del bucle
+de 09:59 sigue sin demostrar; vigilar recurrencia). Servicios: `aura-hogar-ha`/`aura-nats`/`aura-receptor-nodos`
+active. Después: carga 0,23/0,27/1,43 · swap 1,37 GiB.
+**NODO-01 `[EJEC]` (lado HC-1, solo lectura):** última conexión NATS correcta **2026-10-12 09:11** (advertencias
+Readloop en cid 45/46); desde el arranque de HC-1 del **2026-10-14 21:09** solo `TLS handshake error: EOF`
+(10-14: 114 · 10-17: 1 044 · 10-18: 832; ninguna conexión correcta). HC-1 sin cambios: PKI y `nats.conf` de
+2026-10-04, `openssl verify` servidor→CA **OK**, listen 0.0.0.0:4222, tls timeout 5 s. **Refutada** la hipótesis
+SAN/IP (el cert no lleva 192.168.20.38, pero `nodo_agente.py:397` usa `check_hostname=False`, `CERT_REQUIRED` con
+`ca.crt`). EOF del cliente ⇒ el nodo aborta el handshake: causa **en el lado del nodo, no confirmada**
+`[HIPO: reloj del nodo desfasado tras corte de energía (cert notBefore 2026-10-04), ca.crt del nodo distinto,
+o fallo del agente]`. **SSH no interactivo rechazado** (`Permission denied (publickey,password)`) → diagnóstico
+del nodo detenido según autorización. Existe una sesión SSH interactiva del operador al nodo (PID 39625,
+abierta ~09:05 desde un bash); no se usó ni se tocó.
+**Siguiente operación exacta:** el operador ejecuta en su sesión SSH (solo lectura): `date -u; cat /etc/timezone`,
+`openssl x509 -in <datos>/ca.crt -noout -fingerprint -sha256` (comparar con HC-1:
+`openssl x509 -in ~/.aura-red/pki/ca.crt -noout -fingerprint -sha256`) y las últimas líneas del log del agente
+(`sv status`/log de runit del nodo_agente). Con eso se confirma o descarta reloj vs CA. Sin commit/push/merge;
+Graphify sin cambios de código (no se ejecuta `update`).
+
+## 2026-10-18 (h) · NODO-01 TLS: rutas reales localizadas · comandos de solo lectura entregados al operador
+
+Graphify (`nodo_agente.py`, `instalar-runit-nodo.sh`) + código: datos del agente `~/.aura-nodo`
+(`nodo_agente.py:7-10,100`: `nodo.conf`, `credencial`, `ca.crt`, `estado_local.json`); log svlogd
+`~/.aura-nodo/log/current` (`instalar-runit-nodo.sh:28`); servicio `~/.aura-nodo/sv/aura-nodo` (sin sudo) o
+`/etc/sv/aura-nodo`. Referencia HC-1 `[EJEC]`: CA SHA-256 `77:2B:A0:36:C9:1B:04:39:27:E8:C2:C3:BA:14:F0:3D:82:8F:A3:
+07:63:61:90:04:E9:7A:80:BD:F1:78:8E:89`, CA válida 2026-10-04→2036-10-01; cert servidor desde 2026-10-04 10:03 UTC;
+servidor sin `verify` (no exige cert de cliente). Bloque de comandos de SOLO LECTURA entregado al operador para su
+sesión SSH (reloj, huella CA, servidores de nodo.conf, estado_local.json, últimas líneas del log, sonda TLS de una
+conexión sin credenciales). Agentes de TLS y revisión: se despachan con los datos del nodo (sin ellos repetirían
+la evidencia de HC-1). **Siguiente operación:** pegar la salida del operador → diagnóstico consolidado.
+
+## 2026-10-18 (i) · Bloque de diagnóstico TLS de NODO-01 revisado (2 agentes) y probado en HC-1
+
+**Disenso registrado `[EJEC]`:** la instrucción de quitar la lectura previa al handshake era incorrecta para este
+servidor: nats-server 2.10.22 de HC-1 envía `INFO` en claro antes de TLS (`tls_required: true`, sin
+`handshake_first`); envolver directamente habría producido un falso fallo. Se mantuvo la lectura, acotada (byte a
+byte hasta `\r\n`, máx. 8 KB, timeout 8 s, cierre en `finally`).
+**Revisión ECC:** `python-reviewer` (APROBADO CON CAMBIOS: urlsplit dentro del try, recv sin makefile, `|| echo`
+roto, sonda sin STRICT para aislar Python 3.13) y `security-reviewer` (APROBADO CON CAMBIOS: máscara de URL robusta,
+`ultimo_error` truncado/enmascarado, `timeout 60`, log enmascarado y recortado; conexión TLS sin CONNECT inocua para
+NATS 2.10). Todos integrados.
+**Prueba local `[EJEC]`** (copia de la CA pública, datos ficticios, directorio temporal borrado): huella IGUAL;
+sonda A (STRICT) y B: **TLS 1.3 OK** contra 127.0.0.1 y **192.168.20.38** → el servidor de HC-1 negocia TLS por
+la red con los parámetros del agente; 0 secretos de prueba filtrados; `.local` omitido con aviso; `bash -n` OK.
+Bloque: `~/.claude/jobs/d6cb894c/tmp/bloque-nodo-tls.sh` (fuera del repo), entregado al operador en el chat.
+**Siguiente operación:** el operador lo ejecuta en su sesión SSH de NODO-01 y pega la salida → diagnóstico
+consolidado (reloj / CA / STRICT / red) y propuesta de reparación mínima, sin ejecutarla.
+
+## 2026-10-18 (j) · Bloque TLS de NODO-01: revisión final coordinada → corregido y listo
+
+Graphify (`traducir_servidores` L382) + código. Revisión focalizada ECC:
+- `python-reviewer`: orden NATS (INFO en claro → TLS) VÁLIDO; aislamiento STRICT VÁLIDO (A/B solo difieren en
+  `VERIFY_X509_STRICT`; concluir solo con `verify_code` explícito; si A y B fallan igual, STRICT descartado);
+  parseo VÁLIDO; **CORREGIR `.local`**: el agente usa su resolutor mDNS propio (`adapters/resolutor_mdns.py:125`,
+  `nodo_agente.py:48,363-379`) y conserva la URL si no resuelve → la frase «el agente tampoco puede usarla» era
+  falsa. Corregido: la sonda importa ese mismo resolutor desde `~/.aura-nodo/app`; si no puede, usa getaddrinfo
+  con aviso «NO es el resolutor del agente»; sin resolver, conecta con el nombre tal cual (como el agente).
+- `security-reviewer`: 3 fugas menores corregidas (máscara voraz para contraseñas con `@`; esquema en mayúsculas
+  y URL sin esquema; excepciones como tipo+errno+strerror; `pass=/token=/user=` en log y `ultimo_error`).
+Prueba local `[EJEC]` con casos hostiles (contraseñas con `@` y `/`, `TLS://`, sin esquema, IPv6, `.local`
+inexistente, `token=`/`password=`): **0 secretos filtrados**; TLS 1.3 OK A y B; resolutor mDNS del agente
+importado. Aviso final en la salida: «TLS OK» ≠ NATS autenticado. Bloque: `~/.claude/jobs/d6cb894c/tmp/
+bloque-nodo-tls.sh` (fuera del repo). **Siguiente operación:** el operador lo ejecuta en su SSH y pega la salida.
+
+## 2026-10-18 (k) · NODO-01 recuperado (operador: reloj+NTP) · sin incremento autorizado · propuesta de aviso
+
+**NODO-01** (comunicado por el CEO: reloj corregido y NTP; `conectado=True`, `ultimo_error=None`, secuencia 767;
+cron horario de sincronización con registros 17:00/17:30/18:00; prueba de cron independiente fallida y eliminada).
+Verificado desde HC-1 `[EJEC]`: **0** fallos TLS en la última hora, 1 conexión NATS del nodo abierta, 0 trazas
+del receptor. Causa del corte 10-12→10-18: **reloj del nodo** (confirmada por la corrección del operador).
+**hass** `[EJEC]`: PID 963 (reiniciado desde la última medición), CPU 0 %, HTTP 200.
+**Autorizaciones:** ningún acta/DP/ADR nuevo desde el dossier 2026-10-18 → **sin incremento ejecutable**.
+**Propuesta nueva (evidencia de uso real):** `milestones/m3-entry/DECISION-REQUERIDA-SUPERVISION-DEPENDENCIAS-
+HOGAR.md` — AURA calcula OFFLINE (`core/nodos.py:316`) pero no lo notifica (`notificaciones.py` sin referencias a
+nodos); HA `active` con :8123 caído. Opciones A (nodos+HA) / B (solo nodos) / C (observación para el Consejo).
+Plan de Formación NO editado (se actualiza en el Consejo con evidencia de `~/.aura`).
+**Siguiente paso:** decisión del CEO sobre esta propuesta o sobre el dossier (P1 commit local primero).
+Sin commit/push/merge; Graphify sin cambios de código.
+
+## 2026-10-18 (l) · Supervisión de NODO-01 (opción B): DECISION_REQUIRED · plan de ejecución preparado y evaluado
+
+Autorización de B: **no existe** (solo la propuesta y este CHECKPOINT) → **sin cambios de código**. Graphify
+(`nodos.py`, `notificaciones.py`, `test_nodo_viejo_es_offline`, `informe_nodos`) + código `[EJEC]`: `estado_nodo` pura
+bajo demanda (`core/nodos.py:306`); receptor en proceso aparte con bucle 10 s que persiste `nodos/registro.json`;
+`CentroNotificaciones` en memoria del proceso principal, dedupe por `sha256(fuente|titulo)`, `FUENTES_MVP` incluye
+`"aura"`; el proceso principal **no** es continuo → el aviso con el mecanismo existente llega en la siguiente sesión.
+Plan completo §5.1-5.6 en `milestones/m3-entry/DECISION-REQUERIDA-SUPERVISION-DEPENDENCIAS-HOGAR.md`;
+`arquitecto-evaluador` §5.7: **CABE CON CAMBIOS, solo con acta** — fricción mayor: es **integración** (fase no
+abierta, `CHECKLIST-CONTINUIDAD.md:82`); `avisados.json` en tensión con D-M-8 §2.1; textos INV-9.
+**Siguiente operación exacta:** acta del CEO con las 4 decisiones de §5.7; con ella: RED (6 pruebas de §5.4) →
+GREEN → mutación (`mutaciones/avisos-nodos.toml`, 4-5 mutantes) → QG único → ECC. Sin commit/push/merge;
+Graphify sin cambios de código (no `update`).
+
+## 2026-10-18 (m) · Propuesta de acta para avisos de NODO-01 lista para firma · construcción detenida
+
+Graphify `[EJEC]`: **sin camino** `ReceptorNodos → CentroNotificaciones` (cableado nuevo = integración, fase no
+abierta, `CHECKLIST-CONTINUIDAD.md:82`). Registro real `~/.aura-red/nodos/registro.json` (1 151 B; receptor único
+escritor; `leer_registro` **0,088 ms**/lectura medido sobre el fichero real; primera medición sobre `~/.aura` dio 0
+nodos y se descartó por ruta errónea).
+Borrador: `milestones/m3-entry/PROPUESTA-ACTA-SUPERVISION-NODO-01.md` — D1 apertura parcial nominal de integración
+solo para nodos→Centro · D2 al abrir y por turno vía puerto inyectado (Core sin E/S) · **D3 sin estado nuevo** (sin
+`avisados.json`, sin excepción a D-M-8; aviso una vez por sesión mientras siga caído; sin aviso de recuperación,
+visible en `--nodos`) · D4 aviso al abrir/turno, no tiempo real. Textos INV-9, 9 pruebas de aceptación, 5 mutantes.
+**No es un acta** hasta la firma del CEO → **no se modificó código**.
+**Siguiente operación exacta:** firma del CEO; con ella, RED→GREEN→mutación→QG→ECC en una sesión.
+Sin commit/push/merge; Graphify sin cambios de código.
+
+## 2026-10-18 (n) · Orden 5.7.1: diseño de caída + recuperación resuelto (R1) · acta rev. 2 lista para firma
+
+Ficha compartida reescrita para este incremento (`.claude/ficha-evidencia.md`). Graphify: sin camino receptor→Centro;
+audit log consultable (`observability.py:220`). Agentes: `auditor-consistencia` (D-M-8 no menciona `registro.json`
+→ ambiguo; audit log como memoria choca con el punto K; no hay timestamp persistido de sesión fuera del audit log) y
+`arquitecto-evaluador` (R1 cabe; R2 cabe con enmienda y riesgo de pérdida de datos; R3 bloqueada).
+Verificado `[EJEC]`: prueba K en `test_frontera_continuidad.py:164`; `desde_dict` estricto (`core/nodos.py:282-288`) y
+apartado `.corrupto` (`receptor_nodos.py:84-88`).
+**Decisión técnica:** v1 = **R1** (memoria de sesión; sin persistencia; sin tocar `registro.json` ni DP-NODO-01).
+Recuperación con AURA cerrado → D5 opcional (enmienda DP-NODO-01, esquema compatible).
+Acta rev. 2: `milestones/m3-entry/PROPUESTA-ACTA-SUPERVISION-NODO-01.md` (D1-D4 + D5 opcional, tabla de avisos,
+dedupe en 2 capas, T1-T9, M1-M5 con cobertura mapeada, criterios de salida). `verificador-mutacion` no aplicable aún
+(sin código); agentes cloud no accesibles (sesiones remotas offline). **Sin cambios de código.**
+**Siguiente operación exacta:** firma del CEO (D1-D4; D5 opcional) → misión de construcción. Sin commit/push/merge.
+
+## 2026-10-18 (o) · Avisos de NODO-01 (R1) CONSTRUIDOS Y VERIFICADOS — acta 5.7.2
+
+**Autorización:** orden ejecutiva 5.7.2 → `decisiones/2026-10-18-acta-supervision-nodo-01-R1.md` (transcripción
+literal; D5 no aprobado). **Código** (`walking-skeleton/`): `core/nodos.py` (`AvisoNodo`, `titulo_receptor_caido`,
+`_aviso_de_nodo`, `evaluar_avisos_nodos` — pura, sin E/S) · `adapters/receptor_nodos.py` (`crear_vigia_nodos`, topes
+`MAX_BYTES_REGISTRO` 1 MiB / `MAX_NODOS_REGISTRO` 256) · `core/orchestrator.py` (puerto `vigia_nodos`, memoria
+`_estado_nodos`, `evaluar_nodos`, llamada al inicio de `on_turn`) · `composicion.py` (inyección + evaluación al abrir)
+· `tests/conftest.py` (`AURA_RED=""`) · pruebas `tests/unit/test_avisos_nodos.py` + `tests/integration/
+test_avisos_nodos_cableado.py` · `mutaciones/avisos-nodos.toml` (M1-M12) · re-anclado AU-M16 en
+`mutaciones/autorizacion-conversacional.toml`. Sin persistencia nueva; `registro.json`/DP-NODO-01 intactos; sin audit log.
+**Evidencia `[EJEC]`:** RED (ImportError) → GREEN; 30 pruebas de avisos; mutación **12/12** (M8 sobrevivía → prueba de
+turno real añadida; M11/M12 sobrevivían por pruebas DECORATIVAS → corregidas; M7 re-anclado); AU-M16 re-anclado y
+verificado aislado 1/1; **QG PASS 3290 passed** (un primer QG FAIL por AU-M16 desanclado, corregido).
+ECC: `code-reviewer` (MEDIO título constante del receptor + 4 BAJOS → corregidos → re-revisión APROBAR),
+`security-reviewer` (MEDIUM sin tope → corregido → APROBADO), `arquitecto-evaluador` CABE, `auditor-consistencia` sin
+discrepancias graves. Demo `[EJEC]` (registros temporales; `~/.claude/jobs/d6cb894c/tmp/demo_avisos.py`): caída al
+abrir ✓ · recuperación en sesión ✓ · 3 turnos sin duplicar (suprimidas 0) ✓ · receptor caído sin falsa caída ✓ ·
+nodo nunca registrado sin aviso ✓. Graphify `update .` ejecutado; nodos nuevos indexados (`evaluar_avisos_nodos` L375,
+`crear_vigia_nodos` L182, `titulo_receptor_caido` L334); `path crear_vigia_nodos→componer` no hallado (coincidencia
+ambigua) — limitación del grafo, el cableado lo prueba T9.
+**Residual (BAJO):** 2 caídas del receptor en el mismo minuto comparten título; TOCTOU stat/lectura acotado; WARN con
+`str(e)[:120]`; WARN por turno si el registro excede el tope; no hay aviso de recuperación con AURA cerrado (D5).
+Agentes cloud: no accesibles. Sin commit/push/merge.
+**Siguiente incremento recomendado:** decidir D5 (recuperación con AURA cerrado) o el siguiente punto del dossier
+(P1 commit local del trabajo verificado).
+
+## 2026-10-18 (p) · P1: R1 reconciliado · commit local BLOQUEADO (sin autorización + prohibición expresa)
+
+Estado inicial `[EJEC]`: raíz = worktree m3-entry, rama `worktree-m3-entry`, HEAD `6dad6af`, main=origin/main `d933a08`;
+348 pendientes (131 modificados, 216 sin seguimiento), preservados. Evidencia de R1 **vigente** (nada modificado tras el
+QG final). Graphify con los 3 símbolos de R1 (graph.json 19:30); límite: no traza composición→puerto (lo prueba T9).
+`auditor-consistencia`: mapa maestro y `capacidades.json` **sin NODO-01**; P1 **sin autorización** (dossier = propuesta);
+prohibición en `decisiones/2026-10-18-acta-supervision-nodo-01-R1.md:15`; PARADA solo autoevolución.
+Ficheros atribuibles a R1: nuevos `tests/unit/test_avisos_nodos.py`, `tests/integration/test_avisos_nodos_cableado.py`,
+`mutaciones/avisos-nodos.toml`, acta y propuesta; hunks R1 en `core/nodos.py` y `adapters/receptor_nodos.py` (**ambos
+enteros sin seguimiento: NODO-01 v1**), `core/orchestrator.py`, `composicion.py`, `tests/conftest.py`,
+`mutaciones/autorizacion-conversacional.toml` (AU-M16). NODO-01 v1 sin seguimiento: `entorno/nodos/`,
+`adapters/identidad_nodo.py`, `adapters/resolutor_mdns.py`, `nodo_agente.py`, `mutaciones/nodo-01.toml`, 11 pruebas,
+`DP-NODO-01.md`, `RESULTADO-NODO-01.md`, `evidencia-nodo-01/`.
+Registro de cierre con la evidencia literal del QG: `milestones/m3-entry/CIERRE-AVISOS-NODO-01-R1.md` (nuevo).
+Agentes cloud: SKIP (sesiones remotas offline). `arquitecto-evaluador`/`verificador-mutacion`: no lanzados (no hay
+commit que evaluar ni cambio que invalide la mutación). **Ningún commit, push, merge ni despliegue.**
+**Siguiente operación exacta:** el CEO elige (a) commit local de NODO-01 completo, (b) commit local de todo el trabajo
+verificado, o (c) mantener sin commit. Con (a) o (b): `git add` de la lista exacta + `git commit -F` con trailers de
+CLAUDE.md §3, sin push.
+
+## 2026-10-18 (q) · Cronograma sincronizado: siguiente = S3 · CM2 iniciado pero SIN sondas · P1 aplazado
+
+Orden del CEO: R1 cerrado; **sin commit/push/merge**; preservar los cambios pendientes; P1 aplazado (no cancelado); no
+D5. `[EJEC]` HEAD `6dad6af`, 349 pendientes preservados (+ las 3 ediciones documentales de esta entrada).
+Agentes: `auditor-consistencia` (S3/CM2, paralelo autorizado) y `explorador-repositorio` (desfase del mapa). Cloud: SKIP.
+**Hallazgos `[EJEC]`:** (1) CM2 iniciado el 2026-10-07 (1 evento `cm2.inicio` en el audit log, contado sin leer contenido)
+bajo «autorización operativa delegada» — contradice la exigencia de orden explícita del mismo día → ratificación del CEO.
+(2) **0 `cm2.sonda`**: `--medir-cm2` no lo lanza nadie (`PROCEDIMIENTO-INICIO-CM2.md:49-50`: «debe lanzarse en cada
+ventana; no hay proceso residente»; el único cron es el despertador). Día 7 vencido (10-14); día 14 el 10-21; ventana de
+día 28 del 11-04 al 11-11 → si no se ejecuta, CM2 no producirá tasa. (3) Mapa maestro desfasado desde 10-07: entrada de
+registro añadida (sin cambiar §16 ni niveles de `capacidades.json`).
+Paralelo permitido sin decisión: **ninguno** (S4–S5 congelado; S5 avatar `*`; resto bloqueado por decisión).
+**Siguiente operación exacta (DECISION_REQUIRED):** el CEO autoriza (i) ejecutar ahora `python -m aura_skeleton
+--medir-cm2` (escribe `cm2.sonda` en `~/.aura`) para las sondas vencidas, y (ii) cómo se lanza en cada ventana (cron
+diario de usuario o ejecución manual); y ratifica o no el inicio de CM2 del 10-07.
+
+## 2026-10-18 (r) · S3/CM2: inicio ratificado · medición puntual ejecutada · cron diario instalado y verificado
+
+**Acta:** `decisiones/2026-10-18-acta-ratificacion-inicio-cm2.md` (ratificación del inicio del 10-07 con constancia de la
+discrepancia; ejecución puntual y cron autorizados; código CM2/eventos/privacidad/PARADA intocables; sin commit).
+**Corrección de (q) `[EJEC]`:** la afirmación «día 7 vencido» era una INFERENCIA ERRÓNEA. La población de CM2 se forma solo
+con eventos `cm2.hecho_registrado` (`core/reloj_cm2.py:131-170`, emisor `core/ejecutor_modelo_usuario.py:338`) y hay **0**:
+los 11 hechos de septiembre son anteriores al mecanismo y no se ha declarado ninguno desde el inicio. Sin población no hay
+sondas que vencer.
+**Verificación previa `[LECT/EJEC]`:** `medir()` (`reloj_cm2.py:440-458`) solo escribe `cm2.sonda` por `obs.log(audit=True)`;
+memoria vía `_MemoriaSoloLectura` (sin escritura); sin LLM, sin Motor Único, sin PARADA; idempotente (pendientes = vencidas −
+ya auditadas); `edad_dias` registra la edad real (no simula fechas). Sin modo de solo consulta tras el inicio. 38 pruebas
+de `reloj_cm2` en verde (incl. idempotencia). Ningún AURA principal vivo (sin colisión de `seq`).
+**Ejecución puntual `[EJEC]`** 2026-10-18T20:07:33-05:00, `/usr/bin/python3` (3.12.3), cwd `walking-skeleton`: exit 0 —
+«hechos declarados registrados: 0 · sondas hechas: 0 · CM2: sin datos suficientes (mínimo provisional: 20 sondas de día
+28)». Conteos antes/después: `cm2.inicio` 1→1, `cm2.sonda` 0→0, audit 1345→1345 líneas, md5 de `memoria.json` igual.
+INV-9 respetado (no publica tasa).
+**Cron `[EJEC]`:** script de usuario `~/.local/bin/aura-medir-cm2.sh` (700) fuera del repo + crontab de usuario
+`30 21 * * *` (sin sudo; despertador intacto; respaldo `~/.local/state/crontab.antes-cm2.bak`). Protecciones: flock en
+`~/.local/state/aura-cm2.lock`; aplaza si hay un intérprete Python ejecutando `-m aura_skeleton` (salvo receptor y la
+propia medición); log `~/.local/state/aura-cm2.log` 600 recortado a 2000 líneas; sin reintentos. Probado con intérprete
+falso: normal ✓, solape → omitido ✓, AURA vivo (python real con `-u`) → aplazado ✓, shell que solo menciona el texto → no
+aplaza ✓, recorte ✓. `security-reviewer`: CAMBIOS menores (lock fuera de /tmp, detección por argv[0], mkdir, rotación) →
+aplicados. Diseño propio corregido dos veces por pruebas (autodetección del propio comando). Hora 21:30 elegida porque
+el equipo es portátil (cron no recupera ventanas apagado; la siguiente ejecución recoge lo pendiente con su edad real).
+**Calendario real:** sin hechos registrados no hay sondas. Cada hecho tipado declarado desde hoy tendrá sondas a +7, +14 y
++28 días; la tasa exige ≥20 sondas de día 28 → **no antes de 28 días tras el primer hecho registrado**. Gate S3
+(«registro CM2 funcionando»): mecanismo y automatización listos; **sin datos** hasta que haya uso real con hechos declarados.
+Cloud: SKIP. Sin commit/push/merge. **Siguiente acción:** primera ejecución automática hoy 21:30 → revisar el log;
+S3 progresa con uso real (declarar hechos a AURA).
+
+## 2026-10-18 (s) · S3/CM2: primer ciclo automático VERIFICADO (ejecución sin datos) · hueco de gobernanza en la población
+
+**Cron instalado** `30 21 * * * ~/.local/bin/aura-medir-cm2.sh` (despertador intacto). **Cron ejecutado `[EJEC]`:** journal
+`CRON[25645] (majo1230) CMD (/home/majo1230/.local/bin/aura-medir-cm2.sh)` 21:30:01; log: inicio 21:30:01 → fin exit=0
+21:30:02; «hechos declarados registrados: 0 · sondas hechas: 0 · CM2: sin datos suficientes». Audit 1345→1345 líneas,
+solo `cm2.inicio`=1. Log 600 con agregados, sin contenido privado. No hubo aplazamiento (ningún AURA principal vivo) ni
+solape. **No se lanzó ninguna sonda real de prueba.**
+**Hechos elegibles: 0. Sondas escritas: 0. Gate CM2: NO cumplido (sin datos).** S3 **no** está completado.
+Agentes (todos pasaron por Graphify primero): `explorador-repositorio` (flujo de hechos tipados: `conectores/conversacion.py:53-78`
+`_HECHO`, `core/identidad_memoria.py:23,30`, `core/ejecutor_modelo_usuario.py:246-263,315-338`, cableado `composicion.py:411,551`)
+y `auditor-consistencia` (INV-9 OK: `tasa_dia28` exige ≥20 sondas de día 28 en [28,35]; sin tolerancia en días 7/14; una sonda
+de día 28 fuera de ventana NO se repite → ese hecho se pierde para la tasa; versión corregida <28 días no cuenta).
+Graphify: `explain "medir()"` no resuelve el nodo (limitación; `sondas_pendientes()` sí). Cloud: SKIP.
+**Hueco de gobernanza (DECISION_REQUIRED):** ni la resolución S3 ni el procedimiento distinguen hechos declarados
+espontáneamente de hechos sembrados para la medición; sembrar 20 hechos fáciles inflaría la tasa (sesgo reconocido en
+`DP-S3-RELOJ-CM2.md:397-401`). El CEO debe fijar la política (solo uso espontáneo / siembra declarada y etiquetada / otra).
+**Calendario:** primer hecho declarado el día D → sondas D+7, D+14, D+28 (día 28 válido hasta D+35). La tasa deja de ser
+«sin datos» como pronto el día 28 del 20.º hecho registrado. **Siguiente revisión:** el log tras la primera declaración
+real (y 7 días después, la primera `cm2.sonda`); revisar el log al menos semanalmente por si el equipo estuvo apagado.
+Sin commit/push/merge.
+
+## 2026-10-18 (t) · D-CM2-1: política de población espontánea formalizada · recogida real pendiente
+
+**Decisión del CEO registrada:** `decisiones/2026-10-18-D-CM2-1-politica-poblacion-espontanea.md` (ID `D-CM2-1`, sin
+colisión). CM2 solo con hechos declarados espontáneamente en el uso real; prohibido sembrar (ni etiquetado), importar
+los 11 históricos, reconstruir de conversaciones/documentos, tocar `memoria.json` o generar eventos artificiales.
+Justificación: sesgo de selección (DP-S3 §5.3). Aclaraciones de interpretación: rige la medición oficial (no las pruebas
+unitarias en directorios temporales); los históricos ya quedan fuera por mecanismo.
+**Coherencia `[LECT]`** (`auditor-consistencia`, vía Graphify): COHERENTE con DP-S3 §5.3, Resolución S3 Q5/§2.1, INV-9
+(CLAUDE.md §4; ADR-0021), Bible 2.5 §5.2 (4 semanas sin re-explicación; >10 % = fracaso; cero fabricación) y privacidad
+(Bible 5.5 §3, ALERTA-002, D24). Observación: INV-9 no tiene definición en la Bible (solo CLAUDE.md/ADR-0021).
+Registro canónico (`explorador-repositorio`): `decisiones/`; `INDICE.md`/`CHANGELOG.md` no reciben actas por convención;
+`CHECKLIST-CONTINUIDAD.md` no editado (fuera del alcance listado por la orden; la prohibición queda en el acta).
+**Estado `[EJEC]` 21:35:** cron instalado y **primera ejecución automática observada** (21:30:01, exit 0); población 0,
+**0 hechos elegibles, 0 sondas**, `cm2.inicio`=1; log 600. **CM2: recogida real pendiente; gate NO cumplido.**
+Faltan: hechos espontáneos registrados → sondas de días 7/14/28 → ≥20 sondas válidas de día 28 en [28,35] con versión
+≥28 días + criterios de la Bible (re-explicación, fabricación) + veredicto del CEO.
+**Próxima revisión:** tras la primera declaración real elegible (registrar el momento; comprobar `cm2.hecho_registrado`
+por conteo) y su sonda de día 7 (+7 días). Riesgo: equipo apagado a las 21:30 durante más de 7 días en la ventana del
+día 28 de un hecho → ese hecho se pierde para la tasa.
+Agentes: `explorador-repositorio`, `auditor-consistencia` (ambos vía Graphify y ficha). `arquitecto-evaluador` y
+`verificador-mutacion`: no lanzados (sin implicación metodológica nueva ni cambio de código). Cloud: SKIP.
+**Git:** HEAD `6dad6af`; sin commit, push, merge ni despliegue. Sin cambios en código, recuerdos, `~/.aura`, privacidad,
+PARADA ni automatización.
+
+## 2026-10-18 (u) · Control de continuidad tras D-CM2-1: sin contradicción normativa · línea base · riesgos
+
+**Verificado:** `explorador-repositorio` (acta en `decisiones/`, convención correcta, `D-CM2-1` presente solo en acta + ficha +
+CHECKPOINT (t) + registro del mapa; sin colisión) y verificación propia de las citas que el agente no resolvió (ADR-0021,
+Bible 2.5 §5.2 literal, Bible 5.5, Resolución S3 — existen y coinciden). `auditor-consistencia`: el acta separa medición
+oficial / pruebas unitarias / históricos (`:17-25`, `:47-48`, `:49-50`); **ningún documento presenta el ciclo de las 21:30
+como medición válida ni declara S3 completado**; (q) corregida explícitamente en (r) — la línea errónea de la ficha ahora
+lleva la corrección en el sitio; la del mapa queda corregida por su entrada posterior (no se reescribe el registro).
+**Observaciones menores (sin contradicción):** el acta no detalla ventana [28,35] ni versión ≥28 días (sí el CHECKPOINT (t) y
+el código); «mínimo provisional» (Q5) no figura como tal en el acta; los criterios de re-explicación (>10 %) y fabricación
+de la Bible **no los mide el código** — dependen de revisión humana y del veredicto del CEO; ambigüedad: si una demostración
+del CEO con datos reales cuenta como «uso real». INV-9: ADR-0021:250 lo formula como «una prevista no se enciende», más
+estrecho que CLAUDE.md §4; ambas respaldan la política.
+**Línea base `[EJEC]` 2026-10-18 21:43:** `cm2.inicio`=1 · `cm2.hecho_registrado`=0 · `cm2.sonda`=0 · audit 1345 líneas ·
+último ciclo 21:30 exit 0 · cron sin cambios. Gate abierto; S3 no completado.
+**Riesgos de evaluación:** (1) **aplazamiento sistemático** — el cron se aplaza si AURA principal está vivo a las 21:30 y no
+reintenta: pérdida de sondas correlacionada con el uso real (mitigación posible, requiere autorización: segunda hora de
+ejecución o reintento diferido el mismo día); (2) equipo apagado (cron no recupera); (3) sonda de día 28 fuera de [28,35] =
+pérdida permanente; (4) sesgo por clasificador (hechos reales no tipados no cuentan y no se miden); (5) volumen: ≥20
+hechos tipados espontáneos puede tardar mucho.
+**Próximo evento que habilita revisión:** el primer `cm2.hecho_registrado` (conteo) tras una declaración real; después,
+su sonda de día 7. Agentes cloud: SKIP. `arquitecto-evaluador`/`verificador-mutacion`: no lanzados (sin cambio de código ni
+implicación metodológica que exija diseño; el riesgo (1) queda propuesto). Sin cambios en código, `~/.aura`, recuerdos,
+privacidad, PARADA ni cron; sin commit/push/merge (HEAD `6dad6af`).
+
+## 2026-10-19 (a) · CM2: reintentos el mismo día — implementados, probados en aislado (65/0), revisados e INSTALADOS
+
+**Acta:** `decisiones/2026-10-18-acta-reintentos-cron-cm2.md` (transcribe la orden; amplía «un cron diario» de la acta de
+ratificación). **Riesgo/causa raíz:** el script v1 no tenía estado ni reintento: un aplazamiento por AURA vivo perdía el día
+(pérdida correlacionada con el uso real) y «exit 0» no distinguía «sin datos» de «con sondas».
+**Diseño (revisado ANTES de implementar por `arquitecto-evaluador`, `auditor-consistencia`, `security-reviewer`):**
+cron 21:30 (1.ª) + 22:15 · 23:00 · 23:40 (máx. 4/día; ~45 min para que termine una sesión; última antes de medianoche);
+estado mínimo `~/.local/state/aura-cm2.dia` (600, una línea «FECHA ESTADO INTENTOS SONDAS_ACUM», atómico con mktemp + mv -T bajo
+flock). Clasificación por **delta de «sondas hechas»** (no por población): `ejecutado_con_sondas` / `_sin_sondas` /
+`_sin_poblacion` / `ejecutado` (sin referencia) / `no_iniciado` / `error` (finales del día) · `aplazado` / `reintentable`
+(memoria en escritura) / `en_curso` hallado (interrumpida) → se reintentan. «ejecutado*» = ejecución terminada, nunca
+medición válida (INV-9). Aviso «ANOMALÍA» si el acumulado baja. Ganchos de prueba solo con `AURA_CM2_PRUEBAS=1`.
+**Idempotencia demostrada `[LECT/EJEC]`:** `medir` lee memoria antes de escribir (`reloj_cm2.py:453-457`); pendientes =
+vencidas − auditadas (`:176-190`); línea truncada tolerada (`tests/unit/test_audit_log.py:28`); en la batería, interrupción
+por kill -9 → `en_curso` → el siguiente intento reintenta y no deja temporales; error tras efecto parcial → `error` sin
+reintento automático (revisión humana).
+**Pruebas `[EJEC]`:** batería aislada (intérprete falso, directorio temporal, sin pkill, PIDs propios) **65 PASS / 0 FAIL**
+sobre la versión instalada: inactivo · ocupado→libre · ocupado los 4 + 5.º · ya ejecutado · sin hechos elegibles ·
+concurrentes · flock ocupado · proceso ajeno con el texto · procesos `--medir-cm2`/`--receptor-nodos` no aplazan · fallo real
+sin reintento ni traza en el log · efecto parcial sin reintento · memoria ocupada reintentable · interrupción y reintento ·
+en_curso durante la ejecución · delta población≠sondas · no_iniciado · salida vacía/truncada → error · DeprecationWarning no es
+error · estado corrupto no ejecutado · fecha distinta = día nuevo · intentos «08» · symlink rechazado · permisos y sin
+temporales · ganchos ignorados sin bandera (Python real contra `~/.aura` vacío de un HOME temporal; audit real antes = después).
+Defectos encontrados y corregidos en el camino: batería inicial contaminada por un proceso falso residual (descartada);
+**uso de `pkill -f` en el arnés (violación de regla del proyecto) que mató el shell** → sustituido por PIDs; acumulado que baja
+sin aviso; 2 aserciones decorativas; primera línea frente a stderr; comentario de fecha «declarado ≠ real»; octal; temporales
+huérfanos; recorte del log fuera del lock.
+**Revisión independiente:** `code-reviewer` APROBAR (sin hallazgos abiertos; ejecutó la batería 65/0) · `security-reviewer`
+APROBADO. `auditor-consistencia`/`arquitecto-evaluador` revisaron el diseño. `verificador-mutacion`: no aplica (sin código del
+proyecto). Cloud: SKIP (sesiones remotas offline). Graphify: no indexa el script externo (limitación declarada).
+**Instalación `[EJEC]`:** crontab actual verificado igual al respaldo `~/.local/state/crontab.antes-reintentos.bak` antes de
+tocarlo; `diff` posterior = solo +3 líneas de reintento y 1 comentario; despertador intacto; script 700, estado 700, log/lock 600.
+**No validado en producción todavía:** la primera ejecución automática con el script nuevo será el **2026-10-19 a las 21:30**.
+**Riesgos residuales:** equipo apagado o suspendido toda la franja 21:30–23:40 (sin anacron: el día se pierde, queda sin rastro
+en el estado); AURA vivo durante los 4 intentos (queda `aplazado 4` visible); AURA lanzado por un envoltorio cuyo argv[0] no es
+python no se detectaría (los lanzadores del repo usan `exec python3 -m aura_skeleton`).
+**Sin sonda real de prueba; sin cambios en código CM2, `~/.aura`, `memoria.json`, D-CM2-1, privacidad ni PARADA.** Gate de CM2
+abierto; S3 no completado. HEAD `6dad6af`; sin commit/push/merge/despliegue.
+
+## 2026-10-19 (b) · CM2 4 horarios: comprobación previa OK · observación en producción PENDIENTE (ventana 21:30–23:40)
+
+`[EJEC]` 07:02: cron efectivo con 21:30 · 22:15 · 23:00 · 23:40 y el despertador intacto; script 700 = versión aprobada (md5
+50f5d9c2e2a9); `~/.local/state` 700, log/lock 600; estado diario inexistente; sin temporales; línea base `cm2.inicio`=1 ·
+`cm2.hecho_registrado`=0 · `cm2.sonda`=0 · audit 1345 líneas. Sin cambios en la automatización. Observador de solo lectura
+armado (instantáneas tras cada horario). No se ejecuta ninguna sonda manual. **Siguiente:** leer las instantáneas tras las
+23:41 y contrastarlas con el diseño; revisión ECC sobre la evidencia observada.
+
+## 2026-10-19 (c) · CM2 4 horarios OBSERVADOS en producción: camino base conforme · reintentos sin evidencia real · gate CM2 ABIERTO
+
+`[EJEC]` Los 4 disparos ocurrieron (journal CRON 21:30:01 · 22:15:01 · 23:00:01 · 23:40:01). 21:30: sin AURA vivo, una
+ejecución real de `--medir-cm2` → `ejecutado_sin_poblacion` (población 0 · sondas 0 · «CM2: sin datos suficientes»); estado
+`2026-10-19 ejecutado_sin_poblacion 1 0`. Los otros 3 → «omitido: el día ya está resuelto». Audit 1345 líneas sin cambio
+(`cm2.inicio`=1, 0 sondas, 0 hechos), 0 temporales, permisos 600/700, script y cron sin cambios. Evidencia:
+`~/.claude/jobs/d6cb894c/tmp/observacion-cm2-2026-10-19.txt` + `~/.local/state/aura-cm2.log`. ECC: arquitecto CONFORME ·
+auditor sin discrepancias · security APTO · code-reviewer CONSISTENTE. Sin cambios de código (mutación no aplica).
+**Abierto:** las ramas de reintento (aplazado/reintentable/en_curso) siguen sin evidencia en producción; población 0
+(D-CM2-1: solo uso real espontáneo); `~/.aura` con permisos 775 (decisión CEO); P1 commit diferido. **Siguiente:** seguir
+observando ciclos diarios sin intervenir; la evidencia de reintento llegará sola el primer día con AURA abierto a las 21:30.
+
+## 2026-10-20 (a) · `~/.aura` pasa de 775 a 700 (solo el directorio) · CM2 sin cambios · gate CM2 ABIERTO
+
+`[EJEC]` Con autorización acotada del CEO: comprobación previa en solo lectura (propietario majo1230 = usuario de AURA,
+grupo sin otros miembros, sin ACL, sin dependencias de grupo/otros en servicios, contenedores, cron, código ni
+documentación) → `chmod 700 ~/.aura`, sin -R. Verificado: 700 majo1230:majo1230; los 13 elementos internos con modo, dueño e
+inodo idénticos; audit (1345 líneas) y memoria.json sin cambio de tamaño ni mtime; servicios de usuario activos. ECC:
+explorador «compatible» · security-reviewer APLICAR + confirmación posterior · auditor-consistencia COMPATIBLE; arquitecto
+no necesario; cloud/Codex/OpenCode SKIP. Detalle en `.claude/ficha-evidencia.md`. CM2: cron, script (md5 50f5d9c2e2a9),
+permisos y conteos sin cambios (`cm2.inicio`=1, 0 hechos, 0 sondas). La mejora de permisos NO es validación de CM2.
+**Abierto:** reintentos sin evidencia real (solo cuando haya un aplazamiento o fallo real; no se fuerza); población 0
+(D-CM2-1); internos de `~/.aura` aún 664/775 (fuera de esta autorización; inaccesibles mientras el padre sea 700); P1 commit
+diferido. **Siguiente revisión:** tras el ciclo de 21:30–23:40 del 20-10, comprobar cron, permisos (incluido `~/.aura` 700),
+estado diario, conteos y que no haya errores atribuibles al cambio.
+
+## 2026-10-20 (b) · Ciclo CM2 del 20-10 tras `~/.aura` 700: comprobación previa OK · observación PENDIENTE (21:30–23:40)
+
+`[EJEC]` 07:10: `~/.aura` 700 con internos sin cambios; script (md5 50f5d9c2e2a9) y cron de 4 horarios intactos; permisos de
+estado/log/lock/dia correctos; línea base `cm2.inicio`=1 · 0 hechos · 0 sondas · audit 1345. Observador de solo lectura
+armado. Sin cambios en el sistema. **Siguiente:** leer las instantáneas tras las 23:41, revisión ECC sobre lo observado.
+
+## 2026-10-20 (c) · Ciclo CM2 del 20-10 OBSERVADO tras `~/.aura` 700: conforme · reintentos sin evidencia real · gate CM2 ABIERTO
+
+`[EJEC]` Los 4 disparos ocurrieron (journal CRON 21:30:01 · 22:15:01 · 23:00:01 · 23:40:01); AURA no estaba vivo en ninguna
+instantánea. 21:30: cambio de día con estado previo y f_acum 0 heredado → una ejecución real → `ejecutado_sin_poblacion`
+(población 0 · sondas 0 · «CM2: sin datos suficientes»); estado `2026-10-20 ejecutado_sin_poblacion 1 0`. Los otros 3 →
+«omitido: el día ya está resuelto». Conteos antes = después: `cm2.inicio`=1 · 0 hechos · 0 sondas · audit 1345. `~/.aura`
+sigue en 700 con internos sin cambio; la medición leyó el audit real (seq 1314), así que el 700 no causó errores. Script,
+cron y permisos de estado sin cambios; 0 temporales. ECC: arquitecto CONFORME · auditor CONSISTENTE · security CONFORME ·
+explorador «cableado confirmado»; cloud/Codex/OpenCode SKIP. Evidencia:
+`~/.claude/jobs/d6cb894c/tmp/observacion-cm2-2026-10-20.txt`. Nuevas ramas observadas en producción: cambio de día (`:64`)
+y clasificación con f_acum numérico (`:118`). **Abierto:** las ramas de reintento siguen sin observarse (no se fuerzan);
+población 0 (D-CM2-1); gate = ≥20 sondas válidas de día 28, hoy 0; internos de `~/.aura` 664/775 (fuera de autorización);
+P1 commit diferido. **Siguiente:** seguir observando los ciclos diarios sin intervenir.
+
+## 2026-10-21 (a) · Ciclo CM2 del 21-10: comprobación previa OK · observación PENDIENTE (21:30–23:40)
+
+`[EJEC]` 06:42: `~/.aura` 700 con internos sin cambio; script (md5 50f5d9c2e2a9) y cron de 4 horarios intactos; permisos de
+estado/log/lock/dia correctos; estado `2026-10-20 ejecutado_sin_poblacion 1 0`; línea base `cm2.inicio`=1 · 0 hechos ·
+0 sondas · audit 1345. Observador de solo lectura armado. Sin cambios en el sistema. **Siguiente:** leer las instantáneas
+tras las 23:41 y hacer la revisión ECC (con confirmación explícita de ficha + Graphify por agente).
+
+## 2026-10-21 (b) · Ciclo CM2 del 21-10 OBSERVADO: conforme · mismas ramas que el 20-10 · gate CM2 ABIERTO
+
+`[EJEC]` Los 4 disparos ocurrieron (journal CRON 21:30:01 · 22:15:01 · 23:00:01 · 23:40:01); AURA no estaba vivo en ninguna
+instantánea. 21:30: el estado del 20-10 se trató como día nuevo → una ejecución real → `ejecutado_sin_poblacion` (población 0 ·
+sondas 0 · «CM2: sin datos suficientes»); estado `2026-10-21 ejecutado_sin_poblacion 1 0`. Los otros 3 → «omitido: el día ya
+está resuelto» (sin repetir la medición). Conteos antes = después: inicio=1 · 0 hechos · 0 sondas · audit 1345. `~/.aura` 700
+con internos sin cambio; script, cron y permisos de estado sin cambios; 0 temporales; 0 errores. ECC (los 3 cumplieron ficha
++ Graphify): arquitecto CONFORME · auditor CONSISTENTE · security CONFORME; cloud/Codex/OpenCode SKIP. Evidencia:
+`~/.claude/jobs/d6cb894c/tmp/observacion-cm2-2026-10-21.txt`. **Abierto:** reintentos y demás ramas sin observar en
+producción (no se fuerzan); población 0 (D-CM2-1); gate = ≥20 sondas válidas de día 28 (hoy 0) + revisión humana de
+re-explicación y fabricación; [ANOTADO 2026-10-25 (s): la revisión humana no es condición literal del gate (D-CM2-1 L23); es regla de informe de la fabricación (Resolución S3 Q5 (b)). Ver `PROCEDIMIENTO-INICIO-CM2.md` §7.1.1.] P1 commit diferido. **Siguiente criterio:** los ciclos repetidos con población 0 ya no aportan
+evidencia nueva; revisar de nuevo cuando cambien las condiciones reales (AURA abierto a las 21:30, aparición de
+`cm2.hecho_registrado` o un `error:` en el log), o en la revisión periódica que el CEO indique.
+
+## 2026-10-22 (a) · Cronograma maestro: umbral por voz cerrado con dobles · acta del ecosistema doméstico · volumen y silencio de la TV (nivel 4) · agujero de voz por el modelo cerrado
+
+**Estado:** HEAD 6dad6af; main = origin/main d933a08; sin commits (pendiente de autorización). **Ficheros nuevos:**
+- `decisiones/2026-10-22-acta-ecosistema-domestico.md`
+- `walking-skeleton/tests/integration/test_umbral_una_conversacion_voz.py`, `test_volumen_tv.py`, `test_voz_no_actua_por_el_modelo.py`
+- `walking-skeleton/tests/unit/test_hogar_volumen.py`
+- `walking-skeleton/mutaciones/umbral-una-conversacion-voz.toml`, `volumen-tv.toml`
+
+**Ficheros modificados:**
+- código: `core/recuperacion.py`, `core/hogar.py`, `core/orchestrator.py`, `core/permissions.py`, `core/notificaciones.py`,
+  `adapters/home_assistant_real.py`, `adapters/home_assistant.py`
+- pruebas: `tests/unit/test_home_assistant_real.py`, `tests/integration/test_alcanzabilidad_capacidades.py`
+- mutaciones: `recuperacion-de-resultados.toml` y `voz-e2e-fisico.toml` (re-anclados)
+- documentos: `milestones/m3-entry/MAPA-ECOSISTEMA-FISICO.md`, el mapa maestro (§14 + registro) y `capacidades.json`
+
+**Evidencia:** QG PASS 3392; mutación 107/107 en los 5 TOML afectados; real `[EJEC]` contra el HA de la casa con las TV
+apagadas (0 servicios enviados).
+**Decisiones pendientes del CEO:**
+1. Voz → volumen y silencio (enmienda de la opción C; acta §5).
+2. Integraciones solo en la nube (PSN, relojes), excluidas por D24.
+3. Persistencia del resultado tras el reinicio (punto D).
+4. ¿Tope de volumen? (sugerencia de security-reviewer).
+5. Commit.
+
+**Siguiente paso exacto:** con la TV de la sala ENCENDIDA y una persona presente, leer en solo lectura sus atributos en HA
+(`volume_level`/`is_volume_muted`/`source`/`app_name`/`media_title`). Si `volume_level` es numérico, ejecutar «sube el
+volumen de la tele de la sala» y luego «baja el volumen de la tele de la sala» por texto, para dejarlo como estaba, y
+registrar antes y después. Eso sube la capacidad a nivel 5. Después: consulta de estado «¿qué está poniendo la tele?» y
+descubrimiento `red_local` para ampliar el inventario. CM2: en segundo plano y sin cambios.
+
+## 2026-10-22 (b) · Consulta del estado de la TV (nivel 4, real con TV apagada) · inventario observado · bloqueo de hardware para la autonomía sin PC
+
+**Estado:** HEAD 6dad6af; main = origin/main d933a08; sin commits.
+**Ficheros nuevos:** `walking-skeleton/tests/unit/test_hogar_consulta.py`,
+`walking-skeleton/tests/integration/test_consulta_estado_tv.py` y `walking-skeleton/mutaciones/consulta-estado-tv.toml`.
+**Ficheros modificados:**
+- código: `core/hogar.py` (`reconocer_consulta`, `describir_estado`), `adapters/home_assistant_real.py` (`estado_actual`) y
+  `core/orchestrator.py` (`_consultar_estado_de_hogar` y su rama)
+- documentos: `milestones/m3-entry/MAPA-ECOSISTEMA-FISICO.md` §6, el mapa maestro (registro) y `capacidades.json`
+
+**Evidencia:** QG PASS 3433; mutación consulta 16/16, más 31/31 de re-mutación (volumen, voz-e2e, umbral); real `[EJEC]`
+contra el HA de la casa.
+**Pendiente con dependencia externa:** el volumen real y la consulta con la TV ENCENDIDA (persona presente).
+**Decisiones del CEO pendientes** (se suman a las de 2026-10-22 (a)):
+1. Nodo de 64 bits siempre encendido para la autonomía sin PC.
+2. ¿Debe la consulta hablada exigir activación? Hoy no la exige, por ser una lectura.
+
+**Siguiente paso exacto:** con la TV de la sala encendida, `¿a qué volumen está la tele de la sala?` → `sube el volumen de la
+tele de la sala` → `¿a qué volumen…?` → `baja el volumen de la tele de la sala`, por texto, contra el HA real, con un
+directorio de datos temporal y registrando antes y después. Con eso, las dos capacidades suben a nivel 5. Si no hay TV
+encendida, el siguiente subpaso autorizado es la lectura y consulta de la cámara local o de la .110 por la vía de la
+decisión A, sin identificación (decisión B), tras verificar en Graphify qué hay ya construido.
+
+## 2026-10-22 (c) · Cámara .110 accesible (sin captura: falta la activación del propietario) · descubrimiento ONVIF/DDP · errores de hogar humanos
+
+**Estado:** HEAD 6dad6af; main = origin/main d933a08; sin commits.
+
+**Cambios de código:**
+- `adapters/red_local.py`: `observacion_wsd`, `_buscar_wsd`, `observacion_ddp`, `_buscar_ddp`, `_recoger_datagramas`,
+  `_es_privada`; `descubrir` con dos fuentes nuevas.
+- `core/entorno.py`: `_conflicto` frente a un tipo ya deducido; no se adopta la fuente en conflicto.
+- `core/orchestrator.py`: `_ACCION_DE_HOGAR`, errores de hogar en lenguaje humano.
+
+**Pruebas y mutación:**
+- Nuevas en `tests/unit/test_red_local.py`, `tests/unit/test_conocimiento_entorno.py` y `tests/integration/test_volumen_tv.py`.
+- Mutación: `mutaciones/descubrimiento-onvif-ddp.toml` (nuevo, 17/17); S2-M13 re-anclado en `semana2-integracion.toml`
+  (66/66).
+
+**Documentos:** `capacidades.json` («Captura de cámara» 2→5, solo la local; bloqueo de «Detección de presencia» actualizado;
+evidencia del descubrimiento), mapa maestro, `MAPA-ECOSISTEMA-FISICO.md` §6.1, ficha.
+
+**Evidencia:** QG PASS 3459; `[EJEC]` la .110 encontrada por ONVIF a las 07:12.
+
+**Pendiente externo:**
+1. Volumen real (TV encendida).
+2. Frame de la .110: el propietario define `AURA_CAMARA_RTSP` y está presente.
+
+**Decisiones CEO:** sin cambios respecto a (a) y (b).
+
+**Limitación MEDIA abierta:** el envenenamiento en la primera ronda de `_fusionar`.
+
+**Siguiente paso exacto:** con el propietario presente, lanzar AURA con
+`AURA_CAMARA_RTSP=rtsp://192.168.20.110:554/0/video0`, pedir «¿qué ves en la cámara?» y comprobar que la observación es
+ambiental y efímera, sin persona ni fichero. Si no hay propietario disponible, corregir la limitación de `_fusionar` (con
+TDD y mutación) o enriquecer ONVIF con `GetDeviceInformation` en la misma IP, sin autenticarse.
+
+## 2026-10-22 (d) · Fusión del inventario independiente del orden (limitación MEDIA cerrada) · etiqueta ≠ control · cámara sin nombre
+
+**Estado:** HEAD 6dad6af; main = origin/main d933a08; sin commits.
+
+**Cambios de código:**
+- `core/entorno.py`: `_FUENTES_DECLARATIVAS`, `_juntar`, `_fusionar` → `(fusion, conflictos)`, `actualizar` propaga
+  el conflicto de la ronda, `_entidad_de` ignora los nombres solo declarados, comentario de precedencia reescrito.
+- `core/percepcion.py`: `es_consulta_visual_sin_camara`, `pedir_camara`, `superficies_autorizadas`.
+- `core/orchestrator.py`: rama de la cámara sin nombre y «Puedo mirar: …».
+
+**Pruebas:**
+- `tests/unit/test_conocimiento_entorno.py`: ~18 nuevas.
+- `tests/integration/test_pregunta_por_camara_sin_nombre.py`: nuevo.
+
+**Mutación:** `mutaciones/fusion-inventario.toml` (nuevo, 12/12) y `mutaciones/camara-sin-nombre.toml` (nuevo, 6/6).
+
+**Documentos:** `MAPA-ECOSISTEMA-FISICO.md` §6.2 (procedimiento de la cámara), mapa maestro, `capacidades.json`, ficha.
+
+**Evidencia:** QG PASS 3487; `[EJEC]` en la red real y en la composición real.
+
+**Pendiente externo:**
+1. Primera captura de la .110: propietario presente + `AURA_CAMARA_RTSP` solo en ese proceso (§6.2).
+2. Volumen real: TV encendida.
+
+**Siguiente paso exacto, autónomo:** extender el patrón «preguntar cuál y enumerar las autorizadas» a
+`es_consulta_audio`/`es_consulta_evento` sin nombre (mismo hueco, observación del code-reviewer). Después,
+`GetDeviceInformation` ONVIF en la misma IP, sin autenticación y sin seguir a otra IP.
+
+## 2026-10-22 (e) · Inventario contrastado · la .110 es un DORMITORIO (DECISION_REQUIRED) · ONVIF GetDeviceInformation endurecido
+
+**Estado:** HEAD 6dad6af; sin commits.
+
+**Cambios de código:** `adapters/red_local.py`: `informacion_onvif`, `parsear_informacion_onvif`, `_enviar_soap`,
+`_leer_acotado`, `_xaddr_valido`, `_no_tocar`, `_ips_propias`, `_enriquecer_wsd` en paralelo, `_OPENER` sin proxy e hilos
+daemon. Pruebas en `tests/unit/test_red_local.py`. Mutación: `mutaciones/onvif-informacion.toml` (nuevo, 24) y D1, D2 y D17
+re-anclados en `descubrimiento-onvif-ddp.toml`.
+
+**Documentos nuevos:** `milestones/m3-entry/DECISION-REQUERIDA-ZONA-CAMARA-110-DORMITORIO.md` y
+`milestones/m3-entry/PROPUESTA-AUTONOMIA-SIN-PC.md`. **Actualizados:** `MAPA-ECOSISTEMA-FISICO.md` (§6.2 retirado, §7-§9),
+mapa maestro, `capacidades.json`, ficha.
+
+**Evidencia:** QG PASS 3512.
+
+**Decisiones del CEO nuevas:**
+1. La zona de la .110 (A / B / C).
+2. El nodo de 64 bits para la autonomía.
+3. Instalar la app de HA en un teléfono.
+4. Garmin (datos de salud).
+
+**Riesgo para el propietario:** el DVR podría tener credenciales por defecto vacías; una captura expone la contraseña de
+la Wi-Fi del extensor.
+
+**Siguiente paso exacto, autónomo:** aplicar el patrón «preguntar cuál y enumerar las autorizadas» a
+`es_consulta_audio`/`es_consulta_evento` sin nombre, en `core/percepcion.py`, con TDD, mutación y QG.
+
+## 2026-10-22 (f) · DECISION_REQUIRED de la .110 RESUELTA por el CEO: la zona es metadato · audio y movimiento sin nombre
+
+**Rectifica la entrada (e):** la decisión de la zona de la .110 ya no está pendiente
+(`decisiones/2026-10-22-acta-camaras-zona-como-metadato.md`).
+
+**Cambios de código:**
+- `composicion.py`: `_nombre_de_superficie`, `_etiqueta_de_zona`; la cámara de red usa el nombre y la zona del
+  propietario.
+- `core/politica_superficie.py`: docstring rectificado.
+- `core/percepcion.py`: `superficies_autorizadas` en audio y evento, `es_consulta_*_sin_camara`, `pedir_camara` con
+  «puedo intentar», `EventoMovimiento.hubo_frame`.
+- `core/orchestrator.py`: ramas sin nombre.
+- `core/entorno.py`: docstring.
+
+**Pruebas:** `tests/unit/test_zona_como_metadato.py` y `tests/integration/test_camaras_sin_nombre_audio_y_movimiento.py`.
+**Mutación:** `mutaciones/zona-como-metadato.toml` (nuevo, 13) y `camara-sin-nombre.toml` (re-anclado).
+**Documentos:** acta nueva, la DECISION-REQUERIDA marcada RESUELTA, MAPA (§6.2 revocado, §10 nuevo, nota sobre
+«interior»), mapa maestro, `capacidades.json`, nota en el DP de percepción.
+
+**Evidencia:** QG PASS 3560. `[EJEC]` RTSP de la .110: DESCRIBE 200 sin credencial, H264.
+
+**Pendiente externo:**
+1. La primera captura de la .110: el propietario ejecuta el procedimiento del MAPA §10.
+2. El volumen real.
+
+**Decisiones del CEO:** nodo de 64 bits, app de HA, Garmin, y retención de los eventos de movimiento en el audit (nueva).
+
+**Siguiente paso autónomo:** con la .110 activada por el propietario, comprobar «¿qué ves en la cámara habitacion?» de
+extremo a extremo (efímero, sin identidad) y subir la captura de la cámara de red a nivel 5. Sin activación: continuar
+con la integración del ecosistema (app de HA cuando el propietario la instale).
+
+## 2026-10-22 (g) · AURA Progress Dashboard: panel de progreso desde fuentes reales + registro estructurado del Quality Gate
+
+**Qué es:** herramienta de PROCESO (no capacidad del producto; D23): HTML estático sin JS (ADR-0002), proyección
+desechable (ADR-0023). Documentación: `milestones/mapa-maestro/PANEL-DE-PROGRESO.md`.
+
+**Código nuevo:**
+- `walking-skeleton/herramientas/panel_progreso.py` (785 l): construye el modelo de capacidades.json + mapa maestro + MAPA
+  físico + DECISION-REQUERIDA-* + CHECKPOINT + registro del gate; valida esquemas; censura una vez; importa
+  `indice_madurez.calcular` (no copia la fórmula). CLI: `cd walking-skeleton && python3 -m herramientas.panel_progreso
+  [--json] [--salida] [--umbral-dias]` → `publicado/panel-progreso/index.html` (generado; `publicado/` ya versiona HTML).
+- `herramientas/censura_panel.py` (48 l): MAC, uuid, serie, IPv4, credenciales en URL, Bearer, secretos hasta fin de celda.
+- `herramientas/registro_gate.py` (117 l) + adaptador mínimo en `quality-gate.sh`: deja
+  `~/.local/state/aura/quality-gate-ultimo.json` (fecha, sha, 5 pasos, conteos pytest, cambios sin commit). `|| true`
+  antes de `exit $FAIL`: el resultado del gate no cambia (revisión de seguridad).
+
+**Pruebas:** `tests/unit/test_panel_progreso.py` + `test_registro_gate.py` (109). **Mutación:**
+`mutaciones/panel-progreso.toml` 49/49 detectados (6 supervivientes de la 1.ª pasada cerrados con pruebas).
+**Evidencia:** QG PASS 3669 passed, 1 skipped, 17 xfailed (2026-10-22 14:03); el panel lo muestra como «PASS · coincide
+con HEAD»; HTML con 0 MAC/uuid/IP completa/`<script`.
+
+**Documentos:** mapa maestro (resumen §1 y §5–8 recalculados: 73,1 % / 61,7 %, 82 capacidades; entrada de registro),
+ficha. `capacidades.json` sin cambios.
+
+**Observaciones (no deuda) del auditor de consistencia, para el CEO:**
+- `milestones/m3-entry/DECISION-REQUERIDA-D-M-1-*.md` dice «ninguna acta aprueba construirlo», pero existe
+  `decisiones/2026-10-12-D-M-1-aprobacion-construccion.md`.
+- `decisiones/pendientes.md` (2026-09-21) deja abierta la percepción visual, ratificada el 2026-09-27, y no enlaza 6 de
+  los 8 expedientes.
+- `milestones/mapa-maestro/` sigue sin versionar.
+
+**Decisión del CEO pendiente:** nombres de las dimensiones A–Q (no existe mapeo; el panel muestra letras).
+
+**Siguiente paso:** el CEO revisa el panel. Pendientes previos sin cambios: primera captura de la .110 activada por el
+propietario, volumen real con la TV encendida, y las decisiones (nodo de 64 bits, app de HA, Garmin, retención de
+movimiento).
+
+## 2026-10-22 (h) · Veredicto de hogar veraz + estado asumido · panel con procedencia y consulta privada · dimensiones · gobierno · investigación externa (15 repos)
+
+**Estado:** COMPLETADO y verificado. QG PASS 3790 passed, 0 failed, 3 skipped, 17 xfailed (2026-10-22 18:02, sha 6dad6af
+con cambios sin commit). Sin commit, push, merge, staging ni cambio de rama.
+
+**1. Veredicto de hogar veraz** (pruebas con dobles; sin tocar HA ni TV reales):
+- Ficheros: `adapters/home_assistant_real.py`, `core/hogar.py`, `core/orchestrator.py`.
+- Comportamiento:
+  - Encender se verifica con `ESTADOS_ENCENDIDA` y apagar con `ESTADOS_APAGADA` (`playing`/`standby`).
+  - El volumen exige un estado de encendida.
+  - `unavailable`/`unknown`: no se envía y no se espera.
+  - HTTP 4xx/5xx al enviar, releer o buscar: «rechazó/respondió HTTP N», no «no respondió»; 401/403 siguen como credencial.
+  - Relectura ilegible: nunca verificado.
+  - «Ya estaba»: se envía, pero no se verifica ni se registra efecto.
+  - Estado asumido de HA (IE-002): nunca verificado.
+  - Textos acotados (`texto_seguro`); el `event_id` no se quema si la orden se rechaza.
+  - Respuestas: «Home Assistant ve…», «…lo he comprobado en Home Assistant». Nunca se afirma un efecto físico.
+- Pruebas ajustadas solo por el texto: `test_umbral_una_conversacion_voz.py:40`, `test_voz_no_actua_por_el_modelo.py:76`,
+  `test_volumen_tv.py`, `test_hogar_en_conversacion.py`, `test_voz_accion_opcion_c.py`.
+- Revisiones:
+  - Seguridad: APTO con reservas → H1/H2 corregidos. Ninguna acción rechazada se vuelve ejecutable; un único POST.
+  - Código: WARNING → 9 hallazgos corregidos.
+- Mutación: `veredicto-hogar.toml` 24/24 y re-anclados 141/141.
+- **Pendiente físico:** estados reales de la samsungtv tras encender y apagar; si publica `assumed_state`; el 4xx/5xx
+  real.
+
+**2. Panel:**
+- Procedencia derivada (`herramientas/procedencia_panel.py`): 28 ejecución real declarada · 14 solo pruebas ·
+  35 desconocida · 5 sin evidencia; 22 de nivel ≥ 5 con aviso.
+- Gate de otro commit = «no vigente».
+- Privacidad de extremo a extremo con secretos en todas las fuentes; fuga real en `_error` corregida.
+- 125 pruebas; mutación 60/60.
+- Consulta privada: `file://` o `python3 -m http.server 8765 --bind 127.0.0.1 --directory publicado/panel-progreso`
+  (verificado: 200 solo en loopback y después cerrado). Otros dispositivos: opciones en `PANEL-DE-PROGRESO.md` §5.bis,
+  **requieren autorización**.
+
+**3. Dimensiones A–Q:** `milestones/mapa-maestro/PROPUESTA-NOMBRES-DIMENSIONES.md`.
+- 8 letras con el valor exacto de la línea base (B, C, E, H, K, M, P, Q) y 4 inferidas por contenido (A, D, I, J).
+- M y P empatan en 61,1.
+- F, G, L, N y O sin nombre.
+- **Pendiente del CEO.** No se ha aplicado al panel.
+
+**4. Gobierno:**
+- Expedientes D-M-1 (acta del 12-10) y PERCEPCION-VISUAL (acta del 27-09) marcados RESUELTOS.
+- `pendientes.md`: la fila de percepción visual sale de «Abiertos».
+- `milestones/mapa-maestro/` **sigue sin versionar: el `git add` requiere autorización del CEO**.
+
+**5. Investigación externa:** `milestones/investigacion-externa/INDICE.md` + IE-001…IE-015 (inspección parcial y
+remota, con la cobertura declarada en cada ficha) + IE-000 Muse (`milestones/m3-entry/ESTUDIO-MUSE-GADGET-SDK.md`).
+- Adoptado: el concepto de estado asumido.
+- Pendientes que necesitan DP o decisión:
+  - `supported_features` (IE-004);
+  - PS5 en reposo ≠ apagada (IE-005, CEO);
+  - medición por etapa (IE-009);
+  - prueba de rechazo de CA ajena en el nodo (IE-014);
+  - triage de `ruff S` (IE-012; S314 = falso positivo medido).
+
+**Agentes:** exploradores ×2, implementadores Sonnet ×2 (hogar; panel), investigadores ×4 + Muse, security-reviewer,
+code-reviewer, verificador-mutacion ×2.
+- **SKIP:** AgentShield (no instalado en HC-1), Codex/OpenCode (no instalados).
+- **Incidencia:** un verificador usó `pkill` para su propio shell de espera. Se comprobó que HA, NATS, el receptor,
+  ollama y el cron siguieron activos. En la segunda pasada se prohibió explícitamente.
+
+**Siguiente paso:** con la TV encendida y la autorización contextual del propietario, una prueba física de
+encender/apagar para registrar qué estados reporta la samsungtv real y confirmar el veredicto fuera de los dobles.
+
+## 2026-10-22 (i) · Verificación física real: TV de la sala (encender) y PS5 (solo lectura)
+
+**Autorización:** misión del CEO «Verificación física real de TVs y PS5».
+
+**Lecturas (18:55:35, HA real):**
+- Las dos TVs son `samsungtv`.
+- Sala UN43RU7100 `off` (desde 18:52:44) y 55" UN55KU6000 `on`, ambas sin `assumed_state`.
+- No hay integración de PlayStation en HA.
+
+**Prueba (una orden):** «enciende la tele de la sala» por la cadena real de AURA.
+- Cadena: `componer` con HA real → Core → lista verde → Motor Único → `turn_on`.
+- Datos en un directorio temporal, sin tocar `~/.aura`; `~/.aura/KILL` ausente; modelo con 0 consultas.
+- Tiempos: orden enviada a las 18:56:54.853; HA `on` a las 18:57:05.383; AURA lo observa a las 18:57:05.450 y
+  responde «Listo: Home Assistant ve la TV de la sala encendida.»; sigue `on` a +10 s.
+- La TV de 55" no se tocó.
+- **Clasificación: PHYSICAL_EFFECT_VERIFIED por estado de HA** (sin inspección visual).
+- La TV real reporta `on`, no `playing`.
+
+**PS5 (sin órdenes):** DDP `SRCH` → `HTTP/1.1 200 Ok`, `host-type: PS5`, en la .36 (despierta). Dos lecturas, a las
+18:57:33 y 18:57:49.
+- AURA no conserva despierta/reposo: `red_local.observacion_ddp:382` solo guarda la identidad.
+- Es una capacidad que falta, no un defecto; requiere decisión (D23, IE-005).
+
+**Código:** sin cambios (no apareció ningún defecto).
+**Pruebas:** focalizadas 432 passed, 2 skipped. QG de esta ejecución PASS: 3790 passed, 0 failed, 3 skipped,
+17 xfailed, EXIT=0, a las 19:08:21 (log `~/.claude/jobs/d6cb894c/tmp/qg-fisica.log`).
+**Documentos:**
+- `milestones/m3-entry/evidencia-tv-real-2026-10-22/` (RESULTADO, salida y audit; sin token, comprobado);
+- MAPA físico §11;
+- `capacidades.json` (evidencia; niveles sin cambios);
+- mapa maestro y ficha.
+
+**SKIP:** AgentShield y Codex/OpenCode (no instalados). ECC: no se delegó la operación física (una acción real
+autorizada se ejecuta en serie por el director); no hubo defectos que corregir ni revisar.
+
+**Pendiente físico:** `playing`, `standby`, `unavailable` y `assumed_state` reales, y el volumen real.
+
+**Siguiente paso:** decidir si AURA debe conservar despierta/reposo de la PS5 (DP pequeño sobre `observacion_ddp` +
+consulta), ya que la lectura real demuestra que el dato existe.
+
+## 2026-10-22 (j) · Estado operativo de la PS5 por DDP (D23 / IE-005): despierta / en reposo / desconocido
+
+**Autorización:** orden del CEO «Implementación D23 / IE-005». Solo observación.
+
+**Contrato confirmado en el código:**
+- `observacion_ddp` acepta únicamente `HTTP/1.1 200 Ok` → `despierta` y `HTTP/1.1 620 Server Standby` → `en_reposo`.
+  Cualquier otra respuesta da `None`.
+- Un timeout o error no produce observación. «Apagada» no existe.
+
+**Cambios:**
+- `aura_skeleton/adapters/red_local.py`: `_ESTADO_POR_PRIMERA_LINEA` y `estado_operativo`.
+- `aura_skeleton/core/entorno.py`:
+  - constantes `ESTADO_DESPIERTA`/`ESTADO_EN_REPOSO`/`ESTADO_VIGENCIA_S` (15 min);
+  - campos nuevos: `Observacion.estado_operativo`, `Dispositivo.estado_operativo` y `Dispositivo.estado_visto`;
+  - `_fusionar`: un único estado por IP y ronda; si se contradicen, o hay conflicto de identidad, no se adopta;
+  - `actualizar`: sin estado nuevo conserva el anterior con su hora;
+  - `describir_estado_operativo`: antigüedad, «último estado conocido» y «lectura, no verificación física».
+- Sin migración: los campos nuevos tienen `None` por defecto y viven solo en memoria. No se guarda nada nuevo de la
+  consola.
+
+**Pruebas:**
+- `tests/unit/test_red_local.py` y `tests/unit/test_entorno.py`: 21 nuevas, con RED observado.
+- Incluyen una prueba con socket simulado: la sonda solo envía `SRCH` a los puertos 9302/987.
+- Focalizadas: 161 passed.
+- Mutación: `estado-operativo-ps5.toml` 16/16; además `descubrimiento-onvif-ddp` 17, `fusion-inventario` 12 (F10
+  re-anclado), `onvif-informacion` 24 y `semana2-integracion` 66, todas sin supervivientes.
+- QG PASS 3811 passed, 0 failed, 3 skipped, 17 xfailed, EXIT=0 (19:44:54), log `~/.claude/jobs/d6cb894c/tmp/qg-ps5.log`.
+
+**Revisión de seguridad: APTO.**
+- MEDIO (estados distintos en la misma ronda) corregido.
+- BAJO preexistente, no corregido por estar fuera del alcance: el texto de conflicto de `describir` incluye el host-id.
+
+**Evidencia:**
+- `despierta`: real (200 Ok, sección (i)).
+- `en_reposo`: **solo simulado**.
+- Sin órdenes físicas ni pruebas físicas nuevas.
+- No se tocaron `hogar.ESTADOS_*`, el Motor, los permisos ni el kill switch.
+
+**Documentos:**
+- IE-005, que pasa a «adoptado (concepto)», y su fila en el INDICE;
+- MAPA físico §11;
+- mapa maestro;
+- `capacidades.json`: evidencia de «Capa de conocimiento del entorno»; niveles sin cambios;
+- ficha;
+- panel.
+
+**Siguiente paso:** cuando la PS5 esté en reposo, una única lectura DDP real para observar `620` y cerrar la evidencia
+física de `en_reposo`.
+
+## 2026-10-22 (k) · Investigación: DVR «Amtech» + evolución controlada de agentes + cámaras (16 repos)
+
+**Tipo:** investigación de código y patrones. Nada instalado, clonado, ejecutado, flasheado ni desplegado. Ningún
+contacto con el DVR `.80` ni con la red. Sin cambios de código.
+
+**Persistido:**
+- `milestones/investigacion-externa/IE-016…IE-031`: lectura remota y parcial, con la cobertura declarada en cada una;
+  validadas contra la plantilla.
+- El INDICE, organizado en DVR, agentes y cámaras.
+- `SINTESIS-2026-10-22-DVR-AGENTES-CAMARAS.md`: hipótesis, matriz, diseño de evolución y cámaras.
+
+**DVR:**
+- H1 Xiongmai/XMEye (DVRIP/34567) es la hipótesis de trabajo, por evidencia previa: `uc-httpd` NETSurveillance,
+  RTSP con SDP vacío, ONVIF ausente, 205 IP locked.
+- `[EJEC]` El OUI `00:12:17` es Cisco-Linksys: la MAC no identifica al fabricante.
+- «Amtech» sin corroborar.
+- El experimento de solo lectura (un login, `get_system_info`, cierre; precondiciones en la SINTESIS §1.3) **no está
+  autorizado**: el `.80` sigue en «no tocar».
+
+**Agentes:**
+- AURA ya cubre revisión independiente, materia reservada, PARADA antes de escribir, presupuesto, Landlock y ausencia
+  de auto-push.
+- Brecha real `[LECT]`: `autoconstruccion.ejecutar` (L545-680) escribe el candidato en el árbol vivo antes de
+  verificarlo, y el original solo vive en memoria. Patrón IE-028 (copia desechable + instantánea), **requiere DP**.
+- Observaciones `[INFER]`: mejora sin línea base ni conjunto retenido (IE-024) y sin fuente de fallos recurrentes.
+
+**Cámaras:**
+- Propuesta P1 (requiere DP): procedencia del detector en `EventoMovimiento`, fallo `retriable` y prueba negativa de
+  campos de identidad.
+- AI-Stalker (facial) y las partes facial/ReID de DeepCamera, descartadas (Decisión B).
+
+**Calidad:** QG PASS 3811 passed, 0 failed, 3 skipped, 17 xfailed, EXIT=0 (21:08:10), log
+`~/.claude/jobs/d6cb894c/tmp/qg-investigacion.log`.
+
+**SKIP:** AgentShield (no instalado). Los textos de IE-025/IE-027 que piden saltarse permisos son **hallazgos**, no
+instrucciones. Niveles e índice sin cambios.
+
+**Siguiente paso:** el propietario lee en la pantalla de información del DVR el modelo, la versión completa de
+firmware y la marca, y los comunica.
+
+## 2026-10-22 (l) · Candidato aislado en la autoconstrucción: brecha confirmada [EJEC] y Decision Package (sin código)
+
+**Verificado de (k):** IE-016…IE-031, INDICE con 32 filas, SINTESIS, gate PASS 3811 (log presente), HEAD 6dad6af y
+staging preexistente.
+
+**Flujo actual [LECT]:**
+- `autoconstruccion.ejecutar` (L545-677) pasa las 6 puertas (zona → autorización → `_INTOCABLES` → PARADA →
+  vocabulario → segunda barrera).
+- Después **escribe el candidato en el fichero vivo (L632)** y lo verifica con `verificador.arbol_sano` (pytest con
+  `cwd=raiz`, verificador.py L368-371; la raíz la ata `review.py` L534-542).
+- Revierte desde memoria (L663/L670) y registra `cambio_aplicado` al final (L676).
+- La rama `except BaseException` no tiene ninguna prueba.
+
+**Brecha [EJEC], sobre una copia** (`milestones/m3-entry/evidencia-candidato-aislado-2026-10-22/`):
+- (R1) durante la verificación el fichero vivo contiene el candidato;
+- (R2) un SIGKILL durante la verificación lo deja escrito, sin respaldo y sin ningún evento.
+
+**Confirmado por lectura y grep, fuera del DP:**
+- no hay línea base de métricas;
+- no hay detector de fallos repetidos por clase.
+
+**Decision Package:** `milestones/m3-entry/DP-CANDIDATO-AISLADO-AUTOCONSTRUCCION.md`.
+- Alternativa **A**: copia temporal, verificación en la copia, promoción atómica con precondición de hashes, diario
+  de intención y recuperación.
+- B (git worktree), C (`git archive`, verifica algo distinto) y D (solo diario) descartadas.
+- 9 invariantes, matriz de fallos y 10 pruebas planificadas.
+- **Requiere acta del CEO:** toca `autoconstruccion.py` y `review.py` (`_INTOCABLES`). Además hay 4 decisiones (PARADA
+  en la recuperación, diario huérfano, extender `verificador.py` o crear un módulo, y la vía de entrada).
+- **No se modificó código.** No se añadieron pruebas RED al repo: no hay convención `xfail` en control-plane, y una
+  roja permanente rompería la batería; quedan especificadas en el DP §6.
+
+**Pruebas:**
+- Baterías del anillo (`test_red_autoconstruccion`, `blindaje_del_anillo`, `segunda_barrera`, `verificador`):
+  67 passed.
+- Hashes de `autoconstruccion.py`, `review.py`, `verificador.py` y `estado.json`: iguales antes y después.
+- QG PASS 3811 passed, 0 failed, 3 skipped, 17 xfailed, EXIT=0 (21:46:23), log
+  `~/.claude/jobs/d6cb894c/tmp/qg-candidato.log`.
+
+**Agentes:**
+- `explorador-repositorio`: flujo y experimentos.
+- `arquitecto-evaluador`: alternativas. Sin Graphify propio; el contexto del grafo iba en su encargo.
+
+**SKIP:** AgentShield. DVR y cámaras sin cambios: pendiente el dato de pantalla del DVR. PARADA intacta.
+
+**Siguiente paso:** decisión del CEO sobre el DP (aprobar A + acta).
+
+## 2026-10-22 (m) · Candidato aislado en la autoconstrucción: IMPLEMENTADO (alternativa A del DP, aprobada por el CEO)
+
+**Autorización:** el usuario aprobó expresamente la alternativa A el 2026-10-22. Alcance: `autoconstruccion.py` y
+`review.py`, ambos de `_INTOCABLES`.
+
+**Cambios** (rutas en `entorno/control-plane/`):
+- `autoconstruccion.py`: copia aislada, verificación en la copia, promoción atómica por fichero, diario, `recuperar`,
+  cerrojo y limpieza.
+- `review.py`: el verificador recibe la raíz de la copia y el resultado propaga `verificacion_aislada`,
+  `ejecucion_confinada`, `promovido` y `motivo`.
+- `test_red_candidato_aislado.py`: 86 pruebas nuevas.
+- `mutaciones/candidato-aislado.toml`: 38 mutantes nuevos.
+- Re-anclajes con la misma degradación: `blindaje-del-anillo.toml`, `verificador.toml` y, en `walking-skeleton/mutaciones/`,
+  `ciclo-autonomo`, `codigo-muerto-completo`, `d-orch-2-autoconstruccion` y `segunda-barrera`.
+
+**Evidencia:**
+- `[EJEC]` Mismo script de la brecha (`milestones/m3-entry/evidencia-candidato-aislado-2026-10-22/salida-despues.txt`):
+  el vivo queda en `VALOR = 1` durante la verificación y tras SIGKILL. **R1 y R2 cerradas.**
+- `[EJEC]` Un diario forjado contra un fichero externo deja la víctima intacta y bloquea.
+- RED en cuatro rondas de TDD (19/26 → 28/61 → 8/70 → 4/79).
+- Batería del anillo: 1290 passed, 1 skipped.
+- Mutación: candidato-aislado 38/38; anillo 44/44; walking-skeleton 233/233.
+
+**Revisiones:**
+- Seguridad: NO APTO (H1 diario forjado reproducido, H2 actualización perdida) → APTO CON RESERVAS (R1 `zona_permitida`
+  en el diario) → corregido.
+- Código: WARNING → corregido.
+
+**Efecto lateral detectado y corregido:**
+- Las pruebas antiguas sin `AURA_AUTOCONSTRUCCION_ESTADO` acumulaban cerrojos en `~/.local/state/aura/autoconstruccion`
+  (153 entradas, todas de esta sesión).
+- Ahora el estado vacío se retira bajo el cerrojo, con comprobación de inodo.
+- Las entradas residuales, solo cerrojos de hoy y sin ningún diario, se borraron. Quedan 0.
+
+**QG:**
+- 1.ª ejecución: FAIL (`test_garantias_vigentes`: 4 anclas AUSENTES) → re-anclado.
+- Final: **PASS 3811 passed, 0 failed, 3 skipped, 17 xfailed, EXIT=0** (23:25:21), log
+  `~/.claude/jobs/d6cb894c/tmp/qg-candidato-impl2.log`.
+
+**Límites declarados** (DP §11):
+1. Un verificador heredado sin parámetros mide el vivo → `verificacion_aislada: False`. Pasar a fail-closed exige
+   migrar ~30 `lambda` de otras pruebas: **decisión del CEO**.
+2. `ejecucion_confinada: False`: Landlock no se conecta sin medirlo contrato a contrato.
+3. La atomicidad es por fichero.
+4. `motor_autonomia` cuenta todo `revertido` como verificación fallida, y el comentario de `planificador.py:165` está
+   desfasado: ambos fuera de alcance.
+5. `autoconstruccion.py` tiene 1301 líneas (más de 800); extraer código a `verificador.py` no estaba autorizado.
+6. Un destino fuera de `directorio` da `CandidatoNoAislable`.
+
+**AgentShield:** SKIP. PARADA real intacta. `capacidades.json` sin cambios. Sin commits.
+
+**Siguiente paso:** decisión del CEO sobre los límites 1 (fail-closed) y 2 (confinamiento Landlock).
+
+**Verificación posterior de efectos laterales (23:35) `[EJEC]`:**
+- Los ficheros no autorizados del anillo tienen fecha de hoy por las restauraciones del arnés de mutación, pero son
+  **byte a byte idénticos** a la copia de las 21:34 (`exp2`), anterior a todo el trabajo. Lo mismo vale para
+  `estado.json`. Son `contrato.py`, `control_plane.py`, `motor_autonomia.py`, `orquestador.py`, `planificador.py`,
+  `ciclo_autonomo.py`, `verificador.py`, `conftest.py` y el resto de `*.py`, salvo los dos autorizados.
+- `eventos.jsonl` real: el prefijo es idéntico y hay **9 líneas añadidas** con la cadena de hashes íntegra.
+  - 3 son `despertar_rechazado` del cron legítimo `*/30` (PARADA armada).
+  - 6 son `descubrimiento_realizado`, escritas por las ejecuciones de la batería del anillo de esta sesión.
+- **Defecto preexistente**, no introducido por este cambio: `test_red_frente_autonomo.py:78` llama a
+  `des.descubrir(PLANO, PLANO)` con `PLANO` = el directorio real, y el guardián de `conftest.py` solo protege
+  `estado.json`. El mismo patrón aparece en el log el 2026-09-20 (31) y el 2026-09-21 (30).
+- **No se corrige ni se borra:** esa prueba no está en el alcance autorizado, y el log es de solo añadir con hashes
+  encadenados (ADR-0023). **DECISION_REQUIRED:** que esa prueba use `tmp_path`, o que el guardián cubra también
+  `eventos.jsonl`.
+
+## 2026-10-23 (n) · PROMPT 01: la prueba que escribía en el `eventos.jsonl` de producción, aislada
+
+**Causa raíz `[LECT]`:**
+- `test_red_frente_autonomo.py:75` llamaba a `des.descubrir(PLANO, PLANO)`, con `PLANO` = el directorio real del
+  anillo.
+- `descubrimiento.descubrir` (L438) registra `descubrimiento_realizado` en `directorio` (L451, vía
+  `cp.registrar_evento`, el único escritor del log: `control_plane.py` L1889/L1854).
+- El guardián de `conftest.py` solo cubría `estado.json`.
+
+**Arreglo:** solo `entorno/control-plane/test_red_frente_autonomo.py`; se conservan sus cambios preexistentes.
+- Guardián autouse que intercepta `cp.registrar_evento` y compara la ruta **resuelta** con el log real. Es un
+  guardián de ruta y no de hash, porque el cron escribe cada 30 minutos.
+- Helper `_copia_del_plano(tmp_path)`.
+- La prueba descubre con `raiz=PLANO` (solo lectura) y `directorio=copia`, y exige exactamente un
+  `descubrimiento_realizado` nuevo **en la copia**.
+- Dos pruebas de control: el guardián bloquea sin poder escribir, y no bloquea un directorio ajeno.
+
+**Evidencia `[EJEC]`:**
+- **Rojo:** con el código previo, el guardián detuvo la prueba (`EscrituraEnElLogReal`) **antes** de escribir. Log
+  real sin cambios (sha `26a8441e…`).
+- **Verde:** 7 passed.
+- **Control:** con un plugin que anula el registro en memoria, la nueva aserción falla.
+- **Batería completa del anillo:** 1292 passed, 1 skipped (+2). El log real solo ganó la línea del cron
+  `02:30:01 despertar_rechazado`, ningún `descubrimiento_realizado`. El prefijo previo (3559 líneas) está intacto.
+- **Fuera del alcance:** `autoconstruccion.py`, `review.py`, el resto de `*.py` del anillo y `estado.json`, idénticos
+  a la referencia.
+- **QG:** PASS 3811 passed, EXIT=0, log `~/.claude/jobs/d6cb894c/tmp/qg-prompt01.log`.
+- **Revisión:** `code-reviewer` independiente APROBADO (0 ALTO, 0 MEDIO).
+
+**No se borró ni reescribió** ninguna línea histórica del log (6 del 2026-10-22, 31 del 2026-09-20…).
+**Siguiente paso:** PROMPT 02, fase A (verificadores explícitos).
+
+## 2026-10-23 (o) · PROMPT 02: verificadores explícitos (Fase A) y confinamiento Landlock (Fase B)
+
+**Hallazgo alto `[EJEC]`, que corrige la entrada (m):** los contratos reales usan rutas absolutas al vivo, así que la
+verificación de `review.py` medía el **original** mientras declaraba `verificacion_aislada=True`.
+
+**Corregido en la Fase A:**
+- remapeo a la copia y `no_aislable`;
+- `ResultadoVerificacion`;
+- copia de `estado.json`/`eventos.jsonl` como solo lectura.
+
+**Fase B:**
+- confinamiento Landlock obligatorio, con rechazo sin ejecutar si no está disponible;
+- herencia a hijos y nietos probada con señuelos (sha intacto).
+
+Detalle en el DP §12 y en `milestones/m3-entry/INVENTARIO-VERIFICADORES-Y-MATRIZ-LANDLOCK.md`.
+
+**Revisiones:** seguridad APTO CON RESERVAS (MEDIO-1 «la lectura no está aislada» y MEDIO-2 «sin red ni señales»,
+documentados con veracidad y fijados por prueba; BAJO-2 corregido).
+
+**Evidencia:**
+- `test_red_candidato_aislado.py`: 118.
+- Batería del anillo: 1324 passed, 1 skipped.
+- Mutación: 57/57 + 21 baterías sin supervivientes.
+- QG PASS 3811 passed, EXIT=0 (log `~/.claude/jobs/d6cb894c/tmp/qg-prompt02.log`).
+- `eventos.jsonl` real: solo líneas del cron `despertar_rechazado` (:00 y :30), ninguna de pruebas. `estado.json` y
+  PARADA intactos.
+- Ficheros fuera del alcance: idénticos a la referencia del 22-10 21:34.
+- `/tmp/ca-estado`: vacío y retirado.
+
+**Pendiente de autorización del CEO:**
+1. Migrar los 72 `lambda: X` (14 ficheros de prueba) y convertir la vía heredada en error.
+2. Restringir la lectura en `aislamiento.py` (excluir el plano vivo de `sys.path`) y valorar la red.
+3. Correcciones previas aún abiertas en `motor_autonomia`/`planificador`.
+
+Sin commits.
+
+## 2026-10-25 (p) · PROMPT 03/04 cerrados: verificadores explícitos + aislamiento estricto (lectura, red, IPC, señales) — reanudación tras reinicio
+
+**Punto de reanudación `[CONFIRMADO]`:**
+- El equipo se reinició el 2026-10-25 a las 07:51 (`uptime -s`).
+- El arnés 51616 ya no existía, y `/tmp` se vació: se perdieron los logs de mutación de la sesión anterior.
+- Ningún fichero quedó mutado:
+  - los 4 de producción autorizados coinciden con el sha registrado antes de mutar;
+  - el resto de `*.py` del anillo es idéntico a la referencia `ref-p03-0634`.
+
+**Resultados previos que solo constaban en un informe `[DECLARADO EN INFORME]`, sin log:**
+- «aislamiento-estricto 25/25» y la batería de candidato-aislado.
+- **Se repitieron.** El 25/25 resultó ser **25/26**, con el superviviente **AE-M26**: el estricto podía dejar de aplicar rlimits sin que ninguna prueba lo notara, porque comparaba `<=` contra `RLIM_INFINITY=-1`.
+
+**Fase A (PROMPT 03), `[CONFIRMADO]`:**
+- 72 verificadores `lambda:` migrados a `lambda raiz:` en 14 ficheros de prueba, en 8 grupos.
+- `autoconstruccion.VerificadorSinRaiz`: la vía sin raíz se rechaza antes de cualquier efecto.
+- `review.ejecutar_bajo_review` valida al entrar (MEDIO-1 de la revisión de código).
+- Por búsqueda AST solo quedan los 3 controles deliberados y las 2 líneas de la evidencia histórica, anotadas.
+
+**Fase B y rondas de seguridad, `[CONFIRMADO]`:** `aislamiento.preparar_estricto` es un modo explícito; el modo por
+defecto de `delegacion.py` no cambia.
+- **Lectura:** allowlist mínima derivada por sondeo. Se deniegan el plano vivo, `/etc`, `/proc`, `$HOME` y `/tmp`.
+- **Escritura:** solo en la copia, el temporal del informe y `/dev/null`.
+- **Red:** Landlock TCP + seccomp con EPERM a todo `socket()` + `close_range(CLOEXEC)`.
+- **IPC y metadatos:** SysV, mq, keyring, chmod/chown/utime y xattr cerrados.
+- **Otros procesos:** `prlimit64` y `sched_*`/`setpriority` cerrados salvo sobre el propio proceso (pid 0, 64 bits);
+  inotify cerrado.
+- **Señales:** `scoped` SIGNAL y ABSTRACT_UNIX.
+- **Plataforma:** x86_64, kill de ia32/x32, NO_NEW_PRIVS y rlimits.
+- **Fallo seguro:** con ABI < 6 o sin seccomp, `ConfinamientoInsuficiente` → `sin_confinamiento` sin ejecutar.
+- **TMPDIR** propio del verificador.
+
+**Seguridad (security-reviewer, 5 rondas):**
+1. NO APTO: vsock, SysV, chmod.
+2. APTO CON RESERVAS: keyring, xattr.
+3. APTO CON RESERVAS: **prlimit64 mataba procesos ajenos**; prioridad e inotify.
+4. **APTO** (final).
+
+**Revisión de código:** APROBAR (re-anclajes AE-M1, M6, M7 y M8 conservan su degradación).
+
+**Sondas propias del director [EJEC], cada una con señuelo o víctima propia:**
+- lectura viva y `/etc/passwd`, escritura externa, UDP en proceso e hijo, señal externa;
+- vsock, `shmget`, chmod/utime;
+- keyring y xattr;
+- prlimit/setpriority/sched_setaffinity sobre la víctima.
+
+En todos los casos: denegado, y el señuelo o la víctima intactos.
+
+**Evidencia final `[CONFIRMADO]`:**
+- **Mutación:** sobre el código definitivo, `aislamiento` 10/10 y `aislamiento-estricto` 35/35; el 25-10, antes de
+  las rondas p05 y p06, candidato-aislado 63/63 y las 21 baterías del anillo y de walking-skeleton sin
+  supervivientes.
+- **Batería del anillo:** 1384 passed, 1 skipped.
+- **QG:** PASS 3811 passed, 3 skipped, 17 xfailed, EXIT=0 (log `~/.claude/jobs/d6cb894c/tmp/qg-p06.log`).
+- **Logs de mutación**, en el directorio persistente del trabajo: `tmp/mut-reanuda/`, `tmp/mut-final/` y
+  `tmp/p06-aislamiento-estricto.log`.
+
+**Intacto `[CONFIRMADO]`:**
+- `estado.json` y PARADA;
+- `motor_autonomia`, `ciclo_autonomo`, `planificador`, `delegacion`, `conftest`, `control_plane` y `orquestador`,
+  idénticos a la referencia;
+- `eventos.jsonl`: solo líneas `despertar_rechazado` del cron, con el prefijo intacto.
+
+**Artefactos de esta sesión:**
+- Una clave `hijo-intruso` legible en el keyring de sesión, de una sonda de revisión: revocada y desvinculada.
+- `entorno/control-plane/pytest-of-majo1230/` (04:01 del 23-10, temporales de pytest, sin seguimiento) **NO se
+  borró**, por la regla de no limpiar. Causa probable: un mutante que hizo verificar sobre el directorio vivo sin
+  TMPDIR (hoy imposible: TMPDIR fijo). **PENDIENTE: decisión del CEO para borrarlo.**
+
+**Límites declarados `[CONFIRMADO]`** (docstring «Limites no mitigados» de `aislamiento.py`):
+- `stat` externo visible y nombres de site-packages listables;
+- `/dev/null` rw y `socketpair`;
+- `get*` de prioridad y afinidad sobre otros pid;
+- `shutil.copy`/`copy2`/`copytree` fallan en el estricto (posibles falsos rechazos);
+- solo x86_64;
+- `controles` declarativo, acreditado por las pruebas de ataque;
+- la delegación conserva red.
+
+**PENDIENTE de autorización:**
+- MEDIO-2 (código): `motor_autonomia`/`ciclo_autonomo` no tratan `VerificadorSinRaiz` (motor lo propaga;
+  `ciclo_autonomo` lo etiqueta como `agente_no_disponible`). Hoy ningún llamante de producción pasa un verificador
+  propio.
+- Las cuentas de `motor_autonomia`/`planificador`.
+
+**NO VERIFICADO:**
+- El skip de la prueba de rlimits con `ulimit -H` (no se pudo fijar en el entorno).
+
+**Herramientas:**
+- Usadas: Graphify; los agentes `explorador-repositorio`, `security-reviewer`, `code-reviewer`,
+  `verificador-mutacion` y `general-purpose` (implementadores Sonnet).
+- **NO DISPONIBLE:** AgentShield (no instalado).
+- **Interrumpidos:** el verificador de la ronda P04 por el límite semanal de la API, y el arnés 51616 por el
+  reinicio; ambos rehechos.
+
+**Siguiente paso:** decisión del CEO sobre MEDIO-2 (manejo de `VerificadorSinRaiz` en los dos motores) y sobre
+borrar `pytest-of-majo1230/`.
+
+## 2026-10-25 (q) · Cierre técnico de la misión de aislamiento y continuidad hacia el cronograma
+
+**Comprobaciones `[CONFIRMADO]`** (sin repetir ninguna batería aprobada):
+- **Sin procesos activos;** rama `worktree-m3-entry`, HEAD 6dad6af, 403 cambios, staging preexistente intacto.
+- **Producción idéntica a la mutación final:** `sha256sum *.py` == `tmp/mut-final/sha-antes.txt`.
+- **`candidato-aislado` 63/63 sigue vigente:** sus anclas (`autoconstruccion.py`, `review.py`, `verificador.py`)
+  tienen el mismo sha que en `tmp/mut-reanuda`.
+- **QG** `tmp/qg-p06.log`: PASS 3811/3/17, EXIT=0, posterior al último cambio de código.
+- **Recuento AST:** 70 lambdas con raíz + `revienta(raiz)` + `con_intervencion(raiz)` = 72, y 0 sin raíz en los
+  14 ficheros.
+- **`auditor-consistencia`** (agente del proyecto) contrastó la entrada (p) con los logs y el código: **todas las
+  cifras verificables coinciden**.
+
+**Correcciones a la entrada (p):**
+- Fueron **4** veredictos de seguridad (NO APTO → reservas → reservas → APTO), no «5 rondas».
+- Lo que no deja artefacto (las rondas de seguridad y de código y las sondas del director) es `[DECLARADO EN INFORME]`
+  de esta sesión.
+
+**Pendientes conservados:**
+1. **MEDIO-2 `[CONFIRMADO]`, sin corregir.**
+   - El defecto:
+     - `motor_autonomia.py:117-129` captura solo `ZonaProhibida`, `MateriaReservada` y `ReviewNoHabilitado`, así que
+       `VerificadorSinRaiz` se propaga sin `_detener` ni informe;
+     - `ciclo_autonomo.py:107-123` la captura con `except Exception` y la registra como `agente_no_disponible`
+       (clasificación engañosa).
+   - **Reproducción:** solo si un llamante de `trabajar`/`ciclo_autonomo` pasa un verificador sin raíz. Hoy ninguno
+     de producción lo hace (`aura.py:76` pasa `None`).
+   - **Corrección:** requiere **autorización específica**, porque ambos están excluidos.
+2. **`entorno/control-plane/pytest-of-majo1230/`** `[CONFIRMADO]`.
+   - **Contenido:** 3 ejecuciones de pytest del 2026-10-23, de 04:01:41 a 04:01:46, con `tmp_path` de pruebas de
+     estancamiento y observatorio, y `eventos.jsonl` ficticios de esas cajas (671 líneas). Ningún log de producción ni
+     evidencia de la misión.
+   - **Uso:** ningún proceso la usa (`lsof`).
+   - **Decisión:** **se deja intacta**, por la regla de no limpiar. Retirarla exige orden del CEO.
+3. **`[NO VERIFICADO]`:** el skip de la prueba de rlimits con `ulimit -H`.
+
+**Límites vigentes:**
+- solo x86_64;
+- `shutil.copy`/`copy2`/`copytree` fallan en el estricto (posibles rechazos de candidatos correctos);
+- `stat` externo visible;
+- `get*` de prioridad y afinidad sobre otros pid;
+- `/dev/null` rw y `socketpair`;
+- la delegación conserva red.
+
+Detalle en «Limites no mitigados» de `aislamiento.py`.
+
+**Herramientas:**
+- Graphify (lectura y actualización AST).
+- Agentes del proyecto `.claude/agents/`:
+  - `auditor-consistencia` en esta entrada;
+  - `explorador-repositorio`, `arquitecto-evaluador` y `verificador-mutacion` en rondas previas.
+- Agentes globales `security-reviewer` y `code-reviewer`.
+- Implementadores `general-purpose` (Sonnet).
+- **NO DISPONIBLE:** skills de proyecto (`.claude/skills/` no existe) y AgentShield.
+
+**Estado de la misión:** **CERRADA** en lo autorizado. Bloqueos delimitados: MEDIO-2 y el borrado de la carpeta, ambos
+del CEO.
+
+**Cronograma (mapa maestro §16, fila S3 corregida hoy):** S1-S2 cerrados; **S3 en espera de uso real**; S4-S5
+(M3.2b) **congelado por el CEO** (acta 2026-07-21); S5 pendiente de D33.
+
+**Siguiente intervención de Claude Code:** el hito que la habilita es el **día 28 del reloj de CM2, el 2026-11-04**
+(ventana válida del 04-11 al 11-11).
+- **Tarea:** observar en solo lectura el ciclo CM2 de ese día y emitir el estado del gate S3 (sondas válidas de día 28
+  frente al umbral de 20), sin forzar sondas, sin `--medir-cm2` manual y sin crear hechos (D-CM2-1).
+- **Antes de esa fecha:** solo decisiones del CEO (MEDIO-2, la carpeta, levantar M3.2b, D33). No se reabre el
+  desarrollo del aislamiento.
+
+## 2026-10-25 (r) · Preparación del hito CM2 S3: fecha del gate corregida, cadena de producción cubierta, procedimiento reproducible
+
+**Estado inicial `[EJEC]`:**
+- HEAD `6dad6af`, 403 entradas sin confirmar; el staging solo tiene el rename preexistente.
+- Sin procesos de prueba ni de mutación. PARADA armada.
+- `estado.json` sha `9a7b5841…`; `eventos.jsonl` con 3675 líneas.
+- Último ciclo CM2: 2026-10-24 21:34 (-05:00), `ejecutado_sin_poblacion`, población 0 y 0 sondas.
+
+**Hallazgos y causa raíz:**
+
+1. **P2 documental, CONFIRMADO.**
+   - La entrada (q) y la fila S3 del mapa presentaban el 2026-11-04 («día 28 del reloj») como el hito de evaluación del
+     gate. Es falso: el día 28 se cuenta **por hecho**, `max(valid_from, inicio)` + 28 d.
+   - La ficha ya lo había corregido el 18-10, en su entrada (r), y la (q) lo reintrodujo.
+   - **Cota derivada del modelo:** con población 0 a 2026-10-24 21:34, ninguna sonda de día 28 puede existir antes del
+     2026-11-21 21:34 (-05:00). El 04-11 la lectura correcta es «sin datos suficientes».
+2. **P2 de cobertura, CONFIRMADO por mutación.**
+   - Ninguna prueba recorría `componer` → declaración → `cm2.hecho_registrado` → `medir` a 28 d.
+   - El mutante C1 (la composición audita en otro fichero) **sobrevivía**: línea base 3/4, en
+     `~/.claude/jobs/d6cb894c/tmp/cm2-mut/base.log`. El reloj podía quedar ciego con todo en verde, y la población 0
+     se habría atribuido a D-CM2-1.
+   - **Corregido** con 3 pruebas `test_produccion_*` añadidas al final de
+     `walking-skeleton/tests/integration/test_reloj_cm2_integracion.py`.
+   - Van en ese fichero porque es el único que la guardia `test_ninguna_prueba_del_repo_puede_iniciar_el_reloj_real`
+     autoriza; se respetó la barrera.
+   - Batería nueva: `walking-skeleton/mutaciones/cm2-cableado-produccion.toml`, **4/4**, con la base en verde
+     (`final2.log`) y los hashes de producción restaurados.
+3. **Verificado sin defecto `[EJEC]`:**
+   - Cadena real en aislado (`tmp/cm2-e2e/exp.py`): 3 declaraciones → 3 hechos → 3 sondas de día 28 `vigente`.
+   - Población frente a pregunta de la sonda: 30/30 `vigente` sobre un corpus variado (`tmp/cm2-e2e/corpus.py`); no
+     hay sesgo `sin_consulta`.
+   - El CLI y la composición usan el mismo `datos`.
+   - Cron: 4 horarios; 0 `aplazado`, 0 `error` y 0 `ANOMALÍA` en 88 líneas de log. No hay AURA principal residente.
+
+**Cambios:**
+- **Pruebas:** `test_reloj_cm2_integracion.py` (+3 pruebas y sus helpers) y el nuevo `mutaciones/cm2-cableado-produccion.toml`.
+- **Documentos:**
+  - `milestones/m3-entry/PROCEDIMIENTO-INICIO-CM2.md`: nota de estado y **§7**, con criterio literal, sonda válida,
+    cota de fecha, observación en solo lectura, tabla de anomalías y validación reproducible;
+  - mapa §16, fila S3, y registro «2026-10-25 (b)»;
+  - esta entrada y la ficha.
+- **Producción: sin cambios** (shas iguales).
+
+**Verificación:**
+
+| Comprobación | Resultado | Estado |
+|---|---|---|
+| Quality Gate oficial | PASS, 3814 passed / 3 skipped / 17 xfailed, EXIT=0 (`tmp/cm2-mut/qg.log`) | CONFIRMADO |
+| `code-reviewer` (pruebas y TOML) | **APTO**; 2 observaciones BAJAS sin acción | DECLARADO EN INFORME |
+| `auditor-consistencia`, primer veredicto | **NO CONFORME**: §7.5 citaba un fichero movido; la cita DP-S3 L436 trataba de CM1; la «revisión humana» se presentaba como condición del gate sin respaldo | DECLARADO EN INFORME |
+| Corrección tras la auditoría | §7.1 reescrito con fuentes literales (D-CM2-1; mínimo 20 provisional, Q5; evaluación del CEO en fase 5; fabricación «no evidenciada» sin revisión); fila S3 corregida; §7.3 con un comando probado; §7.4 con `no_iniciado` y el último horario; §7.5 con ruta real | CONFIRMADO por lectura |
+| Nueva auditoría tras la corrección | No hecha | PENDIENTE |
+| Registros reales | `estado.json` igual; PARADA armada; `eventos.jsonl` 3676 (+1 `despertar_rechazado` del cron por PARADA, no de las pruebas) | CONFIRMADO |
+
+**Herramientas:**
+- Usadas: Graphify (query); skills `superpowers:test-driven-development` y `verification-before-completion`; arnés
+  `herramientas.mutar`; agentes `code-reviewer` y `auditor-consistencia`; terminal, git en solo lectura y sha256sum.
+- NO DISPONIBLES: AgentShield; skills de proyecto (no existe `.claude/skills/`). Codex y OpenCode no se usaron.
+
+**Riesgos residuales:**
+- El script del cron fija la ruta del worktree `m3-entry`: moverlo, fusionarlo o eliminarlo deja CM2 sin medir.
+- `MINIMO_SONDAS_DIA28` y la tolerancia de 7 días son provisionales (Q5).
+- Las pausas de ventana siguen sin definir (DP-S3 §5.2).
+- MEDIO-2 (`VerificadorSinRaiz` en `motor_autonomia` y `ciclo_autonomo`) sigue requiriendo autorización; no afecta a CM2.
+
+**Siguiente paso exacto:**
+- **2026-11-04, después de las 23:45:** ejecutar el §7.3 del procedimiento en solo lectura.
+  - Esperado: `sondas de dia 28 contadas: 0` y `CM2: sin datos suficientes`, con el gate abierto.
+  - Cualquier otra lectura se trata con el §7.4.
+- **Primera fecha en que el gate puede alcanzar el mínimo:** `valid_from` del 20.º hecho espontáneo + 28 d, y nunca
+  antes del 2026-11-21.
+
+**Evidencia duradera:** `milestones/m3-entry/evidencia-cm2-s3-2026-10-25/` (RESUMEN.txt + `exp.py` + `corpus.py`, reproducibles con `PYTHONPATH=walking-skeleton`).
+
+## 2026-10-25 (s) · Segunda auditoría CM2/S3 (CONFORME), clasificación normativa y aislamiento de dispositivos en la batería
+
+**Estado inicial `[EJEC]`, 14:18:**
+- HEAD `6dad6af`, 405 entradas: las 403 previas, la evidencia y el TOML de (r). El staging solo tiene el rename preexistente.
+- Sin procesos de prueba ni de mutación. PARADA armada. `estado.json` sha `9a7b5841…`.
+- `eventos.jsonl` con 3677 líneas: +2 desde (r), ambas `despertar_rechazado` del cron por PARADA.
+- Hashes de producción de CM2 iguales a (r). El ciclo CM2 del 25-10 aún no había corrido.
+- **El QG 3814 de (r) no cubría los documentos finales:** el mapa y el procedimiento se editaron a las 13:45, con el QG
+  en marcha (13:44-13:53), y `test_panel_progreso.py` lee los documentos reales (`RAIZ_REAL`). Por eso se repite el QG
+  al final de (s).
+
+**Herramientas:**
+- **Usadas:** Graphify (`explain reloj_cm2.py`, solo dependencias `[EXTRACTED]`, sin consumidores nuevos); `ruff --select S`
+  (sin hallazgos nuevos, solo S101 en pruebas y un S603 preexistente); skill `test-driven-development`; arnés
+  `herramientas.mutar`.
+- **Agentes:** `auditor-consistencia` (instancia nueva), `security-reviewer`; `code-reviewer` para el cambio de `conftest`.
+- **NO DISPONIBLES:**
+  - AgentShield: `npx --no-install ecc-agentshield` → paquete ausente. No se instala: es un paquete de terceros por red,
+    sin necesidad técnica.
+  - bandit (alternativa usada: `ruff S`), Codex, OpenCode.
+
+**Segunda auditoría de consistencia: CONFORME.**
+- D1 (ruta de prueba) corregida: todas las rutas del §7 existen.
+- D2 (cita de CM1 por CM2) corregida: cada cita dice lo que se le atribuye.
+- D3 (revisión humana como condición del gate) corregida. No existe respaldo normativo; ni la Resolución S3, ni
+  D-CM2-1, ni el DP la fijan como condición. Reserva: «todos los criterios vigentes» (D-CM2-1) es ambiguo.
+- Las 5 observaciones menores, resueltas:
+
+  | # | Observación | Resolución |
+  |---|---|---|
+  | 1 | Logs solo fuera del repo | Copiados a `milestones/m3-entry/evidencia-cm2-s3-2026-10-25/` |
+  | 2 | Afirmaciones históricas de la «revisión humana en el gate» (ficha ~L231, CHECKPOINT ~L9670) | **Anotadas**, sin borrar el texto original |
+  | 3 | El PROCEDIMIENTO citaba «(s)» sin entrada | Esta entrada |
+  | 4 | Paso 4 de §7.6 | Resultado esperado corregido a `no_iniciado` |
+  | 5 | Hora de la cota | 21:32, inicio del ciclo, que es cuando se lee el audit; antes ponía 21:34 |
+
+**Clasificación normativa (PROCEDIMIENTO §7.1.1, nueva):**
+- **Normativo:**
+  - umbral ≥20 (D-CM2-1 L23, literal del CEO; el código lo comenta como «provisional (Q5), revisable»);
+  - población, exclusión de retiradas y versión ≥28 d (Resolución S3 Q5 L43, «base provisional y revisable»).
+- **Regla de informe:** revisión humana → fabricación «no evidenciada».
+- **Sin decisión explícita:** tolerancia `[28, 35]`, que solo existe como comentario del código. **DECISION_REQUIRED (CEO):**
+  ratificar 7 días u otro valor.
+- **Indefinido:** pausas de la ventana.
+- **No existe:** umbral porcentual de S3.
+
+**Defecto nuevo (P0 de seguridad de la batería): RESUELTO Y VERIFICADO.**
+- **Reproducido:** servidor TCP propio en 127.0.0.1 y token ficticio. Con `AURA_HA_URL`/`AURA_HA_TOKEN` exportados,
+  `test_produccion_una…` abrió **1 conexión**.
+- **Causa raíz:** `composicion._hogar` (~L334) y las cámaras (~L712) deciden por el entorno, no por `usar_stack_real`. De
+  las 51 pruebas que llaman a `componer()`, ninguna las retiraba.
+- **Corrección:** fixture autouse `_sin_dispositivos_reales` en `walking-skeleton/tests/conftest.py` (añadida al final;
+  el resto del fichero, con cambios preexistentes, intacto). Retira `AURA_HA_URL`, `AURA_HA_TOKEN`,
+  `AURA_CAMARA_RTSP` y `AURA_CAMARA_AUDIO_RTSP`. Las 6 pruebas que usan esas variables las fijan con `monkeypatch`.
+- **TDD:** `tests/unit/test_sin_dispositivos_reales.py` en RED (el hijo con entorno hostil veía las 4 variables) y luego
+  GREEN (2 passed). Síntoma original: **0 conexiones**.
+- **Mutación:** `walking-skeleton/mutaciones/sin-dispositivos-reales.toml`, **3/3**, con `conftest` restaurado.
+- `exp.py` aislado del mismo modo; se reejecutó y da población 1 y día 28 `vigente`, exit 0.
+- **`AURA_EMBED_MODEL_DIR` no se retira:** solo lee un modelo local. Queda como observación.
+
+**`security-reviewer`:** APTO para las pruebas y los scripts. APTO CONDICIONADO para §7.6, ya corregido:
+- paso 4: `AURA_DATOS` y `HOME` de tmp obligatorios, y guarda de `stat` sobre el audit real;
+- paso 3: `cp -n` más temporal y `mv -T`, fuera de las ventanas del cron;
+- mejora propuesta: rechazar un `WS` que sea enlace, ajeno o escribible por otros.
+
+**Observaciones sin acción, fuera de alcance:**
+- **Privacidad, preexistente:** el audit real guarda el texto del hecho en el evento «registrada sobre …»
+  (`ejecutor_modelo_usuario.py` ~L326). `cm2.*` no lleva texto y el cron no lo copia. Es decisión de privacidad (S3 «privacidad D*»).
+- `~/.local/bin` es 775.
+
+**Validación:**
+- QG final después de la última edición de documentos leídos por el panel: resultado en `.claude/ficha-evidencia.md` y en
+  `evidencia-cm2-s3-2026-10-25/quality-gate-final.txt`.
+- `code-reviewer` del cambio de `conftest`: resultado en la ficha.
+
+**Pendientes:**
+- **Autorización:** migración del cron (§7.6); tolerancia de 7 días; MEDIO-2 (`VerificadorSinRaiz` en `motor_autonomia`
+  y `ciclo_autonomo`, sin evidencia nueva hoy); eliminar `pytest-of-majo1230/`.
+- **Siguiente acción:** 2026-11-04, después de las 23:45, §7.3 en solo lectura. Se espera «sin datos suficientes».
+
+## 2026-10-25 (t) · Aislamiento de la batería cerrado: datos reales, stack real y servicios locales reales
+
+**Estado inicial `[EJEC]`:**
+- HEAD `6dad6af`, 407 entradas. El staging solo tiene el rename preexistente.
+- Sin procesos de prueba ni de mutación.
+- En el shell solo hay `AURA_LLM_MODEL` y `AURA_OLLAMA_TIMEOUT_S`.
+- Evidencia previa conservada: QG 3816/3/17, EXIT=0 (`evidencia-cm2-s3-2026-10-25/quality-gate-final.txt`).
+- La auditoría documental (CONFORME) **no se reabre**.
+
+**Herramientas usadas:**
+- Graphify (`explain Configuracion`: 150 conexiones; único punto de entrada de `datos` y del stack:
+  `composicion.py:234-236`);
+- skill `test-driven-development`; arnés `herramientas.mutar`; `ruff`;
+- agentes `code-reviewer` (APTO) y `security-reviewer` (APTO con reservas, resueltas o clasificadas abajo).
+
+**NO DISPONIBLES:** AgentShield (paquete ausente; no se instala), Codex, OpenCode.
+
+**Instrumentos de diagnóstico propios, fuera del repo; copias en `evidencia-cm2-s3-2026-10-25/`:**
+- plugin `vigia_home.py`: anota las rutas nuevas bajo un `HOME` falso y la prueba que las crea;
+- `traza_conexiones_sitecustomize.py`: anota los `connect()` a los puertos de servicios reales (Ollama 11434, HA 8123,
+  NATS 4222, CUPS 631), también desde subprocesos.
+
+**Reproducido:**
+
+| # | Defecto | Evidencia |
+|---|---|---|
+| 1 | Dentro de la batería, `Configuracion()` **valía `/home/majo1230/.aura`** (datos REALES). Retirar `AURA_DATOS` no basta: el valor por defecto **es** el directorio real | RED `[EJEC]` |
+| 2 | `AURA_STACK_REAL=1` del shell encendía el stack real en la batería | RED en un pytest hijo |
+| 3 | 2 pruebas de `test_voz_degrada_con_honestidad.py` consultaban el **Ollama real** (`GET /api/tags`, solo lectura); su resultado dependía de que estuviera vivo | Traza: 2 conexiones |
+
+**No reproducido (comprobado):**
+- Ninguna prueba compone con los datos por defecto. Barrido completo con `HOME` falso: no aparece `.aura`, ni
+  `.aura-red`, ni `.local/state`.
+- La única escritura bajo `HOME` es `.config/pulse/cookie`, de `test_con_AURA_TTS_MOTOR_espeak…`, que compone el stack
+  real a propósito (guardia M12). Libespeak inicializa la salida de audio, sin micrófono, sin hilos y sin sonido.
+  Observación BAJA.
+
+**Correcciones:**
+- `walking-skeleton/tests/conftest.py`: fixture autouse `_sin_datos_ni_stack_reales`. Fija `AURA_DATOS` a un temporal
+  por prueba (`tmp_path_factory`) y `AURA_STACK_REAL=""`. Se añadió al final; el resto del fichero, intacto.
+- `walking-skeleton/tests/unit/test_sin_dispositivos_reales.py`, con dos pruebas nuevas:
+  - una compone de verdad, y antes de componer verifica que no hay stack real y que los datos no son ni los heredados ni
+    `~/.aura`;
+  - un hijo hostil con `AURA_DATOS` y `AURA_STACK_REAL=1` exige que el directorio heredado quede **vacío**.
+- `walking-skeleton/tests/integration/test_voz_degrada_con_honestidad.py`: helper `_sin_ollama_real`, un `urlopen` falso
+  que cuenta las llamadas; las dos pruebas exigen que el catálogo se pidiera al doble.
+- `walking-skeleton/mutaciones/sin-dispositivos-reales.toml`: D4-D7, más ese fichero en `pruebas`.
+
+**Validación `[EJEC]`:**
+
+| Comprobación | Resultado |
+|---|---|
+| Prueba nueva | RED, luego GREEN: 4 passed |
+| Regresión focalizada (8 ficheros de configuración, stack, HA y cámaras) | 235 passed / 2 skipped preexistentes, exit 0 |
+| Voz | 15 passed; traza con **0** conexiones (antes 2) |
+| Mutación | **7/7**, ficheros restaurados (sha coincide) |
+| **Barrido completo con shell hostil** (`HOME` falso, `AURA_DATOS`=centinela, `AURA_STACK_REAL=1`, HA falso con token ficticio, cámaras en TEST-NET) | exit 0, 3811 passed / 24 skipped / 3 xfailed. Total 3838 = 3836 del QG + 2 nuevas. Skip y xfail se redistribuyen por el `HOME` falso, sin modelos |
+| Hogar falso | **0** conexiones |
+| Centinela | **0** entradas |
+| Traza completa | 4 conexiones antes de corregir la voz: las 2 de voz, más 2 de la **sonda deliberada** de `tests/e2e/test_real_stack.py` (abre y cierra TCP en la recolección para decidir el skip, D24) |
+| QG final | Resultado en `.claude/ficha-evidencia.md` y `evidencia-…/quality-gate-aislamiento.txt` |
+
+**Riesgos cerrados:**
+- herencia del shell de `AURA_HA_URL`, `AURA_HA_TOKEN`, `AURA_STACK_REAL` y `AURA_DATOS`;
+- un token real enviado desde la batería;
+- `Configuracion()` apuntando a `~/.aura`;
+- pruebas de voz dependientes del Ollama real.
+
+**Permanecen:**
+- **Sonda e2e**, BAJO y deliberado: TCP sin datos contra 11434 y 4222.
+- **`test_composicion_motor_de_voz` y la salida de audio**, BAJO.
+- **`AURA_EMBED_MODEL_DIR`**, BAJO: solo lectura de `~/.aura/models`, y solo si la capacidad está activa.
+- **MEDIO latente en código de producción:** `__main__._ruta_red` (`__main__.py:472-473`) convierte `AURA_RED=""` en
+  `~/.aura-red` real, mientras `receptor_nodos` y el plano de control tratan `""` como «no leer».
+  - Hoy todas las pruebas que llegan ahí pasan un tmp (`test_cli_nodos.py:18`, `test_nodo_e2e_nats.py:60`,
+    `test_red_hc1_pki.py:48`).
+  - **Intervención mínima propuesta:** `""` → «sin red», más una prueba RED.
+  - **Requiere autorización:** cambia la semántica del CLI `--nodos` y `--receptor-nodos` (credencial y PKI reales).
+- **Privacidad (de (s)):** el audit guarda el texto en «registrada sobre…».
+
+**Pendientes de autorización, sin cambios:** migración del cron (§7.6), tolerancia de 7 días, MEDIO-2, `_ruta_red`,
+`pytest-of-majo1230/`.
+
+**CM2/S3:** sin cambios. El gate sigue abierto; el PASS del QG es de software, no de S3. Siguiente: 2026-11-04, §7.3.
+
+## 2026-10-25 (u) · `_ruta_red`: reproducido, batería corregida, propuesta de producción especificada y validada (PENDIENTE DE AUTORIZACIÓN)
+
+**Estado inicial `[EJEC]`, 16:23:**
+- HEAD `6dad6af`, 407 entradas. El staging solo tiene el rename preexistente. Sin procesos de prueba ni de mutación.
+- PARADA armada; `estado.json` sha `9a7b5841…`.
+- **La evidencia del QG 3818 de (t) sigue vigente:** los 5 ficheros que cubría conservan el sha.
+- **Herramientas NO DISPONIBLES:** AgentShield (`npx --no-install` → paquete ausente), Codex, OpenCode, bandit. No se
+  instala nada.
+
+**Herramientas usadas:**
+- Graphify: `explain _ruta_red()`. Consumidores `[EXTRACTED]`: solo `_nodos()` L482 y `_receptor_nodos()` L542. El
+  revisor lo confirmó por grep en `walking-skeleton/` y `entorno/`, incluidos los `.sh`.
+- Skill `test-driven-development`; arnés `herramientas.mutar`; `ruff`.
+- Agentes `code-reviewer` y `security-reviewer`.
+
+**Semánticas de `AURA_RED` `[LECT]`:**
+- `crear_vigia_nodos` y `estado_autonomo_cp`: `""` = **sin red**.
+- `_ruta_red` (`__main__.py:472-473`, `os.environ.get(...) or _RED_POR_DEFECTO`): `""` = **ausente** → `~/.aura-red`.
+
+**Reproducido `[EJEC]`** con `HOME` falso; el directorio real no se toca y el `HOME` falso queda vacío:
+- `AURA_RED` ausente o `""`: `--nodos` y `--receptor-nodos` resuelven a `$HOME/.aura-red`;
+- `AURA_RED` con ruta: resuelven a esa ruta.
+
+**Compatibilidad:**
+- `aura-receptor-nodos.service` fija `AURA_RED=/home/majo1230/.aura-red` explícito, así que no le afecta.
+- Los scripts de `entorno/nodos/` usan `${AURA_RED:-$HOME/.aura-red}` y nunca pasan un valor vacío.
+
+**Defecto de batería, RESUELTO Y VERIFICADO:**
+- **Síntoma:** la fixture `_sin_red_de_nodos_real` fija `AURA_RED=""` creyendo que es «sin red». Para el CLI era el
+  `~/.aura-red` real. RED: `_ruta_red()` resolvía `/home/majo1230/.aura-red` en las pruebas, con la variable ausente y
+  vacía.
+- **Corrección en `walking-skeleton/tests/conftest.py`:** fixture autouse `_sin_red_real_por_defecto`, que desvía
+  `_RED_POR_DEFECTO` a un tmp por prueba. Es un parche de la batería; **producción no cambia**.
+- **Nuevo `walking-skeleton/tests/unit/test_ruta_red.py`:**
+  - guardia en proceso;
+  - el comportamiento que no cambia: variable ausente, ruta explícita, `--nodos` en proceso y receptor sin credencial
+    con rc 2 sin conectar;
+  - **guardia estática para subprocesos**: todo fichero que lance `--nodos` o `--receptor-nodos` debe fijar
+    `AURA_RED`, con control y `vistos >= 2`;
+  - 2 pruebas **`xfail(strict=True)` PENDIENTE**, que especifican la propuesta. Con `--runxfail` fallan por la razón
+    correcta.
+- **Mutación:** D8 y D9 en `mutaciones/sin-dispositivos-reales.toml`, con **9/9** detectados. D9 muta
+  `test_cli_nodos.py`, que solo se lee y no se ejecuta.
+- **Regresión de nodos, red, PKI y aislamiento:** 305 passed / 2 xfailed.
+- **Defecto propio detectado al validar en la copia y corregido:** la guardia en proceso fallaba con
+  `realpath(None)` cuando se aplicaba la propuesta; ahora acepta `None` («sin red»).
+
+**Propuesta de producción, PENDIENTE DE AUTORIZACIÓN; NO aplicada** (`__main__.py` sigue con sha `a0d76a5b…`):
+- **Diff:** `milestones/m3-entry/evidencia-cm2-s3-2026-10-25/PROPUESTA-ruta-red.diff`.
+  - `_ruta_red() -> str | None`, con `""` o espacios → `None`.
+  - `_nodos`: aviso y rc 0.
+  - `_receptor_nodos`: stderr y rc 2, **antes** de leer la credencial o la CA y de conectar.
+- **Validada en una copia `[EJEC]`:** especificación con 2 XPASS(strict); con `--runxfail` más la regresión de nodos y
+  PKI, 290 passed; formato y lint limpios.
+- **Revisiones:**
+  - `code-reviewer`: APTO. BAJOS: `str | None` falla cerrado si un llamador futuro olvida comprobar `None`;
+    `red_hc1.py:32` daría `.` con `""`, pero hoy es inalcanzable.
+  - `security-reviewer`: APTO. Ninguna vía de «sin red» lee secretos ni conecta.
+- **Autorización exacta necesaria:** «aplicar `PROPUESTA-ruta-red.diff` a `walking-skeleton/aura_skeleton/__main__.py`
+  y retirar la marca `PENDIENTE` de las dos pruebas de `test_ruta_red.py`». Después: Quality Gate y mutación.
+- **Riesgo residual sin el cambio:** MEDIO latente. Un subproceso futuro sin `AURA_RED` propio heredaría `""`, y con él
+  el `~/.aura-red` real y el nats-server real. La guardia estática lo detecta por fichero, pero no un `env` mal armado.
+
+**Riesgo operativo nuevo (security-reviewer, MEDIO), PENDIENTE DE AUTORIZACIÓN:**
+- **Tres** procesos de producción ejecutan código del worktree:
+  - el cron de CM2;
+  - el despertador `*/30`;
+  - `aura-receptor-nodos.service`, con la credencial real.
+- Es código no confirmado, mutable en caliente y mutado en el sitio por el arnés.
+- Propuesta: una copia congelada del commit revisado (PROCEDIMIENTO §7.6, ampliación (u)).
+- BAJOS: `despertar-aura.sh` 0775; el log en `/tmp`.
+
+**Protecciones de la batería, sin cambios:** HA, token, stack, datos y Ollama siguen cubiertos (D1-D7). No se repitió el
+barrido hostil: nada lo invalida, porque los cambios solo añaden guardias.
+
+**Revisado, sin cambios:**
+- `pytest-of-majo1230/`: 1,6 MB, 236 ficheros, ningún proceso la usa; intacta.
+- Tolerancia de 7 días: sin fuente normativa, como en (s).
+- MEDIO-2: sin evidencia nueva.
+
+**Pendientes de autorización:** `_ruta_red`; instalación congelada para los tres procesos; migración del cron (§7.6);
+tolerancia de 7 días; MEDIO-2; `pytest-of-majo1230/`.
+
+**CM2/S3:** sin cambios; el gate sigue abierto. Siguiente: 2026-11-04 después de las 23:45, §7.3 en solo lectura.
+
+**Validación final:** resultado del QG en `.claude/ficha-evidencia.md` y en `evidencia-…/quality-gate-ruta-red.txt`.
+
+## 2026-10-25 (v) · Seguridad operativa: tres procesos frente al worktree medidos; mutación sobre copia validada; `_ruta_red` revisado (todo PENDIENTE DE AUTORIZACIÓN)
+
+**Estado inicial `[EJEC]`, 17:52:**
+- HEAD `6dad6af`, **408** entradas: la entrada 408 es `test_ruta_red.py`, de (u). El staging solo tiene el rename
+  preexistente. Sin procesos de prueba ni de mutación. PARADA armada; `estado.json` sha `9a7b5841…`.
+- La evidencia del QG 3826 de (u) sigue vigente: los 6 ficheros conservan el sha, `__main__.py` incluido.
+- **No disponibles:** AgentShield, Codex, OpenCode, bandit. No se instala nada.
+
+**Herramientas:**
+- Graphify: `explain _receptor_nodos()` y `explain despertar-aura.sh`.
+  - **Limitación:** Graphify no analiza bash; el script aparece como un nodo aislado.
+  - Alternativa usada: lectura del script, `systemctl`, `journalctl`, `crontab`, `/proc`, `git status`, sha y mtime.
+- Arnés `herramientas.mutar` con `--raiz` sobre una copia.
+- Agente `security-reviewer`, que revisó la propuesta.
+
+**`_ruta_red`, PENDIENTE DE AUTORIZACIÓN; no se ha aplicado:**
+- `PROPUESTA-ruta-red.diff`: 3 bloques, +13 y −2 líneas, todas del defecto, sin cambios ajenos.
+- `patch --dry-run` **aplica limpio** sobre el `__main__.py` actual, probado en una copia; el original conserva el
+  sha `a0d76a5b…`.
+- Las cabeceras tienen prefijos distintos. Comando de aplicación:
+  `cd walking-skeleton && patch -p0 aura_skeleton/__main__.py < ../milestones/m3-entry/evidencia-cm2-s3-2026-10-25/PROPUESTA-ruta-red.diff`.
+  Después, retirar las dos marcas `PENDIENTE` de `tests/unit/test_ruta_red.py` y ejecutar QG y mutación.
+
+**Los tres procesos frente al worktree, medidos `[EJEC]`:**
+- **Receptor:** PID 972 desde las 07:51:24, `NRestarts=0`, `cwd` en el worktree.
+  - Carga **67** módulos de `aura_skeleton`: 10 sin seguimiento y 24 modificados.
+  - **`composicion.py` y `core/ejecutor_modelo_usuario.py` los mutó hoy en el sitio `cm2-cableado-produccion`**
+    (mtime 13:38 y 13:43; sha restaurado).
+  - Un reinicio en esa ventana habría cargado código mutado. No lo hubo.
+  - Las trazas del journal del 24-10 (196 TimeoutError) vienen de la librería `nats`, al reconectar. Desde el
+    arranque de hoy, 0. Observación BAJA.
+- **Despertador:** importa `aura`, `control_plane` y `orquestador` **antes** de comprobar PARADA (`despertador.py:65`)
+  y `mutacion_en_curso()` (L67).
+  - Hay 32 mutantes, en 6 baterías del control-plane, sobre esos módulos.
+  - **Sus datos y PARADA viven junto al código** (`aura._base()`): no se puede congelar sin bifurcar el historial y
+    desconectar PARADA.
+- **CM2:** `core/reloj_cm2.py` **no tiene seguimiento**, así que `git archive HEAD` lo rompería.
+- **Integridad:**
+  - cadena de `eventos.jsonl` íntegra: 3684 eventos, verificada sobre una copia con sha `917394199ab33c8f`;
+  - los 36 eventos de hoy son todos `despertar_rechazado: kill switch activado`, con una sola forma de datos y uno
+    por franja. **Sin daño observable.**
+
+**Mitigación inmediata, validada `[EJEC]`:**
+- `cm2-cableado-produccion.toml` sobre una copia, con `--raiz .`: **4/4**, igual que en el árbol vivo.
+- Los 3 ficheros vivos conservan **sha y mtime**.
+- Log en `evidencia-…/mutacion-sobre-copia-cm2-cableado.log`.
+
+**Propuesta, PENDIENTE DE AUTORIZACIÓN:** `milestones/m3-entry/PROPUESTA-AISLAMIENTO-PROCESOS-PRODUCCION.md`.
+- **A:** mutar siempre sobre una copia; requiere cambiar `CLAUDE.md` §2.
+- **B:** instantánea por lista blanca, inmutable (`a-w`), con manifiesto, solo para CM2 y el receptor, con ruta
+  concreta y sin enlace.
+- **C:** commit más despliegue fijo.
+- **D:** cerrojo cooperativo, OB-5.
+- **E:** separar datos y PARADA del código del despertador; decisión de arquitectura.
+- **`security-reviewer`:** APTO CON CONDICIONES, incorporadas al documento:
+  - B1: el ensayo del receptor con `AURA_RED_URL` aislado, porque si no autenticaría contra el NATS real;
+  - B2: sin `ln -sfn`;
+  - B3: `a-w` y verificación del manifiesto;
+  - B4: lista blanca, nunca el control-plane;
+  - B5: QG sobre el propio volcado;
+  - A1-A4: `--raiz` según la batería, copia fuera del worktree sin PARADA, base en verde;
+  - O1: hasta que se apruebe A, la barrera es de proceso, y la que protege hoy es PARADA.
+- **Corrección propia:** la ampliación (u) del PROCEDIMIENTO §7.6 proponía congelar «los tres procesos». Está
+  anotada con `[CORREGIDO (v)]` y el texto original se conserva.
+
+**Sin cambios de código ni de pruebas en (v)**, solo documentación. Validación: `test_panel_progreso.py`, que lee los
+documentos reales, más una comprobación de sha del código. Resultado en la ficha.
+
+**Pendientes de autorización:**
+1. `_ruta_red`;
+2. A (`CLAUDE.md` §2);
+3. B;
+4. E;
+5. la migración del cron (§7.6);
+6. la tolerancia de 7 días;
+7. MEDIO-2;
+8. `pytest-of-majo1230/`.
+
+**CM2/S3:** gate abierto. Siguiente: 2026-11-04 después de las 23:45, §7.3 en solo lectura.
+
+## 2026-10-25 (w) · Mutación aislada: el arnés muta una COPIA y nunca el árbol del proyecto (regla 6); riesgo P0 cerrado
+
+**Estado inicial `[EJEC]`, 18:47:**
+- HEAD `6dad6af`, 409 entradas. El staging solo tiene el rename preexistente. Sin pruebas ni mutaciones activas.
+- PARADA armada desde el 8 de septiembre. Receptor PID 972, `NRestarts=0`. `estado.json` sha `9a7b5841…`;
+  `eventos.jsonl` con 3686 líneas.
+- `herramientas/mutar.py` y sus meta-pruebas ya estaban modificados antes de esta misión. Copias de seguridad en
+  `~/.claude/jobs/d6cb894c/tmp/`.
+
+**Herramientas:**
+- Graphify: `explain mutar.py`. Consumidores `[EXTRACTED]`: `tests/unit/test_arnes_mutacion.py` y
+  `test_arnes_ciclo_de_vida.py`; además, `orquestador.mutacion_en_curso()` detecta la cadena `herramientas.mutar` en
+  `/proc`.
+- Skill `test-driven-development`; `herramientas.mutar`; `ruff`.
+- Agentes `code-reviewer` y `security-reviewer`, dos rondas cada uno.
+- **No disponibles:** AgentShield, Codex, OpenCode, bandit.
+
+**Causa raíz:** `_evaluar_mutante` escribía el mutante en `Path(raiz)/fichero`, es decir, en el worktree que usan el
+receptor y el despertador. Medido en (v).
+
+**Corrección, regla 6 en `walking-skeleton/herramientas/mutar.py`.** Autorizada por la misión: «aplica el principio».
+El comando no cambia y `CLAUDE.md` §2 no se toca.
+- `ejecutar()` crea `_copia_aislada(raiz)`.
+  - Copia la raíz git (`git rev-parse --show-toplevel`; sin git, la raíz pedida) a `tempfile.mkdtemp(prefix="aura-mutar-")`.
+  - Excluye `.git`, `.venv`, cachés, `pytest-of-*`, `graphify-out`, `node_modules` y el diario.
+  - Usa `symlinks=False` e `ignore_dangling_symlinks`.
+  - Rechaza una copia que caiga dentro del proyecto.
+  - Escribe una marca de dueño (pid y starttime).
+  - Ejecuta allí base y mutantes, y hace `rmtree` en el `finally`.
+- **Contención:** un `fichero` que resuelva fuera de la **copia** se rechaza como `AMBIGUO`, sin leerlo ni escribirlo.
+  Los 5 mutantes legítimos de `../entorno/scripts/voz-usb.sh` siguen dentro de la copia.
+- **`_retirar_copias_huerfanas()`** al arrancar: solo copias propias, con marca, y cuyo dueño haya muerto.
+- **Se retira la escritura del diario:** era código muerto, porque AL-M4 y AL-M5 SOBREVIVÍAN.
+  - Pasan a `walking-skeleton/mutaciones/retiradas/arnes-ciclo-de-vida-diario-en-sitio.toml` y a `LEEME.md`.
+  - `recuperar_mutacion_interrumpida` se conserva para los diarios heredados (AL-M6, M12, M13, M19).
+
+**Pruebas:**
+- **8 nuevas en `tests/unit/test_arnes_mutacion.py`**, con RED observado:
+  - árbol original sin cambios de sha ni mtime durante el mutante;
+  - copia fuera del proyecto y borrada;
+  - interrupción;
+  - repositorio sin `.git`;
+  - copia dentro del proyecto rechazada;
+  - `fichero` fuera de la raíz (absoluto o con `../`). **El RED demostró que el arnés mutaba un fichero ajeno.**
+  - control de `../` dentro del repositorio;
+  - huérfanas;
+  - sin git.
+- **Adaptadas, sin debilitarlas:**
+  - las rutas de PID de los juguetes pasan a absolutas, porque las relativas caían dentro de la copia;
+  - la prueba de SIGKILL se reescribe para la nueva garantía: el proyecto queda intacto y la copia tiene el mutante;
+  - una fixture autouse lleva las copias anidadas al tmp de pytest. Antes, cada mutación del arnés dejaba unas 30
+    copias de juguete en `/tmp`, y se retiraron tras verificar su contenido.
+
+**Defectos en modo copia, corregidos:**
+- `entorno/control-plane/test_red_aislamiento_estricto.py` (E2E de contratos reales) devolvía `no_aislable` dentro de
+  la copia, porque los contratos usan rutas absolutas del plano vivo. Corregido con el helper
+  `_contrato_en_este_plano`, que reubica las rutas sobre `PLANO`; en el árbol vivo no cambia nada.
+- `entorno/control-plane/mutaciones/contencion-del-ambito.toml` tenía la base en rojo en copia: dos pruebas de
+  `test_red_capacidad_completada.py` miden el plano real en su ruta real. Ahora la base verifica solo la prueba de su
+  único mutante (CA-M1). Resultado: **1/1**.
+- **No se toca la causa** en producción: `formacion.py:139-150` deriva la identidad de la tarea de la **ruta absoluta**
+  del contrato. Cambiarlo afecta a las identidades del historial, y es una decisión del CEO.
+
+**Validación `[EJEC]`** (logs en `milestones/m3-entry/evidencia-cm2-s3-2026-10-25/arnes-copia-aislada/`):
+
+| Comprobación | Resultado |
+|---|---|
+| Meta-pruebas y auditor de garantías | 49 passed; auditor 4 passed tras el último ajuste |
+| Mutación del propio arnés, sobre su copia | `arnes-copia-aislada` **11/11** (A1-A11), `arnes-ciclo-de-vida` **18/18**, `arnes-timeout` **4/4**. `mutar.py` real con el mismo sha y mtime; 0 copias residuales |
+| Baterías reales con el comando normal | `cm2-cableado-produccion` 4/4, `sin-dispositivos-reales` 9/9, `kill-switch-cableado` (control-plane, `--raiz`) 4/4 |
+| Huella del árbol vivo antes y después | **429 `.py` con el mismo sha y mtime**, y también PARADA y `estado.json` |
+| Suites completas dentro de una copia | `walking-skeleton`: 3836 passed / 3 skipped / 19 xfailed. Control-plane: 1380 passed y 2 fallos, solo los atados a la ruta real |
+| Revisiones | `code-reviewer`: APTO en dos rondas. `security-reviewer`: APTO en dos rondas; MEDIO-1 (`fichero` fuera de la copia) resuelto con A8 |
+| Quality Gate final | Resultado en `.claude/ficha-evidencia.md` |
+
+**Observaciones BAJAS, no implementadas por coste frente a riesgo; cada cambio en `mutar.py` obliga a repetir unos 30
+minutos de baterías:**
+- `recuperar_mutacion_interrumpida` sin contención del `fichero` de un diario heredado;
+- `_escribir_atomico` sigue enlaces en la restauración, dentro de la copia;
+- la marca de dueño queda vacía sin `/proc`;
+- el aviso de «retiradas» se emite aunque `rmtree` falle;
+- `.env*` no está en `_NO_SE_COPIA`; hoy no hay ninguno en el repositorio;
+- `/tmp` compartido entre contenedores con `/proc` distinto;
+- una copia sin marca si el arnés muere entre `mkdtemp` y la escritura de la marca.
+
+**Pendientes de decisión, sin ejecutar:**
+- **Texto de `CLAUDE.md` §2, propuesta:** el párrafo «Por qué… muta los ficheros en el sitio…» y la línea «Si el
+  proceso muere por SIGKILL con un fichero mutado, queda mutado: `git checkout`…» ya **no son ciertos**. Texto
+  propuesto: «El arnés muta una copia aislada del repositorio en `/tmp/aura-mutar-*` y la borra al terminar; un SIGKILL
+  deja la copia, nunca el árbol, y el siguiente arranque la retira». La regla «NADA en paralelo» puede mantenerse por
+  carga y por el despertador.
+- **Docstring de `orquestador.mutacion_en_curso`:** dice «muta en el sitio». Es código de producción que importa el
+  despertador; no se toca sin decisión. El bloqueo sigue siendo conservador y válido.
+- **Siguen igual:**
+  - `_ruta_red`;
+  - B, la instantánea de CM2 y el receptor;
+  - E, separar datos y PARADA del código del despertador;
+  - C, el commit;
+  - la identidad de tarea por ruta en `formacion.py`;
+  - la tolerancia de 7 días;
+  - MEDIO-2;
+  - `pytest-of-majo1230/`.
+
+**Producción:** sin cambios. Receptor PID 972 sin reinicios, PARADA armada, cron intacto.
+
+**CM2/S3:** gate abierto. Siguiente: 2026-11-04 después de las 23:45, §7.3 en solo lectura.
+
+## 2026-10-25 (x) · Cierre documental de la regla 6 (`CLAUDE.md` §2 y docstring) y `_ruta_red` validada en copia (NO aplicada)
+
+**Estado inicial `[EJEC]`, 21:37:**
+- HEAD `6dad6af`, 411 entradas. El staging solo tiene el rename preexistente. Sin pruebas ni arneses activos.
+- PARADA armada. Receptor PID 972, `NRestarts=0`.
+- El QG 3836 de (w) sigue vigente: sus 6 ficheros conservan el sha. `__main__.py` en `a0d76a5b…`.
+
+**Herramientas:**
+- Graphify:
+  - `explain mutacion_en_curso()`, `[EXTRACTED]`: la llaman `verificador.ejecutar_pruebas` (L343),
+    `verificador._arnes_corriendo` (L313), `orquestador.ciclo` (L557) y `despertador._seguro_para_despertar` (L67);
+  - `explain _ruta_red()`: solo `_nodos` (L482) y `_receptor_nodos` (L542).
+- Agentes `code-reviewer` y `security-reviewer`; arnés `herramientas.mutar`; `ruff`.
+- **No disponibles:** AgentShield, Codex, OpenCode, bandit.
+
+**1. `CLAUDE.md` §2.** Autorización documental de la misión. Ninguna prueba lee su contenido: las que lo citan solo usan
+la ruta para comprobar que queda fuera de la zona de escritura.
+- Se sustituye la viñeta «Si el proceso muere por SIGKILL… `git checkout`» por la descripción de la regla 6.
+- El motivo de «NADA en paralelo» pasa a historia: hasta el 2026-10-25 mutaba en el sitio.
+- Se añade el motivo vigente: durante la batería, el despertador y el verificador rechazan trabajar
+  (`mutacion_en_curso`) y el cron de CM2 puede aplazarse.
+- **La regla se mantiene.** No se ha tocado ninguna otra regla.
+
+**2. Docstring de `orquestador.mutacion_en_curso`.** Autorización textual de la misión.
+- Ya no dice «muta en el sitio»: explica la historia y por qué se conserva la exclusión.
+- **AST sin docstrings idéntico** `[EJEC]`. Editado a las 21:38, lejos de las :00, las :30 y del cron de CM2.
+- Suite del control-plane: **1384 passed, 1 skipped, exit 0.**
+
+**3. `_ruta_red`, validada en copia y NO aplicada.**
+- Copia: `~/.claude/jobs/d6cb894c/tmp/rutared.*`.
+- La v1 del diff aplica limpio sobre el código actual (dry-run).
+- **RED del defecto en la copia sin parche:** las 2 `PROPUESTA_*` con `--runxfail`.
+- Al aplicarlo en la copia:
+  - se retiran las marcas `xfail(strict)`;
+  - se añade una prueba parametrizada (`""`, espacios, tabulador, salto de línea) **en positivo**;
+  - se actualizan los comentarios que quedarían falsos, en `conftest.py` (AST sin docstrings idéntico) y
+    `test_ruta_red.py`;
+  - se crea `mutaciones/ruta-red.toml`, con R1-R6.
+- **Defecto propio detectado y corregido:** la primera versión de la prueba de espacios era decorativa. Con `"   "`, el
+  código sin `.strip()` resuelve a una ruta relativa que tampoco tiene el registro trampa. Ahora exige el aviso
+  «red de nodos desactivada» y «AURA_RED declarado vacio», y R2 muere.
+
+**Validación en copia `[EJEC]`** (logs en `evidencia-cm2-s3-2026-10-25/`):
+
+| Comprobación | Resultado |
+|---|---|
+| `test_ruta_red.py` | 14 passed |
+| Suite completa de `walking-skeleton` con el parche (versión previa a los comentarios y a `""`/`\n`) | **3840 passed / 3 skipped / 17 xfailed, rc=0**. Los 2 `xfail` pasan a ser pruebas normales y hay 2 casos nuevos |
+| Formato y lint | limpios |
+| Mutación, versión final | `ruta-red` **6/6**, `sin-dispositivos-reales` **9/9** |
+| Regresión de nodos, red y aislamiento, versión final | **298 passed, rc=0** |
+
+**Diff final:** `milestones/m3-entry/evidencia-cm2-s3-2026-10-25/PROPUESTA-ruta-red-v2.diff`.
+- 218 líneas (+94 / −23), sha `263c5a56a55a70d7`; sustituye a la v1.
+- Toca `walking-skeleton/aura_skeleton/__main__.py`, `tests/conftest.py`, `tests/unit/test_ruta_red.py` y
+  `mutaciones/ruta-red.toml` (nuevo).
+- Aplicado con `patch -p1` sobre una copia de los ficheros vivos, reproduce **byte a byte** la copia validada.
+
+**Revisiones:**
+- `code-reviewer`: APTO. Sus BAJOS (comentarios obsoletos y `""` en positivo) están incorporados.
+- `security-reviewer`: APTO.
+  - Ninguna forma de «sin red» lee credencial ni CA ni conecta; el servicio y los scripts `entorno/nodos/*.sh` no
+    cambian.
+  - Un servicio con `AURA_RED=` vacío por error quedaría en un bucle de reinicio con rc 2: ruidoso, pero seguro.
+  - `RestartPreventExitStatus=2` es opcional y no se aplica sin autorización.
+
+**Árbol vivo:** `__main__.py` `a0d76a5b…`, `ruta-red.toml` ausente. **NO aplicado.**
+
+**Autorización exacta necesaria:** «desde la raíz del worktree, `patch -p1 < milestones/m3-entry/evidencia-cm2-s3-2026-10-25/PROPUESTA-ruta-red-v2.diff`».
+Después, QG y la batería `mutaciones/ruta-red.toml`. Es reversible con `patch -R -p1`.
+
+**Validación del árbol vivo:** resultado del QG en `.claude/ficha-evidencia.md`.
+**[Resultado, 22:26]** QG del árbol vivo **FAIL, EXIT=1** por **causa ambiental**: 2 failed, 3834 passed.
+- `test_estado_operativo_reinicio`: `TimeoutExpired` bajo carga 3,38; **pasa aislada**.
+- `test_resolutor_mdns_real`: avahi renombró el equipo a `…-3.local` a las 22:07 por un conflicto mDNS; también
+  falla `avahi-resolve` fuera de AURA.
+- Ninguna toca los ficheros cambiados.
+- **PENDIENTE DE DEPENDENCIA:** repetir el QG cuando `<hostname>.local` vuelva a resolver.
+- Evidencia: `milestones/m3-entry/evidencia-cm2-s3-2026-10-25/quality-gate-x-FAIL-ambiental.txt`.
+
+**Pendientes, sin cambios:** aplicar `_ruta_red`; B; E; C; identidad por ruta en `formacion.py`; tolerancia de 7 días;
+MEDIO-2; `pytest-of-majo1230/`; BAJOS del arnés (w).
+
+**CM2/S3:** gate abierto. 2026-11-04 después de las 23:45, §7.3 en solo lectura.
+
+## 2026-10-26 (y) · QG ambiental diagnosticado, prueba mDNS corregida y `_ruta_red` v2 validada con la suite completa en copia (NO aplicada)
+
+**Estado inicial `[EJEC]`, 05:56:**
+- HEAD `6dad6af`, 411 entradas. El staging solo tiene el rename preexistente. Sin pruebas ni arneses activos.
+- Carga 0,20. PARADA armada. Receptor PID 972, `NRestarts=0`. `__main__.py` en `a0d76a5b…`.
+- El último resultado oficial del QG del árbol vivo era **FAIL**, el de (x).
+
+**Herramientas:**
+- Graphify: `explain test_resolutor_mdns_real.py` (consume `resolutor_mdns.resolver_ipv4`) y las entradas de (x).
+- `strace`, `journalctl`, `gdbus` y `avahi-resolve`, todos en solo lectura.
+- Arnés `herramientas.mutar`, siempre sobre copia; `ruff`.
+- Agentes `code-reviewer` y `security-reviewer`.
+- **No disponibles:** AgentShield, Codex, OpenCode, bandit.
+
+**1. `test_resolutor_mdns_real`: causa CONFIRMADA y prueba corregida.**
+- **Hechos `[EJEC]`:**
+  - kernel y NetworkManager: la Wi-Fi se desautentica a las 22:04:10 y a las 22:04:39, y a las 22:07:02 se asocia a
+    otro BSSID (`…:3c` en lugar de `…:38`);
+  - Avahi, a las 22:07:10: «Host name conflict, retrying with …-2», luego «…-3»; a las 22:07:12, «Host name is
+    `majo1230-Lenovo-100e-2nd-Gen-3.local`»;
+  - D-Bus `GetHostNameFqdn` devuelve `…-3.local`;
+  - `avahi-resolve -n <hostname>.local` agota el tiempo **fuera de AURA**;
+  - el resolutor de AURA resuelve `…-3.local` a 192.168.20.38, que es la IPv4 propia;
+  - el estado persiste hoy.
+- **Causa raíz:** la prueba **presuponía** `socket.gethostname() + ".local"`, y Avahi se renombra legítimamente ante un
+  conflicto (RFC 6762 §9). El origen del conflicto en la red queda como hipótesis: malla de puntos de acceso,
+  reflexión mDNS u otro equipo con el mismo nombre.
+- **Corrección** (`walking-skeleton/tests/integration/test_resolutor_mdns_real.py`; diff en
+  `evidencia-…/correccion-prueba-mdns.diff`):
+  - `_nombre_anunciado()` pregunta a Avahi por D-Bus, y si `gdbus` no está, falla o agota el tiempo, usa el nombre del
+    sistema;
+  - **se mantienen todas las aserciones reales:** resuelve, es IPv4 y es una IP propia.
+- **Control:** mutantes del resolutor MD1 («no devuelve la IP») y MD2 («consulta otro nombre»): **2/2 detectados**,
+  sobre copia; el resolutor real conserva el sha.
+- **Revisiones:** código APTO y seguridad APTO. El BAJO de `TimeoutExpired` está corregido.
+
+**2. `test_estado_operativo_reinicio`: NO reproducible; causa NO confirmada.**
+- 7 de 7 pasan en unos 0,3 s. El subproceso tiene un plazo de 60 s y **no hace ninguna llamada de red** (`strace`: 0
+  `socket`/`connect`/`sendto`).
+- Superar 60 s exige un bloqueo de unas 200 veces la duración normal; una carga de 3,38 no lo explica.
+- **Hipótesis:** un parón del sistema por presión de memoria o de E/S (equipo de 3,7 GB con 1,1-1,3 GB de swap en uso).
+- **Evidencia que falta:** métricas por minuto de 21:55 a 22:25; no hay `sar` ni `atop`.
+- El plazo no se toca.
+
+**3. `_ruta_red` v2, validada con la suite completa en copia y NO aplicada.**
+- Diff `evidencia-…/PROPUESTA-ruta-red-v2.diff` (sha `263c5a56a55a70d7`). Dry-run limpio sobre los ficheros actuales,
+  que conservan el sha.
+- **Copia con el parche exacto aplicado** (`patch -p1`):
+  - `test_ruta_red`: 14 passed (vacío, espacios, tabulador, salto de línea);
+  - mutación `ruta-red` **6/6** y `sin-dispositivos-reales` **9/9**;
+  - `ruff format` y `ruff check` limpios.
+- **Suite completa en la copia:**
+  - 1.ª ejecución: 2 fallos en `test_nodo_e2e_nats.py`, con la suite a 18:38 frente a ~10 minutos;
+  - **no se reproducen**: 2 de 2 aisladas, **con y sin** parche;
+  - **repetición:** **3842 passed / 3 skipped / 17 xfailed, rc=0** (10:31). Logs en
+    `evidencia-…/validacion-ruta-red-v2-copia.log` y `suite-ruta-red-v2-copia-repeticion.log`.
+- **Revisiones:** código APTO y seguridad APTO, sobre la v2 final.
+- **Árbol vivo antes y después de la validación:** 429 `.py` con el mismo sha y mtime.
+- **Aplicación, PENDIENTE DE AUTORIZACIÓN:**
+  - aplicar: `cd <worktree> && patch -p1 < milestones/m3-entry/evidencia-cm2-s3-2026-10-25/PROPUESTA-ruta-red-v2.diff`;
+  - revertir: `patch -R -p1 < …`;
+  - después: QG oficial y `cd walking-skeleton && python3 -m herramientas.mutar mutaciones/ruta-red.toml`, que corre en
+    copia.
+
+**Observaciones de `security-reviewer`, sin cambios en producción:**
+- **M-1:** el agente de nodo usa `check_hostname=False` por diseño (DP §4.5): verifica la cadena hasta su CA, sin MITM,
+  pero acepta cualquier certificado `serverAuth` de esa CA. Opción: fijar el certificado.
+- **B-4:** `desplegar-nodo.sh:48` usa `$(hostname).local`, que ya no se anuncia. NODO-01 sigue ONLINE por el respaldo
+  IP, verificado con `--nodos` en solo lectura. Se promueve a deuda si un nodo queda OFFLINE por ese nombre o si cambia
+  la IP de HC-1.
+- **B-5:** mDNS es suplantable en la LAN; queda mitigado por TLS con CA.
+
+**QG oficial del árbol vivo:** resultado en `.claude/ficha-evidencia.md` y `evidencia-…/quality-gate-y.txt`.
+
+**Pendientes de autorización, sin cambios:**
+- aplicar `_ruta_red`;
+- B y E (procesos frente al worktree);
+- C (commit);
+- identidad de tarea por ruta en `formacion.py`;
+- tolerancia de 7 días;
+- MEDIO-2;
+- `pytest-of-majo1230/`;
+- BAJOS del arnés (w);
+- `RestartPreventExitStatus=2` en el receptor;
+- resolver el conflicto mDNS en el origen (Avahi o la red; no se reinicia Avahi sin autorización).
+
+**CM2/S3:** gate abierto. 2026-11-04 después de las 23:45, §7.3 en solo lectura.
+
+## 2026-10-26 (z) · Misión maestra: `_ruta_red` aplicado, primer ciclo autónomo real en aislamiento, defecto de reanudación tras caída, temporales retirados
+
+**Estado inicial `[EJEC]`, 07:05:**
+- HEAD `6dad6af`, 411 entradas. El staging solo tiene el rename preexistente. Sin arneses activos; carga 0,44.
+- PARADA armada. `estado.json` sha `9a7b5841…`; `eventos.jsonl` 3711. Receptor PID 972, `NRestarts=0`.
+- Antecedente vigente: QG 3836/3/19 de (y).
+
+**Herramientas:**
+- Graphify: `query` de mutadores. Resultado: solo `herramientas/mutar.py` y la autoconstrucción.
+- Agente **Explore**, que trazó el ciclo, la persistencia, el LLM y la delegación con ruta:línea.
+- `strace`, `patch`, `ruff` y el arnés en copia.
+- **No disponibles:** AgentShield, Codex, OpenCode, bandit.
+
+**A. `_ruta_red` v2, APLICADO** (autorización A):
+- Preparación:
+  - copia previa de los ficheros en `~/.claude/jobs/d6cb894c/tmp/aplicacion-ruta-red/`;
+  - diff (sha `263c5a56…`) y ficheros vivos idénticos a la base validada;
+  - el parche no estaba aplicado.
+- Aplicación: `patch -p1 < milestones/m3-entry/evidencia-cm2-s3-2026-10-25/PROPUESTA-ruta-red-v2.diff`, con
+  **`patch_exit=0`**. Los 4 ficheros son **idénticos byte a byte** a la copia validada y no hay `.orig` ni `.rej`.
+- Validación posterior (`evidencia-…/aplicacion-ruta-red-validacion.log`): `test_ruta_red` 14 passed; regresión de
+  nodos, red y aislamiento 299 passed; `ruff` limpio; `mutaciones/ruta-red.toml` **6/6**, en copia.
+- **El receptor no se reinicia:** su servicio fija `AURA_RED`, así que el cambio no le afecta.
+- Reversión, si hiciera falta: `patch -R -p1 < …PROPUESTA-ruta-red-v2.diff`. Copia previa disponible.
+
+**B. Mutación y documentación** (autorización B):
+- Graphify y búsqueda: el **único mutador** es `herramientas/mutar.py`, que trabaja en copia aislada desde (w).
+- La otra escritura de código es la **autoconstrucción**, por diseño: copia confinada, verificación y promoción
+  atómica, tras autorización, review y PARADA. Hoy está inactiva por PARADA.
+- `CLAUDE.md` §2 y el docstring de `orquestador` ya están alineados (x). Sin cambios nuevos.
+
+**C. Primer ciclo autónomo COMPLETO demostrado en aislamiento `[EJEC]`:**
+- **Script:** `evidencia-…/ciclo-autonomo-aislado/ciclo_aislado.py`.
+  - Sandbox `mkdtemp` **fuera del repositorio**, log nuevo, sin PARADA en el sandbox, `AURA_AUTOCONSTRUCCION_ESTADO` en
+    un tmp.
+  - La autoridad `por="ceo"` solo existe en el log desechable del sandbox, como en las pruebas.
+- **Cadena real de producción** (`motor_autonomia.trabajar`):
+  - descubrimiento: `_muerta`, código muerto, como OPORTUNIDAD_REAL;
+  - `tarea_planificada`, review (`veredicto_emitido`), propuesta registrada y autorizada;
+  - autoconstrucción en la copia `/tmp/aura-candidato-*`;
+  - **verificación independiente REAL:** pytest del módulo **bajo confinamiento estricto** (Landlock y seccomp), no
+    `lambda: True`;
+  - promoción: `cambio_aplicado` con `promovido=True`, `verificacion_sana=True`, `revertido=False` y
+    `verificacion_aislada=True`.
+- **Ciclo 2 (continuidad):** «cola agotada», 0 ejecuciones, sin repetir. Log del sandbox íntegro (13 eventos).
+- **Primer intento fallido, defecto DEL SCRIPT y no de AURA:** el verificador buscaba la prueba en la raíz de la copia,
+  que conserva `entorno/control-plane/`, y pytest salió con código 4. AURA revirtió correctamente.
+- **Historial real intacto en todas las ejecuciones:** `estado.json` con el mismo sha y `eventos.jsonl` 3711 → 3711.
+
+**D. Continuidad y recuperación: defecto REAL de reanudación tras caída, sin corregir.**
+- **Reproducido** (`ciclo_interrumpido.py`): SIGKILL al proceso a mitad de la verificación (exit 137).
+  - **Bien:** el fichero queda intacto, porque el candidato estaba en la copia; el log está íntegro y `recuperar()` no
+    encuentra nada ambiguo.
+  - **Mal:** todos los ciclos siguientes dicen «**cola agotada**» con 0 ejecuciones, y el código muerto **sigue ahí**.
+    La tarea interrumpida **no se reintenta nunca y no se informa**: declarado ≠ real (INV-9).
+- **Causa raíz:** `planificador.elegible` (L177-195). «Planificada y sin resultado» devuelve **no elegible para
+  siempre** («puede estar corriendo»), y no hay ninguna señal que distinga una ejecución viva de una muerta: el
+  cerrojo de `autoconstruccion` (L1311) solo cubre la promoción, no la verificación.
+- **Por qué no se corrige ahora:** el arreglo correcto exige registrar quién ejecuta (pid y starttime) en
+  `tarea_planificada`, es decir, **cambiar el esquema de eventos del historial**, y cambiar la regla de elegibilidad
+  del `planificador`. Hay una contrapartida entre no duplicar y no bloquearse, y la misión pide no tocar el
+  `planificador` sin decidirlo antes.
+- **Propuesta:** un DP con `tarea_planificada.datos.ejecutor = {pid, inicio}`. `elegible` trata como «interrumpida»
+  una tarea sin resultado cuyo ejecutor ya no vive, consume intento y emite `tarea_interrumpida`; los eventos antiguos
+  sin el campo siguen siendo conservadores. La prueba RED ya está escrita: `ciclo_interrumpido.py`.
+
+**E. Delegación a nodos: NO EXISTE.**
+- `DP-NODO-01.md:13-21` y `:112-113` dicen que el nodo **solo publica** latidos, sin suscripciones, respuestas ni
+  autoridad; no hay ningún tema de tareas en el código.
+- NODO-01 está ONLINE (latidos) por el respaldo IP. `desplegar-nodo.sh` usa `$(hostname).local`, que no se anuncia
+  tras el renombre de Avahi (y).
+- **Construir la delegación es una capacidad nueva:** requiere DP y acta del CEO (D23). No se ha construido.
+
+**F. Modelo y OmniRoute:**
+- El control-plane **no usa LLM**: review y verificación son deterministas.
+- `walking-skeleton` usa `OllamaProvider` (`127.0.0.1:11434`, `AURA_LLM_MODEL`, por defecto `qwen2.5:3b`).
+- **OmniRoute:** binario instalado en `~/.nvm/…/bin/omniroute`, **ningún proceso en marcha**, ningún uso en el código;
+  es externo y experimental (`CLAUDE.md` §8). No se arranca ni se configura.
+
+**G. Instantánea de CM2 y del receptor, validada en copia y NO activada:**
+- Release por lista blanca (`aura_skeleton` y `pyproject.toml`; 93 ficheros, `a-w`, manifiesto de sha).
+- Carga los módulos desde el release; CM2 usa el `AURA_DATOS` recibido; el receptor, el `AURA_RED` recibido; con
+  `AURA_RED=""` se niega (v2). El manifiesto sigue intacto tras ejecutar.
+- **Activación pendiente:** cambiar `WS=` y `WorkingDirectory=`, más un reinicio del receptor en una ventana segura
+  (PROPUESTA §4).
+
+**H. `pytest-of-majo1230/`, retirada selectivamente:**
+- **Verificación previa:** 236 ficheros `tmp_path` de pruebas del 23-10; 0 procesos; 0 referencias en código o
+  configuración; sin seguimiento de git; **0 de 111 `eventos.jsonl` contienen algún hash del historial real**; ninguna
+  copia del registro ni del estado real.
+- **Retirados elemento a elemento:** `pytest-1`, `pytest-2`, `pytest-3`, el enlace `pytest-current` y la carpeta vacía.
+  Inventario en `evidencia-…/inventario-pytest-of-majo1230.txt`.
+- **Retirado también** el candidato huérfano `/tmp/aura-candidato-*` del SIGKILL, tras verificar que era del sandbox.
+
+**Integración (preparada, SIN commit):**
+- 411 entradas: 268 sin seguimiento, 142 modificadas, 1 renombrada.
+- Por zona: `tests` 125, `mutaciones` 88, `aura_skeleton` 50, `milestones/m3-entry` 49, control-plane 48,
+  `decisiones` 14 y otras. **62 de código de producción**, entre ellas `core/reloj_cm2.py`, sin seguimiento, que el
+  cron de CM2 usa a diario.
+- **Cualquier integración debe incluirlas**, porque los tres procesos de producción ejecutan este worktree.
+- `kernel.errors.txt`, en la raíz y sin seguimiento: sin revisar, no se toca.
+- **Falta:** confirmar la rama de destino (`main`) y la partición en commits (código, pruebas, mutaciones, documentos,
+  evidencias). Es una decisión del CEO antes de hacer commit.
+
+**Pendientes, con la decisión concreta:**
+1. **DP de reanudación tras caída** (esquema de `tarea_planificada` y `planificador.elegible`). Es el bloqueo principal
+   para que la autonomía real sea robusta.
+2. **Ventana segura** para activar la instantánea de CM2 y el receptor.
+3. **DP de delegación a nodos**, si se quiere el hito E.
+4. **Integración:** rama y partición de commits.
+5. **Identidad de tarea por ruta absoluta** en `formacion.py`: hay que migrar compatiblemente, con DP.
+6. **MEDIO-2:** sin evidencia nueva; el arreglo pasa por `motor_autonomia`.
+7. **Tolerancia de 7 días.**
+8. **`desplegar-nodo.sh`:** usa `$(hostname).local`.
+9. **Conflicto mDNS en origen.**
+
+**Validación final:** QG oficial; resultado en `.claude/ficha-evidencia.md` y `evidencia-…/quality-gate-z.txt`.
+
+**CM2/S3:** gate abierto. 2026-11-04 después de las 23:45, §7.3 en solo lectura.
+
+## 2026-10-26 (aa) · Recuperación tras caídas: DP + prototipo validado en copia (NO aplicado) y DP de delegación a nodos
+
+**Estado `[EJEC]`, 09:45 -05:00:**
+- HEAD `6dad6af`; main = origin/main `d933a08`; 413 entradas (270 `??`, 142 `M`, 1 `R`).
+- Staging: solo el rename preexistente. Sin commit, sin push, sin merge.
+- PARADA armada. `estado.json` en `9a7b5841…`; `eventos.jsonl` en 3715 líneas, solo `despertar_rechazado`.
+- Receptor PID 972, `NRestarts=0`. Cron con 5 entradas activas, sin tocar: `*/30` del despertador y 4 de CM2.
+
+**Herramientas usadas.**
+- Graphify (`query` del planificador). Sitúa `observatorio`, `delegacion`, `contrato` y `propuesta` en su vecindad.
+- `code-reviewer` dos veces y `arquitecto-evaluador`.
+- El arnés de mutación en copia.
+- **No disponibles:** Codex, OpenCode, AgentShield.
+
+**Causa raíz CONFIRMADA:**
+- `planificador.elegible` (vivo, L177-195): «planificada sin resultado» = no elegible **para siempre**.
+- Ninguna constancia identifica al ejecutor.
+- Reproducido con SIGKILL real, rc −9.
+
+**Solución: `DP-RECUPERACION-TRAS-CAIDAS.md`, opción C.**
+- Identidad del ejecutor: `pid` + starttime + `boot_id`.
+- 11 estados.
+- Comprobar y añadir bajo `cp.lock_estado`, con `TareaNoElegible`.
+- Las constancias históricas sin ejecutor siguen siendo conservadoras: no hay migración.
+
+**Prototipo en copia** (`~/.claude/jobs/d6cb894c/tmp/reanudacion.gEn2`). Diff `evidencia-…/reanudacion-tras-caida/PROPUESTA-reanudacion-tras-caida.diff`, sha **`11bbbfaa…`**, 637 líneas:
+- toca `planificador.py`;
+- añade `registrar_planificada` a `NO_CONCEDEN_ESTADO` en `control_plane.py`;
+- añade la prueba nueva (25 pruebas);
+- añade `mutaciones/reanudacion-tras-caida.toml` (RC1-RC16).
+- Verificado: el diff reproduce la copia byte a byte y `patch -R` deja el vivo idéntico.
+- El `planificador.py` vivo sigue en `b5c7e8e2…`.
+
+**Pruebas `[EJEC]`:**
+- RED → GREEN en cada corrección.
+- 84 passed en el conjunto dirigido.
+- Suite del control-plane en la copia: **1405 passed, 3 skipped, 2 failed**. Los 2 son `test_red_capacidad_completada`, que fallan igual en la línea base de (w), ligados a la ruta real.
+- **Mutación 16/16, EXIT=0.**
+- Una corrida intermedia dio 3 NO_APLICADO (patrones obsoletos). Se reescribieron para las mismas garantías y se conserva el log.
+
+**Recuperación tras SIGKILL, secuencia de 10 pasos con el prototipo final** (`secuencia-recuperacion-prototipo-final.log`):
+- rc −9 → `interrumpida_reintentable`, fichero intacto;
+- el supervisor nuevo la completa → 1 promoción;
+- **la segunda ejecución hace 0**, sin repetir.
+- Los registros reales no cambian.
+
+**Revisiones:**
+- **arquitecto-evaluador:** ENCAJA CON CONDICIONES (DP §9).
+- **code-reviewer 1:** M1-M4 y B1-B3. Corregidos todos menos M3, que está en `motor_autonomia`.
+- **code-reviewer 2:** APTO CON CONDICIONES. `hidepid=2` corregido con `kill(pid, 0)`. «Agotada» corregida a «observable por `estado_de`, sin evento».
+- Medido sobre una copia del log real: 6/6 tareas iguales entre el planificador vivo y el prototipo.
+
+**Higiene:**
+- La E2E dejaba copias `aura-candidato-*` en `/tmp` del sistema: 47, de mis corridas de hoy, de 28 KB y con contenido de sandbox.
+- Corregido: TMPDIR apunta al `tmp_path` y lo comprueba una aserción.
+- **No borradas:** `autoconstruccion` las barre como huérfanas de más de 1 h (L870-895).
+
+**`DP-DELEGACION-NODOS.md`:**
+- La delegación **no existe**.
+- **Conflicto con DP-NODO-01** (:13-21, :112-113). No hay prototipo, porque contradiría una decisión vigente.
+- Contrato propuesto: temas, correlación, verificación en HC-1, reintentos y fijación de TLS.
+
+**Integración (clasificación, sin ejecutar).**
+- **Entradas:** 125 tests, 88 mutaciones, 51 milestones, 50 `aura_skeleton`, 48 control-plane, el resto, otras.
+- **Sin seguimiento y usados por procesos vivos** (entran primero, en el mismo commit):
+  - `core/reloj_cm2.py`, que usa CM2;
+  - `adapters/receptor_nodos.py` y `core/nodos.py`, que usa el receptor.
+- **Datos vivos seguidos que `git add -A` arrastraría:** `entorno/control-plane/eventos.jsonl` y `estado.json`. **Excluir.**
+- **Artefactos que no se integran:** `herramientas/__pycache__/`, `kernel.errors.txt`, `.githooks/omisiones.log`.
+- **Estrategia:** commits por zona en la rama `worktree-m3-entry` → merge `--no-ff` a main → QG → push.
+- **NO ejecutada:** falta la confirmación del CEO de la rama de destino y de la partición. El protocolo de `CLAUDE.md` §3 usa `git add -A`, que aquí **no sirve** por los datos vivos.
+
+**Decisiones pendientes (CEO):**
+1. DP de recuperación: opción C, más la clasificación «preventiva» frente a la regla de evidencia de uso real.
+2. Aceptar la deuda de `_registrar_sin_lock` o pedir una primitiva pública.
+3. Autorizar los cambios en `motor_autonomia`: M3, el evento de «agotada» y `recuperar()` antes de `descubrir`.
+4. DP de delegación: ampliar DP-NODO-01.
+5. Rama y partición de la integración.
+6. Lo heredado: ventana para la instantánea de CM2 y el receptor, tolerancia de 7 días, `desplegar-nodo.sh`, conflicto mDNS, `RestartPreventExitStatus=2`.
+
+**Siguiente paso exacto:**
+- **Si el CEO aprueba C:** `patch -p1 < …PROPUESTA-reanudacion-tras-caida.diff` desde la raíz del worktree. Después:
+  - suite del control-plane **en vivo**, incluido `test_red_capacidad_completada`;
+  - `herramientas.mutar …/reanudacion-tras-caida.toml --raiz ../entorno/control-plane`, en copia;
+  - QG.
+- **CM2/S3:** observación de solo lectura el 2026-11-04 tras las 23:45 (§7.3 del procedimiento). Recordatorio: no puede haber sondas del día 28 antes del 2026-11-21.
+
+## 2026-10-26 (ab) · Recuperación tras caídas: condiciones cerradas, APLICADA al worktree, QG PASS (sin commit)
+
+**Decisión del CEO** (prompt «CIERRE DE RECUPERACIÓN TRAS CAÍDAS…»):
+
+- opción C aprobada como candidata;
+- la API privada no se acepta;
+- autorizado prototipar `motor_autonomia` en copia;
+- la delegación, solo como propuesta normativa;
+- sin commit, push ni merge.
+
+**Estado final `[EJEC]`, 12:26 -05:00:**
+
+- Rama y git: `worktree-m3-entry`, HEAD `6dad6af`; main = origin/main `d933a08`; staging, solo el rename preexistente.
+  Entradas: 272 `??`, 146 `M` y 1 `R`.
+- Producción:
+  - PARADA armada;
+  - `estado.json` `9a7b5841…`;
+  - `eventos.jsonl` 3721, que solo crece con `despertar_rechazado`;
+  - receptor PID 972 con `NRestarts=0`;
+  - cron sin cambios: 5 entradas, sha `20b814c9…`.
+- **Sin commit, sin push, sin merge.**
+
+**Herramientas:**
+
+- **Graphify:** `query` del planificador, el log, el motor y la recuperación. Nodos: `registrar_evento` L1889,
+  `recuperar` L887, `ejecutar` L1082, `trabajar` L74.
+- **Agentes:**
+  - `general-purpose` (sonnet): comparación de los fallos base;
+  - `code-reviewer` ×3: corrección, delta de la 2.ª ronda y verificación de H1/H2;
+  - `security-reviewer`.
+- **No disponibles:** Codex, OpenCode, AgentShield, bandit, semgrep.
+
+**Norma comprobada:** `CIERRE-MOTOR-DE-AUTONOMIA.md:22`, «el motor encadena y para, no ejecuta», más la guardia AST
+`test_red_motor_autonomia.py:390`. Se respeta, y se añade una guardia: el motor solo usa `ac.recuperar` y
+`ZonaProhibida`.
+
+**Defectos reproducidos y corregidos** (en copia, con TDD y RED antes de cada GREEN):
+
+- **M3:** la carrera de supervisores terminaba en excepción.
+- **§8:** una promoción sin registro quedaba en disco **sin constancia en el log para siempre**. Es más grave que lo
+  descrito: ninguna tarea vuelve a llamar a `ejecutar`. Ahora `recuperar()` se ejecuta en el motor antes de planificar.
+- **Agotada sin evento:** ahora `_registrar_agotadas` lo emite.
+- **API privada:** sustituida por `cp.registrar_evento_si`, pública, que comprueba y añade bajo cerrojo y **niega los
+  eventos gobernados**, cosa que `_registrar_sin_lock` no hacía.
+- **`completada`:** ahora es monótona.
+- **`hidepid=2`** y **pid fuera de rango** (security A1).
+- **Atribución cruzada entre tareas distintas** (code-reviewer ALTO): corregida con `cp.supervisor_unico`, un `flock`
+  no bloqueante por log.
+- **H1:** el rechazado cortaba el ciclo legítimo en el observatorio. Ahora se toma el cerrojo antes de
+  `motor_iniciado` y se registra `supervisor_rechazado`.
+- **H2:** la parada benigna salía con código 2. Ahora sale con 0.
+
+**Clasificación de todas las condiciones:** `DP-RECUPERACION-TRAS-CAIDAS.md` §10.3. Las que no son corrección:
+
+- **No reproducible:** `revisores.py` sin `cumple`, porque no está en la vía del motor.
+- **Observación con disparador:** el coste (~97 ms por `estado_de` con 3719 eventos) y el supervisor colgado.
+- **Límite documentado:** `hidepid=2` con un pid reutilizado (conservador), y `_PID_MAX` leído al importar.
+- **Límite conocido, con xfail estricto:** una promoción recuperada queda `resultado_ambiguo`, porque
+  `autoconstruccion.py:956` no publica la verificación. Corregirlo requiere un DP propio.
+- **Residual:** escritores manuales del log fuera del motor, que siguen atribuyendo por orden. La raíz está en estampar
+  el id de la tarea en `review` y `autoconstruccion`.
+
+**Fallos base, comparación controlada** (`comparacion-fallos-base/`):
+
+- idénticos en dos copias, con y sin el diff;
+- la causa son 5 rutas absolutas del vivo en `capacidades/sexta-fuente-estancamiento.toml`, `formacion.py:145` y el id
+  `TA-4c50255a4c70` derivado de la ruta;
+- **en el árbol vivo, tras aplicar, PASAN.**
+
+**Validación en copia:**
+
+| Comprobación | Resultado |
+|---|---|
+| Suite del control-plane | 1429 passed, 3 skipped, 1 xfailed, 2 failed (los de entorno) |
+| Mutación | 29/29 |
+| ruff | 0 |
+| Revisiones | 3 independientes; la última, **APTO** |
+| Demo | Dos supervisores reales a la vez → uno para con «otro supervisor en curso»; §8 recuperada sin intento extra; agotada con un evento; la segunda ejecución hace 0 |
+
+**Aplicado al worktree** (11:52):
+
+- diff `PROPUESTA-reanudacion-final.diff`, sha `e2922963…`, con 7 ficheros:
+  - `planificador.py`, `control_plane.py`, `motor_autonomia.py`, `aura.py` y `.gitignore`;
+  - la prueba nueva y su batería;
+- copia previa con `SHA256SUMS` en `evidencia-…/reanudacion-tras-caida/previos-a-la-aplicacion/`;
+- los 7 ficheros, idénticos a la copia validada;
+- el despertador importa;
+- pruebas focalizadas en vivo: 217 passed.
+
+**Quality Gate:**
+
+- **QG 1: FAIL.** 3 garantías anteriores sin red (MOT-M16, MOT-M21, F1-M23).
+- **Corrección:** se ampliaron los patrones (`AJUSTE-garantias-previas.diff`, `5a432f64…`) y el arnés dio 3/3.
+- **QG 2: PASS.** 3842 passed, 3 skipped, 17 xfailed, EXIT=0.
+- **Lección:** ejecutar el auditor de garantías **antes** de aplicar.
+
+**Delegación:** `DP-DELEGACION-NODOS.md` §6 trae el texto de enmienda de `DP-NODO-01`: §1, §4.5 y la fijación del
+servidor TLS, más el contrato completo. **`DP-NODO-01` no se ha tocado**, ni hay nada implementado.
+
+**Integración:** `PROPUESTA-PARTICION-INTEGRACION.md` propone 7 commits por zona, **sin `git add -A`**, excluyendo:
+
+- los datos vivos (`eventos.jsonl` y `estado.json`);
+- 1187 artefactos;
+- y poniendo primero `reloj_cm2.py`, `receptor_nodos.py` y `nodos.py`.
+
+**`capacidades.json`: sin cambios.** El ciclo real no ha ejecutado el contrato (PARADA) y no hay commit. Que funcione en
+pruebas no promueve la capacidad (regla del CEO 2026-08-04).
+
+**Decisiones pendientes del CEO:**
+
+1. Rama y partición de la integración.
+2. DP de `autoconstruccion`: estampar el id de la tarea y publicar la verificación en la recuperación.
+3. Enmienda de `DP-NODO-01`.
+4. Lo heredado: la ventana de la instantánea, la tolerancia de 7 días, mDNS y `RestartPreventExitStatus=2`.
+
+**Siguiente paso exacto:** tras la confirmación del CEO, ejecutar la partición de `PROPUESTA-PARTICION-INTEGRACION.md`.
+Haciendo `git add` por rutas, comprobando antes de cada commit que el staging no contiene `eventos.jsonl`,
+`estado.json`, `__pycache__` ni `graphify-out`, con el QG en cada paso y el merge `--no-ff` en un subshell.
+
+## 2026-10-26 (ac) · Integración PREPARADA y verificada (no ejecutada) · DP de autoconstrucción · criterios de delegación
+
+**Decisión del CEO:**
+
+- **Pendiente:** no hacer commits ni merge todavía; DP-NODO-01 sigue pendiente.
+- **Encargado:** preparar la integración de forma reproducible y el DP de `autoconstruccion`.
+- **Ninguna escritura** en los componentes protegidos.
+
+**Estado `[EJEC]`:**
+
+- HEAD `6dad6af`; main = origin/main `d933a08`; staging, solo el rename preexistente.
+- PARADA armada; `estado.json` `9a7b5841…`.
+- Receptor PID 972, `NRestarts=0`. Cron sin cambios.
+- **Sin cambios en el código en esta entrada:** solo documentos y artefactos de evidencia.
+
+**Agentes:**
+
+- `general-purpose` ×2: la partición y una línea aparte.
+- `arquitecto-evaluador`: el DP de `autoconstruccion`.
+- `auditor-consistencia`: la partición.
+- **Graphify:** `query` de autoconstrucción y recuperación, del LLM y de los imports de CM2 y del receptor.
+
+**A. Partición.** `PROPUESTA-PARTICION-INTEGRACION.md` §8, con los artefactos en `evidencia-…/particion-integracion/`.
+
+- **La partición de la §3 queda refutada.** `aura_skeleton` es indivisible: el receptor y CM2 entran por
+  `aura_skeleton.__main__`, con un cierre de 85 ficheros. La partición literal hace fallar
+  `test_reloj_cm2::test_nombre_por_me_llamo…`.
+- **Partición verificada:** 7 commits con 249, 4, 13, 69, 9, 272 y 83 rutas, 699 en total, 0 sin asignar.
+  - Etapas acumulativas: 0 imports sin resolver y 0 errores de colección; la etapa 7 iguala al worktree.
+  - El commit 4 indexa las versiones previas con `git update-index` **sin tocar el árbol**.
+- **Auditoría: CONSISTENTE CON RESERVAS**, resueltas:
+  - **GRAVE:** el lado borrado del rename no estaba asignado; añadido al commit 3.
+  - **MENOR:** un contrato leído por una prueba del commit 4 estaba en el commit 7; movido.
+
+**B. `DP-AUTOCONSTRUCCION-CORRELACION-Y-RECUPERACION.md`, nuevo. ENCAJA CON CONDICIONES**, incorporadas:
+
+- **Defectos que trata:**
+  - **D1:** la atribución por orden.
+  - **D2:** la recuperación no publica la verificación, lo que lleva a `resultado_ambiguo`.
+  - **D3:** carrera en `P-NNN`, que encontró este análisis (`proponer` cuenta sin cerrojo).
+- **Contrato:** `tarea` e `intento` (el `seq` de `tarea_planificada`) de punta a punta, y el diario `promovido` guarda la
+  verificación.
+- **Condiciones de la revisión:**
+  - `verificacion_aislada` y `ejecucion_confinada` se guardan con su valor **real** (INV-9);
+  - `motor_autonomia.py:142` pasa el `seq`;
+  - un `review` manual registra su propia `tarea_planificada`;
+  - se extiende `registrar_evento_si` en lugar de crear una primitiva nueva;
+  - se declara la tensión con la evidencia de uso real: D2 es deuda (pérdida de información), D1 y D3 son preventivos.
+- **Log real:** 12 `cambio_aplicado`, de los que 5 son anteriores al planificador y no se atribuyen a ninguna tarea; los
+  otros 7 corresponden 1 a 1 a las planificaciones.
+- **Nada implementado.**
+
+**C. `DP-DELEGACION-NODOS.md` §7-§9:**
+
+- cinco hechos que no deben confundirse: visible, autenticado, aceptada, ejecutada y verificada (solo este último cuenta);
+- prerrequisitos: M-1 y la correlación estable del DP de B;
+- criterios de aceptación.
+- **`DP-NODO-01` sin cambios.**
+
+**Decisiones pendientes del CEO:**
+
+1. Ejecutar la partición verificada (§8.3) y elegir rama.
+2. Aprobar el DP de `autoconstruccion`, completo o solo D2.
+3. Ampliar `DP-NODO-01`.
+4. Lo heredado.
+
+**Siguiente paso exacto:** con la autorización del CEO:
+
+1. Regenerar `git status -uall` y asignar las rutas nuevas.
+2. Des-stagear el rename.
+3. Ejecutar `commit-1.paths` a `commit-7.paths` con `git add --pathspec-from-file`.
+4. Pasar el QG en los commits 1, 3, 5 y 7.
+
+## 2026-10-26 (ad) · Integración EJECUTADA en `worktree-m3-entry`: 7 commits verificados (sin merge, push ni PR)
+
+**Autorización del CEO:** ejecutar la partición corregida en la rama de trabajo. Merge, push y PR siguen prohibidos.
+**Disenso registrado:** la lista de reglas de la Fase 2 decía «no ejecutar `git commit`», contra la línea A. Se aplicó la
+autorización específica y reiterada (A, contexto y límite final). Si no era la intención, se deshace con
+`git reset --soft 6dad6af`, sin tocar el árbol.
+
+### Acciones de esta sesión
+
+**Commits, en orden topológico 3, 1, 2, 4, 5, 6, 7.** El 3 va primero para que el rename **preexistente** entre
+en su commit sin des-stagearlo, preservando así el staging.
+
+| # | SHA | Rutas | Validación sobre su **instantánea** (`git archive`, no el worktree) |
+|---|---|---|---|
+| 3 · arnés y gate | `ac64b9c` | 13 (rename D+A) | QG FAIL, **idéntico al de la base `6dad6af`**: formato 42/42, los mismos 3 errores de tipado, las mismas 2 pruebas. 0 fallos nuevos y 40 pruebas nuevas en verde |
+| 1 · núcleo `aura_skeleton` | `81a0d57` | 249 | QG: formato, lint y tipado OK. Solo falla `test_garantias_vigentes` (8 rotas, todas preexistentes; 0 nuevas) |
+| 2 · red de `_ruta_red` | `646a9ce` | 4 | Sus 18 pruebas, RC=0 |
+| 4 · control-plane previo | `7c4af11` | 72 (69 más 3 `.py` previos) | Suite del control-plane: 4 fallos. **Control:** con los datos vivos copiados pasan 2, y quedan los 2 dependientes de la ruta, ya demostrados. 0 fallos debidos al commit |
+| 5 · recuperación tras caídas | `9f13935` | 9 | Suite con datos: 1429 passed y 2 fallos de ruta. QG: 1 garantía rota de 1760 (`cp-g3-ciclo-de-vida.toml:G3-M2`, preexistente) |
+| 6 · evidencias | `9f238d6` | 272 | Colección: 3749 y 1435, 0 errores |
+| 7 · documentación y panel | `bf13a47` | 83 | **QG PASS**: 3842/3/17, RC=0 |
+
+**Criterio de gate de los commits intermedios** (declarado): ninguna instantánea añade un fallo respecto a la
+anterior, y la final pasa entera. Las garantías rotas bajan de 13 (en HEAD) a 8, 8, 1 y 0.
+
+**Validación final en el árbol vivo:**
+
+- QG **PASS** 3842/3/17, EXIT=0;
+- `preflight-check.sh` **APTO**;
+- suite del control-plane **1433 passed, 1 skipped, 1 xfailed, 0 failed**, con los 2 tests dependientes de la ruta
+  pasando aquí.
+
+**Auditoría independiente (`auditor-consistencia`): CONSISTENTE.**
+
+- 7 commits lineales con sus trailers; main y origin/main siguen en `d933a08`.
+- Cada commit contiene exactamente su lista.
+- Ningún fichero excluido ni secreto; `git diff 6dad6af HEAD` sobre `estado.json` y `eventos.jsonl` está **vacío**.
+- Blobs del par 4→5 verificados.
+- Árbol final igual al worktree salvo lo excluido, índice vacío y rename completo.
+
+**Incidencias de esta sesión:**
+
+- **Ayudante del commit 3:** `git add` no acepta una ruta ya borrada y stageada. Se corrigió con
+  `git rm --cached --ignore-unmatch` para las rutas borradas; el índice no cambió.
+- **Fallos en el QG intermedio:** eran todos preexistentes en `6dad6af` o dependían de los datos y la ruta excluidos.
+  Se demostró con comparaciones equivalentes.
+
+**Documentos (B y C):**
+
+- `DP-AUTOCONSTRUCCION…` §11-§12: D1, D2 y D3 con invariantes, transiciones, idempotencia, pruebas de carrera
+  deterministas, migración, rollback y criterios. Dos revisiones del arquitecto: ENCAJA CON CONDICIONES, incorporadas.
+  **Sin implementar.**
+- `DP-DELEGACION-NODOS.md` §10-§11: contrato operativo y requisitos de seguridad. La revisión de seguridad dio APTA CON
+  CONDICIONES, con 3 ALTOS: firma de tareas y de resultados, y fijación por SPKI con aprovisionamiento fuera de banda y
+  fallo cerrado. **`DP-NODO-01` sin cambios.**
+
+### Resultados históricos (no se volvieron a ejecutar)
+
+- Mutación 29/29.
+- 4 revisiones de la recuperación.
+- QG en vivo PASS de las 12:25.
+
+### Fuera de los commits (pendiente del próximo)
+
+- Esta entrada, el mapa (n) y la ficha.
+- `evidencia-…/integracion-commits/`.
+- Las §12 del DP de `autoconstruccion` y §11 del de delegación, si se editaron después del commit 7.
+
+### Producción
+
+- PARADA armada.
+- `estado.json` `9a7b5841…` sin cambios.
+- `eventos.jsonl` con 3726 líneas, solo `despertar_rechazado` del cron a las :00 y :30.
+- Receptor 972 con `NRestarts=0`; cron sin cambios.
+
+### Pendiente de autorización
+
+1. Merge `--no-ff` a main y push, o PR.
+2. Implementar el DP de `autoconstruccion`.
+3. Acta de delegación, tras resolver los 3 ALTOS de seguridad.
+4. Lo heredado.
+
+## 2026-10-26 (ae) · Auditoría de Coucou y KORUS (solo investigación; sin instalar ni integrar)
+
+**Estado `[EJEC]`:** HEAD `bf13a47`; main = origin/main `d933a08`; staging vacío; PARADA armada; `estado.json`
+`9a7b5841…`. Sin cambios en el código de AURA. Codex, OpenCode, AgentShield, bandit y semgrep **no están instalados**.
+
+**Herramientas:** Graphify (query de hooks y notificaciones, PARADA y autoridad, robótica y cronograma).
+
+**Agentes:**
+
+- `general-purpose` ×2: investigación remota con `gh api`, sin clonar;
+- `arquitecto-evaluador`;
+- `security-reviewer`;
+- `auditor-consistencia`: contraste de 15 afirmaciones contra las fuentes.
+
+**Resultado** (fichas `milestones/investigacion-externa/IE-032-coucou.md` e `IE-033-korus.md` y el índice IE):
+
+- **Coucou** (`@47d1c2d`): **PROTOTIPO AISLADO FUTURO**, pendiente de acta, y **no en el equipo real**.
+  - **Lo que prevalece es la seguridad**, con tres ALTOS:
+    - hooks globales sin matcher que reenvían prompts, comandos y ediciones;
+    - aprobación de un clic sin lista roja, también desde el móvil;
+    - cadena de suministro joven y sin firma independiente.
+  - **Patrones reutilizables ya, sin código:**
+    - socket con SO_PEERCRED;
+    - backup y diff antes de reescribir la configuración;
+    - fallo abierto hacia el terminal;
+    - no aprobar lo truncado.
+  - **Pendiente de verificar:** el canal `chat*` del phone link y si existe confirmación en `open_app`.
+- **KORUS:** **DESCARTAR POR AHORA**. ROS1 Hydro/Indigo y Python 2, abandonado desde 2015, sin licencia, con
+  dependencias privadas en Bitbucket y sin orquestación de nodos de cómputo. **No existe una línea de robótica en el
+  cronograma.**
+- **Contrato de seguridad** para cualquier integración futura: 9 reglas en `IE-032` §«Contrato de seguridad». AURA
+  conserva la autoridad y PARADA.
+
+**`capacidades.json`, cronograma y normas:** sin cambios. No se instaló, descargó ni ejecutó código externo. Las copias
+de texto que usaron los agentes se borraron de `/tmp`.
+
+**Pendiente de decisión del CEO:** un acta para el prototipo aislado de Coucou, solo si hay una necesidad observada.
+
+## 2026-10-26 (af) · Continuidad de la integración, D1-D3 y delegación consolidados, y base de conocimiento IE-034..IE-043
+
+**Estado `[EJEC]`, 16:2x:**
+
+- HEAD `bf13a47`; los 7 commits presentes con los mismos SHA; main = origin/main `d933a08`; staging vacío.
+- PARADA armada; `estado.json` `9a7b5841…`; el log solo crece con `despertar_rechazado` del cron.
+- **Sin commit:** todo lo de esta entrada es documental.
+
+### Acciones de esta sesión
+
+**A · Integración (verificación documental, sin volver a ejecutar el QG):**
+
+- 0 rutas excluidas en `git diff 6dad6af HEAD`; `estado.json` y `eventos.jsonl` no integrados.
+- Cada log de `evidencia-…/integracion-commits/` corresponde al SHA de su commit.
+- Los fallos intermedios históricos se conservan.
+- **Resultados históricos, no reejecutados:** QG 3842/3/17, preflight APTO, control-plane 1433/0.
+
+**B · `DP-AUTOCONSTRUCCION…` §13:**
+
+- Matriz de cobertura frente a los requisitos del CEO.
+- Los 4 estados de D2, explícitos: promoción realizada, verificación pendiente, verificación confirmada y resultado
+  ambiguo.
+- Referencias de línea corregidas (L1078, L1301-1308, L1313).
+- **No implementado ni autorizado.**
+
+**C · `DP-DELEGACION-NODOS.md` §12-§12.6:**
+
+- STRIDE formal: activos, fronteras, las 6 categorías, compromiso del nodo, fallo cerrado y 5 estados del resultado.
+- Revisión de seguridad independiente: COMPLETO CON CONDICIONES, con 14 correcciones incorporadas.
+- **ALTOS abiertos:**
+  - A1, firma de tareas;
+  - A2, firma de resultados;
+  - A3, fijación SPKI;
+  - N1, replay tras reinicio, con `emitida_en` y `epoch_hc1`;
+  - N2, custodia de la clave de HC-1 en un firmador único.
+- «Diseñado» pasa a «REQUERIDO, no implementado».
+- `DP-NODO-01` sin cambios; ninguna tarea remota.
+
+**D · IE-032 (Coucou) e IE-033 (KORUS):** sin cambios; decisiones vigentes.
+
+**E · Base de conocimiento:** fichas IE-034 a IE-043 con SHA fijado, por lectura remota con `gh api`, sin clonar,
+instalar ni ejecutar. Investigadores: auto-mejora, memoria y gobernanza.
+
+| IE | Repositorio | Decisión |
+|---|---|---|
+| 034 | sia | Descartado como código |
+| 035 | a-evolve | Descartado |
+| 036 | EvoAgentX | Descartado |
+| 037 | awesome-self-improving | Referencia |
+| 038 | Hy-Memory | No adoptar el motor |
+| 039 | SAGE | Adaptar la idea; AGPL más patentes, no copiar |
+| 040 | AGT | Referencia |
+| 041 | APS | Adaptar ideas |
+| 042 | oxdeai | Adaptar el patrón |
+| 043 | agentstorming | Adoptar el método |
+
+**Auditoría de evidencia (`auditor-consistencia`): APTO.**
+
+- 10 SHA y 10 licencias confirmados.
+- 6 de las 7 afirmaciones ALTA confirmadas y 1 con matiz; ninguna refutada.
+- No hay código copiado ni benchmarks presentados como reproducidos.
+
+**Hallazgos sobre AURA misma:**
+
+- **HAL-040-2 → deuda `D-LOG-1`** (`milestones/m3-entry/DEUDA-LOG-COLA-SIN-ANCLA.md` y su fila en el CHECKLIST).
+  - Borrar los últimos eventos completos de `eventos.jsonl` **no lo detecta** `verificar_integridad_log`.
+  - **Confirmado ejecutando** sobre una copia (yo y, de forma independiente, el auditor): `integro: True` con 2 eventos
+    menos.
+  - Requiere DP (`control_plane.py`).
+- **HAL-034-1:**
+  - **Refutado** para los caminos actuales: el descubrimiento excluye `test_*` y los 2 contratos no solapan perímetro y
+    pruebas.
+  - **Queda una brecha de defensa en profundidad:** la puerta de escritura no protege las pruebas por sí misma.
+  - Reclasificado a MEDIA; requiere DP.
+
+**F · `milestones/investigacion-externa/PROCEDIMIENTO-DEFECTO-DIFICIL.md`:** 13 pasos; la base orienta y **no**
+autoriza. Enlazado desde el índice.
+
+**Auditoría de continuidad:** 8 discrepancias MENORES, todas corregidas:
+
+- el frontmatter `estado` alineado con el índice;
+- las menciones de prioridad en IE-034;
+- el formato `HAL-NNN-n` en el procedimiento;
+- la fila 4 del §12.4;
+- el encabezado del §12;
+- las líneas del §13.1;
+- el registro de la deuda;
+- este CHECKPOINT y el mapa.
+
+### Incidencias de procedimiento
+
+- Los agentes ejecutaron `gh api` (solo lectura) con el **sandbox de red desactivado**, porque dentro no había red.
+- Sus copias de texto en `/tmp` (`/tmp/sg`, `/tmp/hy` y `/tmp/aud`, que incluía una copia del log real) se **retiraron**.
+- No había ningún ejecutable entre ellas.
+
+### Sin cambios
+
+- Código.
+- Configuración, hooks, `~/.claude/settings.json`, cron, Ollama y OmniRoute.
+- `capacidades.json` y el cronograma.
+- `DP-NODO-01`.
+
+### Pendiente de autorización
+
+1. Merge a main o PR.
+2. Implementar D1-D3.
+3. DP de `D-LOG-1`.
+4. DP de HAL-034-1.
+5. Delegación remota: bloqueada por A1-A3, N1 y N2.
+6. Prototipo de Coucou: no autorizado.
+7. KORUS: descartado.
+8. Ideas externas: solo con evidencia, experimento aislado y DP.
+
+## 2026-11-01 · Ratificación DN-1 + DN-2 y respaldo en GitHub (rama integracion/m3-entry)
+
+- **Decisiones del CEO ratificadas:** DN-2 aprobado; DN-1 aprobado técnicamente y **ratificadas las 10
+  clasificaciones por operación del manifiesto, sin ampliar exclusiones**; M4 sigue PROPUESTO (DP §11.1); el `unlink`
+  del firmador NO se toca (solo revisión). Cableado a producción RECHAZADO.
+- **Verificación de los 4 criterios de ratificación [EJEC]:** las 10 entradas nuevas son todas por operación
+  (`opera` no vacío), ninguna es de módulo entero, ninguna pasa a `persistencia_autorizada`, y la detección de una
+  operación nueva no declarada se conserva (guardas `test_parada_escritura_pasiva` y
+  `test_una_escritura_NUEVA_no_declarada`, verdes en el QG).
+- **Pruebas [EJEC]:** arnés G-1 `g1-escritura-bajo-nivel.toml` 11/11; arnés delegación `delegacion-segura.toml`
+  194/194; Quality Gate PASS 4284/3/17. Sin secretos en los ficheros publicados (escaneo previo).
+- **DN-2:** `_anotar_ancla` conserva `jsonl_durable.anexar` (no se sustituye por AuditLog). No se tocó producción ni
+  se crearon anclas reales.
+- **Respaldo GitHub:** commits atómicos en `integracion/m3-entry`, publicados en `origin/integracion/m3-entry`
+  (rama nueva; `main` intacto, sin PR, sin force). Ver entradas del CHECKPOINT de producción (worktree-m3-entry) y el
+  informe de sesión para hashes locales/remotos.
+- **Producción intacta:** `estado.json`/`eventos.jsonl` de producción no tocados; PARADA armada; main = d933a08.
+- **Riesgos pendientes (bloquean cableado):** N2, R4-M1/M2/M3, N1 residual, D-LOG-1 fuera de producción,
+  `cryptography` sin declarar, `unlink` del firmador (revisión en curso). M4 sin aprobar.
+
+## 2026-11-05 · DP-RESIDENCIA-MEDICION-CM2 — Fase 1 implementada y validada (rama integracion/m3-entry)
+
+- **Aprobación del CEO (2026-11-05):** alternativa A2, solo Fase 1. DP en `milestones/m3-entry/DP-RESIDENCIA-MEDICION-CM2.md`
+  (commit `8b725ab`).
+- **Código (commit `b5dca6c`):** `AuditLog` multi-escritor seguro en `walking-skeleton/aura_skeleton/observability.py`:
+  cerrojo `<audit>.lock` (EX escribir/rotar, SH leer, espera acotada → `AuditBloqueado`), `seq` bajo cerrojo con
+  caché validada e inclusión de huérfanos válidos, escritura única con detección de parcial y `fsync` de fichero y
+  directorio, `O_NOFOLLOW`, cola truncada cerrada con `\n` (sin borrar bytes) y constancia, `_sellar` sin truncado y
+  reanudable, reconciliación validada de huérfanos, cerrojo perezoso (construir o leer no crea ficheros).
+  Formato de eventos y manifiestos sin cambios.
+- **Evidencia `[EJEC]`:** pruebas nuevas `tests/integration/test_audit_multiescritor.py` (procesos reales, R1–R5 y
+  adicionales, con control; RED previo: 13 de 20 fallaban sobre el código anterior). Mutación oficial:
+  `audit-multiescritor.toml` **16/16**; `ui-limpia-y-estado-autonomo.toml` **20/20**. Garantías declaradas 2041/2041
+  vigentes. Quality Gate **PASS** 4316 passed / 5 skipped / 17 xfailed, contratos 8.
+- **Auditoría independiente:** concurrencia/persistencia (APTO CON CONDICIONES: 1 ALTA —`seq` duplicado tras huérfano
+  con escritores vivos— corregida con X12) y seguridad (APTO CON CONDICIONES: `O_NOFOLLOW`, validación de huérfanos,
+  manifiesto 0600 — corregidas).
+- **Riesgos residuales (deuda previa, no introducida aquí):** el motor audita DESPUÉS del efecto, así que un
+  `AuditBloqueado` dentro de un adaptador se registra como error de sistema de archivos con el efecto ya ocurrido;
+  `_capturar_senales` traga excepciones (solo WARN). `flock` es consultivo y exige FS local. Durabilidad de
+  `memoria.json` pendiente.
+- **Siguen BLOQUEADAS:** Fase 2 (cerrojo de instancia), Fase 3 (quitar el aplazamiento del cron y actualizar el
+  PROCEDIMIENTO) y la activación de residencia. Sin cambios en producción, cron, PARADA, `~/.aura`, CM2 ni S3.
+
+## 2026-11-05 · Fase 1 — hallazgo posterior: escritura parcial del manifiesto del audit (corregido)
+
+- **Hallazgo (revisión estática) confirmado por RED `[EJEC]`:** si la entrada del manifiesto se escribe a medias
+  (`ErrorEscrituraParcial`), el manifiesto queda sin `\n` final y la siguiente anotación (reconciliación o sellado)
+  se fusiona con el fragmento → ilegible: segmento invisible para `leer_audit_desde`/`segmentos`/`verificar`,
+  constancia `audit.segmento_reconciliado` falsa y repetida en cada arranque; con un corte que deja JSON completo sin
+  `\n`, la siguiente anotación destruye además una entrada válida. Ningún byte se perdía en disco.
+- **Corrección (commit `3e27424`):** `_anotar_segmento` antepone `\n` en el mismo `os.write` si la cola del
+  manifiesto está abierta (`_cola_sin_salto`), sin borrar bytes, y deja constancia `audit.linea_parcial_cerrada`
+  con `fichero=audit.jsonl.manifest`. Formato de entrada sin cambios.
+- **Pruebas y mutación (commit `9ab9fa8`):** `tests/integration/test_audit_manifiesto_parcial.py` 9 pruebas
+  (2 controles). RED sobre `89753e3` (copia exportada): 7 fallan / 2 pasan. GREEN 9/9; suite pertinente (audit,
+  rotación, reloj CM2) en verde. Mutación `audit-multiescritor.toml` **19/19** (X17–X19 nuevos). Quality Gate
+  **PASS**: 4325 passed / 5 skipped / 17 xfailed, contratos 8.
+- **Auditoría independiente:** persistencia/concurrencia APROBADO (0 C/H/M); seguridad APROBADO (0 C/H/M).
+  AgentShield, Codex y OpenCode no instalados.
+- **Riesgos residuales (LOW):** si el corte cae justo tras el `\n` antepuesto, o el proceso muere entre la
+  anotación y la constancia, el cierre queda sin constancia (misma ventana que `_cerrar_cola_truncada`); una FIFO
+  plantada en la ruta del manifiesto bloquearía (igual que antes). `_cola_sin_salto` duplica la lectura del último
+  byte de `_cerrar_cola_truncada` (se dejó así para no alterar el mutante X6).
+- **Siguen BLOQUEADAS:** Fase 2, Fase 3 y residencia. Producción, cron, PARADA, `~/.aura`, CM2 y S3 sin cambios.
+
+## 2026-11-05 · DP-DURABILIDAD-MEMORIA — P1 cerrada y publicada (rama integracion/m3-entry)
+
+- **Aprobación del CEO (2026-11-05):** opción A del informe de continuidad. DP en
+  `milestones/m3-entry/DP-DURABILIDAD-MEMORIA.md`.
+- **Problema `[EJEC]`:** 3 recuerdos válidos + corte a media escritura → `PersistentMemory` no arranca
+  (`JSONDecodeError`). Además: `_anexar` sin `fsync`, `_persist` sin `fsync` del `.tmp` (un corte podía dejar la memoria
+  vacía) y `write` anotaba en RAM antes de escribir (sesión recordando lo no persistido, INV-9).
+- **Disenso registrado:** «tolerar la línea final cortada» contradice la fila T9 VIGENTE de
+  `CONTRATO-OLVIDO-Y-RETENCION.md` (una lápida o una marca cortada ignorada deshace en silencio la orden del usuario).
+  Se dividió: P1 ejecutado; **P2 DECISION_REQUIRED** (opciones P2-A statu quo, P2-B tolerancia selectiva
+  —recomendada—, P2-C recuperación explícita).
+- **P1 (commits):** DP `473df8def56bd3cba6d72a2ea291896598588cc0` · código `8ff5bf9acecfe0028d33e460e8948022cdd59caf`
+  (`write` disco→RAM, `fsync` de fichero y de directorio con reintento `_dir_pendiente`, `_persist` con `fsync` del
+  `.tmp` y del directorio) · pruebas y mutación `5bd18beefb97604434b52ed91eef9abaeaaada85`. HEAD local = remoto =
+  `5bd18be`.
+- **Evidencia `[EJEC]`:** regresión 146 passed / 16 xfailed · T9 3/3 · G-1 PASS · mutación P1 8/8 (G-7 7/7 y
+  olvido-adversarial 4/4 siguen muriendo) · Quality Gate PASS 4334 passed / 5 skipped / 17 xfailed, contratos 8 ·
+  auditoría de seguridad APROBADO sin CRITICAL/HIGH · auditoría de corrección APROBADO (MEDIUM del reintento de
+  directorio corregido). AgentShield NO DISPONIBLE.
+- **Riesgos residuales:** escritura parcial a media línea (disco lleno) → el siguiente `write` se concatena y la
+  apertura falla en alto (ligado a P2); `fsync` de directorio fallido tras un append correcto → «al menos una vez»
+  (duplicado colapsado por la proyección); preexistentes MEDIUM: `memoria.json`/`.tmp` sin 0600 ni `O_NOFOLLOW`,
+  `olvidar`/`marcar` mutan RAM antes del disco.
+- **Pendiente del CEO:** decisión P2 (enmienda de T9 si P2-B/P2-C). Sin cambios en `main` (`99f2109`), producción,
+  `~/.aura`, cron, PARADA (NO VERIFICADO), CM2 ni S3. Observación CM2 del 2026-11-05: tarea de sesión `f914c7bc` a
+  las 23:46 (solo si la sesión sigue viva).
+
+## 2026-11-05 · DP-DURABILIDAD-MEMORIA — P2-B implementada y validada (rama integracion/m3-entry)
+
+- **Autorización del CEO (2026-11-05):** iniciar P2, línea de diseño P2-B.
+- **Qué hace:** lectura única `_lineas_legibles` (memoria + `restore` + reloj de CM2, T10). Una línea ilegible solo
+  se tolera si es **prefijo JSON estricto** (corte, no corrupción), **no es ambigua** con la clave
+  `(user_id, kind, content)` de ninguna línea existente (lápidas y marcas siempre lo son) y no se supera el tope de 3.
+  Constancia `memoria.linea_truncada_tolerada` (línea y bytes, sin contenido). `_anexar` cierra una cola sin `\n`.
+  Solo `\n` separa líneas (defecto preexistente: un recuerdo con U+2028 dejaba la memoria sin abrir).
+- **Evidencia `[EJEC]`:** 36 pruebas P2; regresión en verde; mutación P2 12/12, P1 8/8, G-7 7/7, reloj-cm2 32/32
+  (G7-M5 y M23 reanclados), olvido 4/4; Quality Gate PASS 4370 passed / 5 skipped / 17 xfailed. Auditoría de
+  seguridad APROBADO; auditoría adversarial RECHAZADO → corregido → APROBADO (105 032 mutaciones de 1 carácter y 5 219
+  cortes reales de lápidas/marcas: 0 tolerados).
+- **Limitaciones:** un corte anterior a que la clave se distinga, o dentro de un escape/literal, sigue fallando en alto
+  (indistinguible de una lápida); un solo escritor por diseño; el reloj tolera sin constancia (es de solo lectura).
+- **Pendiente del CEO:** ratificar el nuevo texto de la fila T9 de `CONTRATO-OLVIDO-Y-RETENCION.md` (DP §8; las
+  tres pruebas T9 siguen en verde sin cambios). Sin cambios en `main`, producción, `~/.aura`, cron, PARADA, criterios
+  de CM2/S3 ni nodos.
+
+## 2026-11-06 · Punto D — continuidad de resultados y privacidad, implementado y validado (rama integracion/m3-entry)
+
+- **Decisión:** el CEO Operativo aprueba las ocho decisiones de la §7.7 (v2) de
+  `milestones/m3-entry/DECISION-REQUERIDA-CONTINUIDAD-DE-RESULTADOS.md`; acta
+  `decisiones/2026-11-06-acta-continuidad-de-resultados-punto-d.md` (incluye el reconocimiento de la ampliación del
+  residual de ADR-0024); contrato de olvido v4 con la fila T19.
+- **Capacidad:** tras reiniciar, AURA recuerda lo que hizo («¿qué hiciste antes de reiniciarte?») como «registro local,
+  sin verificar ahora», sin volver a ejecutar nada. Registro `resultado_accion` en `memoria.json` (módulo único
+  `core/resultado_accion.py`): solo metadatos con lista blanca de campos y valores validada al escribir y al leer,
+  capacidad contra el catálogo, `evidencia` enum, ts al minuto y no futuro, dominios de seguridad excluidos,
+  deduplicación fallo-cerrado, rechazos auditados, 0600. Fuera de `recall`, del prompt y del modelo del usuario; incluido
+  en `exportar` y `ver_acciones`; olvido de acciones (T19) honesto (sin borrado físico); con PARADA no se persiste ni se
+  olvida. Privacidad: el contenido de `leer_archivo` ya no reentra en el prompt de turnos posteriores (sí se recupera a
+  petición en la misma conversación). Una sola clasificación y una sola redacción de desenlaces (modos vivo/registro/prompt).
+- **Evidencia `[EJEC]`:** pruebas nuevas (`test_resultado_accion.py`, `test_continuidad_resultados.py`,
+  `test_continuidad_resultados_auditoria.py`); RED contra la base; mutación `continuidad-resultados.toml` **58/58** y 23
+  catálogos previos con anclas en zonas tocadas, todos sin supervivientes (anclas reajustadas con la misma garantía:
+  D12, H-M2, OC-M7, OC-M8, OC-M14); Quality Gate **PASS** 4548 passed / 5 skipped / 17 xfailed, contratos 8.
+  Auditorías independientes: arquitectura **CABE**, seguridad **APROBADO** (tras corregir PARADA en «borra…», redacción
+  recuperada vs en vivo, permisos, olvido honesto, capacidad/ts/duplicados).
+- **Correcciones del director durante la integración:** revertido un `getattr` que relajaba `_sistema_detenido` (el
+  helper de la prueba aporta `perm`); CR-M9 era AMBIGUO porque una parametrización construía casos al importar (hecha
+  perezosa); `test_operaciones` admite la marca opcional aprobada sin abrir el esquema.
+- **Límites (§7.8 del DP):** revisión compuesta sin registro; sin firma criptográfica; directorios sin endurecer;
+  olvido lógico; crecimiento sin TTL (promoción a deuda > 10⁴ registros o carga > 1 s); cohesión de `orchestrator.py`.
+- **Sin cambios:** `main`, producción, `~/.aura`, cron, PARADA, CM2/S3, nodos.
+
+## 2026-11-06 · P3 de DP-DURABILIDAD-MEMORIA — olvidar/marcar atómicos respecto a la RAM (rama integracion/m3-entry)
+
+- **Autorización:** CEO Operativo (2026-11-06), P3 del DP (§9 nueva). Cierra el primer punto de §6.
+- **Defecto:** `olvidar`/`marcar` cambiaban la RAM antes de anexar la lápida/marca; un fallo de escritura a mitad dejaba
+  sesión y disco inconsistentes (lo olvidado reaparecía al reiniciar, o lo refutado volvía a darse por cierto).
+- **Corrección:** se anexa todo primero y solo si TODAS las anexiones tienen éxito se toca `self._items`, el índice,
+  `_conteo_usuario` y la procedencia; si una falla, el error se propaga (INV-9) y la RAM queda como antes. `marcar`
+  construye copias con la procedencia ya actualizada en vez de mutar los dicts vivos. Único fichero de producción:
+  `aura_skeleton/modules/memory.py` (`olvidar`, `marcar`). No se tocó `_anexar`, `_proyectar`, `_clave` ni el formato.
+- **Evidencia `[EJEC]`:** `tests/unit/test_durabilidad_memoria_p3.py` (12 pruebas, con control); RED sobre `ff2e9c4`.
+  Mutación `durabilidad-memoria-p3.toml` **6/6** (P3-1..P3-6; P3-6 añadido por la auditoría de corrección). Catálogos
+  previos anclados en `memory.py`, todos sin supervivientes: g7 **7/7** (G7-M6 reanclado al nuevo bucle de `marcar`),
+  olvido-adversarial 4/4, durabilidad-memoria 8/8, durabilidad-memoria-p2 12/12, memoria-cobertura 5/5,
+  d-m-1 3/3, historico-no-recuperable 6/6, correcciones-producto 7/7, olvido-por-entrada 8/8, continuidad-resultados
+  58/58. Quality Gate **PASS** 4562 passed / 3 skipped / 17 xfailed, contratos 8.
+- **Auditorías independientes:** corrección CABE (condición del mutante simétrico P3-6, resuelta); seguridad APROBADO
+  sin CRITICAL ni HIGH (el riesgo de fsync parcial es preexistente de P2-B, documentado; P3 lo reduce).
+- **Sin cambios:** T9, T11, punto D (olvido de acciones vía `ambito="acciones"`), `main`, producción, `~/.aura`, cron,
+  PARADA, CM2/S3, nodos.
+
+## 2026-11-06 · F1 — detección de proyección obsoleta (control-plane; rama integracion/m3-entry)
+
+- **Autorización:** CEO, F1 del DP `milestones/m3-entry/DP-INTEGRIDAD-RECUPERACION-CONSISTENCIA.md` (ahora §10).
+- **Qué hace:** `estado_de_la_proyeccion(directorio)` en `entorno/control-plane/control_plane.py` clasifica el
+  `estado.json` frente al log encadenado en cinco estados (ACTUAL/OBSOLETA/AUSENTE/INVALIDA/NO_VERIFICABLE),
+  reutilizando `verificar_integridad_log`/`cargar`/`proyectar`/`validar`. Compara solo la parte derivada del log,
+  excluye campos de entorno (sin falsos positivos), falla cerrado (nunca ACTUAL sin demostrarlo) y es de solo
+  lectura (no regenera, no escribe, no toca historial ni ancla). `cargar_si_actual` devuelve la proyección solo si
+  ACTUAL. No implementa F2 ni F3.
+- **Evidencia `[EJEC]`:** `test_red_proyeccion_obsoleta.py` 20 pruebas (RED→GREEN); suite del control-plane 145
+  passed; mutación `proyeccion-obsoleta.toml` 5/5; Quality Gate PASS 4562 (cubre walking-skeleton; el control-plane
+  se valida con su suite y la mutación). Auditorías: corrección CABE, seguridad APROBADO (0 C/H/M). Diff aditivo,
+  sin tocar las funciones protegidas.
+- **Sin cambios:** producción, runtime, `~/.aura`, cron, PARADA, CM2/S3, N1/N2/delegación, `main` (99f2109).
+- **Pendiente del CEO:** F2, F3, F4 (lectura agregada §7.3 — confirmaría ciclos 196/217 y causa de BLOQUEADA), F5.
+
+## 2026-11-06 · F2 — regeneración controlada de la proyección (control-plane; rama integracion/m3-entry)
+
+- **Autorización:** CEO, F2 del DP (ahora §11). F1 queda intacta como contrato de detección.
+- **Qué hace:** `regenerar_proyeccion(directorio)` reconstruye `estado.json` desde el log, EXPLÍCITA y controlada: solo si
+  F1 lo ve OBSOLETA/AUSENTE y el log es verificable; NO_VERIFICABLE → no escribe; ACTUAL → no-op. Gobierno por tarea
+  (`previo`, `creada_sin_origen`) derivado del log (nunca fabricado); entorno preservado; valida y escribe con `guardar`
+  atómico; rechaza entera si un COMPLETED no tiene autoridad humana en el log (DECISION_REQUIRED). No hay auto-reparación
+  (eso sería F3). No se invoca desde ninguna lectura.
+- **Evidencia `[EJEC]`:** test_red_regeneracion_proyeccion.py 19 pruebas (RED→GREEN); suite control-plane 155 passed;
+  mutación 7/7 (RP5 retirado = equivalente, guardar revalida); Quality Gate PASS 4562. Diff aditivo, funciones
+  protegidas intactas.
+- **Proceso:** el ingeniero (Sonnet) empezó por error en el worktree de producción; reconducido con rutas absolutas. El
+  Director halló en auditoría en línea un falso rechazo (tarea registrada-sin-transicionar) y lo corrigió antes de
+  publicar. Límite declarado: las auditorías independientes de F2 cayeron por límite de sesión; verificación del
+  orquestador en línea (implementador ≠ auditor) + mutación 7/7 + QG. Recomendada auditoría independiente futura.
+- **Sin cambios:** producción, runtime, `~/.aura`, eventos.jsonl, ancla, cron, PARADA, CM2/S3, memorias/Correo/NODO, `main` (99f2109).
+- **Pendiente del CEO:** F3, F4 (lectura agregada §7.3), F5.
+
+## 2026-11-06 · F3 — indicador agregado de integridad (control-plane; rama integracion/m3-entry)
+
+- **Autorización:** CEO, F3 del DP (ahora §12). F1 y F2 quedan intactas.
+- **Qué hace:** `integridad_del_control_plane(directorio)` consolida F1 en un veredicto agregado
+  (ok/degradada/no_verificable, verificable, regeneracion_pendiente, seq_confirmado/proyeccion). Fallo seguro (nunca ok
+  sin log verificable); regeneracion_pendiente = el conjunto donde F2 actuaría. Separa integridad de autorización
+  (PARADA) y de disponibilidad (cola). Puro: no escribe, no llama a regenerar_proyeccion, una sola fuente de verdad (el
+  log, vía F1). Subinforme bajo clave `integridad_log` (no pisa el veredicto). No lo invoca ninguna lectura.
+- **Evidencia `[EJEC]`:** test_red_integridad_agregada.py 17 pruebas (RED→GREEN, incluida la de no-colisión de claves);
+  mutación integridad-agregada.toml 9/9 (IA1-IA9, IA9 blinda la no-colisión); Quality Gate PASS 4562 (un FAIL previo fue
+  espurio por un test de tiempo intermitente de test_nodo_agente, ajeno a F3; relanzado a PASS). Auditorías: corrección
+  CABE CON CONDICIONES (atendidas), seguridad APROBADO sin hallazgos. Diff aditivo, funciones protegidas intactas.
+- **Riesgo residual:** docstring de F2 omite INVALIDA (deuda documental preexistente de F2; F3 alineada con el
+  comportamiento; no se reabre F2).
+- **Sin cambios:** producción, runtime, ~/.aura, estado.json, eventos.jsonl, ancla, cron, PARADA, CM2/S3,
+  memorias/Correo/NODO, main (99f2109).
+- **Pendiente del CEO:** F4 (lectura agregada §7.3), F5. Con F1+F2+F3 el Entregable C/D del DP queda cubierto salvo F4/F5.
+
+## 2026-11-08 · F4 — lectura agregada de residencia, CERRADA (control-plane; rama integracion/m3-entry)
+
+- **Autorización CEO (2026-11-08):** lectura agregada de ~/.aura (decisión #3 DP-RESIDENCIA). DP §13.
+- **Función:** `lectura_agregada(directorio, ruta_audit=None)` — informe agregado y SIN CONTENIDO (vocabulario cerrado de
+  tipos + "otros"; parser propio del audit sin AuditLog), pura de solo lectura.
+- **Respuestas sobre datos reales `[EJEC]`, write-free:** audit `~/.aura/audit.jsonl` = 14 seq duplicados (daño pre-P1),
+  0 huecos, 0 huérfanos. Ciclos 196 y 217 = ABIERTOS, NO recuperados (366 cerrados / 2 abiertos). BLOQUEADA = proyección
+  obsoleta (estado.json 2026-09-01, WAITING_FOR_NEXT_TASK) + espera sin trabajo AUTO (despertar_rechazado domina), no una
+  caída. El control-plane log está limpio (0 dup/huecos); el daño de seq está solo en el audit del esqueleto.
+- **Evidencia:** 23 pruebas; mutación 10/10; Quality Gate PASS 4562. Auditorías: corrección CABE; privacidad RECHAZADO
+  (fuga por `tipo` libre CRÍTICO + DoS) → corregido → APROBADO. Diff aditivo, funciones protegidas intactas.
+- **Sin cambios:** NO se modificó ~/.aura (solo lectura), estado.json/eventos.jsonl/ancla, PARADA, cron, producción,
+  memorias/Correo/NODO, main (99f2109). Lectura confirmada write-free por mtimes.
+- **Siguiente:** F5 (D-INT-1 integración mínima trazable; D-ORCH-6 WAITING_FOR_HUMAN) — AUTORIZADA (2026-11-08).
+
+## 2026-11-08 · D-ORCH-6 — WAITING_FOR_HUMAN alcanzable y gobernado, CERRADA (control-plane; rama integracion/m3-entry)
+
+- **Autorización CEO (2026-11-08):** enmendar el contrato de transiciones. Gobierno en `DP-DEVELOPMENT-ORCHESTRATOR.md §6`
+  (tabla + diagrama + nota de enmienda); cierre en DP-INTEGRIDAD §14.
+- **Defecto:** `WAITING_FOR_HUMAN` tenía SALIDAS pero ningún estado lo listaba como DESTINO → inalcanzable (observación de
+  F1 no enmendada «por cuenta propia»). Corrección: `WORKING → WAITING_FOR_HUMAN` como auto-stop, y contrato de salida
+  **idéntico a `DECISION_REQUIRED`** (solo-humano, AMBAS salidas `→WORKING` y `→FAILED` exigen `AUTORIDADES_HUMANAS`).
+  Guarda genérica `ESTADOS_SOLO_HUMANO` en `validar_transicion`, única puerta, sin excepciones.
+- **Contrato alineado en tres capas** (literal, destino a destino): DP §6 ↔ espejo `TRANSICIONES_PROPUESTAS`
+  (`test_modelo_orquestador.py`) ↔ `cp.TRANSICIONES`. Verificado por `test_auditoria_h2` y la del modelo.
+- **Hallazgo CRÍTICO (clave):** el 1.er intento eximía `WAITING_FOR_HUMAN → FAILED` (vacío de diseño de la ficha del
+  Director). **Ambas auditorías independientes RECHAZARON** con sonda ejecutada: evasión de autoautorización en DOS pasos
+  `WFH → FAILED → WORKING` (reintento preexistente sin guarda) reanuda sin humano. Gana el dato (D47): corrección = quitar
+  la excepción, simetría total; rompe la cadena en el primer paso. Fail-closed (ADR-0003).
+- **Evidencia `[EJEC]`:** `test_red_waiting_for_human.py` 21 pruebas (incl. `test_cadena_..._no_evade_la_autoridad_humana`),
+  RED verificado contra la base con la excepción; regresión 139/139 con las dos pruebas de contrato; mutación
+  `waiting-for-human.toml` 4/4, 0 supervivientes (WFH-M4 vigila la no-reapertura de la evasión); `f1-orquestador.toml:F1-M25`
+  **reanclado** (mi cambio invirtió su premisa) y verificado que vuelve a morir con `test_auditoria_h2`; Quality Gate PASS
+  (4562, 0 failed). Los 4 fallos + 3 errores del 1.er QG (NATS/reloj/mDNS/PKI) reproducidos aislados en verde = ambientales
+  por carga (QG a 76 min), ninguno toca `control_plane`.
+- **Sin cambios:** NO se tocó `ESTADOS_CREABLES`, `ESTADO_REVISION`, la ruta de COMPLETED, F1/F2/F3/F4 ni funciones
+  protegidas; NO ~/.aura, estado.json/eventos.jsonl, PARADA, cron, producción, main (99f2109). Diff aditivo.
+- **Siguiente:** D-INT-1 (integración mínima trazable de `integracion/m3-entry` a `main` sin arrastrar los 17 commits
+  ajenos de `worktree-m3-entry`) — AUTORIZADA (2026-11-08), pendiente de ejecución.

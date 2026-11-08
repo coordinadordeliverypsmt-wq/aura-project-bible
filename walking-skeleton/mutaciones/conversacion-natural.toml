@@ -36,8 +36,11 @@ sustituir = '''    if True:
 id = "CN-M4"
 garantia = "«crees» vuelve a la lista de ordenes: la pregunta se clasifica ORDEN y no conversa"
 fichero = "aura_skeleton/core/intencion.py"
-buscar = '''          "crea", "organiza", "guarda", "guardes",'''
-sustituir = '''          "crea", "crees", "organiza", "guarda", "guardes",'''
+buscar = '''    "crea",
+    "organiza",'''
+sustituir = '''    "crea",
+    "crees",
+    "organiza",'''
 
 [[mutante]]
 id = "CN-M5"

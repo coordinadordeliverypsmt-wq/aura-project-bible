@@ -277,7 +277,7 @@ def test_TRES_tareas_encadenadas_sin_UN_SOLO_acto_humano(tmp_path):
     `actos_humanos_durante_el_ciclo = 0` no es una declaración: se cuenta."""
     zona = _plano_con_codigo_muerto(tmp_path, cuantos=3)
     _con_review(tmp_path)
-    informe = motor.trabajar(tmp_path, zona, verificacion=lambda: True, max_tareas=5)
+    informe = motor.trabajar(tmp_path, zona, verificacion=lambda raiz: True, max_tareas=5)
 
     assert informe["ejecutadas"] == 3, informe
     assert informe["actos_humanos_durante_el_ciclo"] == 0
@@ -291,7 +291,7 @@ def test_cada_tarea_del_encadenado_deja_su_RASTRO(tmp_path):
     """Trazabilidad de punta a punta: de la oportunidad a la tarea, de la tarea al efecto."""
     zona = _plano_con_codigo_muerto(tmp_path, cuantos=2)
     _con_review(tmp_path)
-    motor.trabajar(tmp_path, zona, verificacion=lambda: True, max_tareas=5)
+    motor.trabajar(tmp_path, zona, verificacion=lambda raiz: True, max_tareas=5)
     tipos = [e["tipo"] for e in cp.leer_eventos(tmp_path)]
     for esperado in ("descubrimiento_realizado", "tarea_planificada", "veredicto_emitido"):
         assert esperado in tipos, f"falta el rastro {esperado}"
@@ -302,8 +302,8 @@ def test_la_segunda_vuelta_encuentra_la_cola_AGOTADA(tmp_path):
     mirar."""
     zona = _plano_con_codigo_muerto(tmp_path, cuantos=1)
     _con_review(tmp_path)
-    motor.trabajar(tmp_path, zona, verificacion=lambda: True, max_tareas=5)
-    segunda = motor.trabajar(tmp_path, zona, verificacion=lambda: True, max_tareas=5)
+    motor.trabajar(tmp_path, zona, verificacion=lambda raiz: True, max_tareas=5)
+    segunda = motor.trabajar(tmp_path, zona, verificacion=lambda raiz: True, max_tareas=5)
     assert segunda["ejecutadas"] == 0
     assert segunda["motivo_de_parada"] == "cola agotada"
     # `>= 0` era trivialmente cierto para cualquier entero: no verificaba nada. Lo que sí demuestra
@@ -322,7 +322,7 @@ def test_una_DECISION_REQUIRED_detiene_su_frente_y_NO_el_ciclo(tmp_path):
     zona = _plano_con_codigo_muerto(tmp_path, cuantos=2)
     _con_review(tmp_path)
     cp.registrar_evento(tmp_path, "decision_pendiente", {"id": "D-Z", "pregunta": "¿?"})
-    informe = motor.trabajar(tmp_path, zona, verificacion=lambda: True, max_tareas=5)
+    informe = motor.trabajar(tmp_path, zona, verificacion=lambda raiz: True, max_tareas=5)
     assert informe["ejecutadas"] == 2, "el trabajo autorizado siguió"
     assert informe["elevadas"] >= 1
     assert informe["motivo_de_parada"] == "cola agotada"
@@ -335,7 +335,7 @@ def test_el_trabajo_BLOQUEADO_se_registra_y_el_ciclo_continua(tmp_path):
     (zona.parent.parent / "walking-skeleton").mkdir(parents=True, exist_ok=True)
     fuera = zona.parent.parent / "walking-skeleton" / "producto.py"
     fuera.write_text("def _muerta_prod():\n    return 1\n", encoding="utf-8")
-    informe = motor.trabajar(tmp_path, zona.parent.parent, verificacion=lambda: True, max_tareas=5)
+    informe = motor.trabajar(tmp_path, zona.parent.parent, verificacion=lambda raiz: True, max_tareas=5)
     assert informe["bloqueadas"] >= 1, "el producto está fuera del perímetro: bloqueada, no ejecutada"
     assert "producto.py" not in str(informe.get("ejecutadas_ids", ""))
     assert "_muerta_prod" in fuera.read_text(encoding="utf-8"), "no se tocó el producto"
@@ -347,7 +347,7 @@ def test_una_VERIFICACION_fallida_detiene_y_revierte(tmp_path):
     zona = _plano_con_codigo_muerto(tmp_path, cuantos=2)
     _con_review(tmp_path)
     original = (zona / "modulo_0.py").read_text(encoding="utf-8")
-    informe = motor.trabajar(tmp_path, zona, verificacion=lambda: False, max_tareas=5)
+    informe = motor.trabajar(tmp_path, zona, verificacion=lambda raiz: False, max_tareas=5)
     assert informe["ejecutadas"] == 0
     assert informe["motivo_de_parada"] == "verificacion fallida"
     assert (zona / "modulo_0.py").read_text(encoding="utf-8") == original
@@ -358,7 +358,7 @@ def test_la_parada_deja_escrito_el_MOTIVO_EXACTO(tmp_path):
     justamente lo que el Protocolo de Continuidad existe para evitar."""
     zona = _plano_con_codigo_muerto(tmp_path, cuantos=1)
     _con_review(tmp_path)
-    motor.trabajar(tmp_path, zona, verificacion=lambda: False, max_tareas=5)
+    motor.trabajar(tmp_path, zona, verificacion=lambda raiz: False, max_tareas=5)
     paradas = [e["datos"] for e in cp.leer_eventos(tmp_path) if e["tipo"] == "ciclo_detenido"]
     assert paradas and paradas[-1].get("motivo") == "verificacion fallida"
     assert paradas[-1].get("detenida_en")
@@ -368,7 +368,7 @@ def test_el_limite_de_seguridad_acota_el_ciclo(tmp_path):
     """`§14`: ningún bucle sin cota. La autonomía no es correr sin freno."""
     zona = _plano_con_codigo_muerto(tmp_path, cuantos=4)
     _con_review(tmp_path)
-    informe = motor.trabajar(tmp_path, zona, verificacion=lambda: True, max_tareas=2)
+    informe = motor.trabajar(tmp_path, zona, verificacion=lambda raiz: True, max_tareas=2)
     assert informe["ejecutadas"] == 2
     assert informe["motivo_de_parada"] == "limite de seguridad"
 
@@ -379,7 +379,7 @@ def test_el_kill_switch_detiene_el_motor(tmp_path):
     zona = _plano_con_codigo_muerto(tmp_path, cuantos=2)
     _con_review(tmp_path)
     orq.ruta_parada(tmp_path).write_text("parada", encoding="utf-8")
-    informe = motor.trabajar(tmp_path, zona, verificacion=lambda: True, max_tareas=5)
+    informe = motor.trabajar(tmp_path, zona, verificacion=lambda raiz: True, max_tareas=5)
     assert informe["ejecutadas"] == 0
     assert informe["motivo_de_parada"] == "kill switch activado"
 
@@ -480,7 +480,7 @@ def test_SIN_REVISOR_CAPAZ_el_motor_espera_y_no_toca_nada(tmp_path, monkeypatch)
     _con_review(tmp_path)
     original = (zona / "modulo_0.py").read_text(encoding="utf-8")
     monkeypatch.setattr(review, "revisores_capaces", lambda: ())
-    informe = motor.trabajar(tmp_path, zona, verificacion=lambda: True, max_tareas=5)
+    informe = motor.trabajar(tmp_path, zona, verificacion=lambda raiz: True, max_tareas=5)
     assert informe["ejecutadas"] == 0
     assert informe["motivo_de_parada"] == "sin revisor capaz"
     assert (zona / "modulo_0.py").read_text(encoding="utf-8") == original
@@ -543,7 +543,7 @@ def test_los_actos_humanos_se_CUENTAN_no_se_declaran(tmp_path):
     corría entra en la cuenta. Se comprueba metiendo uno a propósito."""
     zona = _plano_con_codigo_muerto(tmp_path, cuantos=1)
     _con_review(tmp_path)
-    limpio = motor.trabajar(tmp_path, zona, verificacion=lambda: True, max_tareas=5)
+    limpio = motor.trabajar(tmp_path, zona, verificacion=lambda raiz: True, max_tareas=5)
     assert limpio["actos_humanos_durante_el_ciclo"] == 0
 
     zona2 = _plano_con_codigo_muerto(tmp_path / "otro", cuantos=1)
@@ -551,7 +551,7 @@ def test_los_actos_humanos_se_CUENTAN_no_se_declaran(tmp_path):
     cp.registrar_evento(tmp_path / "otro", "tarea_registrada",
                         {"id": "T-H", "accion": "ejecutar_pruebas"})
 
-    def con_intervencion():
+    def con_intervencion(raiz):
         cp.transicion(tmp_path / "otro", "T-H", "WORKING", autoridad="ceo", causa="el CEO interviene")
         return True
 
@@ -593,7 +593,7 @@ def test_los_actos_humanos_ANTERIORES_al_ciclo_no_cuentan(tmp_path):
     cp.transicion(tmp_path, "T-PREVIA", "WORKING", autoridad="ceo",
                   causa="el CEO hizo algo ANTES de que el motor arrancara")
 
-    informe = motor.trabajar(tmp_path, zona, verificacion=lambda: True, max_tareas=5)
+    informe = motor.trabajar(tmp_path, zona, verificacion=lambda raiz: True, max_tareas=5)
     assert informe["ejecutadas"] == 1
     assert informe["actos_humanos_durante_el_ciclo"] == 0, (
         "el acto humano es anterior al ciclo: contarlo haría que ningún ciclo pudiera dar 0")
@@ -619,3 +619,41 @@ def test_la_cola_ordena_riesgos_DISTINTOS(tmp_path):
                  _op("OP-medio", "medio: varios ficheros"), _op("OP-bajo", "bajo: reversible")]
     orden = [t["origen"] for t in plan.cola(tmp_path, revueltas)]
     assert orden == ["OP-ninguno", "OP-bajo", "OP-medio", "OP-alto"], orden
+
+
+# ============================================ EL TOPE DURO DE TAREAS --
+
+
+def _tope_registrado(directorio):
+    """El tope que el motor dejó escrito al arrancar. Se lee del historial, no se deduce."""
+    return [e for e in cp.leer_eventos(directorio) if e["tipo"] == "motor_iniciado"][-1]["datos"]["tope"]
+
+
+def test_el_TOPE_DURO_manda_sobre_lo_que_pida_el_llamante(tmp_path):
+    """RED el 2026-09-21: el mutante `BG-M4` sobrevivió — nada comprobaba `min(max_tareas, MAX_TAREAS)`.
+
+    `MAX_TAREAS` es la cota que impide que una petición grande convierta el ciclo en un bucle sin
+    fin. El propio módulo lo dice: *«un motor que decide cuándo parar por su cuenta es exactamente
+    el demonio que este DP no autoriza»*. Sin el `min`, bastaba pedir mil para tenerlo.
+
+    Se mide sobre el **evento** que el motor registra al arrancar, no sobre el número de vueltas:
+    el ciclo para antes por falta de trabajo, así que contar vueltas no distinguiría un tope de 25
+    de uno de 1000 — sería una prueba decorativa.
+    """
+    zona = tmp_path / "entorno" / "control-plane"
+    zona.mkdir(parents=True)
+
+    motor.trabajar(zona, zona, verificacion=lambda raiz: True, max_tareas=1000)
+
+    assert _tope_registrado(zona) == motor.MAX_TAREAS, (
+        f"el motor aceptó un tope de 1000: la cota dura {motor.MAX_TAREAS} no se aplicó")
+
+
+def test_CONTROL_una_peticion_PEQUENA_no_la_aplasta_el_tope(tmp_path):
+    """El caso de control. Sin él, la garantía se cumpliría devolviendo siempre `MAX_TAREAS`."""
+    zona = tmp_path / "entorno" / "control-plane"
+    zona.mkdir(parents=True)
+
+    motor.trabajar(zona, zona, verificacion=lambda raiz: True, max_tareas=3)
+
+    assert _tope_registrado(zona) == 3, "el tope duro aplastó una petición que cabía de sobra"

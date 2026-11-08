@@ -29,28 +29,39 @@ sustituir = '''        cacheado = self._foco_modelo.get(uid)
 id = "M3"
 garantia = "refutar vuelve a narrar exito sin efecto real (INV-9 / ALERTA-005 punto 4)"
 fichero = "aura_skeleton/core/orchestrator.py"
-buscar = '''            n = await self.modelo_usuario.refutar(uid, foco["contenido"])
+# RE-ANCLADO 2026-09-15 (DR-2): la refutacion paso a nombrar la entrada concreta (`refutar_entrada`) en
+# vez de su texto. La garantia es la MISMA: narrar exito sin comprobar que algo cambio.
+buscar = '''            n = await self.modelo_usuario.refutar_entrada(uid, foco)
             if n:
                 return "Entendido, lo corrijo. Dejo de darlo por cierto."
             return "No he encontrado eso para corregirlo."'''
-sustituir = '''            await self.modelo_usuario.refutar(uid, foco["contenido"])
+sustituir = '''            await self.modelo_usuario.refutar_entrada(uid, foco)
             return "Entendido, lo corrijo. Dejo de darlo por cierto."'''
 
 [[mutante]]
 id = "M4"
+# RE-ANCLADO 2026-09-15 (DR-2): el olvido nombra la entrada concreta (`olvidar_entrada`). Misma garantia.
 garantia = "la peticion de olvido ambigua deja de preguntar y pasa a actuar sobre lo que haya"
 fichero = "aura_skeleton/core/orchestrator.py"
 buscar = '''            if foco is None:
                 # ALERTA-006: antes se elegia `vivas[0]` y se confirmaba el borrado. Ante la duda se
                 # pregunta; destruir el dato equivocado no es soberania del usuario, es perdida.
                 return _DESAMBIGUAR
-            n = await self.modelo_usuario.borrar(uid, foco["contenido"])'''
-sustituir = '''            n = await self.modelo_usuario.borrar(uid, foco["contenido"]) if foco else 0'''
+            # DR-2: se olvida LA entrada señalada, no todo lo que contenga su texto.
+            n = await self.modelo_usuario.olvidar_entrada(uid, foco)'''
+sustituir = '''            n = await self.modelo_usuario.olvidar_entrada(uid, foco) if foco else 0'''
 
 [[mutante]]
 id = "M5"
 garantia = "el foco cacheado deja de validarse: puede apuntar a una entrada que ya no existe en el modelo"
 fichero = "aura_skeleton/core/orchestrator.py"
+# RE-ANCLADO 2026-09-15: la validacion del foco cacheado paso a exigir ademas VIGENCIA (auditoria
+# independiente: un «eso» caducado por una redeclaracion intermedia) y el `return` se partio en varias
+# lineas. La garantia es la MISMA: quitar la validacion entera y devolver el foco sin comprobar nada.
 buscar = '''        universo = vivas if existentes is None else existentes
-        return cacheado if any(x["contenido"] == cacheado["contenido"] for x in universo) else None'''
+        return (
+            cacheado
+            if any(x["contenido"] == cacheado["contenido"] and x.get("valid_until") is None for x in universo)
+            else None
+        )'''
 sustituir = '''        return cacheado'''

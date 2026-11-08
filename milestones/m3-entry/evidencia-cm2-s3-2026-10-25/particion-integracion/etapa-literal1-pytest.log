@@ -1,0 +1,12 @@
+
+    def test_nombre_por_me_llamo_se_pregunta_como_nombre():
+>       assert r.evaluar_sonda(H, [entrada("me llamo Mauricio")])["resultado"] == "vigente"
+E       AssertionError: assert 'sin_consulta' == 'vigente'
+E         
+E         - vigente
+E         + sin_consulta
+
+tests/unit/test_reloj_cm2.py:216: AssertionError
+=========================== short test summary info ============================
+FAILED tests/unit/test_reloj_cm2.py::test_nombre_por_me_llamo_se_pregunta_como_nombre
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!

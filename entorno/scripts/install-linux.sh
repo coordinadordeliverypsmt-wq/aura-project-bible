@@ -30,5 +30,14 @@ fi
 echo "==> 4/5 Descargar modelo LLM: $MODEL (~2-4 GB, la descarga mas grande)"
 ollama pull "$MODEL"
 
-echo "==> 5/5 Modelos STT/TTS se descargan al primer uso (faster-whisper base, voz Piper es)."
+# CORRECCION 2026-09-16: este paso anunciaba que los modelos de voz «se descargan al primer uso». Era
+# falso para Piper —la voz nunca se descargo sola, y por eso AURA estuvo muda— y ya no es cierto para
+# faster-whisper: el adaptador construye `WhisperModel(..., local_files_only=True)`, de modo que un modelo
+# ausente FALLA y se declara, en vez de salir a la red sin que nadie lo decida (D24 / ADR-0001).
+# Solo cambia el TEXTO: este paso nunca ejecuto ninguna descarga de voz.
+echo "==> 5/5 Modelos STT/TTS: NO se descargan aqui ni en el primer uso."
+echo "         Los artefactos de voz viven en el ENTORNO (ADR-0022) y hay que proveerlos:"
+echo "           - voz Piper: un .onnx y su .onnx.json juntos, declarados en AURA_PIPER_VOICE"
+echo "           - faster-whisper: en la cache que indique HF_HOME"
+echo "         Sin ellos AURA arranca igual, lo dice, y entrega los turnos solo en texto."
 echo "==> LISTO. Verifica con: bash $HERE/verify-stack.sh"

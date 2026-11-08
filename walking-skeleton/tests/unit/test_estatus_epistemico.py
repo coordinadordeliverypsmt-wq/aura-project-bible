@@ -312,6 +312,7 @@ def test_cada_ausencia_declarada_sigue_existiendo_en_el_codigo_que_la_produce():
     # no pueden quedar huerfanas: son la misma referencia. Solo se vigilan los literales copiados.
     por_referencia = {a for *_, a in O._CONSULTAS_DE_HECHO} | {
         O._SIN_PENDIENTES,
+        O._SIN_HECHOS_DECLARADOS,  # DR-1: constante devuelta por NOMBRE, como `_SIN_PENDIENTES`
         modelo_usuario.describir_conocimiento([]),
     }
     literales = O._AUSENCIAS_DEL_CORE - por_referencia

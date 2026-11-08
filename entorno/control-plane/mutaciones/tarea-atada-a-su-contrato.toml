@@ -1,0 +1,75 @@
+# TAREA ATADA A SU CONTRATO (CEO, 2026-09-20) — quinta puerta de `review.ejecutar_bajo_review`.
+#
+# Que se protege: que la escritura que se va a hacer sea la que el contrato citado autorizo, y no
+# solo que el VERBO este permitido. Las cuatro puertas anteriores miran quien puede escribir; esta
+# mira QUE se escribe.
+#
+# **El primer mutante es el del CABLEADO, y es el que mas importa.** Borra la llamada y deja la
+# funcion intacta: la barrera sigue escrita, documentada y probada como funcion pura, y no protege
+# nada. Es exactamente el mutante «la composicion no enciende las automatizaciones» que sobrevivio
+# una vez con 426 pruebas en verde, y era ALERTA-005 otra vez. Si este sobrevive, la garantia entera
+# es decorativa.
+#
+# Los tres siguientes degradan cada rama del fallo cerrado por separado. Uno solo que las tumbara
+# todas a la vez moriria con cualquier prueba y no diria nada de las otras dos.
+#
+# Como se ejecuta (nunca en paralelo con nada):
+#   cd walking-skeleton
+#   python3 -m herramientas.mutar ../entorno/control-plane/mutaciones/tarea-atada-a-su-contrato.toml \
+#           --raiz ../entorno/control-plane
+
+incremento = "TAREA ATADA A SU CONTRATO (CEO, 2026-09-20): quinta puerta antes de escribir"
+pruebas = ["test_red_tarea_atada_a_su_contrato.py"]
+timeout_s = 300
+
+
+[[mutante]]
+id = "TC-M1"
+garantia = "EL CABLEADO: la puerta esta ENCHUFADA. Sin la llamada, la comprobacion existe, esta probada como funcion pura y no protege nada"
+fichero = "review.py"
+pruebas = ["test_red_tarea_atada_a_su_contrato.py::test_una_tarea_que_NO_corresponde_a_su_contrato_no_llega_a_escribir",
+           "test_red_tarea_atada_a_su_contrato.py::test_una_tarea_sobre_OTRO_fichero_no_llega_a_escribir",
+           "test_red_tarea_atada_a_su_contrato.py::test_el_verbo_de_evolucion_SIN_contrato_no_pasa"]
+buscar = '''    contrato_declarado = _exigir_correspondencia_con_el_contrato(tarea, accion)'''
+sustituir = '''    contrato_declarado = None  # la puerta deja de consultarse'''
+
+
+[[mutante]]
+id = "TC-M2"
+garantia = "una tarea que NO corresponde a su contrato se rechaza: sin esto el contrato acota quien escribe pero no QUE escribe"
+fichero = "review.py"
+pruebas = ["test_red_tarea_atada_a_su_contrato.py::test_una_tarea_que_NO_corresponde_a_su_contrato_no_llega_a_escribir",
+           "test_red_tarea_atada_a_su_contrato.py::test_una_OPERACION_distinta_de_la_que_el_contrato_declara_no_pasa",
+           "test_red_tarea_atada_a_su_contrato.py::test_un_fichero_declarado_FUERA_DE_ALCANCE_no_pasa_aunque_este_en_modificables"]
+buscar = '''    if not ct.corresponde_tarea_a_contrato(tarea, declarado):'''
+sustituir = '''    if False:'''
+
+
+[[mutante]]
+id = "TC-M3"
+garantia = "citar un contrato INEXISTENTE no puede ser mas permisivo que no citar ninguno: inventarse un nombre seria la forma mas barata de saltarse la barrera"
+fichero = "review.py"
+pruebas = ["test_red_tarea_atada_a_su_contrato.py::test_un_contrato_que_NO_EXISTE_no_autoriza_nada"]
+buscar = '''    declarado = ct.contrato_de(identificador)
+    if declarado is None:'''
+sustituir = '''    declarado = ct.contrato_de(identificador) or {}
+    if False:'''
+
+
+[[mutante]]
+id = "TC-M4"
+garantia = "el verbo de evolucion SIN contrato se rechaza: ese verbo solo nace de un contrato, asi que su ausencia no es inocente"
+fichero = "review.py"
+pruebas = ["test_red_tarea_atada_a_su_contrato.py::test_el_verbo_de_evolucion_SIN_contrato_no_pasa"]
+buscar = '''        if accion == ACCION_DE_EVOLUCION:'''
+sustituir = '''        if False:'''
+
+
+[[mutante]]
+id = "TC-M5"
+garantia = "la barrera no puede convertirse en PARALISIS: el camino autorizado —y el codigo muerto, que no nace de contrato— siguen pasando"
+fichero = "review.py"
+pruebas = ["test_red_tarea_atada_a_su_contrato.py::test_CONTROL_tarea_correcta_y_contrato_correcto_SIGUE_ejecutandose",
+           "test_red_tarea_atada_a_su_contrato.py::test_CONTROL_el_codigo_muerto_sigue_sin_necesitar_contrato"]
+buscar = '''        return None                              # codigo muerto: legitimo sin contrato'''
+sustituir = '''        raise TareaSinContratoQueLaAutorice("toda tarea exige contrato")'''

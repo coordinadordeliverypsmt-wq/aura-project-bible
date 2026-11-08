@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import time
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
 
@@ -46,10 +46,16 @@ class EventBus(Protocol):
 #: o perder la traza. Ninguna de las dos es aceptable.
 HISTORICO = "historico"
 
-#: Los `kind` que `recall` NO puede devolver. Es una **lista negra de una sola entrada y un solo
-#: sitio**: si algun dia hay mas niveles no recuperables, se anaden aqui y las tres implementaciones
-#: de `MemoryStore` los heredan sin tocarse.
-KINDS_NO_RECUPERABLES = frozenset({HISTORICO})
+#: `kind` del REGISTRO DE RESULTADO DE ACCION (punto D, 2026-11-06): metadatos de esquema cerrado de lo que AURA
+#: hizo (`core/resultado_accion.py`). Episodico de accion, no un cuarto tipo de memoria. NO recuperable: solo se
+#: lee, a peticion del usuario, por `resultado_accion.leer`. NO es pasivo (ver `KINDS_PASIVOS`).
+RESULTADO_ACCION = "resultado_accion"
+
+#: Los `kind` que `recall` NO puede devolver. Es una **lista negra de un solo sitio**: si algun dia hay mas
+#: niveles no recuperables, se anaden aqui y las tres implementaciones de `MemoryStore` los heredan sin tocarse.
+#: **La exclusion de `RESULTADO_ACCION` es PERMANENTE** (una prueba la fija): la lista falla en abierto, asi que
+#: quitarlo de aqui volveria las acciones del usuario recuperables por similitud lexica.
+KINDS_NO_RECUPERABLES = frozenset({HISTORICO, RESULTADO_ACCION})
 
 
 #: **Qué es una ESCRITURA PASIVA** (decisión del CEO, 2026-09-09, D-A006-2, Opción B).
@@ -126,7 +132,14 @@ class Adapter(Protocol):
     """
 
     name: str
-    capabilities: list[str]
+
+    # `Sequence`, no `list`: los ejecutores declaran sus capacidades como TUPLA a proposito -son
+    # inmutables, y asi nadie puede ampliarlas en caliente-. El contrato pedia `list[str]`, de modo
+    # que mypy rechazaba a `EjecutorModeloUsuario` y `EjecutorReglas` pese a cumplir el contrato en
+    # ejecucion. Se amplia el tipo declarado a lo que el contrato siempre quiso decir: una secuencia
+    # de nombres que se lee, no que se muta. Cambio de TIPADO: no altera el comportamiento.
+    @property
+    def capabilities(self) -> Sequence[str]: ...
 
     async def execute(self, command: str, args: dict, trace_id: str, event_id: str) -> dict: ...
 

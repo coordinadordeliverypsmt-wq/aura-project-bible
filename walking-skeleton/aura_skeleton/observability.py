@@ -3,10 +3,16 @@ Los logs son dato del usuario (ADR-0001): en producción, locales y cifrados."""
 
 from __future__ import annotations
 
+import contextlib
+import errno
+import fcntl
 import json
 import os
+import re
+import stat
 import sys
 import time
+from collections.abc import Iterator
 
 _records: list[dict] = []
 
@@ -95,6 +101,96 @@ def audit_records() -> list[dict]:
     return [r for r in _records if r.get("audit")]
 
 
+class AuditBloqueado(OSError):
+    """El cerrojo del audit no se obtuvo dentro de `_ESPERA_CERROJO_S`. Fail-closed: el registro NO se
+    escribio y NO se descarta en silencio; el llamador decide (reintentar, abortar la accion)."""
+
+
+class ErrorEscrituraParcial(OSError):
+    """`os.write` acepto menos bytes de los pedidos (disco lleno, cuota). La linea no cuenta como escrita
+    y el `seq` no se consume; la cola parcial queda en disco y la cerrara el siguiente escritor."""
+
+
+# Espera maxima por el cerrojo del audit. Una seccion critica es un append (un write + fsync, ms) o, en
+# el peor caso, una rotacion de ~5 MB (releer el activo, sha256 y renombrar: decenas de ms). 5 s deja
+# margen de sobra a un escritor lento o a un disco ocupado sin que un poseedor colgado congele el
+# sistema: si se agota, `AuditBloqueado` en voz alta. Un poseedor muerto (SIGKILL) suelta el flock solo.
+_ESPERA_CERROJO_S = 5.0
+_PAUSA_CERROJO_S = 0.002  # entre reintentos de LOCK_NB
+
+_PATRON_SEGMENTO_FMT = r"\.(\d{12})-(\d{12})"
+
+
+def _dir_de(path: str) -> str:
+    return os.path.dirname(path) or "."
+
+
+@contextlib.contextmanager
+def _cerrojo(path: str, modo: int, banderas: int = os.O_RDWR | os.O_CREAT) -> Iterator[None]:
+    """flock sobre `<audit>.lock` (fichero propio, 0600, NUNCA renombrado ni borrado: el activo se
+    renombra al rotar y un flock sobre el no excluiria a nadie). Un fd NUEVO por adquisicion: flock entre
+    fds distintos se excluye tambien dentro del mismo proceso. Espera acotada; al agotarse, AuditBloqueado.
+    `banderas` por defecto CREA el lock (escritores); los lectores lo abren sin O_CREAT."""
+    # O_NOFOLLOW: un symlink plantado como `.lock` no se sigue (ELOOP); y solo vale un fichero regular.
+    fd = os.open(path + ".lock", banderas | os.O_NOFOLLOW, 0o600)
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise OSError(errno.ELOOP, f"el cerrojo no es un fichero regular: {path}.lock")
+        limite = time.monotonic() + _ESPERA_CERROJO_S
+        while True:
+            try:
+                fcntl.flock(fd, modo | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= limite:
+                    raise AuditBloqueado(f"cerrojo del audit ocupado tras {_ESPERA_CERROJO_S}s: {path}.lock") from None
+                time.sleep(_PAUSA_CERROJO_S)
+        try:
+            yield
+        finally:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+    finally:
+        os.close(fd)
+
+
+@contextlib.contextmanager
+def _cerrojo_lectura(path: str) -> Iterator[None]:
+    """LOCK_SH para los lectores publicos. Los lectores NUNCA crean el `.lock` (ni el directorio): se
+    abre con O_RDONLY, sin O_CREAT. Si no existe (nadie ha escrito aun), no hay escritor que excluir y se
+    lee sin cerrojo; igual si no hay permiso.
+
+    Ventana residual aceptada: un primer escritor puede crear el lock y escribir mientras un lector, que
+    no lo encontro, lee sin cerrojo. Es el mismo estado que veia el lector antes de existir el audit
+    (cola a lo sumo parcial, que `_leer_fichero` ya descarta) y no hay sellado que ver a medias, porque
+    el primer sellado exige una escritura previa; el lector siguiente ya abrira el lock y excluira."""
+    if not os.path.isdir(_dir_de(path)):
+        yield
+        return
+    try:
+        cm = _cerrojo(path, fcntl.LOCK_SH, banderas=os.O_RDONLY)
+        cm.__enter__()
+    except (FileNotFoundError, PermissionError):
+        yield
+        return
+    except OSError as e:
+        if e.errno != errno.ELOOP:  # symlink / no regular en lugar del lock: se lee sin cerrojo
+            raise
+        yield
+        return
+    try:
+        yield
+    finally:
+        cm.__exit__(None, None, None)
+
+
+def _fsync_dir(directorio: str) -> None:
+    fd = os.open(directorio, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
 class AuditLog:
     """Registro de auditoria PERSISTENTE e INMUTABLE (H2, M2.0; D9). Rotacion por archivo (MA.3).
 
@@ -113,6 +209,14 @@ class AuditLog:
     rotacion no borra registros; el borrado solo existe a peticion del usuario (Bible 5.5). El historial
     completo se reconstruye con el activo + los segmentos. Cada registro lleva un `seq` monotonico:
     identificador estable para que los conectores de senales resuman sin perder ni reprocesar tras rotar.
+
+    **Varios escritores (DP-RESIDENCIA-MEDICION-CM2, Fase 1).** Varios procesos pueden compartir el
+    mismo audit. Todo lo que escribe o rota va bajo `flock(LOCK_EX)` de `<audit>.lock`; los lectores
+    publicos, bajo `LOCK_SH`. El `seq` se asigna DENTRO del cerrojo (cache validada por inodo+tamano; si
+    otro escribio, se relee). Una cola sin salto de linea se CIERRA (nunca se recorta) y se deja constancia; el
+    sellado no trunca nunca y un segmento huerfano (corte entre renombrar y anotar) se reconcilia.
+    Limites declarados: flock es CONSULTIVO (solo excluye a quien lo toma) y en NFS su semantica depende
+    del montaje; el audit debe vivir en un sistema de ficheros local.
     """
 
     _UMBRAL_BYTES = 5_000_000  # 5 MB por defecto; los arneses/pruebas lo bajan para forzar rotacion
@@ -120,57 +224,203 @@ class AuditLog:
     def __init__(self, path: str, umbral_bytes: int | None = None) -> None:
         self._path = path
         self._umbral = umbral_bytes if umbral_bytes is not None else self._UMBRAL_BYTES
+        # Cache de seq: (ultimo seq escrito por MI, inodo, tamano del activo justo despues). Solo vale si
+        # el activo sigue siendo exactamente ese; si no, alguien mas escribio o roto y se relee.
+        self._cache: tuple[int, int, int] | None = None
+        self._seq = 0
         d = os.path.dirname(path)
         if d:
             os.makedirs(d, exist_ok=True)
-        self._seq = _max_seq(path)  # el proximo append usa +1; monotonico entre reinicios
+        # Perezoso: sin nada que reconciliar, construir no deja NINGUN efecto en disco (ni `.lock`); el
+        # cerrojo se crea en la primera escritura y el seq se calcula bajo el en el primer append.
+        self._rechazados: set[str] = set()  # constancia de rechazo: una vez por arranque
+        if _candidatos_huerfanos(path):
+            with _cerrojo(path, fcntl.LOCK_EX):
+                self._cerrar_cola_truncada()  # antes de cualquier constancia: no fusionarla con una cola parcial
+                self._reconciliar_huerfanos()  # vuelve a comprobar ya bajo el cerrojo
 
     @property
     def path(self) -> str:
         return self._path
 
     def append(self, record: dict) -> None:
-        self._seq += 1
-        linea = json.dumps({**record, "ts": time.time(), "seq": self._seq}, ensure_ascii=False)
-        with open(self._path, "a", encoding="utf-8") as f:
-            f.write(linea + "\n")
-            f.flush()
-            os.fsync(f.fileno())
-        if os.path.getsize(self._path) >= self._umbral:
-            self._sellar()
+        with _cerrojo(self._path, fcntl.LOCK_EX):
+            self._cerrar_cola_truncada()
+            self._escribir_registro(record)
+            if os.path.getsize(self._path) >= self._umbral:
+                self._sellar()
 
-    def _sellar(self) -> None:
-        """Sella el fichero activo en un segmento inmutable con integridad. NO borra nada (D9)."""
-        registros = _leer_fichero(self._path)
-        if not registros:
+    # --- Todo lo de abajo se llama SIEMPRE con LOCK_EX tomado y NO toma cerrojo (sin reentrada) ---
+
+    def _siguiente_seq(self) -> int:
+        try:
+            st = os.stat(self._path)
+            ino, size = st.st_ino, st.st_size
+        except FileNotFoundError:
+            ino, size = -1, 0
+        if self._cache is not None and self._cache[1] == ino and self._cache[2] == size:
+            self._seq = self._cache[0]
+        else:
+            self._seq = _max_seq(self._path)
+        return self._seq + 1
+
+    def _anexar_bytes(self, datos: bytes) -> os.stat_result:
+        """UN write O_APPEND + fsync (+ fsync del directorio si el fichero se acaba de crear)."""
+        existia = os.path.exists(self._path)
+        fd = os.open(self._path, os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        try:
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                raise OSError(errno.ELOOP, f"el audit activo no es un fichero regular: {self._path}")
+            escritos = os.write(fd, datos)
+            if escritos != len(datos):
+                raise ErrorEscrituraParcial(f"escritura parcial en {self._path}: {escritos}/{len(datos)} bytes")
+            os.fsync(fd)
+            st = os.fstat(fd)
+        finally:
+            os.close(fd)
+        if not existia:
+            _fsync_dir(_dir_de(self._path))
+        return st
+
+    def _escribir_registro(self, record: dict) -> None:
+        seq = self._siguiente_seq()
+        linea = json.dumps({**record, "ts": time.time(), "seq": seq}, ensure_ascii=False) + "\n"
+        st = self._anexar_bytes(linea.encode("utf-8"))
+        self._seq = seq  # solo si la escritura NO fallo: un append fallido no consume seq
+        self._cache = (seq, st.st_ino, st.st_size)
+
+    def _cerrar_cola_truncada(self) -> None:
+        """Si el activo no acaba en salto de linea (corte a media escritura), lo cierra. Append-only:
+        no se borra ni recorta ningun byte; la linea parcial queda como ilegible, que los lectores ya
+        ignoran, y el evento siguiente deja de fusionarse con ella."""
+        try:
+            with open(self._path, "rb") as f:
+                f.seek(0, os.SEEK_END)
+                if f.tell() == 0:
+                    return
+                f.seek(-1, os.SEEK_END)
+                if f.read(1) == b"\n":
+                    return
+        except FileNotFoundError:
             return
-        seq_ini, seq_fin = registros[0].get("seq", 0), registros[-1].get("seq", 0)
-        nombre = f"{os.path.basename(self._path)}.{seq_ini:012d}-{seq_fin:012d}"
-        destino = os.path.join(os.path.dirname(self._path) or ".", nombre)
-        os.replace(self._path, destino)  # sellar = renombrar (atomico)
+        self._anexar_bytes(b"\n")
+        self._escribir_registro(
+            {
+                "level": "WARN",
+                "module": "AUDIT",
+                "msg": "linea parcial cerrada",
+                "trace_id": "-",
+                "audit": True,
+                "evento": "audit.linea_parcial_cerrada",
+            }
+        )
+
+    def _anotar_segmento(self, nombre: str, registros: list[dict]) -> dict:
+        """Anexa la entrada del manifiesto (mismas claves de siempre) con fsync. Devuelve la entrada."""
+        seqs = [r.get("seq", 0) for r in registros]
         entrada = {
             "segmento": nombre,
-            "sha256": _sha256_file(destino),
-            "seq_ini": seq_ini,
-            "seq_fin": seq_fin,
+            "sha256": _sha256_file(os.path.join(_dir_de(self._path), nombre)),
+            "seq_ini": min(seqs),
+            "seq_fin": max(seqs),
             "registros": len(registros),
             "ts_sellado": time.time(),
         }
-        with open(_manifiesto(self._path), "a", encoding="utf-8") as mf:
-            mf.write(json.dumps(entrada) + "\n")
-            mf.flush()
-            os.fsync(mf.fileno())
-        open(self._path, "w").close()  # nuevo fichero activo, vacio
+        manifiesto = _manifiesto(self._path)
+        # Una anotacion previa cortada (escritura parcial) deja el manifiesto sin salto final: la cola se
+        # CIERRA en el mismo write (append-only, como el activo). Sin ello la entrada nueva se fusionaria con
+        # el fragmento y seria ilegible: segmento invisible con constancia de exito falsa.
+        cola_abierta = _cola_sin_salto(manifiesto)
+        datos = (b"\n" if cola_abierta else b"") + (json.dumps(entrada) + "\n").encode("utf-8")
+        fd = os.open(manifiesto, os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        try:
+            if os.write(fd, datos) != len(datos):
+                raise ErrorEscrituraParcial(f"escritura parcial en {manifiesto}")
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        if cola_abierta:
+            self._escribir_registro(
+                {
+                    "level": "WARN",
+                    "module": "AUDIT",
+                    "msg": "linea parcial cerrada",
+                    "trace_id": "-",
+                    "audit": True,
+                    "evento": "audit.linea_parcial_cerrada",
+                    "fichero": os.path.basename(manifiesto),
+                }
+            )
+        return entrada
+
+    def _reconciliar_huerfanos(self) -> None:
+        """Un segmento con nombre de segmento que no figura en el manifiesto es un sellado cortado entre
+        renombrar y anotar: se anota (sus eventos siguen en disco) y se deja constancia. Solo se anota el
+        que `_huerfanos_validos` acepta; los rechazados dejan constancia una vez por arranque. Limitacion
+        declarada: un huerfano sin registros legibles no se anota (no hay seq que proteger)."""
+        directorio = _dir_de(self._path)
+        validos, rechazados = _huerfanos_validos(self._path)
+        for nombre, motivo in rechazados:
+            if nombre in self._rechazados:
+                continue
+            self._rechazados.add(nombre)
+            self._escribir_registro(
+                {
+                    "level": "WARN",
+                    "module": "AUDIT",
+                    "msg": "segmento huerfano rechazado",
+                    "trace_id": "-",
+                    "audit": True,
+                    "evento": "audit.segmento_rechazado",
+                    "segmento": nombre,
+                    "motivo": motivo,
+                }
+            )
+        for nombre, registros in validos:
+            entrada = self._anotar_segmento(nombre, registros)
+            _fsync_dir(directorio)
+            self._escribir_registro(
+                {
+                    "level": "WARN",
+                    "module": "AUDIT",
+                    "msg": "segmento reconciliado",
+                    "trace_id": "-",
+                    "audit": True,
+                    "evento": "audit.segmento_reconciliado",
+                    "segmento": nombre,
+                    "sha256": entrada["sha256"],
+                    "seq_ini": entrada["seq_ini"],
+                    "seq_fin": entrada["seq_fin"],
+                }
+            )
+
+    def _sellar(self) -> None:
+        """Sella el fichero activo en un segmento inmutable con integridad. NO borra ni trunca nada (D9).
+        Orden: renombrar -> manifiesto (+fsync) -> fsync del directorio. Si se corta entre medias, la
+        reconciliacion del siguiente arranque anota el segmento. Llamado ya bajo LOCK_EX."""
+        self._reconciliar_huerfanos()
+        registros = _leer_fichero(self._path)
+        if not registros:
+            return
+        seqs = [r.get("seq", 0) for r in registros]
+        nombre = f"{os.path.basename(self._path)}.{min(seqs):012d}-{max(seqs):012d}"
+        os.replace(self._path, os.path.join(_dir_de(self._path), nombre))  # sellar = renombrar (atomico)
+        self._anotar_segmento(nombre, registros)
+        _fsync_dir(_dir_de(self._path))
+        self._cache = None  # no hay activo: el siguiente append relee (otro pudo escribir despues)
 
     def segmentos(self) -> list[dict]:
         """Segmentos sellados, leidos del manifiesto (en orden de sellado)."""
-        return _leer_fichero(_manifiesto(self._path))
+        with _cerrojo_lectura(self._path):
+            return _leer_fichero(_manifiesto(self._path))
 
     def verificar(self, nombre_segmento: str) -> bool:
         """Integridad de un segmento: su sha256 actual == el anotado en el manifiesto."""
-        esperado = next((s["sha256"] for s in self.segmentos() if s["segmento"] == nombre_segmento), None)
-        ruta = os.path.join(os.path.dirname(self._path) or ".", nombre_segmento)
-        return esperado is not None and os.path.exists(ruta) and _sha256_file(ruta) == esperado
+        with _cerrojo_lectura(self._path):
+            manifiesto = _leer_fichero(_manifiesto(self._path))
+            esperado = next((s["sha256"] for s in manifiesto if s["segmento"] == nombre_segmento), None)
+            ruta = os.path.join(_dir_de(self._path), nombre_segmento)
+            return esperado is not None and os.path.exists(ruta) and _sha256_file(ruta) == esperado
 
     def reconstruir(self) -> list[dict]:
         """Historial COMPLETO (D9): segmentos + activo, ordenado por seq, sin huecos ni duplicados."""
@@ -206,9 +456,68 @@ def _leer_fichero(path: str) -> list[dict]:
     return out
 
 
+def _cola_sin_salto(path: str) -> bool:
+    """True si `path` existe, no esta vacio y su ultimo byte no es un salto de linea (escritura cortada)."""
+    try:
+        with open(path, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            if f.tell() == 0:
+                return False
+            f.seek(-1, os.SEEK_END)
+            return f.read(1) != b"\n"
+    except FileNotFoundError:
+        return False
+
+
+def _candidatos_huerfanos(path: str) -> list[str]:
+    """Nombres con forma de segmento que el manifiesto no anota (sin cerrojo: solo lista, no valida)."""
+    patron = re.escape(os.path.basename(path)) + _PATRON_SEGMENTO_FMT
+    anotados = {s.get("segmento") for s in _leer_fichero(_manifiesto(path))}
+    try:
+        nombres = sorted(os.listdir(_dir_de(path)))
+    except FileNotFoundError:
+        return []
+    return [n for n in nombres if n not in anotados and re.fullmatch(patron, n)]
+
+
+def _huerfanos_validos(path: str) -> tuple[list[tuple[str, list[dict]]], list[tuple[str, str]]]:
+    """(validos, rechazados) entre los candidatos a huerfano. Valido = fichero regular (lstat, no symlink)
+    del uid propio cuyo rango de seq del NOMBRE coincide con el min/max del CONTENIDO. Un fichero sin
+    registros legibles se ignora (ni valido ni rechazado). NO se exige contiguidad con el ultimo seq: el
+    historico real puede traer duplicados previos y no es mision de la reconciliacion juzgarlos."""
+    validos: list[tuple[str, list[dict]]] = []
+    rechazados: list[tuple[str, str]] = []
+    patron = re.escape(os.path.basename(path)) + _PATRON_SEGMENTO_FMT
+    for nombre in _candidatos_huerfanos(path):
+        ruta = os.path.join(_dir_de(path), nombre)
+        try:
+            st = os.lstat(ruta)
+        except FileNotFoundError:
+            continue
+        if not stat.S_ISREG(st.st_mode):
+            rechazados.append((nombre, "no es un fichero regular (symlink u otro)"))
+            continue
+        if st.st_uid != os.getuid():
+            rechazados.append((nombre, "pertenece a otro uid"))
+            continue
+        registros = _leer_fichero(ruta)
+        if not registros:
+            continue
+        seqs = [r.get("seq", 0) for r in registros]
+        m = re.fullmatch(patron, nombre)
+        if m is None or (int(m.group(1)), int(m.group(2))) != (min(seqs), max(seqs)):
+            rechazados.append((nombre, "el rango del nombre no coincide con los seq del contenido"))
+            continue
+        validos.append((nombre, registros))
+    return validos, rechazados
+
+
 def _max_seq(path: str) -> int:
-    """Mayor seq presente (segmentos + activo); 0 si no hay ninguno."""
+    """Mayor seq presente (segmentos + activo + huerfanos validos aun sin anotar); 0 si no hay ninguno.
+    Los huerfanos cuentan: si otro escritor murio entre renombrar y anotar, su seq NO puede reutilizarse."""
     m = 0
+    for _nombre, registros in _huerfanos_validos(path)[0]:
+        m = max(m, *(r.get("seq", 0) for r in registros))
     for s in _leer_fichero(_manifiesto(path)):
         m = max(m, s.get("seq_fin", 0))
     for r in _leer_fichero(path):
@@ -220,15 +529,17 @@ def leer_audit_desde(path: str, seq: int) -> list[dict]:
     """Registros del audit log con seq > `seq`, de los segmentos + el activo, ordenados por seq.
 
     Robusto a rotacion: recorre los segmentos cuyo rango aun contiene seqs mayores que el cursor, mas
-    el fichero activo. Asi, un evento sellado en un segmento entre dos recogidas no se pierde.
+    el fichero activo. Asi, un evento sellado en un segmento entre dos recogidas no se pierde. Bajo
+    LOCK_SH: no ve un sellado a medias (activo ya renombrado y manifiesto sin anotar).
     """
     registros: list[dict] = []
-    for s in _leer_fichero(_manifiesto(path)):
-        if s.get("seq_fin", 0) <= seq:
-            continue  # segmento enteramente por debajo del cursor: ya procesado
-        ruta = os.path.join(os.path.dirname(path) or ".", s["segmento"])
-        registros += _leer_fichero(ruta)
-    registros += _leer_fichero(path)
+    with _cerrojo_lectura(path):
+        for s in _leer_fichero(_manifiesto(path)):
+            if s.get("seq_fin", 0) <= seq:
+                continue  # segmento enteramente por debajo del cursor: ya procesado
+            ruta = os.path.join(os.path.dirname(path) or ".", s["segmento"])
+            registros += _leer_fichero(ruta)
+        registros += _leer_fichero(path)
     return sorted((r for r in registros if r.get("seq", 0) > seq), key=lambda r: r.get("seq", 0))
 
 

@@ -1,0 +1,226 @@
+{
+ "resumen": {
+  "modo": "rapido",
+  "turnos": 24,
+  "validos": 8,
+  "p50_validos_ms": 995.0,
+  "p95_validos_ms": 5914.499999999996,
+  "p50_todos_ms(fallo=inf)": Infinity,
+  "correctas": 0,
+  "preguntas": 5
+ },
+ "turnos": [
+  {
+   "n": 0,
+   "persona": "Me llamo Mauricio.",
+   "aura_dijo": "Entendido.",
+   "oido": "tú (oído)> me llamo sobre eso",
+   "valido": true,
+   "lat_ms": 1540,
+   "fin_habla_a_texto_ms": 1258,
+   "texto_a_sonido_ms": 278,
+   "ruido": 454,
+   "umbral": 2268,
+   "motivo": "",
+   "correcta": null
+  },
+  {
+   "n": 1,
+   "persona": "¿Cómo me llamo?",
+   "aura_dijo": "(consultando mi modelo local; puede tardar varios minutos…)",
+   "oido": "tú (oído)> home y hago",
+   "valido": false,
+   "motivo": "no se detectó respuesta",
+   "ruido": 395.01348876953125,
+   "correcta": false
+  },
+  {
+   "n": 2,
+   "persona": "Mi color favorito es el verde.",
+   "valido": false,
+   "motivo": "la palabra de activación no despertó a AURA"
+  },
+  {
+   "n": 3,
+   "persona": "¿Cuál es mi color favorito?",
+   "valido": false,
+   "motivo": "la palabra de activación no despertó a AURA"
+  },
+  {
+   "n": 4,
+   "persona": "Me llamo Mauricio.",
+   "valido": false,
+   "motivo": "la palabra de activación no despertó a AURA"
+  },
+  {
+   "n": 5,
+   "persona": "¿Cómo me llamo?",
+   "valido": false,
+   "motivo": "la palabra de activación no despertó a AURA"
+  },
+  {
+   "n": 6,
+   "persona": "Mi color favorito es el verde.",
+   "valido": false,
+   "motivo": "la palabra de activación no despertó a AURA"
+  },
+  {
+   "n": 7,
+   "persona": "¿Cuál es mi color favorito?",
+   "valido": false,
+   "motivo": "la palabra de activación no despertó a AURA"
+  },
+  {
+   "n": 8,
+   "persona": "Me llamo Mauricio.",
+   "valido": false,
+   "motivo": "la palabra de activación no despertó a AURA"
+  },
+  {
+   "n": 9,
+   "persona": "¿Cómo me llamo?",
+   "valido": false,
+   "motivo": "la palabra de activación no despertó a AURA"
+  },
+  {
+   "n": 10,
+   "persona": "Mi color favorito es el verde.",
+   "valido": false,
+   "motivo": "la palabra de activación no despertó a AURA"
+  },
+  {
+   "n": 11,
+   "persona": "¿Cuál es mi color favorito?",
+   "aura_dijo": "No tengo ningun recuerdo registrado sobre eso.",
+   "oido": "tú (oído)> cuál es",
+   "valido": true,
+   "lat_ms": 280,
+   "fin_habla_a_texto_ms": -743,
+   "texto_a_sonido_ms": 1031,
+   "ruido": 463,
+   "umbral": 2316,
+   "motivo": "",
+   "correcta": false
+  },
+  {
+   "n": 12,
+   "persona": "Me llamo Mauricio.",
+   "aura_dijo": "Entendido.",
+   "oido": "tú (oído)> me llamo amor eso",
+   "valido": true,
+   "lat_ms": 1200,
+   "fin_habla_a_texto_ms": 545,
+   "texto_a_sonido_ms": 650,
+   "ruido": 469,
+   "umbral": 2345,
+   "motivo": "",
+   "correcta": null
+  },
+  {
+   "n": 13,
+   "persona": "¿Cómo me llamo?",
+   "aura_dijo": "Te llamas amor eso.",
+   "oido": "tú (oído)> como me llamo",
+   "valido": true,
+   "lat_ms": 790,
+   "fin_habla_a_texto_ms": 594,
+   "texto_a_sonido_ms": 184,
+   "ruido": 417,
+   "umbral": 2083,
+   "motivo": "",
+   "correcta": false
+  },
+  {
+   "n": 14,
+   "persona": "Mi color favorito es el verde.",
+   "aura_dijo": "Entendido.",
+   "oido": "tú (oído)> mi color favorito es el verde",
+   "valido": true,
+   "lat_ms": 650,
+   "fin_habla_a_texto_ms": 525,
+   "texto_a_sonido_ms": 116,
+   "ruido": 440,
+   "umbral": 2201,
+   "motivo": "",
+   "correcta": null
+  },
+  {
+   "n": 15,
+   "persona": "¿Cuál es mi color favorito?",
+   "aura_dijo": "No tengo ningun recuerdo registrado sobre eso.",
+   "oido": "tú (oído)> cuál es",
+   "valido": true,
+   "lat_ms": 400,
+   "fin_habla_a_texto_ms": -624,
+   "texto_a_sonido_ms": 1013,
+   "ruido": 440,
+   "umbral": 2202,
+   "motivo": "",
+   "correcta": false
+  },
+  {
+   "n": 16,
+   "persona": "Me llamo Mauricio.",
+   "aura_dijo": "Entendido.",
+   "oido": "tú (oído)> me llamo amor eso",
+   "valido": true,
+   "lat_ms": 1380,
+   "fin_habla_a_texto_ms": 719,
+   "texto_a_sonido_ms": 666,
+   "ruido": 467,
+   "umbral": 2335,
+   "motivo": "",
+   "correcta": null
+  },
+  {
+   "n": 17,
+   "persona": "¿Cómo me llamo?",
+   "aura_dijo": "(consultando mi modelo local; puede tardar varios minutos…)",
+   "oido": "tú (oído)> me hago",
+   "valido": true,
+   "lat_ms": 8270,
+   "fin_habla_a_texto_ms": 4571,
+   "texto_a_sonido_ms": 3680,
+   "ruido": 440,
+   "umbral": 2199,
+   "motivo": "",
+   "correcta": false
+  },
+  {
+   "n": 18,
+   "persona": "Mi color favorito es el verde.",
+   "valido": false,
+   "motivo": "la palabra de activación no despertó a AURA"
+  },
+  {
+   "n": 19,
+   "persona": "¿Cuál es mi color favorito?",
+   "valido": false,
+   "motivo": "la palabra de activación no despertó a AURA"
+  },
+  {
+   "n": 20,
+   "persona": "Me llamo Mauricio.",
+   "valido": false,
+   "motivo": "la palabra de activación no despertó a AURA"
+  },
+  {
+   "n": 21,
+   "persona": "¿Cómo me llamo?",
+   "valido": false,
+   "motivo": "la palabra de activación no despertó a AURA"
+  },
+  {
+   "n": 22,
+   "persona": "Mi color favorito es el verde.",
+   "valido": false,
+   "motivo": "la palabra de activación no despertó a AURA"
+  },
+  {
+   "n": 23,
+   "persona": "¿Cuál es mi color favorito?",
+   "valido": false,
+   "motivo": "la palabra de activación no despertó a AURA"
+  }
+ ]
+}

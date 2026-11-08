@@ -1,0 +1,172 @@
+## receptor aura-receptor-nodos.service  [python -m aura_skeleton --receptor-nodos]
+   cierre completo (incl. imports perezosos): 85 ficheros | solo eager desde entry (1 nivel de profundidad no recursivo-perezoso): 70
+    M walking-skeleton/aura_skeleton/__main__.py
+   ?? walking-skeleton/aura_skeleton/adapters/audio_rtsp.py   [perezoso/transitivo]
+   ?? walking-skeleton/aura_skeleton/adapters/camara_pyav.py   [perezoso/transitivo]
+   ?? walking-skeleton/aura_skeleton/adapters/detector_hardware.py
+   ?? walking-skeleton/aura_skeleton/adapters/escucha.py   [perezoso/transitivo]
+    M walking-skeleton/aura_skeleton/adapters/estado_autonomo_cp.py
+    M walking-skeleton/aura_skeleton/adapters/home_assistant.py
+   ?? walking-skeleton/aura_skeleton/adapters/home_assistant_real.py   [perezoso/transitivo]
+   ?? walking-skeleton/aura_skeleton/adapters/microfono.py   [perezoso/transitivo]
+   ?? walking-skeleton/aura_skeleton/adapters/receptor_nodos.py
+   ?? walking-skeleton/aura_skeleton/adapters/red_local.py   [perezoso/transitivo]
+   ?? walking-skeleton/aura_skeleton/adapters/tts_espeak.py
+   ?? walking-skeleton/aura_skeleton/adapters/vision_local.py   [perezoso/transitivo]
+    M walking-skeleton/aura_skeleton/adapters/voice.py
+    M walking-skeleton/aura_skeleton/adapters/voice_real.py
+    M walking-skeleton/aura_skeleton/bus_nats.py
+    M walking-skeleton/aura_skeleton/composicion.py
+    M walking-skeleton/aura_skeleton/conectores/conversacion.py
+    M walking-skeleton/aura_skeleton/contracts.py
+    M walking-skeleton/aura_skeleton/core/almacen_senales.py
+    M walking-skeleton/aura_skeleton/core/aritmetica.py
+    M walking-skeleton/aura_skeleton/core/autorizacion.py
+   ?? walking-skeleton/aura_skeleton/core/contexto_memoria.py
+    M walking-skeleton/aura_skeleton/core/decisiones.py
+    M walking-skeleton/aura_skeleton/core/ejecutor_modelo_usuario.py
+    M walking-skeleton/aura_skeleton/core/ejecutor_reglas.py
+   ?? walking-skeleton/aura_skeleton/core/entorno.py
+    M walking-skeleton/aura_skeleton/core/estado_autonomo.py
+   ?? walking-skeleton/aura_skeleton/core/hogar.py
+    M walking-skeleton/aura_skeleton/core/identidad_memoria.py
+    M walking-skeleton/aura_skeleton/core/intencion.py
+    M walking-skeleton/aura_skeleton/core/modelo_usuario.py
+   ?? walking-skeleton/aura_skeleton/core/nodos.py
+    M walking-skeleton/aura_skeleton/core/notificaciones.py
+    M walking-skeleton/aura_skeleton/core/orchestrator.py
+   ?? walking-skeleton/aura_skeleton/core/ordenes.py
+   ?? walking-skeleton/aura_skeleton/core/percepcion.py
+    M walking-skeleton/aura_skeleton/core/permissions.py
+   ?? walking-skeleton/aura_skeleton/core/politica_superficie.py   [perezoso/transitivo]
+   ?? walking-skeleton/aura_skeleton/core/recuperacion.py
+    M walking-skeleton/aura_skeleton/core/reglas.py
+   ?? walking-skeleton/aura_skeleton/core/reloj_cm2.py   [perezoso/transitivo]
+   ?? walking-skeleton/aura_skeleton/core/sujeto.py
+    M walking-skeleton/aura_skeleton/modules/memory.py
+    M walking-skeleton/aura_skeleton/modules/providers_real.py
+    M walking-skeleton/aura_skeleton/modules/router.py
+## cron CM2 aura-medir-cm2.sh  [python -m aura_skeleton --medir-cm2]
+   cierre completo (incl. imports perezosos): 85 ficheros | solo eager desde entry (1 nivel de profundidad no recursivo-perezoso): 70
+    M walking-skeleton/aura_skeleton/__main__.py
+   ?? walking-skeleton/aura_skeleton/adapters/audio_rtsp.py   [perezoso/transitivo]
+   ?? walking-skeleton/aura_skeleton/adapters/camara_pyav.py   [perezoso/transitivo]
+   ?? walking-skeleton/aura_skeleton/adapters/detector_hardware.py
+   ?? walking-skeleton/aura_skeleton/adapters/escucha.py   [perezoso/transitivo]
+    M walking-skeleton/aura_skeleton/adapters/estado_autonomo_cp.py
+    M walking-skeleton/aura_skeleton/adapters/home_assistant.py
+   ?? walking-skeleton/aura_skeleton/adapters/home_assistant_real.py   [perezoso/transitivo]
+   ?? walking-skeleton/aura_skeleton/adapters/microfono.py   [perezoso/transitivo]
+   ?? walking-skeleton/aura_skeleton/adapters/receptor_nodos.py
+   ?? walking-skeleton/aura_skeleton/adapters/red_local.py   [perezoso/transitivo]
+   ?? walking-skeleton/aura_skeleton/adapters/tts_espeak.py
+   ?? walking-skeleton/aura_skeleton/adapters/vision_local.py   [perezoso/transitivo]
+    M walking-skeleton/aura_skeleton/adapters/voice.py
+    M walking-skeleton/aura_skeleton/adapters/voice_real.py
+    M walking-skeleton/aura_skeleton/bus_nats.py   [perezoso/transitivo]
+    M walking-skeleton/aura_skeleton/composicion.py
+    M walking-skeleton/aura_skeleton/conectores/conversacion.py
+    M walking-skeleton/aura_skeleton/contracts.py
+    M walking-skeleton/aura_skeleton/core/almacen_senales.py
+    M walking-skeleton/aura_skeleton/core/aritmetica.py
+    M walking-skeleton/aura_skeleton/core/autorizacion.py
+   ?? walking-skeleton/aura_skeleton/core/contexto_memoria.py
+    M walking-skeleton/aura_skeleton/core/decisiones.py
+    M walking-skeleton/aura_skeleton/core/ejecutor_modelo_usuario.py
+    M walking-skeleton/aura_skeleton/core/ejecutor_reglas.py
+   ?? walking-skeleton/aura_skeleton/core/entorno.py
+    M walking-skeleton/aura_skeleton/core/estado_autonomo.py
+   ?? walking-skeleton/aura_skeleton/core/hogar.py
+    M walking-skeleton/aura_skeleton/core/identidad_memoria.py
+    M walking-skeleton/aura_skeleton/core/intencion.py
+    M walking-skeleton/aura_skeleton/core/modelo_usuario.py
+   ?? walking-skeleton/aura_skeleton/core/nodos.py
+    M walking-skeleton/aura_skeleton/core/notificaciones.py
+    M walking-skeleton/aura_skeleton/core/orchestrator.py
+   ?? walking-skeleton/aura_skeleton/core/ordenes.py
+   ?? walking-skeleton/aura_skeleton/core/percepcion.py
+    M walking-skeleton/aura_skeleton/core/permissions.py
+   ?? walking-skeleton/aura_skeleton/core/politica_superficie.py   [perezoso/transitivo]
+   ?? walking-skeleton/aura_skeleton/core/recuperacion.py
+    M walking-skeleton/aura_skeleton/core/reglas.py
+   ?? walking-skeleton/aura_skeleton/core/reloj_cm2.py
+   ?? walking-skeleton/aura_skeleton/core/sujeto.py
+    M walking-skeleton/aura_skeleton/modules/memory.py
+    M walking-skeleton/aura_skeleton/modules/providers_real.py
+    M walking-skeleton/aura_skeleton/modules/router.py
+## cron despertador despertar-aura.sh -> despertador.py
+   cierre completo (incl. imports perezosos): 17 ficheros | solo eager desde entry (1 nivel de profundidad no recursivo-perezoso): 13
+   ?? entorno/control-plane/aislamiento.py   [perezoso/transitivo]
+    M entorno/control-plane/aura.py
+    M entorno/control-plane/autoconstruccion.py
+    M entorno/control-plane/contrato.py   [perezoso/transitivo]
+    M entorno/control-plane/control_plane.py
+    M entorno/control-plane/formacion.py
+    M entorno/control-plane/motor_autonomia.py
+    M entorno/control-plane/observatorio.py
+    M entorno/control-plane/orquestador.py
+    M entorno/control-plane/planificador.py
+    M entorno/control-plane/review.py
+   ?? entorno/control-plane/verificador.py   [perezoso/transitivo]
+
+## UNION (ficheros sin commit que un commit incompleto rompería)
+?? entorno/control-plane/aislamiento.py <- cron
+ M entorno/control-plane/aura.py <- cron
+ M entorno/control-plane/autoconstruccion.py <- cron
+ M entorno/control-plane/contrato.py <- cron
+ M entorno/control-plane/control_plane.py <- cron
+ M entorno/control-plane/formacion.py <- cron
+ M entorno/control-plane/motor_autonomia.py <- cron
+ M entorno/control-plane/observatorio.py <- cron
+ M entorno/control-plane/orquestador.py <- cron
+ M entorno/control-plane/planificador.py <- cron
+ M entorno/control-plane/review.py <- cron
+?? entorno/control-plane/verificador.py <- cron
+ M walking-skeleton/aura_skeleton/__main__.py <- cron,receptor
+?? walking-skeleton/aura_skeleton/adapters/audio_rtsp.py <- cron,receptor
+?? walking-skeleton/aura_skeleton/adapters/camara_pyav.py <- cron,receptor
+?? walking-skeleton/aura_skeleton/adapters/detector_hardware.py <- cron,receptor
+?? walking-skeleton/aura_skeleton/adapters/escucha.py <- cron,receptor
+ M walking-skeleton/aura_skeleton/adapters/estado_autonomo_cp.py <- cron,receptor
+ M walking-skeleton/aura_skeleton/adapters/home_assistant.py <- cron,receptor
+?? walking-skeleton/aura_skeleton/adapters/home_assistant_real.py <- cron,receptor
+?? walking-skeleton/aura_skeleton/adapters/microfono.py <- cron,receptor
+?? walking-skeleton/aura_skeleton/adapters/receptor_nodos.py <- cron,receptor
+?? walking-skeleton/aura_skeleton/adapters/red_local.py <- cron,receptor
+?? walking-skeleton/aura_skeleton/adapters/tts_espeak.py <- cron,receptor
+?? walking-skeleton/aura_skeleton/adapters/vision_local.py <- cron,receptor
+ M walking-skeleton/aura_skeleton/adapters/voice.py <- cron,receptor
+ M walking-skeleton/aura_skeleton/adapters/voice_real.py <- cron,receptor
+ M walking-skeleton/aura_skeleton/bus_nats.py <- cron,receptor
+ M walking-skeleton/aura_skeleton/composicion.py <- cron,receptor
+ M walking-skeleton/aura_skeleton/conectores/conversacion.py <- cron,receptor
+ M walking-skeleton/aura_skeleton/contracts.py <- cron,receptor
+ M walking-skeleton/aura_skeleton/core/almacen_senales.py <- cron,receptor
+ M walking-skeleton/aura_skeleton/core/aritmetica.py <- cron,receptor
+ M walking-skeleton/aura_skeleton/core/autorizacion.py <- cron,receptor
+?? walking-skeleton/aura_skeleton/core/contexto_memoria.py <- cron,receptor
+ M walking-skeleton/aura_skeleton/core/decisiones.py <- cron,receptor
+ M walking-skeleton/aura_skeleton/core/ejecutor_modelo_usuario.py <- cron,receptor
+ M walking-skeleton/aura_skeleton/core/ejecutor_reglas.py <- cron,receptor
+?? walking-skeleton/aura_skeleton/core/entorno.py <- cron,receptor
+ M walking-skeleton/aura_skeleton/core/estado_autonomo.py <- cron,receptor
+?? walking-skeleton/aura_skeleton/core/hogar.py <- cron,receptor
+ M walking-skeleton/aura_skeleton/core/identidad_memoria.py <- cron,receptor
+ M walking-skeleton/aura_skeleton/core/intencion.py <- cron,receptor
+ M walking-skeleton/aura_skeleton/core/modelo_usuario.py <- cron,receptor
+?? walking-skeleton/aura_skeleton/core/nodos.py <- cron,receptor
+ M walking-skeleton/aura_skeleton/core/notificaciones.py <- cron,receptor
+ M walking-skeleton/aura_skeleton/core/orchestrator.py <- cron,receptor
+?? walking-skeleton/aura_skeleton/core/ordenes.py <- cron,receptor
+?? walking-skeleton/aura_skeleton/core/percepcion.py <- cron,receptor
+ M walking-skeleton/aura_skeleton/core/permissions.py <- cron,receptor
+?? walking-skeleton/aura_skeleton/core/politica_superficie.py <- cron,receptor
+?? walking-skeleton/aura_skeleton/core/recuperacion.py <- cron,receptor
+ M walking-skeleton/aura_skeleton/core/reglas.py <- cron,receptor
+?? walking-skeleton/aura_skeleton/core/reloj_cm2.py <- cron,receptor
+?? walking-skeleton/aura_skeleton/core/sujeto.py <- cron,receptor
+ M walking-skeleton/aura_skeleton/modules/memory.py <- cron,receptor
+ M walking-skeleton/aura_skeleton/modules/providers_real.py <- cron,receptor
+ M walking-skeleton/aura_skeleton/modules/router.py <- cron,receptor
+
+## import dinamico (importlib/sys.path) detectado: aura_skeleton/adapters/estado_autonomo_cp.py importa por importlib el modulo `observatorio` del plano de control (entorno/control-plane/observatorio.py, MODIFICADO) via sys.path; no aparece en el AST estatico.

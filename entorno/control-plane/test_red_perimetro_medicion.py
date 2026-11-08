@@ -192,10 +192,21 @@ def test_el_descubrimiento_barre_el_fichero_autorizado_con_la_raiz_de_produccion
 
 
 def test_una_tarea_sobre_el_fichero_autorizado_se_clasifica_review(tmp_path):
-    """Autoridad real, ejecutada — no supuesta."""
+    """Autoridad real, ejecutada — no supuesta.
+
+    **El verbo se pregunta al historial, no se asume.** Lo que esta prueba mide es que el fichero
+    ampliado por acta cae en zona y por tanto llega a `REVIEW` en vez de a `HUMAN`. El verbo es el
+    vehiculo, no el objeto: fijarlo a `eliminar_codigo_muerto` puso esta prueba en rojo el
+    2026-09-16 —cuando `DR-E` reemplazo a `DR-D`, ese verbo salio del alcance— sin que nadie hubiera
+    tocado ni la zona ni el perimetro que aqui se comprueban.
+    """
+    import review as rv
+
     plano = pathlib.Path(__file__).parent
-    assert ca.clasificar({"accion": "eliminar_codigo_muerto", "fichero": str(OBJETIVO)},
-                         plano) == "REVIEW"
+    en_alcance = rv._alcance(plano)
+    assert en_alcance, "sin acta vigente esta prueba no mide nada: no hay verbo que clasificar"
+
+    assert ca.clasificar({"accion": en_alcance[0], "fichero": str(OBJETIVO)}, plano) == "REVIEW"
 
 
 def test_una_tarea_sobre_un_vecino_sigue_siendo_human():
@@ -212,3 +223,98 @@ def test_la_autoridad_no_se_amplio(constante, esperado):
     assert getattr(rv, constante) == esperado
     assert len(rv._MATERIA_RESERVADA) == 10
     assert rv.REVIEW_HABILITADO is False
+
+
+# ================================ EL PERIMETRO DEL ACTA NO ESCAPA DEL REPOSITORIO --
+
+
+def test_el_fichero_autorizado_NO_se_concede_con_una_raiz_AJENA_al_repositorio(tmp_path):
+    """INCIDENTE REAL del 2026-09-20, reproducido.
+
+    Una medición del motor montada en un sandbox temporal —`raiz` en `/tmp`— **borró código del
+    fichero real del repositorio**: 49 líneas, dos funciones decoradas. Se restauró con
+    `git checkout`, pero la causa no era el sandbox: era que el atajo del acta concede el fichero
+    ANTES de comprobar `raiz`, y `ficheros_autorizados()` devuelve rutas **absolutas reales**. Montar
+    un sandbox no protegía nada, porque la ruta concedida apuntaba fuera de él.
+
+    El acta amplió el perímetro para trabajar **sobre este repositorio**, no «desde cualquier raíz».
+    Con una raíz ajena al repositorio, el acta no tiene nada que decir.
+
+    Esto **restringe**: el camino de producción —`raiz=<control-plane>` del repo real— no cambia, y
+    lo fija la prueba de control de abajo.
+    """
+    autorizado = OBJETIVO
+
+    assert ac.zona_permitida(autorizado, raiz=tmp_path) is False, (
+        "el fichero del acta se concedio con una raiz ajena: un sandbox puede escribir el repo real")
+
+
+def test_CONTROL_con_la_raiz_REAL_del_plano_el_acta_sigue_concediendo(tmp_path):
+    """La otra mitad, o el arreglo sería una parálisis: en producción el acta tiene que seguir valiendo."""
+    plano = pathlib.Path(__file__).resolve().parent
+
+    assert ac.zona_permitida(OBJETIVO, raiz=plano) is True, (
+        "se rompio el perimetro que el acta del CEO concedio para el trabajo real")
+    assert ac.zona_permitida(OBJETIVO) is True, "sin raiz, el acta tambien vale"
+
+
+def test_CONTROL_un_vecino_del_autorizado_sigue_fuera_con_cualquier_raiz(tmp_path):
+    """La barrera de identidad no se relaja por ninguno de los dos caminos."""
+    vecino = OBJETIVO.parent / "lanzar.py"
+    plano = pathlib.Path(__file__).resolve().parent
+
+    assert ac.zona_permitida(vecino, raiz=plano) is False
+    assert ac.zona_permitida(vecino, raiz=tmp_path) is False
+
+
+def test_un_fichero_autorizado_que_NO_EXISTE_no_se_devuelve(monkeypatch):
+    """El acta nombra ficheros; `ficheros_autorizados()` devuelve solo los que están de verdad.
+
+    Sin esta comprobación, un acta con una ruta mal escrita —o un fichero movido— metería en el
+    barrido una ruta fantasma, y el descubridor intentaría parsear algo que no existe. El mutante
+    PM-M6 la degrada, y hasta hoy lo detectaba de rebote una prueba que ejercía el barrido sobre un
+    sandbox; al acotar el perímetro del acta a este repositorio esa vía dejó de alcanzarla, así que
+    la garantía se queda **sin red** salvo que se ejerza aquí directamente.
+    """
+    fantasma = "milestones/m3-entry/medicion-razonador/no_existe_este_fichero.py"
+    monkeypatch.setattr(ac, "_FICHEROS_AUTORIZADOS", frozenset({fantasma}))
+
+    assert ac.ficheros_autorizados() == (), "se devolvio una ruta que no existe"
+
+
+def test_el_barrido_de_descubrimiento_INCLUYE_el_fichero_autorizado(tmp_path, monkeypatch):
+    """Ampliar la zona sin ampliar el barrido dejaría la autorización sin efecto.
+
+    `zona_permitida` dice QUÉ se puede tocar; `raiz` dice DÓNDE se mira. Son dos cosas distintas y
+    el acta necesita las dos: por eso `codigo_muerto()` une los ficheros del acta a los de la raíz.
+
+    **Se ejerce el caso para el que la unión existe**: el fichero autorizado NO cuelga de `raiz`, y
+    el trabajo está dentro de él. Sin la unión, el descubridor nunca lo mira y la ampliación de
+    perímetro que el CEO firmó no produce una sola oportunidad. Con ella, aparece.
+
+    Hasta el 2026-09-20 este mutante (PM-M7) lo mataba de rebote una prueba que barría un sandbox
+    contando con alcanzar el fichero REAL del repositorio. Esa vía se cerró a propósito —un sandbox
+    no debe tocar el árbol real—, así que la garantía necesitaba un detector propio.
+    """
+    import descubrimiento as des
+
+    raiz = tmp_path / "raiz"
+    raiz.mkdir()
+    (raiz / "otro.py").write_text("def vive():\n    return 1\n", encoding="utf-8")
+
+    fuera_de_la_raiz = tmp_path / "del_acta"
+    fuera_de_la_raiz.mkdir()
+    autorizado = fuera_de_la_raiz / "autorizado.py"
+    autorizado.write_text(
+        "def _muerta_del_acta():\n    return 1\n\n\ndef viva():\n    return 2\n",
+        encoding="utf-8")
+
+    monkeypatch.setattr(ac, "ficheros_autorizados", lambda: (autorizado,))
+    con_union = des.codigo_muerto(raiz, raiz)
+
+    monkeypatch.setattr(ac, "ficheros_autorizados", lambda: ())
+    sin_union = des.codigo_muerto(raiz, raiz)
+
+    assert [o.detalle.get("simbolo") for o in con_union] == ["_muerta_del_acta"], (
+        "el barrido no llego al fichero que el acta autorizo: la ampliacion queda sin efecto")
+    assert sin_union == [], "el montaje no aisla la union: sin ella tampoco deberia aparecer nada"

@@ -1,0 +1,75 @@
+incremento = "Las superficies de soberania no tratan como presente lo que ya es historial (2026-09-15): olvidar y refutar dejan de caer sobre versiones superseded"
+pruebas = ["tests/integration/test_soberania_respeta_vigencia.py"]
+timeout_s = 240
+
+# Defecto de la clase de ALERTA-006, medido: tras redeclarar el cumpleaños, «olvida mi cumpleaños» borraba
+# la version ANTIGUA, AURA respondia «Hecho» y seguia afirmando la vigente. Origen: AMP-AURA etapas 1-2
+# introdujo versiones superseded y estas superficies no se adaptaron. Cada mutante devuelve UNA de las
+# piezas al estado anterior: el listado, el foco por defecto tras listar, o el blanco de cada mutacion.
+
+[[mutante]]
+id = "SV-M1"
+garantia = "«¿que sabes de mi?» vuelve a presentar la version superseded como conocimiento actual"
+fichero = "aura_skeleton/core/modelo_usuario.py"
+pruebas = ["tests/integration/test_soberania_respeta_vigencia.py::test_el_listado_no_presenta_la_version_superseded_como_conocimiento_actual"]
+buscar = '''    vivas = [e for e in entradas if not e.get("refutada") and e.get("valid_until") is None]'''
+sustituir = '''    vivas = [e for e in entradas if not e.get("refutada")]'''
+
+[[mutante]]
+id = "SV-M2"
+garantia = "desaparece la separacion entre historial y presente: olvidar y refutar vuelven a poder caer sobre una version que ya no era vigente, y AURA confirma un efecto que no ocurrio"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_soberania_respeta_vigencia.py::test_olvidar_un_atributo_redeclarado_retira_la_version_VIGENTE",
+           "tests/integration/test_soberania_respeta_vigencia.py::test_refutar_eso_tras_el_listado_actua_sobre_la_version_VIGENTE"]
+buscar = '''        presentes = [e for e in vivas if e.get("valid_until") is None]'''
+sustituir = '''        presentes = vivas'''
+
+[[mutante]]
+id = "SV-M3"
+# RE-ANCLADO 2026-09-15 (MISION VOZ): `ruff format` reescribio el bloque en el orquestador.
+# La garantia y el efecto del mutante son los mismos; solo cambia como esta escrito el codigo.
+garantia = "el foco por defecto tras el listado sale de entradas que el listado no muestra: «eso ya no es cierto» refuta algo que no se dijo en voz alta"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_soberania_respeta_vigencia.py::test_refutar_eso_tras_el_listado_actua_sobre_la_version_VIGENTE"]
+buscar = '''next((e for e in presentes if e.get("origen") != "declarada"), presentes[0])'''
+sustituir = '''next((e for e in vivas if e.get("origen") != "declarada"), vivas[0])'''
+
+[[mutante]]
+id = "SV-M4"
+garantia = "el blanco del OLVIDO vuelve a elegirse entre todas las vivas: se destruye la version antigua y se confirma un olvido que no ocurrio"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_soberania_respeta_vigencia.py::test_olvidar_un_atributo_redeclarado_retira_la_version_VIGENTE",
+           "tests/integration/test_soberania_respeta_vigencia.py::test_olvidar_NO_decide_D_AMP_3_la_version_antigua_sigue_como_historial"]
+buscar = '''        if _es_peticion_de_olvido(t):  # antes que refutar/porque: "olvida" es inequivoco
+            foco = self._foco(uid, t, presentes, entradas, vivas)'''
+sustituir = '''        if _es_peticion_de_olvido(t):  # antes que refutar/porque: "olvida" es inequivoco
+            foco = self._foco(uid, t, vivas, entradas, vivas)'''
+
+# Reglas anadidas tras la auditoria independiente del 2026-09-15, que encontro un «eso» caducado por una
+# redeclaracion intermedia (preexistente en 6dad6af) y una regresion de soberania de la primera version
+# de esta correccion (el historial quedaba sin frase que pudiera borrarlo).
+
+[[mutante]]
+id = "SV-M5"
+garantia = "el foco cacheado deja de exigir vigencia: tras listar y redeclarar, «olvida eso» / «eso ya no es cierto» caen sobre la version recien cerrada y AURA confirma un efecto que no ocurrio"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_soberania_respeta_vigencia.py::test_olvida_eso_con_el_foco_caducado_pregunta_en_vez_de_borrar_la_version_antigua",
+           "tests/integration/test_soberania_respeta_vigencia.py::test_refutar_eso_con_el_foco_caducado_pregunta_en_vez_de_refutar_la_version_antigua"]
+buscar = '''            if any(x["contenido"] == cacheado["contenido"] and x.get("valid_until") is None for x in universo)'''
+sustituir = '''            if any(x["contenido"] == cacheado["contenido"] for x in universo)'''
+
+[[mutante]]
+id = "SV-M6"
+garantia = "el historial queda fuera de alcance: una version superseded ya no puede olvidarse ni nombrandola, y el usuario pierde la soberania sobre ese dato (ADR-0017)"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_soberania_respeta_vigencia.py::test_se_puede_olvidar_una_version_antigua_nombrandola_explicitamente"]
+buscar = '''        for grupo in (vivas, historial or ()):'''
+sustituir = '''        for grupo in (vivas,):'''
+
+[[mutante]]
+id = "SV-M7"
+garantia = "el historial pasa por delante de lo vigente al nombrar: «olvida mi cumpleaños» vuelve a borrar la version antigua y a confirmar un olvido que no ocurrio"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_soberania_respeta_vigencia.py::test_olvidar_un_atributo_redeclarado_retira_la_version_VIGENTE"]
+buscar = '''        for grupo in (vivas, historial or ()):'''
+sustituir = '''        for grupo in (historial or (), vivas):'''

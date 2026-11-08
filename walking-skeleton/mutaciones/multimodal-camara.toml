@@ -1,0 +1,81 @@
+incremento = 'Bloque multimodal local-first de cámara (acta CEO 2026-09-28): VER + ESCUCHAR + EVENTO, bajo demanda, gated, sin persistencia, sin identidad'
+pruebas = ["tests/unit/test_percepcion_auditiva.py", "tests/unit/test_deteccion_movimiento.py", "tests/unit/test_adapters_pyav.py", "tests/integration/test_multimodal_en_conversacion.py"]
+timeout_s = 400
+
+[[mutante]]
+id = "MM-A1"
+garantia = 'una superficie sin permiso de AUDIO se procesa igual (se salta la política y se toca el micrófono)'
+fichero = "aura_skeleton/core/percepcion.py"
+pruebas = ["tests/unit/test_percepcion_auditiva.py::test_observar_audio_superficie_NO_autorizada_no_captura"]
+buscar = '''        if self._politica is not None and not self._politica.puede_procesar_audio(self._superficie or ""):'''
+sustituir = '''        if False and self._politica is not None and not self._politica.puede_procesar_audio(self._superficie or ""):'''
+
+[[mutante]]
+id = "MM-A2"
+garantia = 'sin audio se invoca igualmente el STT (inventa transcripción de un audio inexistente)'
+fichero = "aura_skeleton/core/percepcion.py"
+pruebas = ["tests/unit/test_percepcion_auditiva.py::test_sin_audio_no_transcribe"]
+buscar = '''        if pcm is None:
+            obs.log("PERC", "audio", f"'{self._fuente.nombre}' no entregó audio", trace_id)
+            return LecturaAuditiva(audio_recibido=False, fuente=self._fuente.nombre)'''
+sustituir = '''        if pcm is None:
+            obs.log("PERC", "audio", f"'{self._fuente.nombre}' no entregó audio", trace_id)
+            pcm = pcm'''
+
+[[mutante]]
+id = "MM-A4"
+garantia = 'el reconocedor de audio deja de ser disjunto del visual: «¿qué ves...?» activaría ESCUCHAR'
+fichero = "aura_skeleton/core/percepcion.py"
+pruebas = ["tests/unit/test_percepcion_auditiva.py::test_reconocedor_exige_camara_y_nombre"]
+buscar = '''    return _consulta_camara(texto, r"\b(?:que se oye|que escuchas|que se escucha|que oyes)\b")'''
+sustituir = '''    return _consulta_camara(texto, r"\b(?:que se oye|que escuchas|que se escucha|que oyes|que ves)\b")'''
+
+[[mutante]]
+id = "MM-E1"
+garantia = 'una superficie sin permiso VISUAL se procesa para evento igual (se salta la política de movimiento)'
+fichero = "aura_skeleton/core/percepcion.py"
+pruebas = ["tests/unit/test_deteccion_movimiento.py::test_observar_evento_superficie_NO_autorizada_no_procesa"]
+buscar = '''        if self._politica is not None and not self._politica.puede_procesar_visual(surface_id):
+            obs.log("PERC", "evento", f"superficie '{surface_id}' sin permiso visual; no proceso", trace_id, audit=True)
+            return None'''
+sustituir = '''        if False and self._politica is not None and not self._politica.puede_procesar_visual(surface_id):
+            obs.log("PERC", "evento", f"superficie '{surface_id}' sin permiso visual; no proceso", trace_id, audit=True)
+            return None'''
+
+[[mutante]]
+id = "MM-E2"
+garantia = 'describir_evento deja de aclarar que no identifica a nadie (afirmaría implícitamente identidad/intención)'
+fichero = "aura_skeleton/core/percepcion.py"
+pruebas = ["tests/unit/test_deteccion_movimiento.py::test_describir_evento_honesto_no_afirma_quien"]
+buscar = '''    return (
+        f"Detecté movimiento en «{ev.superficie}». No sé quién ni qué lo causó: no identifico a nadie "
+        f"ni infiero intención, solo que algo cambió entre fotogramas."
+    )'''
+sustituir = '''    return f"Detecté movimiento en «{ev.superficie}»."'''
+
+[[mutante]]
+id = "MM-E3"
+garantia = 'el detector de movimiento ignora el umbral y detecta SIEMPRE (falso positivo permanente)'
+fichero = "aura_skeleton/adapters/camara_pyav.py"
+pruebas = ["tests/unit/test_adapters_pyav.py::test_detector_movimiento_sin_cambio_no_detecta"]
+buscar = '''            return magnitud > self._umbral, magnitud'''
+sustituir = '''            return True, magnitud'''
+
+[[mutante]]
+id = "MM-AD1"
+garantia = 'el saneo de errores de la cámara deja de ocultar la URL (filtra la credencial del propietario)'
+fichero = "aura_skeleton/adapters/camara_pyav.py"
+pruebas = ["tests/unit/test_adapters_pyav.py::test_camara_pyav_error_no_filtra_credencial"]
+buscar = '''def _sanear(e: Exception, url: str) -> str:
+    texto = str(e).replace(url, "«stream oculto»")
+    return re.sub(r"rtsp://[^\s]*@", "rtsp://«oculto»@", texto)'''
+sustituir = '''def _sanear(e: Exception, url: str) -> str:
+    return str(e)'''
+
+[[mutante]]
+id = "MM-INT1"
+garantia = 'el orchestrator deja de enrutar «¿qué se oye...?» a percepción auditiva'
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_multimodal_en_conversacion.py::test_que_se_oye_transcribe_bajo_demanda"]
+buscar = '''        if pa is not None and superficie_audio is not None:'''
+sustituir = '''        if False and pa is not None and superficie_audio is not None:'''

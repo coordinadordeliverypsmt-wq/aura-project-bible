@@ -1,0 +1,254 @@
+incremento = "AISLAMIENTO ESTRICTO (PROMPT 03 fase B, 2026-10-23): cada control del modo estricto degradado; la prueba de ataque correspondiente debe ver el escape"
+pruebas = ["test_red_aislamiento_estricto.py", "test_red_aislamiento.py"]
+timeout_s = 900
+
+[[mutante]]
+id = "AE-M1"
+garantia = "TODO socket() da EPERM: sin _SYS_SOCKET en la lista el confinado abre sockets (vsock/bluetooth/netlink/UDP)"
+fichero = "aislamiento.py"
+buscar = '''_SYS_CERRADAS = (*_SYS_IO_URING, _SYS_SOCKET, *_SYS_SYSV_IPC, *_SYS_METADATOS, *_SYS_KEYRING, *_SYS_INOTIFY)'''
+sustituir = '''_SYS_CERRADAS = (*_SYS_IO_URING, *_SYS_SYSV_IPC, *_SYS_METADATOS, *_SYS_KEYRING, *_SYS_INOTIFY)'''
+
+[[mutante]]
+id = "AE-M2"
+garantia = "la memoria compartida SysV (shmget/shmat) deja de cerrarse: el hijo lee segmentos del padre"
+fichero = "aislamiento.py"
+buscar = '''_SYS_SYSV_IPC = (29, 30, 31, 67, 64, 65, 66, 220, 68, 69, 70, 71, 240, 241)'''
+sustituir = '''_SYS_SYSV_IPC = (64, 65, 66, 220, 68, 69, 70, 71, 240, 241)'''
+
+[[mutante]]
+id = "AE-M3"
+garantia = "los semaforos SysV (semget) dejan de cerrarse"
+fichero = "aislamiento.py"
+buscar = '''_SYS_SYSV_IPC = (29, 30, 31, 67, 64, 65, 66, 220, 68, 69, 70, 71, 240, 241)'''
+sustituir = '''_SYS_SYSV_IPC = (29, 30, 31, 67, 68, 69, 70, 71, 240, 241)'''
+
+[[mutante]]
+id = "AE-M4"
+garantia = "las colas de mensajes SysV (msgget) dejan de cerrarse"
+fichero = "aislamiento.py"
+buscar = '''_SYS_SYSV_IPC = (29, 30, 31, 67, 64, 65, 66, 220, 68, 69, 70, 71, 240, 241)'''
+sustituir = '''_SYS_SYSV_IPC = (29, 30, 31, 67, 64, 65, 66, 220, 240, 241)'''
+
+[[mutante]]
+id = "AE-M5"
+garantia = "las colas POSIX mq_open/mq_unlink dejan de cerrarse"
+fichero = "aislamiento.py"
+buscar = '''_SYS_SYSV_IPC = (29, 30, 31, 67, 64, 65, 66, 220, 68, 69, 70, 71, 240, 241)'''
+sustituir = '''_SYS_SYSV_IPC = (29, 30, 31, 67, 64, 65, 66, 220, 68, 69, 70, 71)'''
+
+[[mutante]]
+id = "AE-M6"
+garantia = "toda la familia SysV+mq desaparece del filtro"
+fichero = "aislamiento.py"
+buscar = '''_SYS_CERRADAS = (*_SYS_IO_URING, _SYS_SOCKET, *_SYS_SYSV_IPC, *_SYS_METADATOS, *_SYS_KEYRING, *_SYS_INOTIFY)'''
+sustituir = '''_SYS_CERRADAS = (*_SYS_IO_URING, _SYS_SOCKET, *_SYS_METADATOS, *_SYS_KEYRING, *_SYS_INOTIFY)'''
+
+[[mutante]]
+id = "AE-M7"
+garantia = "los metadatos (chmod/chown/utime) que Landlock no gobierna dejan de cerrarse"
+fichero = "aislamiento.py"
+buscar = '''_SYS_CERRADAS = (*_SYS_IO_URING, _SYS_SOCKET, *_SYS_SYSV_IPC, *_SYS_METADATOS, *_SYS_KEYRING, *_SYS_INOTIFY)'''
+sustituir = '''_SYS_CERRADAS = (*_SYS_IO_URING, _SYS_SOCKET, *_SYS_SYSV_IPC, *_SYS_KEYRING, *_SYS_INOTIFY)'''
+
+[[mutante]]
+id = "AE-M8"
+garantia = "io_uring (que esquiva el filtro de socket/ficheros) deja de cerrarse"
+fichero = "aislamiento.py"
+buscar = '''_SYS_CERRADAS = (*_SYS_IO_URING, _SYS_SOCKET, *_SYS_SYSV_IPC, *_SYS_METADATOS, *_SYS_KEYRING, *_SYS_INOTIFY)'''
+sustituir = '''_SYS_CERRADAS = (_SYS_SOCKET, *_SYS_SYSV_IPC, *_SYS_METADATOS, *_SYS_KEYRING, *_SYS_INOTIFY)'''
+
+[[mutante]]
+id = "AE-M9"
+garantia = "una arquitectura distinta de x86_64 ya no mata el proceso (el filtro numerico se aplicaria a otra ABI)"
+fichero = "aislamiento.py"
+buscar = '''instr(_BPF_JEQ_K, _AUDIT_ARCH_X86_64, 1, 0)'''
+sustituir = '''instr(_BPF_JEQ_K, _AUDIT_ARCH_X86_64, 1, 1)'''
+
+[[mutante]]
+id = "AE-M10"
+garantia = "las syscalls x32 (nr >= 0x40000000, que esquivan los numeros) ya no matan el proceso"
+fichero = "aislamiento.py"
+buscar = '''instr(_BPF_JGE_K, _X32_BIT, 0, 1)'''
+sustituir = '''instr(_BPF_JGE_K, _X32_BIT, 1, 1)'''
+
+[[mutante]]
+id = "AE-M11"
+garantia = "`_cerrar_fds_heredados` no hace nada: un socket heredado sobrevive al exec"
+fichero = "aislamiento.py"
+buscar = '''    if _c().syscall(_SYS_CLOSE_RANGE, ctypes.c_uint(3), ctypes.c_uint(0xFFFFFFFF),
+                    ctypes.c_uint(_CLOSE_RANGE_CLOEXEC)) != 0:
+        raise OSError(ctypes.get_errno(), "close_range")'''
+sustituir = '''    return'''
+
+[[mutante]]
+id = "AE-M12"
+garantia = "el confinador no llama a `_cerrar_fds_heredados`"
+fichero = "aislamiento.py"
+buscar = '''        _cerrar_fds_heredados()
+        _instalar_seccomp(fprog)'''
+sustituir = '''        _instalar_seccomp(fprog)'''
+
+[[mutante]]
+id = "AE-M13"
+garantia = "close_range sin CLOEXEC (flags=0): cierra ya, no al exec (informe de fallo de exec perdido)"
+fichero = "aislamiento.py"
+buscar = '''ctypes.c_uint(_CLOSE_RANGE_CLOEXEC)) != 0'''
+sustituir = '''ctypes.c_uint(0)) != 0'''
+
+[[mutante]]
+id = "AE-M14"
+garantia = "Landlock no maneja la red TCP (_NET_*=0): sin seccomp, un socket TCP heredado conecta"
+fichero = "aislamiento.py"
+buscar = '''red = (_NET_BIND_TCP | _NET_CONNECT_TCP) if estricto else 0'''
+sustituir = '''red = 0'''
+
+[[mutante]]
+id = "AE-M15"
+garantia = "el ambito de Landlock pierde SIGNAL: el confinado senala procesos externos"
+fichero = "aislamiento.py"
+buscar = '''ambito = (_SCOPE_SIGNAL | _SCOPE_ABSTRACT_UNIX_SOCKET) if estricto else 0'''
+sustituir = '''ambito = _SCOPE_ABSTRACT_UNIX_SOCKET if estricto else 0'''
+
+[[mutante]]
+id = "AE-M16"
+garantia = "el ambito de Landlock pierde ABSTRACT_UNIX_SOCKET: un socket unix abstracto del padre es alcanzable"
+fichero = "aislamiento.py"
+buscar = '''ambito = (_SCOPE_SIGNAL | _SCOPE_ABSTRACT_UNIX_SOCKET) if estricto else 0'''
+sustituir = '''ambito = _SCOPE_SIGNAL if estricto else 0'''
+
+[[mutante]]
+id = "AE-M17"
+garantia = "lectura amplia: el estricto lee lo del modo por defecto (/etc, /proc, $HOME, sys.path)"
+fichero = "aislamiento.py"
+buscar = '''lecturas = [*rutas_estrictas(), *escrituras]'''
+sustituir = '''lecturas = [*rutas_del_interprete(), *escrituras]'''
+
+[[mutante]]
+id = "AE-M18"
+garantia = "READ_DIR sobre todo $HOME: se listan los nombres de todo el home"
+fichero = "aislamiento.py"
+buscar = '''listados = listados_estrictos()'''
+sustituir = '''listados = (*listados_estrictos(), os.path.expanduser('~'))'''
+
+[[mutante]]
+id = "AE-M19"
+garantia = "con Landlock ABI<6 `preparar_estricto` ya no lanza (confinador sin red ni ambito)"
+fichero = "aislamiento.py"
+buscar = '''if abi < _ABI_ESTRICTO:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "AE-M20"
+garantia = "sin seccomp `preparar_estricto` ya no lanza"
+fichero = "aislamiento.py"
+buscar = '''if not seccomp_disponible():
+        raise ConfinamientoInsuficiente("el modo estricto'''
+sustituir = '''if False:
+        raise ConfinamientoInsuficiente("el modo estricto'''
+
+[[mutante]]
+id = "AE-M21"
+garantia = "`controles` omite un control pero `completo` sigue True"
+fichero = "aislamiento.py"
+buscar = '''confinar.controles = {nombre: True for nombre in CONTROLES_ESTRICTOS}'''
+sustituir = '''confinar.controles = {nombre: True for nombre in CONTROLES_ESTRICTOS[:-1]}'''
+
+[[mutante]]
+id = "AE-M22"
+garantia = "review acepta un confinador con completo!=True aunque declare controles"
+fichero = "review.py"
+buscar = ''' or getattr(confinar, "completo", False) is not True or faltan:'''
+sustituir = ''' or faltan:'''
+
+[[mutante]]
+id = "AE-M23"
+garantia = "`con_escritura_en` recompone en modo NO estricto: el verificador pierde red/lectura minima al anadir su temporal"
+fichero = "aislamiento.py"
+buscar = '''confinar.con_escritura_en = lambda ruta: preparar_estricto(caja, (*escritura_extra, ruta))'''
+sustituir = '''confinar.con_escritura_en = lambda ruta: preparar(caja, (*escritura_extra, ruta))'''
+
+[[mutante]]
+id = "AE-M24"
+garantia = "`_firma_sondeo` constante: la cache del sondeo no se invalida nunca"
+fichero = "aislamiento.py"
+buscar = '''    return tuple(marcas)'''
+sustituir = '''    return ()'''
+
+[[mutante]]
+id = "AE-M25"
+garantia = "`listados_estrictos` compara prefijos de texto (/a/lib vs /a/lib2) en vez de rutas"
+fichero = "aislamiento.py"
+buscar = '''if not any(p.is_relative_to(x) for x in std)'''
+sustituir = '''if not any(str(p).startswith(str(x)) for x in std)'''
+
+[[mutante]]
+id = "AE-M26"
+garantia = "el confinador ESTRICTO no aplica los rlimits (CPU/memoria/fichero): tras el re-anclaje de AI-M6 al modo por defecto, esta es la mitad estricta"
+fichero = "aislamiento.py"
+buscar = '''        _limitar_recursos()
+        _cerrar_fds_heredados()'''
+sustituir = '''        _cerrar_fds_heredados()'''
+
+[[mutante]]
+id = "AE-M27"
+garantia = "keyring del kernel (add_key/request_key/keyctl) deja de cerrarse: el hijo estricto lee con KEYCTL_READ claves del keyring de sesion del padre"
+fichero = "aislamiento.py"
+buscar = '''_SYS_KEYRING = (248, 249, 250)'''
+sustituir = '''_SYS_KEYRING = ()'''
+
+[[mutante]]
+id = "AE-M28"
+garantia = "los xattr set (188-190) dejan de cerrarse: el hijo estricto pone atributos en ficheros externos"
+fichero = "aislamiento.py"
+buscar = '''280, 452, 188, 189, 190, 197, 198, 199)'''
+sustituir = '''280, 452, 197, 198, 199)'''
+
+[[mutante]]
+id = "AE-M29"
+garantia = "los xattr remove (197-199) dejan de cerrarse: el hijo estricto quita atributos de ficheros externos"
+fichero = "aislamiento.py"
+buscar = '''280, 452, 188, 189, 190, 197, 198, 199)'''
+sustituir = '''280, 452, 188, 189, 190)'''
+
+[[mutante]]
+id = "AE-M30"
+garantia = "prlimit64 sin comprobacion de pid (permitido siempre): el hijo estricto cambia los limites de otro proceso"
+fichero = "aislamiento.py"
+buscar = '''_SYS_SOLO_PROPIO = ((302, (0,)), (142, (0,)), (144, (0,)), (141, (0, 1)), (203, (0,)), (314, (0,)))'''
+sustituir = '''_SYS_SOLO_PROPIO = ((142, (0,)), (144, (0,)), (141, (0, 1)), (203, (0,)), (314, (0,)))'''
+
+[[mutante]]
+id = "AE-M31"
+garantia = "la comparacion de pid solo mira la palabra BAJA de args[i] (64 bits -> 32): pid con bits altos pasa. En x86_64 el kernel trunca a pid_t y un pid=1<<32 es el propio proceso, asi que es mas estricto que necesario; la prueba fija ese rigor"
+fichero = "aislamiento.py"
+buscar = '''for i in indices for off in (16 + 8 * i, 20 + 8 * i)]'''
+sustituir = '''for i in indices for off in (16 + 8 * i,)]'''
+
+[[mutante]]
+id = "AE-M32"
+garantia = "sched_setparam/setscheduler/setaffinity/setattr sin restriccion: el hijo estricto cambia la planificacion de procesos ajenos"
+fichero = "aislamiento.py"
+buscar = '''_SYS_SOLO_PROPIO = ((302, (0,)), (142, (0,)), (144, (0,)), (141, (0, 1)), (203, (0,)), (314, (0,)))'''
+sustituir = '''_SYS_SOLO_PROPIO = ((302, (0,)), (141, (0, 1)))'''
+
+[[mutante]]
+id = "AE-M33"
+garantia = "setpriority sin restriccion: el hijo estricto cambia la prioridad de procesos ajenos"
+fichero = "aislamiento.py"
+buscar = '''_SYS_SOLO_PROPIO = ((302, (0,)), (142, (0,)), (144, (0,)), (141, (0, 1)), (203, (0,)), (314, (0,)))'''
+sustituir = '''_SYS_SOLO_PROPIO = ((302, (0,)), (142, (0,)), (144, (0,)), (203, (0,)), (314, (0,)))'''
+
+[[mutante]]
+id = "AE-M34"
+garantia = "setpriority solo comprueba `which` y no `who`: PRIO_PROCESS sobre un pid ajeno pasa"
+fichero = "aislamiento.py"
+buscar = '''_SYS_SOLO_PROPIO = ((302, (0,)), (142, (0,)), (144, (0,)), (141, (0, 1)), (203, (0,)), (314, (0,)))'''
+sustituir = '''_SYS_SOLO_PROPIO = ((302, (0,)), (142, (0,)), (144, (0,)), (141, (0,)), (203, (0,)), (314, (0,)))'''
+
+[[mutante]]
+id = "AE-M35"
+garantia = "inotify deja de cerrarse: el hijo estricto vigila directorios externos"
+fichero = "aislamiento.py"
+buscar = '''_SYS_INOTIFY = (253, 254, 294)'''
+sustituir = '''_SYS_INOTIFY = ()'''

@@ -33,10 +33,25 @@ verificacion falla el cambio se deshace. Dejar el arbol roto es peor que no habe
 from __future__ import annotations
 
 import ast
+import contextlib
 import dataclasses
+import fcntl
+import fnmatch
+import hashlib
+import inspect
+import json
+import math
+import os
 import pathlib
+import re
+import secrets
+import shutil
+import stat
+import tempfile
+import time
 
 import control_plane as cp
+import orquestador  # para `parada_solicitada`: una sola fuente de verdad del kill switch, no una copia
 
 PASOS = ("observar", "diagnosticar", "proponer", "autorizar",
          "ejecutar", "verificar", "registrar", "continuar")
@@ -107,8 +122,37 @@ class NoEliminable(RuntimeError):
     """La segunda barrera se nego: el simbolo no es eliminable, lo diga quien lo diga."""
 
 
+class FicheroIntocable(RuntimeError):
+    """El destino decide la autoridad del propio anillo (`_INTOCABLES`). No se toca por tarea."""
+
+
+class ParadaActiva(RuntimeError):
+    """La PARADA esta armada: no se escribe nada. Kill switch fuera de banda (Bible 5.3)."""
+
+
 class ZonaProhibida(RuntimeError):
     """El destino esta fuera de alcance. **Ni con autorizacion**, si es gobernanza."""
+
+
+class PromocionesBloqueadas(RuntimeError):
+    """Hay un diario de promocion ambiguo o una restauracion fallida: no se promueve nada mas hasta
+    que una persona lo resuelva y retire la marca `BLOQUEADO`. Ante la duda, roja (ADR-0003)."""
+
+
+class RestauracionFallida(RuntimeError):
+    """La promocion fallo Y el fichero vivo no pudo devolverse al original verificado. Jamas es exito:
+    el respaldo y el diario se conservan."""
+
+
+class CandidatoNoAislable(RuntimeError):
+    """El destino no puede verificarse en una copia (fuera del directorio, o excluido de la copia por
+    ser sensible). Fail-closed: sin aislamiento no se escribe."""
+
+
+class VerificadorSinRaiz(RuntimeError):
+    """El verificador no acepta la raiz de la copia (p. ej. `lambda: True`): mediria el arbol VIVO, que
+    aun contiene el original, no el candidato. Fail-closed: no se ejecuta nada (ni copia ni verificador)
+    y el vivo queda intacto. Un verificador debe declarar un parametro obligatorio (`def v(raiz)`)."""
 
 
 # ------------------------------------------------------- C5 · ReviewerAdapter --
@@ -200,8 +244,25 @@ def zona_permitida(ruta, raiz=None) -> bool:
     # actas —que siguen rechazandose siempre, tambien para estos ficheros— y ANTES de `raiz`, porque
     # el ciclo llama con `raiz=<control-plane>` y el fichero autorizado no cuelga de ahi. Se compara
     # la ruta relativa entera, nunca un prefijo.
+    # **Y solo cuando se opera SOBRE ESTE REPOSITORIO** (incidente del 2026-09-20). El atajo concedia
+    # el fichero con cualquier `raiz`, incluida una ajena: una medicion del motor montada en un
+    # sandbox temporal borro 49 lineas del fichero REAL: `ficheros_autorizados()` devuelve rutas
+    # absolutas del repositorio, asi que montar un sandbox no protegia nada — la ruta concedida
+    # apuntaba fuera de el. El acta amplio el perimetro para trabajar sobre este repositorio, no
+    # «desde cualquier raiz»; con una raiz ajena, el acta no tiene nada que decir. Esto RESTRINGE: el
+    # camino de produccion —`raiz=<control-plane>` del repo real— no cambia.
+    def _la_raiz_es_de_este_repositorio() -> bool:
+        if raiz is None:
+            return True
+        try:
+            pathlib.Path(raiz).resolve().relative_to(_RAIZ_REPO)
+        except ValueError:
+            return False
+        return True
+
     try:
-        if real.relative_to(_RAIZ_REPO).as_posix() in _FICHEROS_AUTORIZADOS:
+        if (real.relative_to(_RAIZ_REPO).as_posix() in _FICHEROS_AUTORIZADOS
+                and _la_raiz_es_de_este_repositorio()):
             return True
     except ValueError:                                # fuera del repositorio: no es asunto del acta
         pass
@@ -271,22 +332,53 @@ def diagnosticar(hallazgos: list[dict]) -> list[dict]:
 
 # ---------------------------------------------------------------- 3-4 · PROPONER / AUTORIZAR --
 
-def proponer(directorio, hallazgo: dict) -> dict:
+def _correlacion_valida(tarea, intento) -> bool:
+    """`tarea` cadena no vacia e `intento` entero (no booleano) y positivo. Tipo estricto. (El DP pedia la forma
+    `TA-…`, pero el `review` manual usa ids propios —`T-A1`, `AUT-001`— y exigirla dejaria sin correlacion
+    justo esas tareas: la identidad la garantiza el `seq` de la `tarea_planificada`, no el prefijo.)"""
+    return (isinstance(tarea, str) and bool(tarea.strip())
+            and isinstance(intento, int) and not isinstance(intento, bool) and intento > 0)
+
+
+def proponer(directorio, hallazgo: dict, *, tarea: str | None = None, intento: int | None = None,
+             via: str | None = None) -> dict:
     """Una propuesta es una **peticion**, no una decision. Nace sin autorizar, y nada la concede por
-    el paso del tiempo: `1.1:85`."""
+    el paso del tiempo: `1.1:85`.
+
+    **Correlacion (DP-AUTOCONSTRUCCION D1).** `tarea` e `intento` (el `seq` de su `tarea_planificada`)
+    viajan con la propuesta y, desde ella, en el diario y en cada `cambio_aplicado`. `via="ciclo"` marca
+    la API `ciclo()`, que no tiene tarea: sus eventos llevan `tarea: None, intento: None` y el
+    planificador nunca los atribuye a ninguna.
+
+    **Id sin carrera (D3).** `P-NNN` se calcula **y** se anade bajo el mismo `lock_estado`, derivandolo
+    dentro de `registrar_evento_si`: dos `proponer` concurrentes no pueden obtener el mismo."""
     directorio = pathlib.Path(directorio)
-    existentes = [e for e in cp.leer_eventos(directorio) if e["tipo"] == "propuesta_registrada"]
-    propuesta = {"id": f"P-{len(existentes) + 1:03d}", "estado": "PROPUESTA", "autorizada": False,
-                 # `forma` viaja con la propuesta desde que la capacidad cubre las cinco formas del
-                 # codigo muerto: sin ella el ejecutor volveria a suponer «funcion» y no borraria
-                 # nada, que es exactamente lo que pasaba —en silencio y revirtiendo— antes de esto.
-                 **{k: hallazgo.get(k) for k in ("simbolo", "fichero", "motivo", "linea",
-                                                  "buscar", "sustituir")},
-                 # La operacion viaja con la propuesta. Por defecto la de siempre: sin esto, una
-                 # propuesta antigua cambiaria de comportamiento al aparecer el vocabulario nuevo.
-                 "operacion": hallazgo.get("operacion", "eliminar_codigo_muerto"),
-                 "forma": hallazgo.get("forma", "funcion")}
-    cp.registrar_evento(directorio, "propuesta_registrada", propuesta)
+    if (tarea is None) != (intento is None):
+        raise ValueError("`tarea` e `intento` van juntos: una correlacion a medias no correlaciona")
+    if tarea is not None and not _correlacion_valida(tarea, intento):
+        raise ValueError(f"correlacion mal formada: tarea={tarea!r} (cadena), intento={intento!r} (entero > 0)")
+    propuesta: dict = {}
+
+    def derivar() -> dict:
+        existentes = [e for e in cp.leer_eventos(directorio) if e["tipo"] == "propuesta_registrada"]
+        propuesta.update({
+            "id": f"P-{len(existentes) + 1:03d}", "estado": "PROPUESTA", "autorizada": False,
+            # `forma` viaja con la propuesta desde que la capacidad cubre las cinco formas del
+            # codigo muerto: sin ella el ejecutor volveria a suponer «funcion» y no borraria
+            # nada, que es exactamente lo que pasaba —en silencio y revirtiendo— antes de esto.
+            **{k: hallazgo.get(k) for k in ("simbolo", "fichero", "motivo", "linea",
+                                             "buscar", "sustituir")},
+            # La operacion viaja con la propuesta. Por defecto la de siempre: sin esto, una
+            # propuesta antigua cambiaria de comportamiento al aparecer el vocabulario nuevo.
+            "operacion": hallazgo.get("operacion", "eliminar_codigo_muerto"),
+            "forma": hallazgo.get("forma", "funcion")})
+        if tarea is not None:
+            propuesta.update({"tarea": tarea, "intento": intento})
+        if via is not None:
+            propuesta.update({"tarea": None, "intento": None, "via": via})
+        return dict(propuesta)
+
+    cp.registrar_evento_si(directorio, "propuesta_registrada", None, lambda: True, derivar=derivar)
     return propuesta
 
 
@@ -299,9 +391,10 @@ def autorizar(directorio, id_propuesta: str, por: str, acta: str) -> dict:
             f"aprobacion no es delegable a ningun agente (1.1:93)")
     if not (acta or "").strip():
         raise SinAutorizacion("la autorizacion exige acta: sin constancia no es explicita (1.1:85)")
-    registro = {"id": id_propuesta, "autorizada_por": por, "acta": acta}
-    cp.registrar_evento(pathlib.Path(directorio), "propuesta_autorizada", registro)
-    return registro
+    # Por la puerta gobernada (acta del CEO, 2026-09-20): el evento dejo de aceptarse en crudo, y
+    # esta funcion no puede ser la excepcion que justifique mantener abierta la via.
+    return cp.registrar_propuesta_autorizada(pathlib.Path(directorio), id_propuesta,
+                                             autorizada_por=por, acta=acta)["datos"]
 
 
 def esta_autorizada(directorio, id_propuesta: str) -> bool:
@@ -515,12 +608,585 @@ def quitar_simbolo(texto: str, simbolo: str, clase: str = "funcion") -> str:
     return "".join(lineas[:inicio] + lineas[fin:])
 
 
-def ejecutar(directorio, propuesta: dict, autoridad: str, verificacion=None) -> dict:
-    """Aplica el cambio, **verifica el efecto releyendo el fichero** y revierte si algo falla.
+# ----------------------------------------------- candidato aislado (DP-CANDIDATO-AISLADO, alt. A) --
+#
+# `ejecutar` escribia el candidato SOBRE el arbol vivo y verificaba alli: cualquier lector concurrente
+# veia codigo sin verificar y un SIGKILL durante la verificacion lo dejaba sin respaldo ni rastro
+# (`milestones/m3-entry/evidencia-candidato-aislado-2026-10-22/`). Ahora el candidato se escribe y se
+# verifica en una COPIA fuera del repo, y el vivo solo se toca al promover: temporal en el mismo
+# directorio + `os.replace`, con un diario de intencion (original incluido) en disco ANTES de tocarlo.
+# La atomicidad es **por fichero**: `ejecutar` modifica uno solo; esto no es una transaccion multi-fichero.
+#
+# **Limites declarados** (no se ocultan, se publican en el resultado y en el evento):
+# - `verificacion_aislada`: solo es True si el verificador RECIBIO la raiz de la copia. Uno heredado sin
+#   parametros mide el arbol vivo, que aun tiene el original: no es evidencia del candidato.
+# - `ejecucion_confinada`: lo declara la verificacion (`informe.confinada`; este modulo NO la deriva de
+#   nada propio). POLITICA: la verificacion por contrato (`review._verificador_de_review`) es CONFINADA
+#   ESTRICTA OBLIGATORIA (`aislamiento.preparar_estricto`, FASE B). Lo que GARANTIZA, tambien para hijos
+#   y nietos: ESCRITURA solo en la copia (+ el temporal del informe, que es su TMPDIR) y `/dev/null`;
+#   LECTURA solo del interprete, la stdlib, las librerias dinamicas, los paquetes de pytest y la copia
+#   (no `/etc`, `/proc`, `$HOME`, `sys.path` del padre ni el plano vivo); RED denegada (Landlock TCP +
+#   seccomp: TCP, UDP, unix, netlink, packet, io_uring); senales y sockets unix abstractos acotados.
+#   Sin TODOS esos controles no se ejecuta ninguna prueba y se rechaza (`confinamiento_no_disponible`).
+#   Limites no mitigados: ver `aislamiento.py`. Un `bool` heredado o un verificador explicito del
+#   llamante no declaran confinamiento: False.
+# - El rechazo se registra como `cambio_aplicado` con `revertido=True` (compatibilidad con los lectores
+#   actuales), no como el `cambio_rechazado` que propone el DP; el porque va en `motivo`.
 
-    `verificacion` es lo que decide si el arbol quedo sano —la bateria de pruebas, en uso real—. Si
-    devuelve falso, el fichero vuelve a como estaba: dejar el arbol roto es peor que no haber hecho
-    nada, y ademas rompe la reversibilidad que hace segura esta primera capacidad."""
+#: Los estados que una verificacion puede declarar. Cualquier otro se trata como fallo (fail-closed).
+ESTADOS_VERIFICACION = ("sano", "fallo", "error_infraestructura", "no_aislable", "sin_confinamiento")
+
+
+@dataclasses.dataclass(frozen=True)
+class ResultadoVerificacion:
+    """Lo que una verificacion DICE que ocurrio (no lo que se pretendia): `ejecutar` deriva de aqui
+    `verificacion_aislada`, `ejecucion_confinada`, `verificacion_sana` y `motivo`.
+
+    `estado`: `sano` | `fallo` (las pruebas no pasan) | `error_infraestructura` (excepcion, plazo
+    agotado: no se midio) | `no_aislable` (las pruebas no caben en la copia: no se ejecutaron) | `sin_confinamiento` (no hay
+    Landlock efectivo: no se ejecutaron, no se rebaja en silencio).
+    Una verificacion que devuelve un simple `bool` sigue valiendo (compatibilidad)."""
+    estado: str
+    aislada: bool
+    confinada: bool = False
+    detalle: str = ""
+
+
+_COPIA_SIN_DIRS = frozenset({"__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".git",
+                             ".venv", "node_modules", "secrets", ".ssh"})
+#: Estado real y kill switch: no viajan a la copia (la copia no debe poder leerlos ni escribirlos).
+_COPIA_SIN_FICHEROS = frozenset({".control-plane.lock", "PARADA"})
+#: Se copian (solo LECTURA del real: lo que se escriba queda en la copia) para que las pruebas que leen
+#: el log del directorio de su modulo vean lo mismo, pero NO entran en la precondicion de hashes: el
+#: real crece legitimamente mientras se verifica.
+_COPIA_SOLO_LECTURA = frozenset({"estado.json", "eventos.jsonl"})
+_COPIA_SENSIBLE = (".env*", "*secret*", "*token*", "*.key", "*.pem", "credentials*", ".netrc",
+                   "id_rsa*", "*.p12", "*.pfx")
+_MARCA_COPIA = ".aura-candidato-marca"
+_BLOQUEO = "BLOQUEADO"
+_CERROJO = ".cerrojo"
+_SUBDIR_ESTADO = "aura-autoconstruccion"
+_EDAD_COPIA_HUERFANA_S = 3600
+_REINTENTOS_CERROJO = 5
+_CLAVES_DIARIO = ("id_op", "directorio", "ruta", "propuesta", "sha_original", "sha_candidato", "tmp",
+                  "estado")
+
+
+class _DiarioInvalido(Exception):
+    """El diario no se puede creer: ruta, temporal, identidad o forma no son los que escribimos."""
+
+
+class _BaseCambiada(Exception):
+    """El vivo ya no es el original sobre el que se derivo el candidato verificado."""
+
+
+def _sha(datos: bytes | None) -> str | None:
+    return None if datos is None else hashlib.sha256(datos).hexdigest()
+
+
+def _sha_de(ruta) -> str | None:
+    try:
+        return _sha(pathlib.Path(ruta).read_bytes())
+    except FileNotFoundError:
+        return None
+
+
+def _es_sensible(nombre: str) -> bool:
+    return any(fnmatch.fnmatch(nombre.lower(), patron) for patron in _COPIA_SENSIBLE)
+
+
+def _fsync_dir(directorio: pathlib.Path) -> None:
+    fd = os.open(directorio, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def _escribir_atomico(destino: pathlib.Path, datos: bytes, tmp: pathlib.Path, modo: int) -> None:
+    """Temporal EN EL MISMO DIRECTORIO, creado con `O_EXCL|O_NOFOLLOW` (un enlace plantado con ese nombre
+    no se sigue: la creacion falla), fsync, `os.replace` y fsync del directorio. Solo se borra el
+    temporal si lo creo esta llamada."""
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(datos)
+            fh.flush()
+            os.fchmod(fh.fileno(), modo)
+            os.fsync(fh.fileno())
+        os.replace(tmp, destino)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+    _fsync_dir(destino.parent)
+
+
+def _escribir_privado(destino: pathlib.Path, datos: bytes) -> None:
+    """Fichero 0600, atomico, con temporal de nombre unico."""
+    _escribir_atomico(destino, datos, destino.with_name(f"{destino.name}.{secrets.token_hex(4)}.tmp"),
+                      0o600)
+
+
+def _raiz_estado() -> pathlib.Path:
+    """Estado de las promociones, FUERA del repo. Con `AURA_AUTOCONSTRUCCION_ESTADO` se trabaja en un
+    subdirectorio PROPIO: nunca se cambian permisos de un directorio que ya existia."""
+    base = os.environ.get("AURA_AUTOCONSTRUCCION_ESTADO")
+    if base:
+        return pathlib.Path(base) / _SUBDIR_ESTADO
+    xdg = os.environ.get("XDG_STATE_HOME") or str(pathlib.Path.home() / ".local" / "state")
+    return pathlib.Path(xdg) / "aura" / "autoconstruccion"
+
+
+def _dir_estado(directorio) -> pathlib.Path:
+    clave = hashlib.sha256(str(pathlib.Path(directorio).resolve()).encode()).hexdigest()[:16]
+    return _raiz_estado() / clave
+
+
+def _es_dir_propio(ruta: pathlib.Path) -> bool:
+    """Directorio real (no enlace) y nuestro."""
+    try:
+        st = os.lstat(ruta)
+    except OSError:
+        return False
+    return stat.S_ISDIR(st.st_mode) and st.st_uid == os.getuid()
+
+
+def _asegurar_dir(ruta: pathlib.Path) -> None:
+    """Crea `ruta` 0700 si no existe (chmod SOLO de lo que se creo aqui); si existia, exige que sea un
+    directorio real y propio."""
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        os.mkdir(ruta, 0o700)
+        os.chmod(ruta, 0o700)
+    except FileExistsError:
+        pass
+    if not _es_dir_propio(ruta):
+        raise PromocionesBloqueadas(f"{ruta} no es un directorio propio (enlace u otro dueño): no se usa")
+
+
+def _asegurar_estado(estado: pathlib.Path) -> None:
+    _asegurar_dir(estado.parent)
+    _asegurar_dir(estado)
+
+
+@contextlib.contextmanager
+def _cerrojo(estado: pathlib.Path, bloqueante: bool):
+    """`flock` sobre un centinela del directorio de estado. Cede `True` si se tomo; con
+    `bloqueante=False` cede `False` (sin tomarlo) si otro proceso lo tiene o el estado no existe.
+
+    Como el estado vacio se retira (`_retirar_si_vacio`), tras obtener el `flock` se comprueba que el
+    inodo del descriptor sigue siendo el del path: si otro proceso lo borro y recreo, el cerrojo que
+    tenemos ya no excluye a nadie y se reintenta (bucle acotado)."""
+    ruta = estado / _CERROJO
+    for _ in range(_REINTENTOS_CERROJO):
+        if bloqueante:
+            _asegurar_estado(estado)
+        try:
+            fd = os.open(ruta, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        except FileNotFoundError:
+            if bloqueante:
+                continue
+            yield False
+            return
+        try:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | (0 if bloqueante else fcntl.LOCK_NB))
+            except BlockingIOError:
+                yield False
+                return
+            try:
+                vigente = os.fstat(fd).st_ino == os.lstat(ruta).st_ino
+            except FileNotFoundError:
+                vigente = False
+            if not vigente:
+                continue
+            yield True
+            return
+        finally:
+            os.close(fd)                                  # cerrar el descriptor libera el cerrojo
+    if bloqueante:
+        raise PromocionesBloqueadas(f"no se pudo tomar el cerrojo de {estado}")
+    yield False
+
+
+def _retirar_si_vacio(estado: pathlib.Path) -> None:
+    """Con el cerrojo tomado: si el directorio de estado de este directorio solo contiene el centinela
+    (sin operaciones ni BLOQUEADO), se retira. El directorio base, que puede ser compartido, no."""
+    try:
+        if [q.name for q in estado.iterdir()] == [_CERROJO]:
+            (estado / _CERROJO).unlink()
+            estado.rmdir()
+    except OSError:
+        pass
+
+
+def _guardar_diario(op: pathlib.Path, diario: dict) -> None:
+    _escribir_privado(op / "diario.json", json.dumps(diario, sort_keys=True).encode("utf-8"))
+
+
+def _bloquear(estado: pathlib.Path, motivo: str, id_op: str) -> None:
+    _asegurar_estado(estado)
+    _escribir_privado(estado / _BLOQUEO, json.dumps({"id_op": id_op, "motivo": motivo}).encode("utf-8"))
+
+
+def _restaurar(destino: pathlib.Path, original: bytes, id_op: str) -> bool:
+    """Devuelve el original al vivo y VERIFICA el sha. `False` si no se pudo o no coincide."""
+    try:
+        modo = stat.S_IMODE(destino.stat().st_mode) if destino.exists() else 0o644
+        tmp = destino.with_name(f".{destino.name}.aura-rest-{id_op}-{secrets.token_hex(4)}.tmp")
+        _escribir_atomico(destino, original, tmp, modo)
+        return _sha_de(destino) == _sha(original)
+    except Exception:                                     # noqa: BLE001 — fallar aqui = no restaurado
+        return False
+
+
+def _validar_diario(directorio: pathlib.Path, op: pathlib.Path) -> tuple[dict, pathlib.Path, bytes]:
+    """**El diario esta en disco y se puede forjar o corromper: no se confia en el.** Antes de actuar,
+    todo lo que dice debe ser lo que `_promover` escribe. Lanza `_DiarioInvalido` con el motivo."""
+    if op.is_symlink() or not op.is_dir():
+        raise _DiarioInvalido("la operacion no es un directorio real")
+    try:
+        diario = json.loads((op / "diario.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise _DiarioInvalido(f"diario ilegible o corrupto: {exc}") from None
+    if not isinstance(diario, dict) or any(not isinstance(diario.get(k), str) for k in _CLAVES_DIARIO):
+        raise _DiarioInvalido("faltan claves del diario o tienen un tipo inesperado")
+    if diario["estado"] not in ("preparado", "promovido"):
+        raise _DiarioInvalido(f"estado desconocido {diario['estado']!r}")
+    if not (re.fullmatch(r"[0-9a-f]{64}", diario["sha_original"])
+            and re.fullmatch(r"[0-9a-f]{64}", diario["sha_candidato"])):
+        raise _DiarioInvalido("los sha no tienen forma de sha256")
+    if not re.fullmatch(r"[0-9a-f]{16}", diario["id_op"]) or diario["id_op"] != op.name:
+        raise _DiarioInvalido("id_op no coincide con el directorio de la operacion")
+    raiz = directorio.resolve()
+    if diario["directorio"] != str(raiz):
+        raise _DiarioInvalido("el diario es de otro directorio")
+    destino = pathlib.Path(diario["ruta"]).resolve()
+    try:
+        rel = destino.relative_to(raiz)
+    except ValueError:
+        raise _DiarioInvalido("la ruta cae fuera del directorio") from None
+    # La misma zona que `ejecutar` exige: gobernanza y producto no se escriben ni desde un diario.
+    if not zona_permitida(destino, raiz=directorio):
+        raise _DiarioInvalido("la ruta esta fuera de la zona permitida")
+    if (str(destino) != diario["ruta"] or destino.name in orquestador._INTOCABLES
+            or destino.name in _COPIA_SIN_FICHEROS or _es_sensible(destino.name)
+            or any(c.lower() in _COPIA_SIN_DIRS for c in rel.parts[:-1])):
+        raise _DiarioInvalido("la ruta es intocable, excluida o no esta resuelta")
+    if diario["tmp"] != str(destino.with_name(f".{destino.name}.aura-cand-{diario['id_op']}.tmp")):
+        raise _DiarioInvalido("el temporal no es el que se habria creado")
+    respaldo = op / "original"
+    try:
+        original = respaldo.read_bytes() if not respaldo.is_symlink() else None
+    except OSError:
+        original = None
+    if original is None or _sha(original) != diario["sha_original"]:
+        raise _DiarioInvalido("el respaldo `original` falta o no coincide con su sha")
+    return diario, destino, original
+
+
+def _vivo(pid: int) -> bool:
+    if pid <= 0:
+        return True
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _barrer_copias_huerfanas() -> None:
+    """Borra SOLO copias `aura-candidato-*` propias: marca valida, dueño nuestro, pid muerto y mas de
+    una hora. Cualquier duda => no se toca."""
+    for copia in pathlib.Path(tempfile.gettempdir()).glob("aura-candidato-*"):
+        try:
+            if copia.is_symlink() or not _es_dir_propio(copia):
+                continue
+            marca = json.loads((copia / _MARCA_COPIA).read_text(encoding="utf-8"))
+            if (not isinstance(marca.get("marca"), str) or not isinstance(marca.get("pid"), int)
+                    or not isinstance(marca.get("t"), (int, float)) or not math.isfinite(marca["t"])):
+                continue
+            if time.time() - marca["t"] < _EDAD_COPIA_HUERFANA_S or _vivo(marca["pid"]):
+                continue
+            shutil.rmtree(copia, ignore_errors=True)
+        except (OSError, ValueError):
+            continue
+
+
+def recuperar(directorio) -> dict:
+    """Resuelve los diarios de promocion pendientes de ESTE directorio. **Idempotente.**
+
+    `preparado`: vivo == original -> nada que deshacer; vivo == candidato -> se restaura el original
+    (ADR-0003); cualquier otro contenido es AMBIGUO -> marca `BLOQUEADO`, se conserva todo.
+    `promovido`: vivo == candidato -> se confirma (y se registra `cambio_aplicado` si no constaba).
+    Un diario que no supera `_validar_diario` (forjado, corrupto, parcial) bloquea sin tocar nada.
+    Con PARADA armada NO escribe: solo informa. Si otro proceso tiene el cerrojo, no toca sus diarios.
+    Barre ademas las copias `aura-candidato-*` huerfanas propias (pid muerto, > 1 h)."""
+    directorio = pathlib.Path(directorio)
+    estado = _dir_estado(directorio)
+    informe = {"pendientes": 0, "resultados": [], "escribio": False, "bloqueado": False,
+               "ocupado": False}
+    if orquestador.parada_solicitada(directorio):
+        return {**informe, "bloqueado": (estado / _BLOQUEO).exists(),
+                "pendientes": len(_operaciones_de(estado))}
+    _barrer_copias_huerfanas()
+    if not estado.exists() and not estado.is_symlink():
+        return informe
+    if not _es_dir_propio(estado) or (estado / _BLOQUEO).exists():
+        return {**informe, "bloqueado": True}
+    with _cerrojo(estado, bloqueante=False) as tomado:
+        if not tomado:
+            return {**informe, "ocupado": True}
+        for op in _operaciones_de(estado):
+            informe["pendientes"] += 1
+            if not _resolver(directorio, estado, op, informe):
+                break
+        _retirar_si_vacio(estado)
+    return informe
+
+
+def _operaciones_de(estado: pathlib.Path) -> list[pathlib.Path]:
+    if not _es_dir_propio(estado):
+        return []
+    return sorted(p for p in estado.iterdir() if p.is_symlink() or p.is_dir())
+
+
+def _bloqueo_de_recuperacion(directorio, estado, op, informe, motivo, evento="promociones_bloqueadas",
+                             datos=None) -> bool:
+    cp.registrar_evento(directorio, evento, {"id_op": op.name, "motivo": motivo, **(datos or {})})
+    _bloquear(estado, motivo, op.name)
+    informe.update(bloqueado=True, escribio=True)
+    return False
+
+
+#: Valor de `correlacion` que marca un `cambio_aplicado` POSTERIOR al contrato sin tarea/intento: el planificador
+#: no lo atribuye nunca (ni por orden). Solo un evento SIN ninguna clave de correlacion es anterior al contrato.
+_SIN_CORRELACION = "ninguna"
+
+
+def _correlacion_del_diario(diario: dict) -> dict:
+    """Lo que el `cambio_aplicado` recuperado debe llevar para no atribuirse mal. `{tarea, intento}` si el diario
+    los trae bien formados (via review/motor); si no, la ausencia EXPLICITA (`tarea`/`intento` nulos,
+    `correlacion: "ninguna"` y la `via` del diario). `{}` solo para un diario anterior al contrato (sin ninguna
+    de las claves): ese sigue recuperandose como siempre."""
+    if _correlacion_valida(diario.get("tarea"), diario.get("intento")):
+        return {"tarea": diario["tarea"], "intento": diario["intento"]}
+    if (diario.get("correlacion") == _SIN_CORRELACION or diario.get("via") is not None
+            or "tarea" in diario or "intento" in diario):          # mal formada = ausente, pero explicita
+        explicita = {"tarea": None, "intento": None, "correlacion": _SIN_CORRELACION}
+        if diario.get("via") is not None:
+            explicita["via"] = diario["via"]
+        return explicita
+    return {}
+
+
+def _verificacion_del_diario(diario: dict) -> dict | None:
+    """La verificacion que `_promover` midio, o `None` si falta algo o no es del tipo exacto. Estricto:
+    `efecto_verificado` y `verificacion_sana` solo valen si son `True` (un diario promovido solo existe si
+    ambos lo fueron) y los otros dos deben ser booleanos reales; cualquier otra cosa se trata como ausente."""
+    if diario.get("efecto_verificado") is not True or diario.get("verificacion_sana") is not True:
+        return None
+    aislada, confinada = diario.get("verificacion_aislada"), diario.get("ejecucion_confinada")
+    if not isinstance(aislada, bool) or not isinstance(confinada, bool):
+        return None
+    return {"efecto_verificado": True, "verificacion_sana": True, "verificacion_aislada": aislada,
+            "ejecucion_confinada": confinada}
+
+
+def _es_el_cambio_de(evento: dict, id_propuesta: str, correlacion: dict) -> bool:
+    """I2 · un intento, un desenlace. Con correlacion, la clave es `(tarea, intento)`; sin ella (diario
+    anterior al contrato), la propuesta, como siempre."""
+    if evento["tipo"] != "cambio_aplicado":
+        return False
+    d = evento["datos"]
+    if isinstance(correlacion.get("tarea"), str):
+        return d.get("tarea") == correlacion["tarea"] and d.get("intento") == correlacion["intento"]
+    return d.get("id") == id_propuesta and not d.get("revertido")
+
+
+def _resolver(directorio, estado, op, informe) -> bool:
+    """Resuelve UN diario. `False` si hay que parar (bloqueo)."""
+    try:
+        diario, destino, original = _validar_diario(directorio, op)
+    except _DiarioInvalido as exc:
+        return _bloqueo_de_recuperacion(directorio, estado, op, informe, str(exc))
+    vivo = _sha_de(destino)
+    datos = {"id": diario["propuesta"], "fichero": str(destino), "id_op": diario["id_op"]}
+    if diario["estado"] == "preparado" and vivo == diario["sha_original"]:
+        resultado = "sin_cambios"
+        tmp = pathlib.Path(diario["tmp"])
+        if tmp.is_file() and not tmp.is_symlink():          # temporal huerfano que registro el diario
+            tmp.unlink(missing_ok=True)
+    elif diario["estado"] == "preparado" and vivo == diario["sha_candidato"]:
+        if not _restaurar(destino, original, diario["id_op"]):
+            return _bloqueo_de_recuperacion(directorio, estado, op, informe,
+                                            "restauracion fallida al arranque",
+                                            evento="restauracion_fallida", datos=datos)
+        resultado = "restaurado"
+    elif diario["estado"] == "promovido" and vivo == diario["sha_candidato"]:
+        correlacion = _correlacion_del_diario(diario)
+        constaba = any(_es_el_cambio_de(e, datos["id"], correlacion) for e in cp.leer_eventos(directorio))
+        if not constaba:
+            # I3: la verificacion es COPIA LITERAL de lo que midio `_promover`; si el diario no la trae
+            # (anterior al contrato, o mal formada) no se inventa: `verificacion_no_registrada` y la tarea
+            # queda `resultado_ambiguo`. `recuperado: true` hace auditable toda finalizacion por esta via.
+            verif = _verificacion_del_diario(diario)
+            cp.registrar_evento(directorio, "cambio_aplicado",
+                                {**datos, "revertido": False, "promovido": True, "recuperado": True,
+                                 **correlacion,
+                                 **(verif if verif is not None else {"verificacion_no_registrada": True})})
+        resultado = "promocion_confirmada"
+    else:
+        return _bloqueo_de_recuperacion(directorio, estado, op, informe, "contenido ambiguo",
+                                        datos={**datos, "estado": diario["estado"]})
+    cp.registrar_evento(directorio, "recuperacion_al_arranque", {**datos, "resultado": resultado})
+    shutil.rmtree(op, ignore_errors=True)                 # solo despues de registrar el evento
+    informe["resultados"].append(resultado)
+    informe["escribio"] = True
+    return True
+
+
+def _crear_copia(directorio: pathlib.Path, rel: pathlib.PurePath):
+    """Copia el arbol a un `mkdtemp` fuera del repo. Devuelve `(raiz_copia, marca, manifiesto, omitidos)`.
+
+    Sin symlinks (ni se siguen ni se copian), sin cache, sin estado real, sin PARADA y sin nombres
+    sensibles. El manifiesto (ruta relativa -> sha256 de lo COPIADO) es la precondicion de la promocion.
+    Si algo falla a mitad, la copia propia se borra."""
+    copia = pathlib.Path(tempfile.mkdtemp(prefix="aura-candidato-"))
+    marca = secrets.token_hex(16)
+    manifiesto: dict[str, str] = {}
+    omitidos = 0
+    try:
+        (copia / _MARCA_COPIA).write_text(
+            json.dumps({"marca": marca, "pid": os.getpid(), "t": time.time()}), encoding="utf-8")
+        for raiz, dirs, ficheros in os.walk(directorio, followlinks=False):
+            base = pathlib.Path(raiz)
+            conservar = []
+            for n in dirs:
+                if n.lower() in _COPIA_SIN_DIRS:
+                    continue
+                if (base / n).is_symlink():
+                    omitidos += 1
+                    continue
+                conservar.append(n)
+            dirs[:] = conservar
+            for n in ficheros:
+                origen = base / n
+                if n in _COPIA_SIN_FICHEROS or n.endswith(".pyc"):
+                    continue
+                if origen.is_symlink() or _es_sensible(n):
+                    omitidos += 1
+                    continue
+                relativa = origen.relative_to(directorio)
+                (copia / relativa).parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(origen, copia / relativa)
+                # Solo los de la RAIZ de la copia quedan fuera del manifiesto: uno anidado es codigo/datos
+                # de verdad y si cambia entre la copia y la promocion la base ya no es la verificada.
+                if relativa.as_posix() not in _COPIA_SOLO_LECTURA or relativa.as_posix() == rel.as_posix():
+                    manifiesto[relativa.as_posix()] = _sha_de(copia / relativa)
+        if rel.as_posix() not in manifiesto:
+            raise CandidatoNoAislable(
+                f"{rel} no puede copiarse para verificarse aislado (nombre sensible, enlace o excluido)")
+    except BaseException:
+        shutil.rmtree(copia, ignore_errors=True)
+        raise
+    return copia, marca, manifiesto, omitidos
+
+
+def _base_intacta(directorio: pathlib.Path, manifiesto: dict) -> list[str]:
+    """Rutas copiadas cuyo sha en el vivo ya no es el de la copia."""
+    return [r for r, sha in manifiesto.items() if _sha_de(directorio / r) != sha]
+
+
+def _acepta_raiz(verificacion) -> bool:
+    try:
+        parametros = inspect.signature(verificacion).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    # Un parametro con valor por defecto (`timeout=5`) no es la raiz; solo cuenta uno obligatorio o
+    # uno llamado `raiz`.
+    return any(p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)
+               and (p.default is p.empty or p.name == "raiz") for p in parametros)
+
+
+def _exigir_raiz(verificacion) -> None:
+    """`VerificadorSinRaiz` si hay un verificador que no acepta la raiz de la copia. `None` (sin
+    verificador: «no se midio») no es un verificador y se rechaza despues, por `no_medido`."""
+    if verificacion and not _acepta_raiz(verificacion):
+        raise VerificadorSinRaiz(
+            f"el verificador {getattr(verificacion, '__name__', repr(verificacion))!r} no acepta la raiz "
+            f"de la copia: mediria el arbol vivo (que aun tiene el original), no el candidato. "
+            f"Declare un parametro obligatorio, p. ej. `lambda raiz: ...`. No se ejecuta nada")
+
+
+def _promover(directorio: pathlib.Path, destino: pathlib.Path, propuesta: dict, candidato: bytes,
+              efecto_en, sha_esperado: str, verif: dict | None = None) -> pathlib.Path | None:
+    """Promueve el candidato al vivo (con el cerrojo ya tomado). Devuelve el directorio del diario si
+    quedo promovido (lo cierra quien llama, DESPUES de registrar el evento); `None` si se revirtio (y
+    verifico). `_BaseCambiada` si el vivo ya no es el original verificado. `RestauracionFallida` si no
+    pudo devolver el original. Solo `Exception` se gestiona aqui: una muerte (SystemExit,
+    KeyboardInterrupt, SIGKILL) la resuelve `recuperar` desde el diario."""
+    original = destino.read_bytes()
+    if _sha(original) != sha_esperado:
+        raise _BaseCambiada()                             # no se guarda en el diario algo no verificado
+    id_op = secrets.token_hex(8)
+    estado = _dir_estado(directorio)
+    op = estado / id_op
+    _asegurar_dir(op)
+    tmp = destino.with_name(f".{destino.name}.aura-cand-{id_op}.tmp")
+    diario = {"id_op": id_op, "directorio": str(directorio.resolve()), "ruta": str(destino),
+              "propuesta": propuesta["id"], "sha_original": _sha(original),
+              "sha_candidato": _sha(candidato), "tmp": str(tmp), "estado": "preparado"}
+    if _correlacion_valida(propuesta.get("tarea"), propuesta.get("intento")):
+        diario.update({"tarea": propuesta["tarea"], "intento": propuesta["intento"]})
+    else:
+        # La AUSENCIA de correlacion tambien se guarda: un recuperado sin ella no se atribuye a ninguna tarea.
+        diario["correlacion"] = _SIN_CORRELACION
+    if propuesta.get("via") is not None:
+        diario["via"] = propuesta["via"]
+    _escribir_privado(op / "original", original)
+    _guardar_diario(op, diario)                           # ANTES de tocar el vivo
+    datos = {"id": propuesta["id"], "fichero": str(destino), "id_op": id_op}
+    try:
+        _escribir_atomico(destino, candidato, tmp, stat.S_IMODE(destino.stat().st_mode))
+        tras = destino.read_bytes()
+        if _sha(tras) != diario["sha_candidato"] or not efecto_en(tras.decode("utf-8")):
+            raise OSError("la relectura del vivo no coincide con el candidato verificado")
+    except Exception as exc:                              # noqa: BLE001 — cualquier fallo => restaurar
+        if not _restaurar(destino, original, id_op):
+            cp.registrar_evento(directorio, "restauracion_fallida", {**datos, "motivo": str(exc)})
+            _bloquear(estado, "restauracion fallida", id_op)
+            raise RestauracionFallida(
+                f"{destino.name}: la promocion fallo ({exc}) y NO se pudo restaurar el original; "
+                f"respaldo conservado en {op}") from exc
+        cp.registrar_evento(directorio, "promocion_revertida", {**datos, "motivo": str(exc)})
+        shutil.rmtree(op, ignore_errors=True)
+        return None
+    # D2: el diario promovido guarda lo que se MIDIO (valores reales; nunca un `true` por defecto). Sin
+    # `verif` no se escribe ningun campo: un diario sin ellos se recupera como resultado ambiguo.
+    _guardar_diario(op, {**diario, "estado": "promovido", **(verif or {})})
+    return op
+
+
+def ejecutar(directorio, propuesta: dict, autoridad: str, verificacion=None) -> dict:
+    """Verifica el cambio en una COPIA aislada y solo lo promueve al fichero vivo si el efecto y la
+    verificacion son buenos. **El vivo nunca contiene un candidato sin verificar.**
+
+    `verificacion` es lo que decide si el arbol quedo sano —la bateria de pruebas, en uso real—. Se
+    llama `verificacion(raiz_copia)`; **un verificador que no acepta la raiz lanza `VerificadorSinRaiz`**
+    (antes de crear la copia y sin llamarlo: el vivo queda intacto). La via heredada `lambda: ...`
+    media el vivo y se retiro (PROMPT 03, Fase A). Si devuelve falso, lanza o no existe, el vivo queda byte a byte como estaba. La promocion es atomica
+    (temporal + `os.replace`) con diario de intencion en disco y precondicion de hashes; si falla se
+    restaura el original y se verifica su sha (`RestauracionFallida` si no se puede). La atomicidad es
+    **por fichero**: `ejecutar` modifica uno solo; no es una transaccion multi-fichero.
+
+    **Lo que el resultado declara, y no hay que suponer:** `verificacion_aislada` es True solo si el
+    verificador recibio la raiz de la copia (siempre, salvo un `bool` heredado que ya no se admite
+    sin raiz); `ejecucion_confinada` es False (no hay Landlock); si se rechaza, `motivo` dice por que, y
+    el rechazo se registra como `cambio_aplicado` con `revertido=True` (compatibilidad), no como el
+    `cambio_rechazado` del DP."""
     directorio = pathlib.Path(directorio)
     ruta = pathlib.Path(propuesta["fichero"])
     if not zona_permitida(ruta, raiz=directorio):
@@ -530,8 +1196,61 @@ def ejecutar(directorio, propuesta: dict, autoridad: str, verificacion=None) -> 
     if not esta_autorizada(directorio, propuesta["id"]):
         raise SinAutorizacion(
             f"la propuesta {propuesta['id']!r} no tiene autorizacion humana registrada")
+    # **LA PARADA SE COMPRUEBA DONDE PASA TODO EL MUNDO (ALERTA-005; CEO, 2026-09-16).** Estaba
+    # consultada al DESPERTAR (`motor_autonomia`, `despertador`, `observatorio`) pero no aqui, que es
+    # la unica puerta de escritura. Medido: con `PARADA` armada, `ejecutar()` escribia el fichero. Una
+    # parada que solo impide empezar no es una parada: es un horario. Se comprueba DESPUES de zona y
+    # autorizacion —para que el motivo del rechazo sea el mas especifico— y ANTES de tocar el disco.
+    # **LOS INTOCABLES SE RESPETAN DONDE SE ESCRIBE (ALERTA-005; CEO, 2026-09-16).** `_INTOCABLES`
+    # existia desde F2 y NO protegia nada en esta ruta: `ejecutar` nunca la miraba. Demostrado
+    # ejecutando en una auditoria independiente: el ejecutor reescribio un fichero llamado
+    # `orquestador.py` —que si esta en la tupla— porque la lista solo se consultaba en la
+    # clasificacion de `contrato.evaluar` y en `Orquestador.puede_tocar`, que no tiene ningun llamante
+    # de produccion. `orquestador.py:56-58` ya decia por que existe: *«un ejecutor que puede reescribir
+    # cualquiera de los tres puede concederse lo que quiera en la iteracion siguiente»*. Aqui esa frase
+    # se vuelve verdadera.
+    #
+    # **Se CONSULTA la tupla, no se copia** (lo fija `test_red_f5_evolucion_autonoma`: una segunda
+    # lista seria una segunda verdad), y se compara el nombre RESUELTO, porque un symlink con otro
+    # nombre apuntando al fichero real burlaria una comparacion del nombre escrito.
+    #
+    # **NO se amplia la lista aqui.** Ampliarla cambia un invariante publicado con cardinalidad en dos
+    # actas cerradas y reduce el alcance operativo del anillo: eso es del CEO. Esto solo hace cumplir
+    # la que ya estaba decidida.
+    #
+    # El CEO la amplio a OCHO el 2026-09-20 —en `orquestador.py`, donde vive, no aqui— anadiendo
+    # `autoconstruccion.py` (este fichero), `review.py`, `ciclo_autonomo.py` y `planificador.py`. El
+    # motivo esta escrito junto a la tupla; en una linea: el mecanismo que decide que se puede tocar
+    # no se protegia a si mismo, y su proteccion dependia de que nunca existiera un contrato que lo
+    # nombrara. **Los documentos que publicaron «4 entradas» siguen sin reconciliar** —dos actas
+    # cerradas y el contrato de DR-E—: esa reconciliacion es del CEO y queda como DECISION_REQUIRED.
+    try:
+        nombre_real = ruta.resolve().name
+    except OSError:                                   # enlace roto: se juzga el nombre escrito
+        nombre_real = ruta.name
+    if nombre_real in orquestador._INTOCABLES or ruta.name in orquestador._INTOCABLES:
+        raise FicheroIntocable(
+            f"{ruta.name} es intocable: decide la autoridad del propio anillo. Cambiarlo es un acto "
+            f"del CEO por acta, no una tarea que se encargue a un ejecutor")
+    if orquestador.parada_solicitada(directorio):
+        raise ParadaActiva(
+            f"PARADA armada en {directorio}: no se escribe nada. La parada detiene la ejecucion "
+            f"efectiva, no solo el despertar")
+    # Un diario huerfano de una ejecucion anterior se resuelve ANTES de seguir; si queda ambiguo o la
+    # restauracion fallo, no se promueve nada mas (ADR-0003). Va tras PARADA: con ella armada no se escribe.
+    if recuperar(directorio)["bloqueado"]:
+        cp.registrar_evento(directorio, "promocion_rechazada_por_bloqueo",
+                            {"id": propuesta["id"], "fichero": str(ruta)})
+        raise PromocionesBloqueadas(
+            f"hay una promocion pendiente o ambigua para {directorio}: una persona debe resolverla "
+            f"y retirar la marca {_BLOQUEO} de {_dir_estado(directorio)}")
 
-    original = ruta.read_text(encoding="utf-8") if ruta.exists() else ""
+    # **Un verificador sin raiz mediria el vivo: se rechaza ANTES de leer, de crear la copia y de llamarlo.**
+    _exigir_raiz(verificacion)
+
+    # Bytes: el candidato deriva EXACTAMENTE de lo que se lee (sin traducir CRLF) y se compara por sha.
+    original_b = ruta.read_bytes() if ruta.exists() else b""
+    original = original_b.decode("utf-8")
     forma = propuesta.get("forma", "funcion")
 
     # **El despacho es cerrado.** Una operacion que no esta en el vocabulario no se interpreta: se
@@ -562,42 +1281,173 @@ def ejecutar(directorio, propuesta: dict, autoridad: str, verificacion=None) -> 
             raise NoEliminable(
                 f"no se elimina {propuesta['simbolo']!r} de {ruta.name}: {motivo}")
         nuevo = quitar_simbolo(original, propuesta["simbolo"], forma)
-    ruta.write_text(nuevo, encoding="utf-8")
+    # **El candidato se escribe SOLO en una copia fuera del repo** y se verifica alli; el vivo no se
+    # toca hasta promover. Un destino que no cabe en la copia (fuera del directorio, o excluido por ser
+    # sensible) no se puede aislar: fail-closed.
+    destino = ruta.resolve()
+    try:
+        rel = destino.relative_to(directorio.resolve())
+        copia, marca, manifiesto, _omitidos = _crear_copia(directorio.resolve(), rel)
+    except (ValueError, CandidatoNoAislable) as exc:
+        motivo = (f"{ruta} esta fuera de {directorio}: no se puede verificar aislado"
+                  if isinstance(exc, ValueError) else str(exc))
+        cp.registrar_evento(directorio, "candidato_no_aislable",
+                            {"id": propuesta["id"], "fichero": str(ruta), "motivo": motivo})
+        raise CandidatoNoAislable(motivo) from None
+    try:
+        if manifiesto[rel.as_posix()] != _sha(original_b):
+            # El vivo cambio entre leer el original (del que sale el candidato) y copiarlo: lo que se
+            # verificaria no derivaria de lo que se promueve. Se aborta sin escribir (actualizacion perdida).
+            cp.registrar_evento(directorio, "promocion_abortada_base_cambiada",
+                                {"id": propuesta["id"], "fichero": str(destino), "rutas": [rel.as_posix()]})
+            registro = _registro(propuesta, ruta, False, None, autoridad, False, "base_cambiada")
+            cp.registrar_evento(directorio, "cambio_aplicado", registro)
+            return registro
+        return _aplicar_en_copia(directorio, ruta, destino, rel, copia, manifiesto, propuesta,
+                                 autoridad, verificacion, original, nuevo, operacion)
+    finally:
+        # Solo se borra lo que ESTA ejecucion creo: la copia lleva su marcador propio.
+        try:
+            leida = json.loads((copia / _MARCA_COPIA).read_text(encoding="utf-8"))
+            if leida.get("marca") == marca:
+                shutil.rmtree(copia, ignore_errors=True)
+        except (OSError, ValueError):
+            pass
+
+
+#: Motivo publicado segun lo que declaro la verificacion (`None` = no hubo verificador).
+_MOTIVOS = {None: "no_medido", "fallo": "verificacion", "error_infraestructura": "error_infraestructura",
+            "no_aislable": "pruebas_fuera_de_la_copia",
+            "sin_confinamiento": "confinamiento_no_disponible"}
+
+
+def _verificar(verificacion, copia) -> "ResultadoVerificacion | None":
+    """Ejecuta la verificacion y la normaliza. `None` = no hay verificador («no se midio»)."""
+    if not verificacion:
+        return None
+    _exigir_raiz(verificacion)                       # defensa en profundidad (ya se exige en `ejecutar`)
+    acepta = True
+    bruto = verificacion(copia)
+    if isinstance(bruto, ResultadoVerificacion):
+        if bruto.estado not in ESTADOS_VERIFICACION:
+            return ResultadoVerificacion("fallo", bool(bruto.aislada), bool(bruto.confinada),
+                                         f"estado desconocido {bruto.estado!r}")
+        return bruto
+    return ResultadoVerificacion("sano" if bruto else "fallo", acepta, False, "")
+
+
+def _registro(propuesta, ruta, efecto, sano, autoridad, aislada, motivo=None, promovido=False,
+              confinada=False) -> dict:
+    """El dict de siempre (compatibilidad) mas `promovido`, `verificacion_aislada`, `ejecucion_confinada`
+    y, si se rechazo, `motivo` (`verificacion`, `no_medido`, `efecto_no_verificado`, `base_cambiada`,
+    `promocion_revertida`). `revertido` significa «el vivo no cambio»."""
+    registro = {"id": propuesta["id"], "fichero": str(ruta), "simbolo": propuesta["simbolo"],
+                "efecto_verificado": bool(efecto), "verificacion_sana": sano,
+                "revertido": not promovido, "autoridad": autoridad, "promovido": promovido,
+                "verificacion_aislada": bool(aislada), "ejecucion_confinada": bool(confinada)}
+    if not promovido:
+        registro["motivo"] = motivo
+    # D1: la correlacion viaja en CADA cambio_aplicado (normal, rechazado) de la via review/motor.
+    for clave in ("tarea", "intento", "via"):
+        if clave in propuesta:
+            registro[clave] = propuesta[clave]
+    return registro
+
+
+def _aplicar_en_copia(directorio, ruta, destino, rel, copia, manifiesto, propuesta, autoridad,
+                      verificacion, original, nuevo, operacion) -> dict:
+    """Escribe y verifica el candidato en la copia; promueve al vivo solo si efecto y sano."""
+    en_copia = copia / rel
+    en_copia.write_text(nuevo, encoding="utf-8", newline="")
+    candidato = nuevo.encode("utf-8")
+    forma = propuesta.get("forma", "funcion")
+    buscar, sustituir = propuesta.get("buscar", ""), propuesta.get("sustituir", "")
+
+    def efecto_en(tras_el_cambio: str) -> bool:
+        # **El efecto se comprueba releyendo el arbol, no buscando texto.** Un `in` sobre el fuente
+        # confunde el simbolo con su mencion en un comentario; preguntarle al parser vale para las
+        # cinco formas. Se aplica a la copia y otra vez al vivo tras promover.
+        if operacion == "sustituir_texto":
+            # Doble y releyendo: el patron dejo de estar **y** el texto nuevo esta.
+            return (buscar not in tras_el_cambio) and (sustituir in tras_el_cambio)
+        return _existe_simbolo(original, propuesta["simbolo"], forma) \
+            and not _existe_simbolo(tras_el_cambio, propuesta["simbolo"], forma)
 
     # **Se relee el fichero.** Que la sustitucion «se haya hecho» no es evidencia de nada.
-    tras_el_cambio = ruta.read_text(encoding="utf-8")
-    # **El efecto se comprueba releyendo el arbol, no buscando texto.** Un `in` sobre el fuente
-    # confunde el simbolo con su mencion en un comentario o en otra palabra que lo contenga, y ademas
-    # solo sabia mirar funciones: `def X(`. Preguntarle al parser si el nodo sigue ahi vale para las
-    # cinco formas y no se deja enganar por la prosa.
-    if operacion == "sustituir_texto":
-        # El efecto de una sustitucion es doble y se comprueba releyendo: el patron dejo de estar
-        # **y** el texto nuevo esta. Comprobar solo una mitad daria por buena una escritura parcial.
-        efecto = (buscar not in tras_el_cambio) and (sustituir in tras_el_cambio)
-    else:
-        efecto = _existe_simbolo(original, propuesta["simbolo"], forma) \
-            and not _existe_simbolo(tras_el_cambio, propuesta["simbolo"], forma)
+    efecto = efecto_en(en_copia.read_bytes().decode("utf-8"))
     try:
-        sano = bool(verificacion() if verificacion else True)
+        # **«NO SE MIDIO» NO ES «SALIO BIEN» (CEO, 2026-09-16).** Sin verificador no se sabe y se
+        # rechaza: ADR-0003, ante la duda, roja. `verificacion(raiz)` recibe la raiz de la COPIA; las
+        # heredadas sin parametros se llaman sin argumentos (y miden el vivo). Los campos que se
+        # publican se DERIVAN de lo que la verificacion dice que ocurrio (`ResultadoVerificacion`); un
+        # `bool` heredado solo cuenta como aislado si recibio la raiz.
+        resultado_v = _verificar(verificacion, copia)
     except BaseException:
-        # La verificacion **revento** —el ejecutor se quedo sin cuota, el proceso murio—. Eso no es
-        # «no sano»: es «no se sabe». Y con el fichero ya escrito, no saberlo obliga a revertir antes
-        # de propagar: dejarlo a medias seria peor que cualquiera de los dos desenlaces.
-        ruta.write_text(original, encoding="utf-8")
+        # La verificacion **revento** (cuota, el proceso murio): «no se sabe». El vivo nunca se toco.
         cp.registrar_evento(directorio, "cambio_revertido_por_error",
                             {"id": propuesta["id"], "fichero": str(ruta),
                              "motivo": "la verificacion no pudo completarse"})
         raise
-    revertido = False
+    sano = (None if resultado_v is None else
+            True if resultado_v.estado == "sano" else
+            False if resultado_v.estado == "fallo" else None)
+    aislada = bool(resultado_v and resultado_v.aislada)
+    confinada = bool(resultado_v and resultado_v.confinada)
     if not (efecto and sano):
-        ruta.write_text(original, encoding="utf-8")
-        revertido = True
-
-    registro = {"id": propuesta["id"], "fichero": str(ruta), "simbolo": propuesta["simbolo"],
-                "efecto_verificado": bool(efecto), "verificacion_sana": sano,
-                "revertido": revertido, "autoridad": autoridad}
-    cp.registrar_evento(directorio, "cambio_aplicado", registro)
+        motivo = _MOTIVOS.get(resultado_v.estado if resultado_v else None, "verificacion")
+        if sano and not efecto:
+            motivo = "efecto_no_verificado"
+        registro = _registro(propuesta, ruta, efecto, sano, autoridad, aislada, motivo,
+                              confinada=confinada)
+        cp.registrar_evento(directorio, "cambio_aplicado", registro)
+        return registro
+    estado = _dir_estado(directorio)
+    _asegurar_estado(estado)
+    with _cerrojo(estado, bloqueante=True):               # hasta cerrar el diario
+        try:
+            resultado, cierre = _promover_si_procede(
+                directorio, destino, rel, propuesta, candidato, efecto_en, manifiesto,
+                verif={"efecto_verificado": bool(efecto), "verificacion_sana": sano,
+                       "verificacion_aislada": aislada, "ejecucion_confinada": confinada})
+            registro = _registro(propuesta, ruta, efecto, sano, autoridad, aislada,
+                                 None if cierre else resultado, promovido=bool(cierre),
+                             confinada=confinada)
+            cp.registrar_evento(directorio, "cambio_aplicado", registro)
+            if cierre:
+                shutil.rmtree(cierre, ignore_errors=True)  # cierra el diario, DESPUES del evento
+        finally:
+            _retirar_si_vacio(estado)                     # no dejar un directorio de estado por tmp
     return registro
+
+
+def _promover_si_procede(directorio, destino, rel, propuesta, candidato, efecto_en, manifiesto,
+                         verif=None):
+    """PARADA otra vez, precondicion de hashes y promocion. Devuelve `(motivo, None)` si no se promovio
+    o `("promovido", directorio_del_diario)`."""
+    datos = {"id": propuesta["id"], "fichero": str(destino)}
+    if orquestador.parada_solicitada(directorio):
+        cp.registrar_evento(directorio, "promocion_abortada_parada", datos)
+        raise ParadaActiva(f"PARADA armada en {directorio} durante la verificacion: no se promueve nada")
+    # Con el cerrojo ya tomado, otro proceso pudo dejar un bloqueo o una operacion pendiente (de un
+    # proceso muerto) mientras se verificaba: eso lo resuelve `recuperar`, no se promueve por encima.
+    estado = _dir_estado(directorio)
+    if (estado / _BLOQUEO).exists():
+        cp.registrar_evento(directorio, "promocion_rechazada_por_bloqueo", datos)
+        raise PromocionesBloqueadas(f"hay un bloqueo en {estado}: no se promueve")
+    if _operaciones_de(estado):
+        cp.registrar_evento(directorio, "promocion_abortada_diario_pendiente", datos)
+        return "diario_pendiente_ajeno", None
+    cambiadas = _base_intacta(directorio.resolve(), manifiesto)
+    try:
+        if cambiadas:
+            raise _BaseCambiada()
+        op = _promover(directorio, destino, propuesta, candidato, efecto_en, manifiesto[rel.as_posix()],
+                       verif)
+    except _BaseCambiada:
+        cp.registrar_evento(directorio, "promocion_abortada_base_cambiada",
+                            {**datos, "rutas": (cambiadas or [rel.as_posix()])[:20]})
+        return "base_cambiada", None
+    return ("promovido", op) if op else ("promocion_revertida", None)
 
 
 # ---------------------------------------------------------------------- 8 · CONTINUAR --
@@ -611,7 +1461,7 @@ def ciclo(directorio, ficheros, autoridad_humana: str | None, acta: str,
     hallazgos = diagnosticar(observar(ficheros))
     informe = {"observados": len(hallazgos), "propuestos": 0, "autorizados": 0, "aplicados": 0,
                "revertidos": 0, "detenido_en": "continuar"}
-    propuestas = [proponer(directorio, h) for h in hallazgos]
+    propuestas = [proponer(directorio, h, via="ciclo") for h in hallazgos]
     informe["propuestos"] = len(propuestas)
 
     if autoridad_humana not in AUTORIDADES_HUMANAS or not (acta or "").strip():

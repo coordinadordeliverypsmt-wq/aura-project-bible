@@ -142,6 +142,13 @@ def test_NINGUNA_funcion_gobernada_cierra_a_COMPLETED_sin_autoridad_humana_ni_cr
         # motivo equivocado es decorativa, y este barrido existe precisamente para no serlo.
         "registrar_bloqueo_de_cuota": lambda: cp.registrar_bloqueo_de_cuota(
             _estado_dict(), mensaje="5-hour limit reached", ventana="SHORT_4H30", tarea="T-1"),
+        # Las dos puertas de AUTORIDAD (acta del CEO, 2026-09-20). El intento es el que importa:
+        # encender REVIEW —o autorizar una propuesta— sin una autoridad humana detrás.
+        "registrar_review_habilitado": lambda: cp.registrar_review_habilitado(
+            _log(), por="worker-no-humano", acta="me autorizo yo",
+            alcance=("eliminar_codigo_muerto",)),
+        "registrar_propuesta_autorizada": lambda: cp.registrar_propuesta_autorizada(
+            _log(), "P-1", autorizada_por="worker-no-humano", acta="me autorizo yo"),
     }
     assert set(intentos) == cp.FUNCIONES_GOBERNADAS, (
         "la tabla de intentos y la lista de gobernadas han divergido: "

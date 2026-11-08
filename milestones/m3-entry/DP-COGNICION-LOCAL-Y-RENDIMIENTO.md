@@ -1,7 +1,7 @@
 ---
 documento: "Decision Package — Cognición Local + Rendimiento del Razonador"
 tipo: "Decision Package (perímetro de la siguiente inversión)"
-estado: "perímetro APROBADO (CEO, 2026-09-09). Construcción NO iniciada."
+estado: "perímetro APROBADO (CEO, 2026-09-09). EJECUTADO: commits 58e67cb y 5ebdce4 (2026-09-10, «checkpoint de la inversión completa»). Estado corregido el 2026-09-29: decía «Construcción NO iniciada», desfasado frente al historial."
 fecha: 2026-09-09
 mantenido-por: "APUS-5 (CTO)"
 decide: "CEO (Mauricio) — acta: decisiones/2026-09-09-acta-cuatro-decisiones-ceo.md §D-3 y §D-4"

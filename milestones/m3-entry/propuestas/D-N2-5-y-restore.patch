@@ -1,0 +1,146 @@
+# PROPUESTA NO PROMOVIDA (2026-10-07). Trabajo del ingeniero A (Sonnet), conservado como parche.
+# D-N2-5: SemanticMemory implementa _items/olvidar/marcar/restore delegando y realineando vectores.
+#   Bloqueo: verificador G-1 da R-A en memory_semantic.py; exige declaración en architecture_manifest.toml
+#   (aprobación del CEO) y el gate del CEO de DEUDA-N2-MEMORIA-SEMANTICA.md.
+# T8: restore re-anexa lápidas. NO CABE: conserva _persist() (reescribe el historial: G-7, ADR-0023 c.1/c.3).
+# Aplicar (cuando se autorice) desde walking-skeleton/: patch -p0 < ../milestones/m3-entry/propuestas/D-N2-5-y-restore.patch
+--- aura_skeleton/modules/memory.py
++++ aura_skeleton/modules/memory.py
+@@ -327,6 +327,28 @@
+         obs.log("BACKUP", "memory", f"backup creado {name} ({len(self._items)} items)", "-", audit=True)
+         return name
+ 
++    def _lapidas_vigentes(self) -> set[tuple]:
++        """Claves cuya ULTIMA linea del fichero activo es una lapida (lo olvidado y no vuelto a declarar).
++
++        Si el usuario volvio a declarar el contenido despues de olvidarlo, la ultima linea de su clave ya
++        no es lapida y no se reimpone: manda lo ultimo que dijo (misma regla que `_proyectar`).
++        Una linea ilegible se ignora aqui: restaurar es la via de recuperacion ante un fichero danado.
++        """
++        if not os.path.exists(self._path):
++            return set()
++        ultima: dict[tuple, bool] = {}
++        with open(self._path, encoding="utf-8") as f:
++            for linea in f:
++                if not linea.strip():
++                    continue
++                try:
++                    reg = json.loads(linea)
++                except json.JSONDecodeError:
++                    continue
++                if isinstance(reg, dict):
++                    ultima[_clave(reg)] = bool(reg.get(_LAPIDA))
++        return {k for k, es_lapida in ultima.items() if es_lapida}
++
+     def verify(self, backup_name: str) -> bool:
+         """Verifica la integridad de un backup contra el manifiesto (sha256)."""
+         expected = None
+@@ -347,12 +369,19 @@
+         src = os.path.join(self._bdir, backup_name)
+         with open(src, encoding="utf-8") as f:
+             contenido = f.read().strip()
++        # T8 (CONTRATO-OLVIDO-Y-RETENCION §2): lo olvidado DESPUES de esa copia sigue olvidado. Se recogen
++        # las lapidas del fichero activo ANTES de que `_persist` lo sobrescriba con la copia.
++        lapidas = self._lapidas_vigentes()
+         self._items = (
+             json.loads(contenido)
+             if contenido.startswith("[")
+-            else [json.loads(x) for x in contenido.splitlines() if x.strip()]
++            else _proyectar([json.loads(x) for x in contenido.splitlines() if x.strip()])
+         )
+         self._persist()
++        # Las que la copia reintroduce se RE-ANEXAN (append-only, sin reescribir) y se sacan de la proyeccion.
++        for item in [i for i in self._items if _clave(i) in lapidas]:
++            self._anexar({**item, _LAPIDA: True})
++        self._items = [i for i in self._items if _clave(i) not in lapidas]
+         self._reconstruir_indice()
+         obs.log("BACKUP", "memory", f"restore OK desde {backup_name} ({len(self._items)} items)", "-", audit=True)
+         return True
+--- aura_skeleton/modules/memory_semantic.py
++++ aura_skeleton/modules/memory_semantic.py
+@@ -91,6 +91,57 @@
+     def _coseno(a: list[float], b: list[float]) -> float:
+         return sum(x * y for x, y in zip(a, b, strict=True))
+ 
++    # --- acceso de solo lectura al corpus (D-N2-2) y alineamiento de vectores (D-N2-5) ---
++    @property
++    def _items(self) -> list[dict]:
++        """Las entradas vigentes, las MISMAS que ve N1. `ModeloUsuario` y `EjecutorModeloUsuario` leen
++        `memoria._items`: sin esto, con N2 activa el modelo de usuario ni siquiera podia listarse."""
++        return self._store._items
++
++    def _realinear(self, antes: list[dict]) -> None:
++        """Rehace `_vectores` para que correspondan 1:1 con `self._store._items` tras una mutacion de N1.
++
++        `antes` es la lista de items ANTES de la mutacion, alineada con los vectores que habia. Se reutiliza
++        el vector por IDENTIDAD de item (olvidar/marcar conservan los mismos dicts) y, si no, por CONTENIDO
++        (restore reconstruye los dicts: el embedding depende solo del texto). Solo se re-embebe lo que no
++        tenia vector: coste cero en olvidar/marcar y, en restore, solo los contenidos nuevos para N2
++        (~305 ms por recuerdo medido, D-N2-3).
++        """
++        por_id = {id(it): v for it, v in zip(antes, self._vectores, strict=True)}
++        por_contenido = {it["content"]: v for it, v in zip(antes, self._vectores, strict=True)}
++        nuevos: list[list[float]] = []
++        for it in self._store._items:
++            vec = por_id.get(id(it)) or por_contenido.get(it["content"])
++            nuevos.append(vec if vec is not None else self._embed(it["content"]))
++        self._vectores = nuevos
++
++    def olvidar(self, predicado) -> int:
++        """Soberania del usuario sobre N2: delega en N1 (lapida append-only) y realinea los vectores."""
++        antes = list(self._store._items)
++        n = self._store.olvidar(predicado)
++        self._realinear(antes)
++        return n
++
++    def marcar(self, predicado, campos: dict) -> int:
++        """Delega en N1 (anexa la marca). Los items no cambian de identidad: los vectores siguen vigentes."""
++        antes = list(self._store._items)
++        n = self._store.marcar(predicado, campos)
++        self._realinear(antes)
++        return n
++
++    # --- backup/restore: se delegan en N1 y se realinean (fragilidad latente ante restore) ---
++    def backup(self) -> str:
++        return self._store.backup()
++
++    def verify(self, backup_name: str) -> bool:
++        return self._store.verify(backup_name)
++
++    def restore(self, backup_name: str) -> bool:
++        antes = list(self._store._items)
++        ok = self._store.restore(backup_name)
++        self._realinear(antes)
++        return ok
++
+     # --- contrato MemoryStore (identico a N1) ---
+     async def write(self, user_id: str, kind: str, content: str, provenance: dict) -> None:
+         await self._store.write(user_id, kind, content, provenance)
+--- tests/unit/test_g1_ruta_unica.py
++++ tests/unit/test_g1_ruta_unica.py
+@@ -248,13 +248,20 @@
+     assert conjunto == {"AlmacenReglas"}
+ 
+ 
+-def test_capa5_un_tipo_sin_el_metodo_mutante_no_vuelve_gobernada_la_llamada():
+-    """Prohibición 2 de la enmienda. `SemanticMemory` **no implementa** `olvidar` ni `marcar`; eso
+-    no convierte la llamada en gobernada — es una **incompatibilidad real** y se registra."""
++def test_capa5_ambos_tipos_del_conjunto_implementan_la_operacion_mutante():
++    """Prohibición 2 de la enmienda, tras D-N2-5. Antes `SemanticMemory` **no implementaba** `olvidar` ni
++    `marcar` y el verificador lo registraba como incompatibilidad real. Ahora el verificador resuelve
++    AMBOS tipos con la operación: ninguno queda sin ella. Eso NO vuelve gobernada la llamada (sigue
++    siendo R-A sin motor; ver las pruebas de la capa 4): solo cierra la incompatibilidad de tipos."""
+     _, evidencia = verificador.tipos_posibles("ModeloUsuario", "_memoria")
+-    faltantes = verificador.tipos_sin_operacion("ModeloUsuario", "_memoria", "olvidar")
+-    assert "SemanticMemory" in faltantes
++    for operacion in ("olvidar", "marcar"):
++        assert verificador.tipos_sin_operacion("ModeloUsuario", "_memoria", operacion) == set(), operacion
+     assert any("SemanticMemory" in str(e) for e in evidencia)
++    # CONTROL: el verificador sigue detectando la ausencia cuando existe (no se volvió ciego).
++    assert verificador.tipos_sin_operacion("ModeloUsuario", "_memoria", "operacion_inexistente_xyz") == {
++        "SemanticMemory",
++        "PersistentMemory",
++    }
+ 
+ 
+ def test_capa5_no_asume_un_tipo_cuando_la_evidencia_no_lo_demuestra():

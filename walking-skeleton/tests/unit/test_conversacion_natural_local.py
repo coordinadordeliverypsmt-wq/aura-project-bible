@@ -47,6 +47,7 @@ def test_una_interrogativa_con_crees_NO_es_una_orden(texto):
 def test_crear_sigue_siendo_una_orden():
     """Caso de control. Quitar `crees` no puede desarmar el imperativo real."""
     from aura_skeleton.core.intencion import ORDEN
+
     assert acto_de_habla("crea una carpeta para el proyecto") == ORDEN
 
 
@@ -78,8 +79,7 @@ def test_pedir_consejo_no_se_guarda_como_hecho_del_usuario(texto):
 
 
 def _las_24() -> list[str]:
-    datos = json.loads((Path(__file__).parent.parent / "datos" / "bateria_memoria.json")
-                       .read_text(encoding="utf-8"))
+    datos = json.loads((Path(__file__).parent.parent / "datos" / "bateria_memoria.json").read_text(encoding="utf-8"))
     textos = [c["texto"] for c in datos["consultas"] if c["esperado"] is None]
     assert len(textos) == 24, "la bateria cambio: vuelve a medir antes de decidir"
     return textos

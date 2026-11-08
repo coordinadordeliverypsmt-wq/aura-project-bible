@@ -1,0 +1,28 @@
+copiado walking-skeleton/aura_skeleton/core/reloj_cm2.py
+copiado walking-skeleton/aura_skeleton/adapters/receptor_nodos.py
+copiado walking-skeleton/aura_skeleton/core/nodos.py
+copiado walking-skeleton/tests/integration/test_reloj_cm2_integracion.py
+copiado walking-skeleton/tests/unit/test_nodos.py
+copiado walking-skeleton/tests/unit/test_receptor_nodos.py
+copiado walking-skeleton/tests/unit/test_reloj_cm2.py
+copiado walking-skeleton/mutaciones/cm2-cableado-produccion.toml
+--- import reloj_cm2/receptor_nodos/nodos con la particion LITERAL del commit 1 (Z1 + tests/mutacion citados)
+core.reloj_cm2 rc=0
+adapters.receptor_nodos rc=0
+core.nodos rc=0
+tests/integration/test_reloj_cm2_integracion.py: 44
+tests/unit/test_nodos.py: 130
+tests/unit/test_reloj_cm2.py: 69
+
+
+    def test_nombre_por_me_llamo_se_pregunta_como_nombre():
+>       assert r.evaluar_sonda(H, [entrada("me llamo Mauricio")])["resultado"] == "vigente"
+E       AssertionError: assert 'sin_consulta' == 'vigente'
+E         
+E         - vigente
+E         + sin_consulta
+
+tests/unit/test_reloj_cm2.py:216: AssertionError
+=========================== short test summary info ============================
+FAILED tests/unit/test_reloj_cm2.py::test_nombre_por_me_llamo_se_pregunta_como_nombre
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!

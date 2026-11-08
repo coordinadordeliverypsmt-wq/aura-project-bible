@@ -1,0 +1,24 @@
+Arnés: muta una copia aislada (/tmp/aura-mutar-cuxzns5l/reanudacion.gEn2/entorno/control-plane); el árbol original solo se lee.
+Arnes de mutacion: ../entorno/control-plane/mutaciones/reanudacion-tras-caida.toml
+Base en verde. Mutantes evaluados: 7
+  [OK] RC1 (detectado): una ejecucion muerta se toma por viva: la tarea interrumpida vuelve a quedar atascada para siempre
+        FAILED test_red_reanudacion_tras_caida.py::test_con_el_ejecutor_MUERTO_esta_interrumpida_y_vuelve_a_ser_elegible
+        FAILED test_red_reanudacion_tras_caida.py::test_un_PID_REUTILIZADO_no_pasa_por_el_ejecutor_original
+        FAILED test_red_reanudacion_tras_caida.py::test_dos_interrupciones_AGOTAN_y_queda_explicito
+  [OK] RC2 (detectado): tras un reinicio de la maquina un ejecutor anterior se da por vivo
+        FAILED test_red_reanudacion_tras_caida.py::test_tras_un_REINICIO_de_la_maquina_ningun_ejecutor_anterior_sigue_vivo
+  [OK] RC3 (detectado): un PID reutilizado por otro proceso hace pasar por vivo al ejecutor original
+        FAILED test_red_reanudacion_tras_caida.py::test_un_PID_REUTILIZADO_no_pasa_por_el_ejecutor_original
+  [OK] RC4 (detectado): dos supervisores pueden planificar a la vez la misma tarea (ejecucion duplicada)
+        FAILED test_red_reanudacion_tras_caida.py::test_dos_supervisores_no_pueden_planificar_a_la_vez_la_misma_tarea
+  [OK] RC5 (detectado): las interrupciones no consumen presupuesto: una tarea que muere siempre se reintenta sin fin
+        FAILED test_red_reanudacion_tras_caida.py::test_dos_interrupciones_AGOTAN_y_queda_explicito
+  [OK] RC6 (detectado): una constancia historica sin ejecutor se reofrece (podria duplicar una ejecucion antigua viva)
+        FAILED test_red_reanudacion_tras_caida.py::test_un_evento_HISTORICO_sin_ejecutor_sigue_siendo_conservador
+  [OK] RC7 (detectado): la constancia de planificacion deja de llevar la identidad del ejecutor
+        FAILED test_red_reanudacion_tras_caida.py::test_la_constancia_de_planificacion_lleva_la_identidad_del_ejecutor
+        FAILED test_red_reanudacion_tras_caida.py::test_con_el_ejecutor_VIVO_esta_en_curso_y_no_se_duplica
+        FAILED test_red_reanudacion_tras_caida.py::test_una_tarea_interrumpida_se_puede_volver_a_planificar_y_la_nueva_constancia_es_la_viva
+
+Total: 7 detectados, 0 sobreviven, 0 no aplicados, 0 ambiguos, 0 en timeout
+exit=0

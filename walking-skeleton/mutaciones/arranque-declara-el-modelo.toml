@@ -1,0 +1,63 @@
+incremento = "INV-9 (2026-09-15): el arranque declara QUE MODELO va a usar y avisa si no esta instalado, en vez de anunciar «stack=real» y morir en el primer turno con un 404 y el circuito abierto"
+pruebas = ["tests/integration/test_arranque_declara_el_modelo.py"]
+timeout_s = 420
+
+[[mutante]]
+id = "AM-M1"
+garantia = "el arranque deja de comprobar el modelo: vuelve a anunciar «stack=real» sin saber si lo que pide existe (patron «declarado != real»)"
+fichero = "aura_skeleton/composicion.py"
+pruebas = ["tests/integration/test_arranque_declara_el_modelo.py::test_el_arranque_avisa_si_el_modelo_declarado_no_esta_instalado",
+           "tests/integration/test_arranque_declara_el_modelo.py::test_la_comprobacion_solo_consulta_el_catalogo_y_no_descarga_nada"]
+buscar = '''        _disp, _detalle = proveedores[0].comprobar()  # type: ignore[attr-defined]
+        estado_modelo = f"modelo={config.modelo}" + (f" [{_detalle}]" if _detalle else " (instalado)")'''
+sustituir = '''        estado_modelo = f"modelo={config.modelo}"'''
+
+[[mutante]]
+id = "AM-M2"
+garantia = "el arranque deja de decir QUE modelo usa: el dato que distingue «lo que pedi» de «lo que hay» desaparece del log auditado"
+fichero = "aura_skeleton/composicion.py"
+pruebas = ["tests/integration/test_arranque_declara_el_modelo.py::test_el_arranque_declara_el_modelo_que_va_a_usar",
+           "tests/integration/test_arranque_declara_el_modelo.py::test_CONTROL_con_el_modelo_instalado_no_hay_aviso"]
+buscar = '''        f"{estado_modelo} "
+'''
+sustituir = ''
+
+[[mutante]]
+id = "AM-M3"
+garantia = "el arranque en modo mock consulta igualmente a Ollama: se pregunta por el catalogo de un proveedor que no se va a usar"
+fichero = "aura_skeleton/composicion.py"
+pruebas = ["tests/integration/test_arranque_declara_el_modelo.py::test_el_stack_mock_no_consulta_a_ollama"]
+buscar = '''        estado_modelo = "modelo=(mock)"'''
+sustituir = '''        estado_modelo = f"modelo=(mock) {OllamaProvider('ollama', config.modelo).comprobar()[1]}"'''
+
+[[mutante]]
+id = "AM-M4"
+garantia = "la comprobacion MIENTE: da por instalado cualquier modelo sin mirar el catalogo"
+fichero = "aura_skeleton/modules/providers_real.py"
+pruebas = ["tests/integration/test_arranque_declara_el_modelo.py::test_el_arranque_avisa_si_el_modelo_declarado_no_esta_instalado"]
+buscar = '''        if self.model in instalados:'''
+sustituir = '''        if True:'''
+
+[[mutante]]
+id = "AM-M5"
+garantia = "la consulta del catalogo pierde su tope: un Ollama colgado cuelga el ARRANQUE entero de AURA"
+fichero = "aura_skeleton/modules/providers_real.py"
+pruebas = ["tests/integration/test_arranque_declara_el_modelo.py::test_la_comprobacion_lleva_un_tope_de_espera"]
+buscar = '''            with urllib.request.urlopen(req, timeout=self.LIMITE_CATALOGO_S) as r:  # noqa: S310 (local, D24)'''
+sustituir = '''            with urllib.request.urlopen(req) as r:  # noqa: S310 (local, D24)'''
+
+[[mutante]]
+id = "AM-M6"
+garantia = "no saber impide arrancar: si Ollama no responde, la excepcion sube y AURA no llega a encenderse"
+fichero = "aura_skeleton/modules/providers_real.py"
+pruebas = ["tests/integration/test_arranque_declara_el_modelo.py::test_el_arranque_no_se_cae_si_ollama_no_responde"]
+buscar = '''        except (urllib.error.URLError, TimeoutError, ValueError, OSError) as e:'''
+sustituir = '''        except (ZeroDivisionError,) as e:'''
+
+[[mutante]]
+id = "AM-M7"
+garantia = "el tope de espera del catalogo se alarga hasta hacerlo inutil: el arranque puede quedarse esperando a un servicio que no contesta"
+fichero = "aura_skeleton/modules/providers_real.py"
+pruebas = ["tests/integration/test_arranque_declara_el_modelo.py::test_la_comprobacion_lleva_un_tope_de_espera"]
+buscar = '''    LIMITE_CATALOGO_S = 3'''
+sustituir = '''    LIMITE_CATALOGO_S = 600'''

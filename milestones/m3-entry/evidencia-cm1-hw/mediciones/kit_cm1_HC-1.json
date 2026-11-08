@@ -1,0 +1,84 @@
+{
+ "fecha": "2026-09-29T13:02:52",
+ "maquina": {
+  "cpu": "x86_64",
+  "nucleos_logicos": 2,
+  "isa": [
+   "sse4_2"
+  ],
+  "ram_mb": 3719,
+  "gpus": [
+   "Intel Corporation GeminiLake [UHD Graphics 600] (rev 06)"
+  ],
+  "python": "3.12.3"
+ },
+ "N": 5,
+ "piper_carga_ms": 6658.1,
+ "tts_piper_medium": {
+  "Sí.": {
+   "calentamiento_ms": 425.3,
+   "p50_ms": 305.0
+  },
+  "Te llamas Mauricio.": {
+   "calentamiento_ms": 988.3,
+   "p50_ms": 836.9
+  },
+  "Tienes dos recordatorios para hoy.": {
+   "calentamiento_ms": 1233.1,
+   "p50_ms": 1317.9
+  }
+ },
+ "tts_espeak_es_175": {
+  "Sí.": {
+   "p50_ms": 0.5
+  },
+  "Te llamas Mauricio.": {
+   "p50_ms": 2.2
+  },
+  "Tienes dos recordatorios para hoy.": {
+   "p50_ms": 3.9
+  }
+ },
+ "stt_whisper_tiny": {
+  "carga_ms": 4835.0,
+  "device": "cpu",
+  "¿Cómo me llamo?": {
+   "audio_s": 1.14,
+   "p50_ms": 6784.6,
+   "texto": "¡Pomo me llamo!"
+  },
+  "¿Cuál es mi color favorito?": {
+   "audio_s": 1.85,
+   "p50_ms": 3004.6,
+   "texto": "¿Cuál es mi color favorito?"
+  }
+ },
+ "stt_whisper_base": {
+  "carga_ms": 6866.0,
+  "device": "cpu",
+  "¿Cómo me llamo?": {
+   "audio_s": 1.14,
+   "p50_ms": 6550.2,
+   "texto": "¡Polo me llavo!"
+  },
+  "¿Cuál es mi color favorito?": {
+   "audio_s": 1.85,
+   "p50_ms": 6645.3,
+   "texto": "¿Cuál es mi color favorito?"
+  }
+ },
+ "stt_vosk_small_libre": {
+  "¿Cómo me llamo?": {
+   "audio_s": 1.14,
+   "rtf": 0.61,
+   "p50_final_ms": 65.6,
+   "texto": "como media bo"
+  },
+  "¿Cuál es mi color favorito?": {
+   "audio_s": 1.85,
+   "rtf": 0.25,
+   "p50_final_ms": 77.4,
+   "texto": "cuál es mi color favorito"
+  }
+ }
+}

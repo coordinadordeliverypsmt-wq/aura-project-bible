@@ -33,10 +33,18 @@ def _sistema(tmp_path, armado=False):
     ruta = tmp_path / "memoria.json"
     mem = PersistentMemory(str(ruta))
     mem._items = [
-        {"user_id": "mauricio", "kind": "semantica", "content": "tiene alergia a la penicilina",
-         "provenance": {"origen": "declarada"}},
-        {"user_id": "mauricio", "kind": "semantica", "content": "prefiere el te",
-         "provenance": {"origen": "declarada"}},
+        {
+            "user_id": "mauricio",
+            "kind": "semantica",
+            "content": "tiene alergia a la penicilina",
+            "provenance": {"origen": "declarada"},
+        },
+        {
+            "user_id": "mauricio",
+            "kind": "semantica",
+            "content": "prefiere el te",
+            "provenance": {"origen": "declarada"},
+        },
     ]
     mem._persist()
     kill = KillSwitch(trigger_file=str(tmp_path / "KILL"))
@@ -126,6 +134,7 @@ async def test_g7_con_la_parada_ARMADA_no_se_anexa_nada(tmp_path):
 async def test_g7_el_audit_sigue_identificando_QUE_y_SOBRE_QUIEN(tmp_path, monkeypatch):
     """G-6 no se degrada para conseguir G-7."""
     from aura_skeleton import observability as obs
+
     registros: list[tuple] = []
     monkeypatch.setattr(obs, "log", lambda *a, **k: registros.append((a, k)))
     modelo, _, _ = _sistema(tmp_path)

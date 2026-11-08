@@ -1,0 +1,58 @@
+incremento = "Pregunta por la camara sin nombre: preguntar cual y enumerar solo las autorizadas, sin capturar"
+pruebas = [
+    "tests/integration/test_pregunta_por_camara_sin_nombre.py",
+    "tests/integration/test_observacion_en_conversacion.py",
+]
+
+[[mutante]]
+id = "CS1"
+garantia = "la pregunta sin nombre vuelve a caer en la pared de memoria"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        if pv is not None and percepcion.es_consulta_visual_sin_camara(text):'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "CS2"
+garantia = "se enumeran tambien las camaras NO autorizadas por la politica"
+fichero = "aura_skeleton/core/percepcion.py"
+buscar = '''Para decírselo a la persona; no toca ninguna cámara."""
+        if self._politica is None:  # como `observar`: sin política, la cámara local sigue igual
+            return sorted(self._fuentes)
+        return [s for s in sorted(self._fuentes) if self._politica.puede_procesar_visual(s)]'''
+sustituir = '''Para decírselo a la persona; no toca ninguna cámara."""
+        return sorted(self._fuentes)'''
+
+[[mutante]]
+id = "CS3"
+garantia = "con una sola camara autorizada, preguntar cual la captura directamente (elige en vez de preguntar)"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            resp = percepcion.pedir_camara(pv.superficies_autorizadas())'''
+sustituir = '''            _ = [pv.observar(s, tid) for s in pv.superficies_autorizadas()]
+            resp = percepcion.pedir_camara(pv.superficies_autorizadas())'''
+
+[[mutante]]
+id = "CS4"
+garantia = "la gramatica deja de ser cerrada y reconoce cualquier frase con camara"
+fichero = "aura_skeleton/core/percepcion.py"
+buscar = '''que estas viendo) en la camara"
+    return re.fullmatch(patron, _normalizar(texto)) is not None'''
+sustituir = '''que estas viendo) en la camara"
+    return re.search(patron, _normalizar(texto)) is not None'''
+
+[[mutante]]
+id = "CS5"
+garantia = "sin ninguna camara autorizada se inventa una lista vacia en vez de decirlo"
+fichero = "aura_skeleton/core/percepcion.py"
+buscar = '''    if not autorizadas:
+        return f"No tengo ninguna cámara autorizada'''
+sustituir = '''    if False:
+        return f"No tengo ninguna cámara autorizada'''
+
+[[mutante]]
+id = "CS6"
+garantia = "sin politica (camara local), enumerar las autorizadas revienta"
+fichero = "aura_skeleton/core/percepcion.py"
+buscar = '''        if self._politica is None:  # como `observar`: sin política, la cámara local sigue igual
+            return sorted(self._fuentes)'''
+sustituir = '''        if False:
+            return sorted(self._fuentes)'''

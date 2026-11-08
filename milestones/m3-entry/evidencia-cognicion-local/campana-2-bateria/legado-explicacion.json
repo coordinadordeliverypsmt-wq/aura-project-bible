@@ -1,0 +1,23 @@
+{
+  "caso": "explicacion",
+  "tipo": "conocimiento",
+  "variante": "legado",
+  "texto": "por que el cielo es azul?",
+  "reloj_s": 23.51,
+  "total_s": 23.46,
+  "carga_s": 0.54,
+  "ingesta_tokens": 160,
+  "ingesta_s": 4.28,
+  "generacion_tokens": 43,
+  "generacion_s": 18.62,
+  "generacion_tok_s": 2.309,
+  "motivo_fin": "stop",
+  "json_valido": true,
+  "claves": [
+    "action",
+    "intent",
+    "say"
+  ],
+  "say": "Porque el cielo está atractivo y azul, no puede ser diferente en absoluto.",
+  "respuesta_cruda": "{\"say\": \"Porque el cielo está atractivo y azul, no puede ser diferente en absoluto.\",\"action\":\"consulta\",\"intent\":\"por qué el cielo es azul?\"}"
+}

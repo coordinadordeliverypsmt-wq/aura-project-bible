@@ -38,24 +38,38 @@ class EjecutorReglas:
         if operacion == "crear":
             return {"viable": True, "efecto": f"crearia la automatizacion {args.get('rule_id')!r}"}
         vigente = self._almacen._vigente(args.get("user_id", ""), args.get("rule_id", ""))
-        return {"viable": True,
-                "efecto": ("desactivaria la automatizacion" if vigente is not None
-                           else "no hay automatizacion activa que desactivar")}
+        return {
+            "viable": True,
+            "efecto": (
+                "desactivaria la automatizacion"
+                if vigente is not None
+                else "no hay automatizacion activa que desactivar"
+            ),
+        }
 
     async def execute(self, accion: str, args: dict, trace_id: str, event_id: str) -> dict:
         user_id = args.get("user_id", "")
         if args.get("operacion") == "crear":
             self._almacen._crear_en_disco(ReglaUsuario(**args["regla"]))
-            obs.log("REGLA", "ejecutor-reglas",
-                    f"creada {args['regla']['rule_id']!r} para '{user_id}'", trace_id, audit=True)
+            obs.log(
+                "REGLA",
+                "ejecutor-reglas",
+                f"creada {args['regla']['rule_id']!r} para '{user_id}'",
+                trace_id,
+                audit=True,
+            )
             return {"creada": True}
         desactivada = self._almacen._desactivar_en_disco(user_id, args.get("rule_id", ""))
-        obs.log("REGLA", "ejecutor-reglas",
-                f"desactivada={desactivada} {args.get('rule_id')!r} para '{user_id}'", trace_id, audit=True)
+        obs.log(
+            "REGLA",
+            "ejecutor-reglas",
+            f"desactivada={desactivada} {args.get('rule_id')!r} para '{user_id}'",
+            trace_id,
+            audit=True,
+        )
         return {"desactivada": desactivada}
 
 
 def como_argumentos(regla: ReglaUsuario) -> dict:
     """Los argumentos con los que una creacion viaja por el motor."""
-    return {"operacion": "crear", "user_id": regla.user_id, "rule_id": regla.rule_id,
-            "regla": asdict(regla)}
+    return {"operacion": "crear", "user_id": regla.user_id, "rule_id": regla.rule_id, "regla": asdict(regla)}

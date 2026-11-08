@@ -40,9 +40,11 @@ id = "UI-M4"
 garantia = "la conversacion interactiva SI apaga la pantalla por defecto, y --telemetria la respeta"
 fichero = "aura_skeleton/__main__.py"
 pruebas = ["tests/integration/test_ui_limpia_y_estado_autonomo.py::test_la_CONVERSACION_INTERACTIVA_apaga_la_pantalla_ella_sola"]
-buscar = '''    if not telemetria:
+buscar = '''    devuelve a la pantalla para quien la quiera delante."""
+    if not telemetria:
         obs.configurar_salida(None)'''
-sustituir = '''    if telemetria:
+sustituir = '''    devuelve a la pantalla para quien la quiera delante."""
+    if telemetria:
         obs.configurar_salida(None)'''
 
 # --------- 2 · RECONOCER LA PREGUNTA ---------
@@ -54,7 +56,7 @@ id = "GR-M1"
 garantia = "se reconoce por RAIZ: exigir la inflexion exacta devuelve el defecto del CEO ('trabajado')"
 fichero = "aura_skeleton/core/orchestrator.py"
 pruebas = ["tests/integration/test_ui_limpia_y_estado_autonomo.py::test_preguntar_por_su_ACTIVIDAD_consulta_el_ciclo_y_NO_la_memoria"]
-buscar = '''    "en que estas trabaj",      # trabajando · trabajado · trabajas'''
+buscar = '''    "en que estas trabaj",  # trabajando · trabajado · trabajas'''
 sustituir = '''    "en que estas trabajando",'''
 
 [[mutante]]

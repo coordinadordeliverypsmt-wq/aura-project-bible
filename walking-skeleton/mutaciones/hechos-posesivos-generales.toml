@@ -26,7 +26,9 @@ sustituir = '''    if False:
 [[mutante]]
 id = "HP-M3"
 garantia = "las relaciones nuevas se caen de _TERCERO: abuela, primo y tio volverian a capturarse"
-fichero = "aura_skeleton/conectores/conversacion.py"
+# RE-ANCLADO 2026-10-11 (D-AMP-2): `_TERCERO` se movio a `core/sujeto.py` como `TERCERO`. Mismo patron,
+# misma garantia; solo cambia el fichero.
+fichero = "aura_skeleton/core/sujeto.py"
 buscar = '''    r"\bmi (abuel\w*|prim[oa]s?|ti[oa]s?|amig\w*|herman\w*|jef\w*|vecin\w*|madre|padre|hij\w*|espos\w*|pareja)\b",'''
 sustituir = '''    r"\bmi (amig\w*|herman\w*|jef\w*|vecin\w*|madre|padre|hij\w*|espos\w*|pareja)\b",'''
 
@@ -70,8 +72,9 @@ id = "HP-M8"
 garantia = "la ruta acepta entradas que no son hechos declarados (observadas, preferencias)"
 fichero = "aura_skeleton/core/orchestrator.py"
 # PATRON ACTUALIZADO (2026-09-10): la linea crecio con el filtro de vigencia de AMP-AURA.
-buscar = '''        hechos = [e for e in vivas
-                  if e.get("clase") == ClaseSenal.HECHO_DECLARADO.value and e.get("valid_until") is None]'''
+buscar = '''        hechos = [
+            e for e in vivas if e.get("clase") == ClaseSenal.HECHO_DECLARADO.value and e.get("valid_until") is None
+        ]'''
 sustituir = '''        hechos = list(vivas)'''
 
 [[mutante]]

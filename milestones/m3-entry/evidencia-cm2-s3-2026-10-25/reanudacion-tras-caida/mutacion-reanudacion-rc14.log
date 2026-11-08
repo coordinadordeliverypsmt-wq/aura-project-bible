@@ -1,0 +1,40 @@
+Arnés: muta una copia aislada (/tmp/aura-mutar-e2f6hb3q/reanudacion.gEn2/entorno/control-plane); el árbol original solo se lee.
+Arnes de mutacion: ../entorno/control-plane/mutaciones/reanudacion-tras-caida.toml
+Base en verde. Mutantes evaluados: 14
+  [OK] RC1 (detectado): una ejecucion muerta se toma por viva: la tarea interrumpida vuelve a quedar atascada para siempre
+        FAILED test_red_reanudacion_tras_caida.py::test_con_el_ejecutor_MUERTO_esta_interrumpida_y_vuelve_a_ser_elegible
+        FAILED test_red_reanudacion_tras_caida.py::test_un_PID_REUTILIZADO_no_pasa_por_el_ejecutor_original
+        FAILED test_red_reanudacion_tras_caida.py::test_dos_interrupciones_AGOTAN_y_queda_explicito
+  [OK] RC2 (detectado): tras un reinicio de la maquina un ejecutor anterior se da por vivo
+        FAILED test_red_reanudacion_tras_caida.py::test_tras_un_REINICIO_de_la_maquina_ningun_ejecutor_anterior_sigue_vivo
+  [OK] RC3 (detectado): un PID reutilizado por otro proceso hace pasar por vivo al ejecutor original
+        FAILED test_red_reanudacion_tras_caida.py::test_un_PID_REUTILIZADO_no_pasa_por_el_ejecutor_original
+  [OK] RC4 (detectado): dos supervisores pueden planificar a la vez la misma tarea (ejecucion duplicada)
+        FAILED test_red_reanudacion_tras_caida.py::test_dos_supervisores_no_pueden_planificar_a_la_vez_la_misma_tarea
+  [OK] RC5 (detectado): las interrupciones no consumen presupuesto: una tarea que muere siempre se reintenta sin fin
+        FAILED test_red_reanudacion_tras_caida.py::test_dos_interrupciones_AGOTAN_y_queda_explicito
+  [OK] RC6 (detectado): una constancia historica sin ejecutor se reofrece (podria duplicar una ejecucion antigua viva)
+        FAILED test_red_reanudacion_tras_caida.py::test_un_evento_HISTORICO_sin_ejecutor_sigue_siendo_conservador
+        FAILED test_red_reanudacion_tras_caida.py::test_B1_sin_identidad_completa_no_se_registra_un_ejecutor_que_atascaria_la_tarea
+  [OK] RC7 (detectado): la constancia de planificacion deja de llevar la identidad del ejecutor
+        FAILED test_red_reanudacion_tras_caida.py::test_la_constancia_de_planificacion_lleva_la_identidad_del_ejecutor
+        FAILED test_red_reanudacion_tras_caida.py::test_con_el_ejecutor_VIVO_esta_en_curso_y_no_se_duplica
+        FAILED test_red_reanudacion_tras_caida.py::test_una_tarea_interrumpida_se_puede_volver_a_planificar_y_la_nueva_constancia_es_la_viva
+  [OK] RC8 (detectado): una tarea ELEVADA / esperando revisor / objetada se reofrece como si se hubiera interrumpido (M1)
+        FAILED test_red_reanudacion_tras_caida.py::test_M1_un_cierre_SIN_resultado_no_se_confunde_con_una_interrupcion[decision_requerida-datos0-elevada]
+        FAILED test_red_reanudacion_tras_caida.py::test_M1_un_cierre_SIN_resultado_no_se_confunde_con_una_interrupcion[revision_sin_revisor_capaz-datos1-esperando_revisor]
+        FAILED test_red_reanudacion_tras_caida.py::test_M1_un_cierre_SIN_resultado_no_se_confunde_con_una_interrupcion[veredicto_emitido-datos2-objetada]
+  [OK] RC9 (detectado): no poder leer /proc se toma como proceso muerto: ejecucion duplicada (M2)
+        FAILED test_red_reanudacion_tras_caida.py::test_M2_no_poder_LEER_proc_no_es_lo_mismo_que_un_proceso_muerto
+  [OK] RC10 (detectado): el resultado de un intento anterior se atribuye al intento vivo (M4)
+        FAILED test_red_reanudacion_tras_caida.py::test_M4_un_intento_vivo_tras_uno_revertido_esta_en_curso_aunque_el_tope_crezca
+  [OK] RC11 (detectado): se registra una identidad incompleta que dejaria la tarea en curso para siempre (B1)
+        FAILED test_red_reanudacion_tras_caida.py::test_B1_sin_identidad_completa_no_se_registra_un_ejecutor_que_atascaria_la_tarea
+  [OK] RC12 (detectado): se lee otro campo de /proc/<pid>/stat en lugar del starttime (B3)
+        FAILED test_red_reanudacion_tras_caida.py::test_B3_el_inicio_es_el_STARTTIME_de_verdad
+  [OK] RC13 (detectado): un ejecutor zombi se toma por vivo (B3)
+        FAILED test_red_reanudacion_tras_caida.py::test_B3_un_ejecutor_ZOMBI_cuenta_como_muerto
+  [OK] RC14 (detectado): la constancia de planificacion deja de tomar el cerrojo del log (atomicidad, B3)
+        FAILED test_red_reanudacion_tras_caida.py::test_B3_registrar_planificada_ESPERA_al_cerrojo_del_log
+
+Total: 14 detectados, 0 sobreviven, 0 no aplicados, 0 ambiguos, 0 en timeout

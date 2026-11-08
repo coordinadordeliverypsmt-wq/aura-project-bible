@@ -1,0 +1,574 @@
+incremento = "CANDIDATO AISLADO (DP-CANDIDATO-AISLADO-AUTOCONSTRUCCION, 2026-10-22): el candidato se verifica en una copia fuera del repo y solo se promueve al vivo con diario de intencion, precondicion de hashes y recuperacion al arranque"
+pruebas = ["test_red_candidato_aislado.py"]
+timeout_s = 300
+
+[[mutante]]
+id = "CA-M1"
+garantia = "el verificador recibe la raiz del VIVO en vez de la copia: mide el original, no el candidato"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''resultado_v = _verificar(verificacion, copia)'''
+sustituir = '''resultado_v = _verificar(verificacion, directorio)'''
+
+[[mutante]]
+id = "CA-M2"
+garantia = "el candidato tambien se escribe en el fichero VIVO antes de verificar: un lector concurrente ve codigo sin verificar"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''    en_copia.write_text(nuevo, encoding="utf-8", newline="")
+    candidato'''
+sustituir = '''    en_copia.write_text(nuevo, encoding="utf-8", newline="")
+    destino.write_text(nuevo, encoding="utf-8", newline="")
+    candidato'''
+
+[[mutante]]
+id = "CA-M3"
+garantia = "la precondicion de hashes desaparece: se promueve aunque otro fichero copiado haya cambiado en el vivo"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''return [r for r, sha in manifiesto.items() if _sha_de(directorio / r) != sha]'''
+sustituir = '''return []'''
+
+[[mutante]]
+id = "CA-M4"
+garantia = "_promover no compara el original leido con el verificado: promueve sobre una base distinta"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''    if _sha(original) != sha_esperado:'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "CA-M5"
+garantia = "H2: no se compara el sha de la copia con el original del que sale el candidato (actualizacion perdida)"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''        if manifiesto[rel.as_posix()] != _sha(original_b):'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "CA-M6"
+garantia = "el diario no se escribe antes de tocar el vivo: una muerte entre el replace y el cierre no deja rastro"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''    _guardar_diario(op, diario)                           # ANTES de tocar el vivo'''
+sustituir = '''    pass'''
+
+[[mutante]]
+id = "CA-M7"
+garantia = "la restauracion da por buena la escritura sin verificar el sha del vivo"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''        return _sha_de(destino) == _sha(original)'''
+sustituir = '''        return True'''
+
+[[mutante]]
+id = "CA-M8"
+garantia = "tras promover no se relee el vivo: un replace que deja otro contenido se da por bueno"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''        if _sha(tras) != diario["sha_candidato"] or not efecto_en(tras.decode("utf-8")):'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "CA-M9"
+garantia = "la PARADA no se vuelve a comprobar tras la verificacion: se promueve con el kill switch armado"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''    if orquestador.parada_solicitada(directorio):
+        cp.registrar_evento(directorio, "promocion_abortada_parada", datos)'''
+sustituir = '''    if False:
+        cp.registrar_evento(directorio, "promocion_abortada_parada", datos)'''
+
+[[mutante]]
+id = "CA-M10"
+garantia = "recuperar actua sobre el diario sin validarlo: un diario forjado o corrupto se obedece"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''        diario, destino, original = _validar_diario(directorio, op)'''
+sustituir = '''        _d = json.loads((op / "diario.json").read_text(encoding="utf-8"))
+        diario, destino, original = _d, pathlib.Path(_d["ruta"]), (op / "original").read_bytes()'''
+
+[[mutante]]
+id = "CA-M11"
+garantia = "el diario puede apuntar fuera de la zona permitida: recuperar escribiria gobernanza o producto"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''    if not zona_permitida(destino, raiz=directorio):
+        raise _DiarioInvalido'''
+sustituir = '''    if False:
+        raise _DiarioInvalido'''
+
+[[mutante]]
+id = "CA-M12"
+garantia = "el diario puede nombrar un fichero INTOCABLE: recuperar lo reescribiria"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''destino.name in orquestador._INTOCABLES
+            or destino.name in _COPIA_SIN_FICHEROS'''
+sustituir = '''False
+            or destino.name in _COPIA_SIN_FICHEROS'''
+
+[[mutante]]
+id = "CA-M13"
+garantia = "el diario puede nombrar un fichero sensible: recuperar lo reescribiria"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''or destino.name in _COPIA_SIN_FICHEROS or _es_sensible(destino.name)'''
+sustituir = '''or destino.name in _COPIA_SIN_FICHEROS'''
+
+[[mutante]]
+id = "CA-M14"
+garantia = "el diario puede nombrar un fichero dentro de un directorio excluido (.git, secrets)"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''            or any(c.lower() in _COPIA_SIN_DIRS for c in rel.parts[:-1])):'''
+sustituir = '''            or False):'''
+
+[[mutante]]
+id = "CA-M15"
+garantia = "la ruta del diario no se comprueba dentro del directorio: un diario de otro arbol se obedece"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''    try:
+        rel = destino.relative_to(raiz)
+    except ValueError:
+        raise _DiarioInvalido("la ruta cae fuera del directorio") from None'''
+sustituir = '''    rel = pathlib.PurePath(destino.name)'''
+
+[[mutante]]
+id = "CA-M16"
+garantia = "_validar_diario acepta un temporal distinto del que _promover habria creado"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''    if diario["tmp"] != str(destino.with_name(f".{destino.name}.aura-cand-{diario['id_op']}.tmp")):'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "CA-M17"
+garantia = "recuperar ignora que otro proceso tenga el cerrojo: toca los diarios ajenos"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''        if not tomado:
+            return {**informe, "ocupado": True}'''
+sustituir = '''        if False:
+            return {**informe, "ocupado": True}'''
+
+[[mutante]]
+id = "CA-M18"
+garantia = "el cerrojo no comprueba el inodo: tras un borrado y recreacion el flock ya no excluye a nadie"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''vigente = os.fstat(fd).st_ino == os.lstat(ruta).st_ino'''
+sustituir = '''vigente = True'''
+
+[[mutante]]
+id = "CA-M19"
+garantia = "el estado se retira aunque contenga diarios o BLOQUEADO: se pierde el respaldo y la marca de bloqueo"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''        if [q.name for q in estado.iterdir()] == [_CERROJO]:
+            (estado / _CERROJO).unlink()
+            estado.rmdir()'''
+sustituir = '''        if True:
+            shutil.rmtree(estado)'''
+
+[[mutante]]
+id = "CA-M20"
+garantia = "el temporal se abre sin O_EXCL ni O_NOFOLLOW: un symlink plantado con su nombre redirige la escritura (O_NOFOLLOW solo es redundante con O_EXCL)"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW'''
+sustituir = '''os.O_WRONLY | os.O_CREAT | os.O_TRUNC'''
+
+[[mutante]]
+id = "CA-M21"
+garantia = "el temporal se abre sin O_EXCL: se reutiliza y trunca un fichero preexistente con ese nombre"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW'''
+sustituir = '''os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW'''
+
+[[mutante]]
+id = "CA-M22"
+garantia = "la copia incluye ficheros de nombre sensible (secretos, claves, tokens)"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''if origen.is_symlink() or _es_sensible(n):'''
+sustituir = '''if origen.is_symlink():'''
+
+[[mutante]]
+id = "CA-M23"
+garantia = "la copia lleva el estado real y la PARADA (estado.json, eventos.jsonl, PARADA)"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''if n in _COPIA_SIN_FICHEROS or n.endswith(".pyc"):'''
+sustituir = '''if n.endswith(".pyc"):'''
+
+[[mutante]]
+id = "CA-M24"
+garantia = "la copia sigue directorios enlazados (followlinks=True y sin el descarte de enlaces): arrastra contenido de fuera del arbol"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''os.walk(directorio, followlinks=False):
+            base = pathlib.Path(raiz)
+            conservar = []
+            for n in dirs:
+                if n.lower() in _COPIA_SIN_DIRS:
+                    continue
+                if (base / n).is_symlink():
+                    omitidos += 1
+                    continue'''
+sustituir = '''os.walk(directorio, followlinks=True):
+            base = pathlib.Path(raiz)
+            conservar = []
+            for n in dirs:
+                if n.lower() in _COPIA_SIN_DIRS:
+                    continue'''
+
+[[mutante]]
+id = "CA-M25"
+garantia = "el resultado declara verificacion_aislada=True aunque el verificador midiera el vivo"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''"verificacion_aislada": bool(aislada)'''
+sustituir = '''"verificacion_aislada": True'''
+
+[[mutante]]
+id = "CA-M26"
+garantia = "el resultado declara ejecucion_confinada=True: se finge un confinamiento (Landlock) que no existe"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''"ejecucion_confinada": bool(confinada)}'''
+sustituir = '''"ejecucion_confinada": True}'''
+
+[[mutante]]
+id = "CA-M27"
+garantia = "un verificador con parametro de valor por defecto (timeout=5) se toma por uno que recibe la raiz"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''               and (p.default is p.empty or p.name == "raiz") for p in parametros)'''
+sustituir = '''               for p in parametros)'''
+
+[[mutante]]
+id = "CA-M28"
+garantia = "la restauracion fallida durante una promocion no deja marca BLOQUEADO: la siguiente ejecucion promueve encima"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''            _bloquear(estado, "restauracion fallida", id_op)'''
+sustituir = '''            pass'''
+
+[[mutante]]
+id = "CA-M29"
+garantia = "la restauracion fallida al arranque no deja marca BLOQUEADO"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''    _bloquear(estado, motivo, op.name)
+    informe.update'''
+sustituir = '''    informe.update'''
+
+[[mutante]]
+id = "CA-M30"
+garantia = "el barrido de copias huerfanas borra copias de procesos aun vivos"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''< _EDAD_COPIA_HUERFANA_S or _vivo(marca["pid"]):'''
+sustituir = '''< _EDAD_COPIA_HUERFANA_S:'''
+
+[[mutante]]
+id = "CA-M31"
+garantia = "el barrido de copias huerfanas borra copias recientes (sin esperar la hora)"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''if time.time() - marca["t"] < _EDAD_COPIA_HUERFANA_S or _vivo(marca["pid"]):'''
+sustituir = '''if _vivo(marca["pid"]):'''
+
+[[mutante]]
+id = "CA-M32"
+garantia = "un bloqueo aparecido durante la verificacion no impide promover"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''    if (estado / _BLOQUEO).exists():
+        cp.registrar_evento(directorio, "promocion_rechazada_por_bloqueo", datos)'''
+sustituir = '''    if False:
+        cp.registrar_evento(directorio, "promocion_rechazada_por_bloqueo", datos)'''
+
+[[mutante]]
+id = "CA-M33"
+garantia = "un diario pendiente ajeno aparecido durante la verificacion no impide promover"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''    if _operaciones_de(estado):
+        cp.registrar_evento(directorio, "promocion_abortada_diario_pendiente"'''
+sustituir = '''    if False:
+        cp.registrar_evento(directorio, "promocion_abortada_diario_pendiente"'''
+
+[[mutante]]
+id = "CA-M34"
+garantia = "con PARADA armada recuperar sigue escribiendo (resuelve diarios y barre copias)"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''    if orquestador.parada_solicitada(directorio):
+        return {**informe, "bloqueado"'''
+sustituir = '''    if False:
+        return {**informe, "bloqueado"'''
+
+[[mutante]]
+id = "CA-M35"
+garantia = "la copia aislada no se borra al terminar (queda codigo candidato en /tmp)"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''            if leida.get("marca") == marca:'''
+sustituir = '''            if False:'''
+
+[[mutante]]
+id = "CA-M36"
+garantia = "si falla la promocion el original no se restaura: el vivo queda con un candidato no confirmado"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''        if not _restaurar(destino, original, id_op):
+            cp.registrar_evento(directorio, "restauracion_fallida", {**datos, "motivo": str(exc)})'''
+sustituir = '''        if False:
+            cp.registrar_evento(directorio, "restauracion_fallida", {**datos, "motivo": str(exc)})'''
+
+[[mutante]]
+id = "CA-M37"
+garantia = "review construye el verificador sobre el directorio vivo en vez de la raiz que recibe (la de la copia)"
+fichero = "review.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''raiz = pathlib.Path(raiz)
+        remapeadas = []'''
+sustituir = '''raiz = base
+        remapeadas = []'''
+
+[[mutante]]
+id = "CA-M38"
+garantia = "review deja de propagar verificacion_aislada/ejecucion_confinada/promovido/motivo al resultado"
+fichero = "review.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''**{k: resultado[k] for k in ("verificacion_aislada", "ejecucion_confinada", "promovido",
+                                         "motivo") if k in resultado}}'''
+sustituir = '''}'''
+
+[[mutante]]
+id = "CA-M39"
+garantia = "el remapeo se omite: se ejecuta la ruta ORIGINAL absoluta del vivo y se declara aislada"
+fichero = "review.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''remapeadas.append(str(raiz / ruta.relative_to(base)))'''
+sustituir = '''remapeadas.append(str(ruta))'''
+
+[[mutante]]
+id = "CA-M40"
+garantia = "la comprobacion de pertenencia usa el directorio sin resolver (un directorio con enlace deja de reconocer sus pruebas)"
+fichero = "review.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''base = pathlib.Path(directorio).resolve()'''
+sustituir = '''base = pathlib.Path(directorio)'''
+
+[[mutante]]
+id = "CA-M41"
+garantia = "la comprobacion relative_to desaparece: una prueba fuera del arbol nunca es no_aislable"
+fichero = "review.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''remapeadas.append(str(raiz / ruta.relative_to(base)))'''
+sustituir = '''remapeadas.append(str(raiz / ruta.name))'''
+
+[[mutante]]
+id = "CA-M42"
+garantia = "una prueba no aislable se devuelve como sano"
+fichero = "review.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''"no_aislable", False, False, f"la prueba'''
+sustituir = '''"sano", False, False, f"la prueba'''
+
+[[mutante]]
+id = "CA-M43"
+garantia = "una excepcion al medir se da por sana en vez de error_infraestructura"
+fichero = "review.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''"error_infraestructura", True, False, repr(exc))'''
+sustituir = '''"sano", True, False, repr(exc))'''
+
+[[mutante]]
+id = "CA-M44"
+garantia = "aislada=True siempre: se declara aislada una verificacion que no recibio la copia"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''aislada = bool(resultado_v and resultado_v.aislada)'''
+sustituir = '''aislada = True'''
+
+# CA-M45 RETIRADO (2026-10-23, FASE A del PROMPT 03): degradaba `acepta` -> `True` en `_verificar`, pero
+# `acepta` es ahora la constante `True` (el verificador sin raiz ya no llega aqui: `_exigir_raiz` lo
+# rechaza antes). El mutante es EQUIVALENTE; la garantia vive en CA-M58..M62.
+
+[[mutante]]
+id = "CA-M46"
+garantia = "un bool heredado se trata como ejecucion confinada"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''return ResultadoVerificacion("sano" if bruto else "fallo", acepta, False, "")'''
+sustituir = '''return ResultadoVerificacion("sano" if bruto else "fallo", acepta, True, "")'''
+
+[[mutante]]
+id = "CA-M47"
+garantia = "un estado de verificacion desconocido se trata como sano en vez de fallo (fail-open)"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''return ResultadoVerificacion("fallo", bool(bruto.aislada), bool(bruto.confinada),'''
+sustituir = '''return ResultadoVerificacion("sano", bool(bruto.aislada), bool(bruto.confinada),'''
+
+[[mutante]]
+id = "CA-M48"
+garantia = "verificacion_sana deja de ser None cuando no se midio (error_infraestructura se publica como fallo medido)"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''False if resultado_v.estado == "fallo" else None)'''
+sustituir = '''False if resultado_v.estado == "fallo" else False)'''
+
+[[mutante]]
+id = "CA-M49"
+garantia = "se quita la comprobacion de abi_disponible()<=0: sin Landlock se sigue ejecutando"
+fichero = "review.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''if ais.abi_disponible() <= 0:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "CA-M50"
+garantia = "se quita la comprobacion del abi del confinador: un confinador solo-rlimits se acepta"
+fichero = "review.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''if getattr(confinar, "abi", 0) <= 0 or getattr'''
+sustituir = '''if False or getattr'''
+
+[[mutante]]
+id = "CA-M51"
+garantia = "no se pasa confinar= a ejecutar_pruebas: las pruebas corren sin Landlock pero se declaran confinadas"
+fichero = "review.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''vf.ejecutar_pruebas(remapeadas, raiz, confinar=confinar)'''
+sustituir = '''vf.ejecutar_pruebas(remapeadas, raiz)'''
+
+[[mutante]]
+id = "CA-M52"
+garantia = "sin Landlock se declara confinada=True sin haber ejecutado nada"
+fichero = "review.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''return ac.ResultadoVerificacion("sin_confinamiento", True, False,
+                                                "este kernel'''
+sustituir = '''return ac.ResultadoVerificacion("sin_confinamiento", True, True,
+                                                "este kernel'''
+
+[[mutante]]
+id = "CA-M53"
+garantia = "sin_confinamiento (confinador sin abi) se devuelve como sano: no hay rechazo"
+fichero = "review.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''return ac.ResultadoVerificacion("sin_confinamiento", True, False,
+                                                f"el confinador'''
+sustituir = '''return ac.ResultadoVerificacion("sano", True, False,
+                                                f"el confinador'''
+
+[[mutante]]
+id = "CA-M54"
+garantia = "la exclusion del manifiesto se aplica a cualquier profundidad (un estado.json anidado, codigo/datos de verdad, deja de vigilarse)"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''relativa.as_posix() not in _COPIA_SOLO_LECTURA or relativa.as_posix() == rel.as_posix()'''
+sustituir = '''relativa.name not in _COPIA_SOLO_LECTURA or relativa.as_posix() == rel.as_posix()'''
+
+[[mutante]]
+id = "CA-M55"
+garantia = "estado.json y eventos.jsonl no se copian a la copia: las pruebas que leen el log de su directorio ven otra cosa"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''if n in _COPIA_SIN_FICHEROS or n.endswith(".pyc"):'''
+sustituir = '''if n in _COPIA_SIN_FICHEROS or n in _COPIA_SOLO_LECTURA or n.endswith(".pyc"):'''
+
+[[mutante]]
+id = "CA-M56"
+garantia = "el motivo de sin_confinamiento publicado deja de ser confinamiento_no_disponible"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''"sin_confinamiento": "confinamiento_no_disponible"}'''
+sustituir = '''"sin_confinamiento": "verificacion"}'''
+
+[[mutante]]
+id = "CA-M57"
+garantia = "un plazo agotado se declara fallo de las pruebas en vez de error_infraestructura (no se midio)"
+fichero = "review.py"
+pruebas = ["test_red_candidato_aislado.py"]
+buscar = '''"error_infraestructura", True, True, "plazo agotado"'''
+sustituir = '''"fallo", True, True, "plazo agotado"'''
+
+[[mutante]]
+id = "CA-M58"
+garantia = "review: `ejecutar_bajo_review` ya no valida el verificador al ENTRAR: un verificador sin raiz llega a registrar propuesta y autorizacion antes de fallar"
+fichero = "review.py"
+pruebas = ["test_red_candidato_aislado.py", "test_red_aislamiento_estricto.py"]
+buscar = '''    ac._exigir_raiz(verificacion)
+'''
+sustituir = '''    pass  # sin validar el verificador al entrar
+'''
+
+[[mutante]]
+id = "CA-M59"
+garantia = "`ejecutar` no exige que el verificador acepte la raiz: se leeria y copiaria antes de rechazar (o se mediria el vivo)"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py", "test_red_aislamiento_estricto.py"]
+buscar = '''
+    _exigir_raiz(verificacion)
+
+    # Bytes:'''
+sustituir = '''
+    pass
+
+    # Bytes:'''
+
+[[mutante]]
+id = "CA-M60"
+garantia = "`VerificadorSinRaiz` se traga: un verificador que no acepta la raiz se admite y mide el arbol vivo"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py", "test_red_aislamiento_estricto.py"]
+buscar = '''    if verificacion and not _acepta_raiz(verificacion):'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "CA-M61"
+garantia = "`_verificar` recupera el comportamiento heredado: si el verificador no acepta la copia se llama `verificacion()` sin raiz (mide el vivo)"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py", "test_red_aislamiento_estricto.py"]
+buscar = '''    _exigir_raiz(verificacion)                       # defensa en profundidad (ya se exige en `ejecutar`)
+    acepta = True
+    bruto = verificacion(copia)'''
+sustituir = '''    acepta = True
+    try:
+        bruto = verificacion(copia)
+    except TypeError:
+        bruto = verificacion()'''
+
+[[mutante]]
+id = "CA-M62"
+garantia = "`_verificar` no repite la exigencia de raiz (defensa en profundidad)"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_candidato_aislado.py", "test_red_aislamiento_estricto.py"]
+buscar = '''    _exigir_raiz(verificacion)                       # defensa en profundidad (ya se exige en `ejecutar`)
+'''
+sustituir = '''    pass
+'''
+
+[[mutante]]
+id = "CA-M63"
+garantia = "review no exige `CONTROLES_ESTRICTOS`: un confinador que declare completo pero sin controles se acepta"
+fichero = "review.py"
+pruebas = ["test_red_candidato_aislado.py", "test_red_aislamiento_estricto.py"]
+buscar = '''faltan = [c for c in ais.CONTROLES_ESTRICTOS if controles.get(c) is not True]'''
+sustituir = '''faltan = []'''
+
+[[mutante]]
+id = "CA-M64"
+garantia = "el TMPDIR del verificador no se fija al temporal del informe: pytest escribe `pytest-of-<usuario>` donde herede"
+fichero = "verificador.py"
+pruebas = ["test_red_candidato_aislado.py", "test_red_aislamiento_estricto.py"]
+buscar = '''    entorno["TMPDIR"] = str(temporal)'''
+sustituir = '''    pass'''

@@ -1,0 +1,239 @@
+incremento = "Reanudacion tras caida: identidad del ejecutor y estados observables (DP-RECUPERACION-TRAS-CAIDAS, 2026-10-26)"
+# Defecto: tras un SIGKILL la tarea quedaba «planificada sin resultado» para siempre (ni se reintentaba ni se informaba).
+# NADA en paralelo con este arnes (CLAUDE.md §2).
+pruebas = ["test_red_reanudacion_tras_caida.py", "test_red_reintento_gobernado.py"]
+timeout_s = 600
+
+[[mutante]]
+id = "RC1"
+garantia = "una ejecucion muerta se toma por viva: la tarea interrumpida vuelve a quedar atascada para siempre"
+fichero = "planificador.py"
+buscar = '''    return actual == inicio'''
+sustituir = '''    return True'''
+
+[[mutante]]
+id = "RC2"
+garantia = "tras un reinicio de la maquina un ejecutor anterior se da por vivo"
+fichero = "planificador.py"
+buscar = '''    if arranque != _arranque():
+        return False'''
+sustituir = '''    if False:
+        return False'''
+
+[[mutante]]
+id = "RC3"
+garantia = "un PID reutilizado por otro proceso hace pasar por vivo al ejecutor original"
+fichero = "planificador.py"
+buscar = '''    return actual == inicio'''
+sustituir = '''    return actual is not None'''
+
+[[mutante]]
+id = "RC4"
+garantia = "dos supervisores pueden planificar a la vez la misma tarea (ejecucion duplicada)"
+fichero = "planificador.py"
+buscar = '''                                    lambda: elegible(directorio, tarea["id"]))'''
+sustituir = '''                                    lambda: True)'''
+
+[[mutante]]
+id = "RC5"
+garantia = "las interrupciones no consumen presupuesto: una tarea que muere siempre se reintenta sin fin"
+fichero = "planificador.py"
+buscar = '''    return "interrumpida_reintentable" if intentos < TOPE_DE_REINTENTOS else "agotada"'''
+sustituir = '''    return "interrumpida_reintentable"'''
+
+[[mutante]]
+id = "RC6"
+garantia = "una constancia historica sin ejecutor se reofrece (podria duplicar una ejecucion antigua viva)"
+fichero = "planificador.py"
+buscar = '''    if ejecutor is None:
+        return "sin_resultado_historico"'''
+sustituir = '''    if ejecutor is None:
+        return "interrumpida_reintentable"'''
+
+[[mutante]]
+id = "RC7"
+garantia = "la constancia de planificacion deja de llevar la identidad del ejecutor"
+fichero = "planificador.py"
+buscar = '''        datos["ejecutor"] = ejecutor'''
+sustituir = '''        pass'''
+
+[[mutante]]
+id = "RC8"
+garantia = "una tarea ELEVADA / esperando revisor / objetada se reofrece como si se hubiera interrumpido (M1)"
+fichero = "planificador.py"
+buscar = '''    cierre = _cierre_sin_resultado(directorio, id_tarea)'''
+sustituir = '''    cierre = None'''
+
+[[mutante]]
+id = "RC9"
+garantia = "no poder leer /proc se toma como proceso muerto: ejecucion duplicada (M2)"
+fichero = "planificador.py"
+buscar = '''        return _DESCONOCIDO'''
+sustituir = '''        return None'''
+
+[[mutante]]
+id = "RC10"
+garantia = "el resultado de un intento anterior se atribuye al intento vivo (M4)"
+fichero = "planificador.py"
+buscar = '''        if intento == planificadas[-1] or (intento is None and posicion == len(planificadas)):'''
+sustituir = '''        if True:'''
+
+[[mutante]]
+id = "RC11"
+garantia = "se registra una identidad incompleta que dejaria la tarea en curso para siempre (B1)"
+fichero = "planificador.py"
+buscar = '''        return None  # sin /proc fiable'''
+sustituir = '''        pass  # sin /proc fiable'''
+
+[[mutante]]
+id = "RC12"
+garantia = "se lee otro campo de /proc/<pid>/stat en lugar del starttime (B3)"
+fichero = "planificador.py"
+buscar = '''estado, inicio = campos[0], campos[19]'''
+sustituir = '''estado, inicio = campos[0], campos[17]'''
+
+[[mutante]]
+id = "RC13"
+garantia = "un ejecutor zombi se toma por vivo (B3)"
+fichero = "planificador.py"
+buscar = '''return None if estado == "Z" else inicio'''
+sustituir = '''return inicio'''
+
+[[mutante]]
+id = "RC14"
+garantia = "la constancia de planificacion deja de tomar el cerrojo del log (atomicidad, B3)"
+fichero = "control_plane.py"
+buscar = '''    with lock_estado(directorio):
+        if not condicion():
+            return None
+        if derivar is not None:'''
+sustituir = '''    if True:
+        if not condicion():
+            return None
+        if derivar is not None:'''
+
+[[mutante]]
+id = "RC15"
+garantia = "con hidepid=2 un ejecutor vivo (invisible en /proc) se da por muerto: ejecucion duplicada"
+fichero = "planificador.py"
+buscar = '''        return None if not _existe(pid) else _DESCONOCIDO'''
+sustituir = '''        return None'''
+
+[[mutante]]
+id = "RC16"
+garantia = "un /proc/<pid>/stat malformado rompe la decision en lugar de tratarse como duda"
+fichero = "planificador.py"
+buscar = '''    except (OSError, IndexError):'''
+sustituir = '''    except OSError:'''
+
+# --- cierre de condiciones (decision del CEO, 2026-10-26): motor, API publica, monotonia ---
+
+[[mutante]]
+id = "RC17"
+garantia = "el motor aborta con excepcion en la carrera de dos supervisores en lugar de parar observablemente (M3)"
+fichero = "motor_autonomia.py"
+buscar = '''        except plan.TareaNoElegible:'''
+sustituir = '''        except LookupError:'''
+
+[[mutante]]
+id = "RC18"
+garantia = "el motor planifica sin recuperar antes: un cambio promovido sin constancia queda fuera del log para siempre (§8)"
+fichero = "motor_autonomia.py"
+buscar = '''        recuperacion = ac.recuperar(directorio)'''
+sustituir = '''        recuperacion = {"bloqueado": False, "ocupado": False}'''
+
+[[mutante]]
+id = "RC19"
+garantia = "el motor planifica con una recuperacion pendiente (diario ambiguo u otro proceso recuperando)"
+fichero = "motor_autonomia.py"
+buscar = '''        if recuperacion["bloqueado"] or recuperacion["ocupado"]:'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "RC20"
+garantia = "una tarea agotada por interrupciones se apaga en silencio, sin evento"
+fichero = "motor_autonomia.py"
+buscar = '''        _registrar_agotadas(directorio, oportunidades)
+'''
+sustituir = '''        pass
+'''
+
+[[mutante]]
+id = "RC21"
+garantia = "se anuncia como agotada una tarea que en realidad se completo"
+fichero = "motor_autonomia.py"
+buscar = '''plan.estado_de(directorio, tarea["id"]) == "agotada"'''
+sustituir = '''plan.estado_de(directorio, tarea["id"]) in ("agotada", "completada")'''
+
+[[mutante]]
+id = "RC22"
+garantia = "la primitiva publica anade aunque la condicion falle (comprobar y anadir deja de serlo)"
+fichero = "control_plane.py"
+buscar = '''        if not condicion():
+            return None'''
+sustituir = '''        if False:
+            return None'''
+
+[[mutante]]
+id = "RC23"
+garantia = "la primitiva publica deja pasar eventos gobernados (bypass del gobierno de estado)"
+fichero = "control_plane.py"
+buscar = '''    if tipo in EVENTOS_GOBERNADOS:
+        _negar_gobernado(tipo)
+    with lock_estado(directorio):
+        if not condicion'''
+sustituir = '''    if False:
+        _negar_gobernado(tipo)
+    with lock_estado(directorio):
+        if not condicion'''
+
+[[mutante]]
+id = "RC24"
+garantia = "completada deja de ser monotona: un log heredado que replanifica la reabre"
+fichero = "planificador.py"
+buscar = '''    return any(_dejo_efecto(r) for r in _resultados_de(directorio, id_tarea))'''
+sustituir = '''    resultado = resultado_de(directorio, id_tarea)
+    return bool(resultado) and _dejo_efecto(resultado)'''
+
+# --- segunda ronda de revision (code-reviewer ALTO 1 + security-reviewer A1, 2026-10-26) ---
+[[mutante]]
+id = "RC25"
+garantia = "el motor ignora el supervisor unico: dos ciclos intercalados se atribuyen los resultados entre si"
+fichero = "motor_autonomia.py"
+buscar = '''        if not tomado:
+            cp.registrar_evento(directorio, "supervisor_rechazado"'''
+sustituir = '''        if False:
+            cp.registrar_evento(directorio, "supervisor_rechazado"'''
+
+[[mutante]]
+id = "RC26"
+garantia = "el supervisor unico no excluye a nadie (el flock no se toma)"
+fichero = "control_plane.py"
+buscar = '''            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)'''
+sustituir = '''            pass'''
+
+[[mutante]]
+id = "RC27"
+garantia = "un pid fuera de rango llega a kill(): con 0 o -1 pregunta por un GRUPO de procesos, con 2**40 tumba el ciclo"
+fichero = "planificador.py"
+buscar = '''    if not 0 < pid <= _PID_MAX:'''
+sustituir = '''    if False:'''
+
+# RC28 (supervisor unico sin LOCK_UN) NO se declara: es EQUIVALENTE. `os.close(descriptor)` libera el flock por si
+# solo, asi que quitar el LOCK_UN explicito no cambia ningun comportamiento observable. La liberacion tras el ciclo
+# la protegen test_SUPERVISOR_UNICO_el_segundo_para... (el control vuelve a trabajar) y ..._muere_con_su_dueno.
+
+# --- tercera revision (code-reviewer H1/H2, 2026-10-26) ---
+[[mutante]]
+id = "RC29"
+garantia = "el supervisor rechazado cierra un ciclo: el observatorio corta el ciclo legitimo en curso y dice ERROR (H1)"
+fichero = "motor_autonomia.py"
+buscar = '''            cp.registrar_evento(directorio, "supervisor_rechazado", {"raiz": str(raiz), "tope": tope})'''
+sustituir = '''            cp.registrar_evento(directorio, "ciclo_detenido", {"motivo": "otro supervisor en curso"})'''
+
+[[mutante]]
+id = "RC30"
+garantia = "que otro supervisor este trabajando se reporta como fallo del cron (salida 2) (H2)"
+fichero = "aura.py"
+buscar = '''PARADAS_NORMALES = ("cola agotada", "limite de seguridad", "otro supervisor en curso")'''
+sustituir = '''PARADAS_NORMALES = ("cola agotada", "limite de seguridad")'''

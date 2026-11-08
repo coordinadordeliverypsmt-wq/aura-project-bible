@@ -1,0 +1,79 @@
+incremento = '''E2E físico voz→acción (2026-10-04): correcciones de la causa raíz medida (VAD, saturación, sin habla, orden no entendida)'''
+pruebas = ["tests/unit/test_voz_sin_habla.py", "tests/unit/test_ordenes_de_hogar.py", "tests/integration/test_voz_accion_transcripciones_reales.py", "tests/integration/test_voz_accion_opcion_c.py"]
+timeout_s = 300
+
+[[mutante]]
+id = "VE-M1"
+garantia = '''sin habla se vuelve a transcribir el silencio (donde Whisper alucinaba y tardaba 60 s)'''
+fichero = "aura_skeleton/adapters/voice_real.py"
+buscar = '''            if tramos == []:'''
+sustituir = '''            if False:'''
+
+[[mutante]]
+id = "VE-M2"
+garantia = '''con habla ya no se recorta: Whisper vuelve a recibir los segundos de silencio'''
+fichero = "aura_skeleton/adapters/voice_real.py"
+buscar = '''audio = audio[tramos[0][0] : tramos[-1][1]]'''
+sustituir = '''audio = audio'''
+
+[[mutante]]
+id = "VE-M3"
+garantia = '''el margen del detector vuelve a 200 ms y muerde la primera sílaba («Enciente», «No fiende»)'''
+fichero = "aura_skeleton/adapters/voice_real.py"
+buscar = '''_RELLENO_VAD_MS = 600'''
+sustituir = '''_RELLENO_VAD_MS = 200'''
+
+[[mutante]]
+id = "VE-M4"
+garantia = '''una entrada saturada se transcribe como si fuera voz (la causa raíz del E2E fallido)'''
+fichero = "aura_skeleton/adapters/voice_real.py"
+buscar = '''            if saturadas >= _MAX_SATURADAS:'''
+sustituir = '''            if False:'''
+
+[[mutante]]
+id = "VE-M5"
+garantia = '''un turno hablado sin habla vuelve a la memoria / al modelo'''
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        if por_voz and not text.strip():'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "VE-M6"
+garantia = '''la respuesta «no entendí la orden» se da también SIN activación'''
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            por_voz
+            and activado
+            and self.motor is not None
+            and hogar.menciona_tv_sin_orden(text)'''
+sustituir = '''            por_voz
+            and self.motor is not None
+            and hogar.menciona_tv_sin_orden(text)'''
+
+[[mutante]]
+id = "VE-M7"
+garantia = '''una orden para la TV mal transcrita vuelve a caer en «No tengo ningún recuerdo»'''
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            por_voz
+            and activado
+            and self.motor is not None
+            and hogar.menciona_tv_sin_orden(text)'''
+sustituir = '''            False
+            and activado
+            and self.motor is not None
+            and hogar.menciona_tv_sin_orden(text)'''
+
+[[mutante]]
+id = "VE-M8"
+garantia = '''una orden RECONOCIBLE para la TV se trata como no entendida (el detector ignora el reconocedor)'''
+fichero = "aura_skeleton/core/hogar.py"
+buscar = '''    if reconocer(texto) is not None:
+        return False'''
+sustituir = '''    if False:
+        return False'''
+
+[[mutante]]
+id = "VE-M9"
+garantia = '''la variante de transcripción observada «enciente» deja de reconocerse como encender'''
+fichero = "aura_skeleton/core/hogar.py"
+buscar = '''"prender", "enciente")'''
+sustituir = '''"prender")'''

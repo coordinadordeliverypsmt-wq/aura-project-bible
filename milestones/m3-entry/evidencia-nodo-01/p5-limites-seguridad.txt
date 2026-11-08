@@ -1,0 +1,28 @@
+## Prueba 5 — límites de seguridad sobre el despliegue real · 2026-10-04T05:10:36-05:00
+A1 suscribirse a nodo.latido.> : ¿PERMITIDO? ['Error:nats: permissions violation for subscription to "nodo.latido.>"']
+A2 publicar en el subject de OTRO nodo : ¿PERMITIDO? ['Error:nats: permissions violation for publish to "nodo.latido.000000000000000000000000']
+A3 suplantar a OTRO por el cuerpo, en MI subject: enviado (HC-1 debe rechazarlo)
+A4 sin credencial: RECHAZADO (Error)
+A4 contraseña errónea: RECHAZADO (Error)
+A5 sin TLS: RECHAZADO (SSLCertVerificationError)
+HC-1 — ¿se registró el nodo fantasma 000…? NO
+HC-1 — log del receptor: suplantación (el id del subject no coincide) audit=True
+HC-1 — puertos de AURA en escucha: *:4222 
+Nodo — ¿la contraseña aparece en la línea de órdenes de algún proceso? NO
+Nodo — ¿la contraseña aparece en el log? NO
+nodo-01 [bac41ce9…]  ONLINE  — latido reciente y métricas mínimas completas
+
+### Lectura de la prueba 5 (añadida tras revisar la salida bruta de arriba, que NO se ha editado)
+- A1 y A2: DENEGADOS. El servidor devolvió `permissions violation` para la suscripción y para la publicación en
+  el subject de otro nodo. El rótulo «¿PERMITIDO?» es un defecto del ARNÉS de esta prueba: comparaba
+  «Permissions Violation» distinguiendo mayúsculas. La evidencia es el propio error del servidor, citado en la línea.
+- A3: el nodo publicó en SU subject un cuerpo que decía ser del nodo 000…; HC-1 lo rechazó como suplantación
+  (log auditado del receptor) y el nodo fantasma NO se registró. Es H-1 cerrado sobre el despliegue real.
+- A4: sin credencial o con contraseña errónea la conexión falla (`Error`). Con la MISMA URL, CA y TLS la credencial
+  correcta sí conecta (A1-A3 y el ONLINE final): el único factor que cambia es la credencial. La salida no muestra el
+  mensaje de autorización, así que esto es [INFER] fuerte, no [EJEC] del motivo exacto (reauditoría N-2).
+- A5: lo demostrado es más estrecho de lo que se escribió primero: un cliente SIN la CA privada no completa el
+  handshake (`SSLCertVerificationError`). Que el servidor exige TLS lo dice su propio log (`TLS required for client
+  connections`, journal de aura-nats 2026-10-04 05:06:04), no esta línea (reauditoría N-1).
+- El arnés que generó esta salida está en `p5-arnes-ataques.py` (el defecto de mayúsculas de A1/A2 se ve en él).
+- Solo escucha el 4222 (sin puerto de monitorización). La contraseña no aparece ni en `ps` ni en el log del nodo.

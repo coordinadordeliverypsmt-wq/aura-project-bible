@@ -54,8 +54,13 @@ def _sistema(mem: SimpleMemory):
     espia = _ProveedorProhibido()
     motor = MotorAutomatizacion(EjecutorModeloUsuario(mem), PermissionManager(_si))
     orq = Orchestrator(
-        InProcessEventBus(), mem, ModelRouter([espia], 1200), PermissionManager(_si),
-        VoiceAdapterMock(), HomeAssistantMock(), modelo_usuario=ModeloUsuario(mem, motor=motor),
+        InProcessEventBus(),
+        mem,
+        ModelRouter([espia], 1200),
+        PermissionManager(_si),
+        VoiceAdapterMock(),
+        HomeAssistantMock(),
+        modelo_usuario=ModeloUsuario(mem, motor=motor),
     )
     return orq, espia
 
@@ -124,11 +129,25 @@ async def test_un_hecho_posesivo_nuevo_entra_y_se_responde_desde_el_core(declara
 # ================================================================ 5-6 · TERCEROS --
 
 
-TERCEROS_NUEVOS = ["Mi abuela es enfermera", "Mi abuelo es jubilado", "Mi primo es piloto",
-                   "Mi prima es arquitecta", "Mi tío es abogado", "Mi tía es profesora"]
-TERCEROS_YA_PROTEGIDOS = ["Mi hermana es médico", "Mi jefe es exigente", "Mi vecino es un pesado",
-                          "Mi madre es jardinera", "Mi padre es cocinero", "Mi hijo es estudiante",
-                          "Mi esposa es ingeniera", "Mi pareja es dentista", "Mi amigo es músico"]
+TERCEROS_NUEVOS = [
+    "Mi abuela es enfermera",
+    "Mi abuelo es jubilado",
+    "Mi primo es piloto",
+    "Mi prima es arquitecta",
+    "Mi tío es abogado",
+    "Mi tía es profesora",
+]
+TERCEROS_YA_PROTEGIDOS = [
+    "Mi hermana es médico",
+    "Mi jefe es exigente",
+    "Mi vecino es un pesado",
+    "Mi madre es jardinera",
+    "Mi padre es cocinero",
+    "Mi hijo es estudiante",
+    "Mi esposa es ingeniera",
+    "Mi pareja es dentista",
+    "Mi amigo es músico",
+]
 
 
 @pytest.mark.parametrize("frase", TERCEROS_NUEVOS + TERCEROS_YA_PROTEGIDOS)
@@ -164,11 +183,14 @@ def test_una_preferencia_sigue_siendo_preferencia(frase):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("pregunta", [
-    "¿Cuál es la capital de Francia?",
-    "¿Qué me recomiendas para dormir mejor?",
-    "¿Por qué crees que dormir poco afecta al ánimo?",
-])
+@pytest.mark.parametrize(
+    "pregunta",
+    [
+        "¿Cuál es la capital de Francia?",
+        "¿Qué me recomiendas para dormir mejor?",
+        "¿Por qué crees que dormir poco afecta al ánimo?",
+    ],
+)
 async def test_una_pregunta_que_no_es_un_atributo_no_la_roba_esta_ruta(pregunta):
     mem = SimpleMemory()
     orq, espia = _sistema(mem)
@@ -196,8 +218,9 @@ async def test_una_senal_OBSERVADA_no_se_devuelve_como_declaracion():
     mem = SimpleMemory()
     orq, espia = _sistema(mem)
     motor = MotorAutomatizacion(EjecutorModeloUsuario(mem), PermissionManager(_si))
-    await AlmacenSenales(mem, motor=motor).guardar("mauricio", [
-        Senal(ClaseSenal.PATRON_DE_USO, "mi cumpleanos es el 1 de enero", "computador", "t9")])
+    await AlmacenSenales(mem, motor=motor).guardar(
+        "mauricio", [Senal(ClaseSenal.PATRON_DE_USO, "mi cumpleanos es el 1 de enero", "computador", "t9")]
+    )
 
     res = await _turno(orq, "¿Cuál es mi cumpleaños?")
 
@@ -213,14 +236,19 @@ async def test_una_entrada_refutada_no_alimenta_la_ruta():
     mem = SimpleMemory()
     orq, espia = _sistema(mem)
     await _declarar(mem, "Mi cumpleaños es el 10 de mayo")
-    await ModeloUsuario(mem, motor=MotorAutomatizacion(
-        EjecutorModeloUsuario(mem), PermissionManager(_si))).refutar("mauricio", "cumplea")
+    await ModeloUsuario(mem, motor=MotorAutomatizacion(EjecutorModeloUsuario(mem), PermissionManager(_si))).refutar(
+        "mauricio", "cumplea"
+    )
 
     res = await _turno(orq, "¿Cuál es mi cumpleaños?")
 
-    # Refutado = dejó de darse por cierto: el Core no lo responde. El turno sigue la ruta vigente.
+    # Refutado = dejó de darse por cierto: el Core no lo responde como hecho. Desde 2026-10-06 la puerta de
+    # ADR-0014 decide con lo VIGENTE (RESOLUCION-S3-CM2-ORDEN-CEO-2026-10-06.md §2): sin nada vigente, la
+    # ausencia es un hecho del Core y el LLM no recibe el turno. Antes esta prueba exigía `provider != "core"`,
+    # que era la consecuencia declarada del estado anterior (el turno llegaba al modelo sin memoria).
     assert res["say"] != "Tu cumpleanos es 10 de mayo."
-    assert res.get("provider") != "core"
+    assert res["say"] == "No tengo ningun recuerdo registrado sobre eso."
+    assert res.get("provider") == "core"
 
 
 # ===================================================== 11 · LOS 24 PROTEGIDOS --
@@ -234,8 +262,7 @@ def test_ninguna_de_las_24_deriva_un_atributo_posesivo():
 
     from aura_skeleton.core.orchestrator import _atributo_preguntado
 
-    datos = json.loads((Path(__file__).parent.parent / "datos" / "bateria_memoria.json")
-                       .read_text(encoding="utf-8"))
+    datos = json.loads((Path(__file__).parent.parent / "datos" / "bateria_memoria.json").read_text(encoding="utf-8"))
     protegidas = [c["texto"] for c in datos["consultas"] if c["esperado"] is None]
     assert len(protegidas) == 24
     escapadas = [t for t in protegidas if _atributo_preguntado(_normalizar(t))]
@@ -342,3 +369,35 @@ async def test_una_suposicion_sin_cifra_NO_la_atiende_la_ruta_de_hechos():
 
     assert res.get("dominio") != "modelo_usuario", "la ruta de hechos no puede absorber un razonamiento"
     assert "cumpleaños" not in (res.get("say") or "")
+
+
+@pytest.mark.asyncio
+async def test_con_datos_HEREDADOS_sin_versionar_gana_la_ultima_declaracion():
+    """Encontrado por el mutante HP-M6, que sobrevivía (2026-09-27). Con el versionado, la versión
+    anterior se cierra al escribir y solo queda una vigente, así que el orden del recorrido dejó de
+    importar en el camino normal — y ninguna prueba lo cubría. Se usa un atributo GENÉRICO («mi coche»)
+    porque los de la tabla fija («color favorito») los resuelve el primer bucle y nunca llegan a este. Pero la memoria REAL de la casa tiene
+    entradas escritas ANTES del versionado, sin `valid_until`: con ellas, recorrer en el orden
+    equivocado haría ganar la primera declaración y corregirse dejaría de funcionar."""
+    mem = SimpleMemory()
+    orq, espia = _sistema(mem)
+    # Se siembra por la vía REAL y se REABRE la primera versión: así quedaron los datos escritos antes
+    # del versionado —dos declaraciones del mismo atributo, las dos vigentes—.
+    await _declarar(mem, "Mi coche es un Seat")
+    await _declarar(mem, "Mi coche es un Renault")
+    for entrada in _entradas(mem):
+        if "Seat" in str(entrada.get("content", "")):
+            procedencia = entrada.get("provenance", {})
+            for campo in ("valid_until", "version", "supersedes", "valid_from"):
+                procedencia.pop(campo, None)
+
+    respuesta = (await _turno(orq, "¿Cuál es mi coche?"))["say"]
+
+    assert respuesta == "Tu coche es Renault.", respuesta
+    assert espia.llamadas == 0
+
+
+def _entradas(mem: SimpleMemory) -> list[dict]:
+    """Las entradas crudas de la memoria de prueba (`SimpleMemory._items`)."""
+    items = mem._items
+    return [e for lista in items.values() for e in lista] if isinstance(items, dict) else list(items)

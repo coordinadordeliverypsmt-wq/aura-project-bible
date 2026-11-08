@@ -716,3 +716,49 @@ def test_meta_el_detector_de_rutas_encuentra_una_ruta_plantada():
         "el detector compara el estado antes y después: si esto no cambiase, no detectaría nada")
     assert list(inspect.signature(ruta_clandestina).parameters)[0] == "estado", (
         "y solo inspecciona funciones cuyo primer parámetro es el estado")
+
+
+# ============================================ EL KILL SWITCH EN EL BUCLE --
+
+
+def test_el_kill_switch_detiene_el_bucle_del_orquestador(tmp_path, monkeypatch):
+    """RED el 2026-09-21: el mutante `KS-M4` sobrevivió.
+
+    `PARADA` se consulta en **cinco** puntos del plano y solo uno tenía red de mutación. Aquí el
+    bucle podía dejar de mirarlo —`if False:`— y ninguna prueba se enteraba: el interruptor seguía
+    existiendo, probado como función pura, sin proteger este camino. Es la lección que este proyecto
+    ya pagó con el mutante «la composición no enciende las automatizaciones», que sobrevivió con 426
+    pruebas en verde.
+
+    El bucle está hoy sin llamante de producción, pero eso no lo vuelve inocuo: **una garantía sin
+    red no avisa el día que alguien lo reactive**, que es precisamente cuando haría falta.
+    """
+    import orquestador as orq
+
+    monkeypatch.setattr(orq, "mutacion_en_curso", lambda: False)
+    d = _dir(tmp_path)
+    orq.ruta_parada(d).write_text("", encoding="utf-8")
+
+    informe = orq.Orquestador(d).ciclo(max_iteraciones=3)
+
+    assert informe["motivo"] == "kill switch activado", (
+        "el bucle siguió adelante con PARADA armada: el kill switch no se consulta aquí")
+    assert informe["iteraciones"] == 0, "paró, pero después de trabajar: se consulta demasiado tarde"
+    tipos = [e["tipo"] for e in cp.leer_eventos(d)]
+    assert "parada_de_emergencia" in tipos, (
+        "se detuvo sin dejar constancia: un ciclo sin rastro no es auditable")
+
+
+def test_CONTROL_sin_PARADA_el_bucle_no_se_detiene_por_kill_switch(tmp_path, monkeypatch):
+    """El caso de control. Sin él, la garantía se cumpliría devolviendo siempre «kill switch»."""
+    import orquestador as orq
+
+    monkeypatch.setattr(orq, "mutacion_en_curso", lambda: False)
+    d = _dir(tmp_path)
+    assert not orq.ruta_parada(d).exists(), "el montaje exige que NO haya PARADA"
+
+    informe = orq.Orquestador(d).ciclo(max_iteraciones=3)
+
+    assert informe["motivo"] != "kill switch activado", (
+        "se declaró kill switch sin que nadie hubiera parado nada")
+    assert "parada_de_emergencia" not in [e["tipo"] for e in cp.leer_eventos(d)]

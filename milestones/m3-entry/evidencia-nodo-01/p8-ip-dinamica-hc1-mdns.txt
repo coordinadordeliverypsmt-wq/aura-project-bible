@@ -1,0 +1,16 @@
+## Prueba 8 — HC-1 cambia de IP por DHCP (roaming Wi-Fi) → el nodo lo reencuentra por mDNS · 2026-10-04 [EJEC]
+
+Hecho observado: HC-1 alterna entre la red principal y el repetidor «-EXT»; NetworkManager registra
+`dhcp4 ... new lease, address=192.168.20.38` (15:05:41) tras haber estado en 192.168.20.202. Durante el cambio
+HC-1 vio a NODO-01 OFFLINE (correcto: sin latidos, no inventó ONLINE).
+
+Defecto: el agente solo tenía el nombre `.local` (que el nodo no resuelve: sin libnss-mdns) y una IP de respaldo fija.
+Corrección: `adapters/resolutor_mdns.py` (stdlib, consulta mDNS A+QU) usado por `nodo_agente._fabrica_nats` en cada
+intento de conexión. Redesplegado con `entorno/nodos/desplegar-nodo.sh MariaJose@192.168.20.139 nodo-01`.
+
+Log del nodo real (Python 3.13 i686) tras el despliegue:
+  2026-10-04_20:07:01.53680 [INFO ] nodo-agente arranque 2dc7fb18 nodo bac41ce9 'nodo-01'
+  2026-10-04_20:07:01.65346 [INFO ] nodo-agente mDNS: majo1230-Lenovo-100e-2nd-Gen.local -> 192.168.20.38
+  2026-10-04_20:07:01.81514 [INFO ] nodo-agente conectado a HC-1 como nodo-bac41ce92abc4fb9bac4187cec6d727d
+HC-1 `--nodos`: nodo-01 ONLINE, misma identidad bac41ce9….
+Prueba automática real en HC-1: resolver_ipv4(nombre de HC-1) == su IP actual (.202 en ese momento).

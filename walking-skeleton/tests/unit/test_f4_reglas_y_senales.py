@@ -34,8 +34,9 @@ async def _confirma(accion, args, trace_id):
 
 
 def _regla(rule_id="r1", user_id="mauricio"):
-    return ReglaUsuario(rule_id=rule_id, user_id=user_id, evento="archivo_creado",
-                        condicion={}, accion="copiar_archivo", args={})
+    return ReglaUsuario(
+        rule_id=rule_id, user_id=user_id, evento="archivo_creado", condicion={}, accion="copiar_archivo", args={}
+    )
 
 
 def _sistema(tmp_path, armado: bool):
@@ -72,8 +73,18 @@ async def test_meta_con_la_parada_DESARMADA_la_regla_se_crea_de_verdad(tmp_path)
 
 async def test_meta_la_senal_se_guarda_de_verdad(tmp_path):
     _, senales, mem, _ = _sistema(tmp_path, armado=False)
-    n = await senales.guardar("mauricio", [Senal(clase=ClaseSenal.PREFERENCIA_DECLARADA, contenido="prefiere el te",
-                                                 fuente="conversacion", trace_id="t", ts=1.0)])
+    n = await senales.guardar(
+        "mauricio",
+        [
+            Senal(
+                clase=ClaseSenal.PREFERENCIA_DECLARADA,
+                contenido="prefiere el te",
+                fuente="conversacion",
+                trace_id="t",
+                ts=1.0,
+            )
+        ],
+    )
     assert n == 1
     assert "prefiere el te" in [i["content"] for i in mem._items]
 
@@ -105,8 +116,18 @@ async def test_el_kill_switch_armado_impide_DESACTIVAR_una_regla(tmp_path):
 async def test_el_kill_switch_armado_impide_guardar_SENALES(tmp_path):
     """§4.2: la captura escribía conocimiento sobre la persona sin pasar por el catálogo."""
     _, senales, mem, _ = _sistema(tmp_path, armado=True)
-    n = await senales.guardar("mauricio", [Senal(clase=ClaseSenal.PREFERENCIA_DECLARADA, contenido="prefiere el te",
-                                                 fuente="conversacion", trace_id="t", ts=1.0)])
+    n = await senales.guardar(
+        "mauricio",
+        [
+            Senal(
+                clase=ClaseSenal.PREFERENCIA_DECLARADA,
+                contenido="prefiere el te",
+                fuente="conversacion",
+                trace_id="t",
+                ts=1.0,
+            )
+        ],
+    )
     assert n == 0
     assert mem._items == []
 
@@ -123,8 +144,9 @@ async def test_sin_motor_las_reglas_no_mutan(tmp_path):
 
 async def test_sin_motor_las_senales_no_se_guardan(tmp_path):
     mem = PersistentMemory(str(tmp_path / "m.json"))
-    n = await AlmacenSenales(mem).guardar("mauricio", [Senal(
-        clase=ClaseSenal.PREFERENCIA_DECLARADA, contenido="x", fuente="c", trace_id="t", ts=1.0)])
+    n = await AlmacenSenales(mem).guardar(
+        "mauricio", [Senal(clase=ClaseSenal.PREFERENCIA_DECLARADA, contenido="x", fuente="c", trace_id="t", ts=1.0)]
+    )
     assert n == 0 and mem._items == []
 
 
@@ -181,12 +203,21 @@ async def test_la_senal_conserva_su_TIPO_de_memoria(tmp_path):
     rompía nada: el mutante sobrevivía por falta de cobertura, no porque el código lo protegiera.
     """
     _, senales, mem, _ = _sistema(tmp_path, armado=False)
-    await senales.guardar("mauricio", [
-        Senal(clase=ClaseSenal.PREFERENCIA_DECLARADA, contenido="prefiere el te",
-              fuente="conversacion", trace_id="t", ts=1.0),
-        Senal(clase=ClaseSenal.PATRON_DE_USO, contenido="borra los viernes",
-              fuente="computador", trace_id="t", ts=2.0),
-    ])
+    await senales.guardar(
+        "mauricio",
+        [
+            Senal(
+                clase=ClaseSenal.PREFERENCIA_DECLARADA,
+                contenido="prefiere el te",
+                fuente="conversacion",
+                trace_id="t",
+                ts=1.0,
+            ),
+            Senal(
+                clase=ClaseSenal.PATRON_DE_USO, contenido="borra los viernes", fuente="computador", trace_id="t", ts=2.0
+            ),
+        ],
+    )
     por_contenido = {i["content"]: i["kind"] for i in mem._items}
     assert por_contenido["prefiere el te"] == "semantica"
     assert por_contenido["borra los viernes"] == "procedimental", "se perdió el tipo de la señal"

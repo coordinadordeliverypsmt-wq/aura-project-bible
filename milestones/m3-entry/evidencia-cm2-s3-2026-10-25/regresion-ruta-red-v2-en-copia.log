@@ -1,0 +1,4 @@
+REGRESION nodos+red+aislamiento rc=0: ['298 passed in 37.60s']
+MUTACION mutaciones/ruta-red.toml rc=0: Total: 6 detectados, 0 sobreviven, 0 no aplicados, 0 ambiguos, 0 en timeout
+MUTACION mutaciones/sin-dispositivos-reales.toml rc=0: Total: 9 detectados, 0 sobreviven, 0 no aplicados, 0 ambiguos, 0 en timeout
+exit=0

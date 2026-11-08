@@ -1,0 +1,135 @@
+{
+ "fecha": "2026-10-04T21:11:50",
+ "frase": "enciende la televisión",
+ "ganancia_micro": "Volume: front-left: 28835 /  44% / -21,39 dB,   front-right: 28835 /  44% / -21,39 dB\n        balance 0,00",
+ "rms_ruido": 0.0665,
+ "intentos": [
+  {
+   "intento": 1,
+   "rms_voz": 0.0565,
+   "snr_db": -1.4,
+   "tramos_ms": [
+    [
+     680,
+     3320
+    ]
+   ],
+   "ganancia": "27%",
+   "saturadas_pct": 0.0,
+   "A_vad_vocab": {
+    "texto": "¿Enciende la televisión?",
+    "ms": 18094,
+    "no_habla": 0.005,
+    "logprob": -0.288,
+    "reconocida": true
+   }
+  },
+  {
+   "intento": 2,
+   "rms_voz": 0.0628,
+   "snr_db": -0.5,
+   "tramos_ms": [
+    [
+     648,
+     3288
+    ]
+   ],
+   "ganancia": "27%",
+   "saturadas_pct": 0.0,
+   "A_vad_vocab": {
+    "texto": "¿Enciende la televisión?",
+    "ms": 18226,
+    "no_habla": 0.001,
+    "logprob": -0.232,
+    "reconocida": true
+   }
+  },
+  {
+   "intento": 3,
+   "rms_voz": 0.0656,
+   "snr_db": -0.1,
+   "tramos_ms": [
+    [
+     264,
+     2968
+    ]
+   ],
+   "ganancia": "27%",
+   "saturadas_pct": 0.0,
+   "A_vad_vocab": {
+    "texto": "¿Enciende la televisión?",
+    "ms": 16432,
+    "no_habla": 0.004,
+    "logprob": -0.317,
+    "reconocida": true
+   }
+  },
+  {
+   "intento": 4,
+   "rms_voz": 0.291,
+   "snr_db": 12.8,
+   "tramos_ms": [
+    [
+     488,
+     3128
+    ]
+   ],
+   "ganancia": "50%",
+   "saturadas_pct": 1.1,
+   "A_vad_vocab": {
+    "texto": "¿Enciende la televisión?",
+    "ms": 17671,
+    "no_habla": 0.007,
+    "logprob": -0.314,
+    "reconocida": true
+   }
+  },
+  {
+   "intento": 5,
+   "rms_voz": 0.4754,
+   "snr_db": 17.1,
+   "tramos_ms": [
+    [
+     552,
+     3032
+    ]
+   ],
+   "ganancia": "50%",
+   "saturadas_pct": 7.5,
+   "A_vad_vocab": {
+    "texto": "El siente de la televisión.",
+    "ms": 17602,
+    "no_habla": 0.021,
+    "logprob": -0.683,
+    "reconocida": false
+   }
+  },
+  {
+   "intento": 6,
+   "rms_voz": 0.3524,
+   "snr_db": 14.5,
+   "tramos_ms": [
+    [
+     1224,
+     3736
+    ]
+   ],
+   "ganancia": "50%",
+   "saturadas_pct": 2.3,
+   "A_vad_vocab": {
+    "texto": "¿Enciende la televisión?",
+    "ms": 16694,
+    "no_habla": 0.005,
+    "logprob": -0.254,
+    "reconocida": true
+   }
+  }
+ ],
+ "reconocidas_por_variante": {
+  "A_vad_vocab": 5,
+  "por_ganancia": {
+   "27%": "3/3",
+   "50%": "2/3"
+  }
+ }
+}

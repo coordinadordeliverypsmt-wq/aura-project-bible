@@ -1,0 +1,23 @@
+{
+  "etiqueta": "DESPUES-cielo-3",
+  "modelo": "qwen2.5:0.5b",
+  "options": null,
+  "keep_alive": null,
+  "casos": [
+    {
+      "reloj_s": 81.77,
+      "total_s": 81.7,
+      "carga_modelo_s": 1.06,
+      "ingesta_tokens": 162,
+      "ingesta_s": 3.52,
+      "ingesta_tok_s": 46.07,
+      "generacion_tokens": 34,
+      "generacion_s": 77.11,
+      "generacion_tok_s": 0.44,
+      "pct_generacion": 94.4,
+      "respuesta": "{ \"say\": \"El cielo está blando porque se estrellan las nubes en forma de arcilla.\", \"action\": \"consulta\" }",
+      "motivo_fin": "stop",
+      "caso": "cielo"
+    }
+  ]
+}

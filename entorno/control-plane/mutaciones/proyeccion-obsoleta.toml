@@ -1,0 +1,59 @@
+incremento = "F1: deteccion de proyeccion obsoleta (estado_de_la_proyeccion, solo lectura, 5 estados)"
+# Defecto que cierra: una proyeccion estado.json desincronizada del log se presentaba como actual.
+# F1 es DETECCION pura: no regenera, no escribe, no toca historial ni ancla. Reutiliza
+# verificar_integridad_log / cargar / proyectar / validar. NADA en paralelo con este arnes (CLAUDE.md §2).
+pruebas = ["test_red_proyeccion_obsoleta.py"]
+timeout_s = 600
+
+[[mutante]]
+id = "PO1"
+garantia = "un log no verificable se presenta como ACTUAL en vez de NO_VERIFICABLE (fallo inseguro: afirmar actualidad sin poder demostrarla)"
+fichero = "control_plane.py"
+buscar = '''    if not verif.get("integro") or verif.get("completitud") != COMPLETITUD_DEMOSTRADA:'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "PO2"
+garantia = "la comparacion incluye campos de entorno (actualizado/cuota/git): toda proyeccion parece OBSOLETA aunque este al dia (falso positivo garantizado)"
+fichero = "control_plane.py"
+buscar = '''    return {
+        "status": estado.get("status"),
+        "eventos_aplicados": estado.get("eventos_aplicados"),
+        "eventos_ignorados": estado.get("eventos_ignorados"),
+        "tareas": tareas,
+    }'''
+sustituir = '''    return {
+        "status": estado.get("status"),
+        "eventos_aplicados": estado.get("eventos_aplicados"),
+        "eventos_ignorados": estado.get("eventos_ignorados"),
+        "tareas": tareas,
+        "actualizado": estado.get("actualizado"),
+        "cuota": estado.get("cuota"),
+        "git": estado.get("git"),
+    }'''
+
+[[mutante]]
+id = "PO3"
+garantia = "un estado.json ausente no se detecta: se trata como si existiera (clasificaria mal en vez de AUSENTE)"
+fichero = "control_plane.py"
+buscar = '''    if almacenado is None:
+        return {"estado": PROYECCION_AUSENTE, "seq_confirmado": seq_confirmado,'''
+sustituir = '''    if False:
+        return {"estado": PROYECCION_AUSENTE, "seq_confirmado": seq_confirmado,'''
+
+[[mutante]]
+id = "PO4"
+garantia = "una proyeccion atrasada respecto al log se presenta como ACTUAL (no se detecta la obsolescencia)"
+fichero = "control_plane.py"
+buscar = '''    if _vista_derivada_del_log(almacenado) == _vista_derivada_del_log(esperado):'''
+sustituir = '''    if True:'''
+
+[[mutante]]
+id = "PO5"
+garantia = "F1 deja de ser pura: materializa el estado al detectar (segundo escritor camuflado de detector)"
+fichero = "control_plane.py"
+buscar = '''    esperado = proyectar(directorio)
+    seq_proyeccion = _seq_de_la_proyeccion(almacenado)'''
+sustituir = '''    esperado = proyectar(directorio)
+    guardar(dict(esperado), directorio / "estado.json")
+    seq_proyeccion = _seq_de_la_proyeccion(almacenado)'''

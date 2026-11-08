@@ -312,3 +312,78 @@ Datos marcados **[terceros]**, no verificados por nosotros:
 - [llama.cpp vs MLX vs Ollama vs vLLM: Apple Silicon 2026](https://contracollective.com/blog/llama-cpp-vs-mlx-ollama-vllm-apple-silicon-2026)
 - [Apple Silicon LLM Benchmarks 2026 (M1–M5)](https://llmcheck.net/benchmarks)
 - [Ollama VRAM Requirements 2026](https://localaimaster.com/blog/ollama-model-ram-vram-table)
+
+---
+
+## 8. Addendum 2026-09-29 — Requisito de hardware para CM1 (voz), vía 3 autorizada por el CEO
+
+> Las secciones 1-7 tratan la plataforma para el **LLM**. Este addendum trata la **cadena de voz** que decide CM1
+> (Bible 2.5 §5.1: **fin de habla → inicio de respuesta hablada, P50 ≤ 800 ms**; el criterio no cambia).
+> Evidencia: `milestones/m3-entry/RESULTADO-CM1-HW-ACCEL.md` y `evidencia-cm1-hw/`.
+
+### 8.1 Hardware físicamente disponible [medido]
+
+- **Solo HC-1**: Celeron N4020 (2 núcleos, **solo SSE4.2, sin AVX/AVX2**), 3,6 GB de RAM y UHD 600. La UHD 600 cuelga el i915
+  con OpenVINO; esa vía se descarta.
+- Sin aceleradores USB ni PCI.
+- En la red no hay equipos de cómputo, solo televisores y teléfonos de dueño desconocido.
+- **No hay hardware candidato que medir.** Por el acta D-4 y la orden vigente, comprarlo es una decisión del CEO.
+
+### 8.2 Presupuesto medido del turno y factor de aceleración requerido [medido] → [cálculo]
+
+Etapas que **no dependen del cómputo**, medidas en HC-1:
+- **audio de E/S: 85 ms** (con `parecord --latency-msec=20` y `paplay --latency-msec=30`; sin ellos, ~2000 ms);
+- **fin de habla: ~450 ms**. Con 300 ms el VAD de energía cortaba frases (4/4); con 450, no (0/2). Es una muestra pequeña.
+
+Queda un presupuesto de cómputo de **800 − 85 − 450 ≈ 265 ms** para STT + Core + TTS hasta el primer audio. Con un VAD mejor
+que permita 300 ms serían ~415 ms, pero eso es [hipótesis].
+
+El Core ya mide 17-27 ms. Repartiendo el resto (**STT ≤ 150 ms, TTS ≤ 100 ms**), el factor requerido frente a HC-1 es:
+
+| Etapa (HC-1) | Medido en HC-1 | Objetivo | **Factor requerido** |
+|---|---|---|---|
+| Whisper base (orden de 1,1-1,9 s) | 6,6 s (kit) · 11,0 s con los márgenes del producto | ≤ 150 ms | **≈ 44× – 73×** |
+| Whisper tiny (menos preciso) | 3,0-6,8 s | ≤ 150 ms | ≈ 20× – 45× |
+| Piper medium, frase de 19-34 caracteres (frase completa = primer audio) | 0,84-1,32 s (kit) · 2,2-3,4 s (con carga de navegador) | ≤ 100 ms | **≈ 8× – 34×** |
+| Vosk small libre | final 66-77 ms, RTF 0,25-0,6 | — | cabe ya, pero **no es lo bastante preciso**: descartado por corromper memoria |
+
+Las cifras de HC-1 varían ~2,5× según la carga (Firefox): el factor se da como **rango**, no como un punto.
+
+### 8.3 Qué clase de hardware podría dar ese factor — [hipótesis/terceros], NO medido
+
+| Clase | Por qué | Riesgo |
+|---|---|---|
+| **x86 con GPU NVIDIA (CUDA, ≥ 8 GB VRAM) + CPU AVX2 de ≥ 6 núcleos + 16 GB RAM** | faster-whisper (ctranslate2) y onnxruntime-gpu (Piper) tienen backend CUDA ya soportado por el stack actual, **sin cambiar de motor**. Coincide con la **opción C** de §1.4 | Consumo 24/7 (§1.3) |
+| CPU AVX2/AVX-512 sin GPU (6-8 núcleos) | Piper probablemente sí (8-34×). **Whisper base, dudoso** (44-73×) | Podría obligar a Whisper tiny, que es menos preciso |
+| Apple Silicon (opción D) | CPU muy rápida | faster-whisper **no** usa Metal: para acelerar habría que cambiar de motor (whisper.cpp/MLX). Eso es un **cambio de arquitectura**, no solo de hardware |
+| Aceleradores USB (Coral/NCS) | — | No encajan con Whisper/Piper del stack actual; se descartan |
+
+**Recomendación del CTO (no es decisión):** la primera clase. Es la única en la que **todo el stack actual** tiene backend
+acelerado sin cambiar de motor, y es la misma opción C que el análisis de julio dejó como defendible.
+
+### 8.4 Lo que el hardware NO resuelve por sí solo [medido]
+
+El camino por defecto graba una **ventana fija de 5 s** (P50 E2E 32,1 s en HC-1). En cualquier máquina el turno esperaría
+lo que quede de esa ventana. Para CM1 hace falta una **captura con fin de habla que alimente a Whisper** (no a Vosk).
+
+Su VAD ya está escrito y probado, y se retiró como material de referencia (`evidencia-cm1-hw/via-rapida-v2/`). **No se
+reconstruye antes de tener hardware** que demuestre que la ruta cierra: construir sin evidencia está prohibido
+(PLAN-DE-FORMACION, CLAUDE.md §4).
+
+### 8.5 Aceptación de un candidato (procedimiento ejecutable)
+
+1. `AURA_USB=<modelos> python3 evidencia-cm1-hw/arneses/kit_cm1.py kit_<equipo>.json`. Mide por etapas, con los mismos modelos y
+   frases que `mediciones/kit_cm1_HC-1.json`, que es el denominador.
+2. Con la captura por fin de habla + Whisper integrada, ejecutar
+   `AURA_WS=<walking-skeleton> AURA_USB=<modelos> python3 evidencia-cm1-hw/arneses/e2e_cm1.py rapido 24 e2e_<equipo>.json`.
+3. **Criterio:**
+   - **P50 E2E ≤ 800 ms** sobre ≥ 24 turnos, con los fallos contados como fallos;
+   - respuestas correctas;
+   - **cero** hechos falsos guardados en memoria;
+   - calidad de voz de Piper (sin degradar a espeak).
+   Ninguna cifra de §8.3 cuenta como evidencia hasta pasar este procedimiento (acta D-4).
+
+### 8.6 Decisión requerida del CEO
+
+**Adquirir (o poner a disposición) un equipo de la clase recomendada en §8.3** para ejecutar §8.5. Sin ese equipo, CM1 → R1 →
+R2 → R3 → R4 sigue bloqueado y no hay trabajo legítimo que pueda cerrar la cadena.

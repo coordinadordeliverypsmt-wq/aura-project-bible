@@ -112,5 +112,12 @@ def test_ruta_valida_se_acepta_y_normaliza(tmp_path):
 @pytest.mark.parametrize("accion", sorted(ESPECIFICACIONES))
 def test_toda_operacion_declara_su_especificacion(accion):
     e = ESPECIFICACIONES[accion]
-    assert set(e) == {"args", "rutas", "permite_comodin"}
+    # Esquema cerrado: tres claves obligatorias y UNA opcional declarada (acta 2026-11-06, punto D, decision 1).
+    # Cualquier otra clave sigue siendo un fallo.
+    assert (
+        {"args", "rutas", "permite_comodin"}
+        <= set(e)
+        <= {"args", "rutas", "permite_comodin", "devuelve_contenido_usuario"}
+    )
+    assert type(e.get("devuelve_contenido_usuario", False)) is bool, "la marca es un booleano estricto"
     assert set(e["rutas"]).issubset(set(e["args"])), "una ruta debe ser tambien un argumento declarado"

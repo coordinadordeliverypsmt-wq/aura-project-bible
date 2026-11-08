@@ -1,0 +1,43 @@
+incremento = "El contexto de memoria que se envia al modelo solo lleva lo que el Core da por cierto hoy (2026-09-15): fuera las entradas refutadas (D-M-5) y las superseded (AMP-AURA etapas 1-2)"
+pruebas = ["tests/integration/test_contexto_de_memoria_vigente.py"]
+timeout_s = 240
+
+# `recall` devuelve tambien lo que el Core ya NO afirma, y el orquestador lo unia tal cual en
+# `[contexto memoria: ...]`. Reproducido: un hecho refutado seguia llegando al modelo, y tras redeclarar
+# el cumpleaños la fecha antigua entraba dos veces. Cada mutante degrada UNA pieza: el filtro entero, o
+# una sola de sus dos condiciones. Las dos condiciones necesitan red por separado: una prueba que solo
+# cubriera la refutacion dejaria pasar la supersesion, y al reves.
+
+[[mutante]]
+id = "CV-M1"
+garantia = "el filtro desaparece: todo lo que devuelve `recall` vuelve a entrar al contexto, refutado y superseded incluidos"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_contexto_de_memoria_vigente.py::test_un_hecho_refutado_NO_llega_al_contexto_del_modelo",
+           "tests/integration/test_contexto_de_memoria_vigente.py::test_la_entrada_superseded_NO_llega_al_contexto_del_modelo"]
+buscar = '''        vigentes = [h for h in hits if _da_por_cierto(h)]'''
+sustituir = '''        vigentes = list(hits)'''
+
+[[mutante]]
+id = "CV-M2"
+garantia = "se olvida la refutacion: lo que el usuario desmintio con «eso ya no es cierto» vuelve a contarse al modelo como recuerdo"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_contexto_de_memoria_vigente.py::test_un_hecho_refutado_NO_llega_al_contexto_del_modelo"]
+buscar = '''    return not prov.get("refutada") and prov.get("valid_until") is None'''
+sustituir = '''    return prov.get("valid_until") is None'''
+
+[[mutante]]
+id = "CV-M3"
+garantia = "se olvida la supersesion: tras redeclarar un atributo, el valor antiguo vuelve a entrar al contexto como si siguiera vigente"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_contexto_de_memoria_vigente.py::test_la_entrada_superseded_NO_llega_al_contexto_del_modelo"]
+buscar = '''    return not prov.get("refutada") and prov.get("valid_until") is None'''
+sustituir = '''    return not prov.get("refutada")'''
+
+[[mutante]]
+id = "CV-M4"
+garantia = "el filtro se pasa de ancho y vacia el contexto entero: el modelo deja de recibir tambien los recuerdos vigentes"
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_contexto_de_memoria_vigente.py::test_CONTROL_sin_refutar_el_hecho_SI_llega_al_contexto",
+           "tests/integration/test_contexto_de_memoria_vigente.py::test_CONTROL_con_una_sola_version_la_entrada_SI_llega_al_contexto"]
+buscar = '''    return not prov.get("refutada") and prov.get("valid_until") is None'''
+sustituir = '''    return False'''

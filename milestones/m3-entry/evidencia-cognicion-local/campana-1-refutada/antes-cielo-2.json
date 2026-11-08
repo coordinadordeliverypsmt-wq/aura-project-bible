@@ -1,0 +1,23 @@
+{
+  "etiqueta": "ANTES-cielo-2",
+  "modelo": "qwen2.5:0.5b",
+  "options": null,
+  "keep_alive": null,
+  "casos": [
+    {
+      "reloj_s": 313.84,
+      "total_s": 313.71,
+      "carga_modelo_s": 0.79,
+      "ingesta_tokens": 160,
+      "ingesta_s": 1.33,
+      "ingesta_tok_s": 120.2,
+      "generacion_tokens": 143,
+      "generacion_s": 311.51,
+      "generacion_tok_s": 0.46,
+      "pct_generacion": 99.3,
+      "respuesta": "{\"say\": \"El cielo azul se refiere a los colores verdes y rojos, incluyendo el azul. Esto implica que el cielo azul es un resultado del fenómeno llamado 'azul ocular', que ocurre cuando la luz solar cae en una óptica de reflejo al aire y se transforma en color. Sin embargo, para conocer con certeza por qué el cielo azul es tan particular y exótico, necesitaríamos observarlo en real tiempo o realiza",
+      "motivo_fin": "stop",
+      "caso": "cielo"
+    }
+  ]
+}

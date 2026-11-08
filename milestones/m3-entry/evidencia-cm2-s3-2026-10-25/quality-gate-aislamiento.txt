@@ -1,0 +1,8 @@
+3818 passed, 3 skipped, 17 xfailed in 550.54s (0:09:10)
+QUALITY GATE: PASS — listo para integrar/ejecutar
+EXIT=0
+../CHECKPOINT-CONTINUIDAD.md: La suma coincide
+../milestones/mapa-maestro/AURA_MASTER_DEVELOPMENT_MAP.md: La suma coincide
+tests/conftest.py: La suma coincide
+tests/unit/test_sin_dispositivos_reales.py: La suma coincide
+tests/integration/test_voz_degrada_con_honestidad.py: La suma coincide

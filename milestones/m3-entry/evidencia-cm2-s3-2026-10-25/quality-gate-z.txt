@@ -1,0 +1,10 @@
+3842 passed, 3 skipped, 17 xfailed in 609.73s (0:10:09)
+QUALITY GATE: PASS — listo para integrar/ejecutar
+EXIT=0
+../CHECKPOINT-CONTINUIDAD.md: La suma coincide
+../milestones/mapa-maestro/AURA_MASTER_DEVELOPMENT_MAP.md: La suma coincide
+aura_skeleton/__main__.py: La suma coincide
+tests/conftest.py: La suma coincide
+tests/unit/test_ruta_red.py: La suma coincide
+mutaciones/ruta-red.toml: La suma coincide
+carga final: 1.16 1.06 0.87

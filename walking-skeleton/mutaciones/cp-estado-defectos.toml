@@ -58,10 +58,20 @@ sustituir = '''    if not hallazgo.get("fichero"):
 id = "EDF-M6"
 descripcion = "la contencion desaparece: la falta de informacion vuelve a actuar como permiso"
 fichero = "control_plane.py"
+# RE-ANCLADO 2026-09-14: se anadio una SEGUNDA guarda de contencion (`_CAMPO_TRABAJO`, la misma
+# regla aplicada al dato que decide la zona) entre la de fichero/prueba y la de `determinado_por`.
+# Quitar solo la primera guarda ya no basta para que la falta de informacion actue como permiso: la
+# segunda la seguiria bloqueando. El mutante tiene que anular las DOS para atacar la misma garantia
+# (contencion == cero permiso por ausencia de datos). Bloque unico (grep -c = 1).
 buscar = '''    if not (hallazgo.get("fichero") and hallazgo.get("prueba")):
         return "PROPOSAL_ONLY"
-    if hallazgo.get("determinado_por")'''
-sustituir = '''    if hallazgo.get("determinado_por")'''
+    # No saber que fichero habria que tocar no es un detalle: es no poder comprobar en que zona cae
+    # el trabajo. Esa ignorancia no puede valer como permiso — es la misma regla que ya rige para
+    # `apertura`, aplicada al dato que decide la contencion.
+    if not hallazgo.get(_CAMPO_TRABAJO):
+        return "PROPOSAL_ONLY"
+    if hallazgo.get("determinado_por") and not hallazgo.get("resoluciones_posibles"):'''
+sustituir = '''    if hallazgo.get("determinado_por") and not hallazgo.get("resoluciones_posibles"):'''
 
 [[mutante]]
 id = "EDF-M7"

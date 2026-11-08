@@ -1,0 +1,50 @@
+incremento = "F5/D-ORCH-6 (CEO, 2026-11-08): WAITING_FOR_HUMAN alcanzable y gobernado, solo-humano simetrico"
+pruebas = ["test_red_waiting_for_human.py"]
+timeout_s = 300
+
+# POR QUE ESTE CATALOGO.
+#
+# WAITING_FOR_HUMAN tenia SALIDAS desde F1 (TRANSICIONES["WAITING_FOR_HUMAN"] = ("WORKING",
+# "FAILED")) pero ningun estado lo tenia como DESTINO: era inalcanzable desde el flujo real. El CEO
+# autorizo el 2026-11-08 anadirlo como destino de WORKING. Una auditoria de seguridad F5 demostro
+# que exentar la salida a FAILED abria una evasion en dos pasos, asi que la correccion es SIMETRIA
+# TOTAL con DECISION_REQUIRED: AMBAS salidas de WAITING_FOR_HUMAN (-> WORKING y -> FAILED) exigen
+# autoridad humana. La guarda es generica (ESTADOS_SOLO_HUMANO), sin excepciones.
+#
+# Cada mutante degrada exactamente una de las cuatro propiedades que el incremento garantiza, y la
+# prueba correspondiente de test_red_waiting_for_human.py tiene que detectarlo.
+
+[[mutante]]
+id = "WFH-M1"
+garantia = "WAITING_FOR_HUMAN ES ALCANZABLE: sin WORKING -> WAITING_FOR_HUMAN como destino, el estado vuelve a estar huerfano (tenia salidas sin entrada), que es exactamente el defecto D-ORCH-6 que este incremento corrige"
+fichero = "control_plane.py"
+pruebas = ["test_red_waiting_for_human.py::test_a_working_a_waiting_for_human_permitida_con_cualquier_autoridad", "test_red_waiting_for_human.py::test_g_waiting_for_human_es_destino_de_al_menos_un_estado"]
+buscar = '''                "DECISION_REQUIRED", "WAITING_FOR_HUMAN", "FAILED", "COMPLETED"),'''
+sustituir = '''                "DECISION_REQUIRED", "FAILED", "COMPLETED"),  # WAITING_FOR_HUMAN deja de ser destino'''
+
+[[mutante]]
+id = "WFH-M2"
+garantia = "LA GUARDA ANTI-AUTOAUTORIZACION SE EXIGE DE VERDAD: sin ella, cualquier autoridad (el propio agente/orquestador) podria reanudar WAITING_FOR_HUMAN -> WORKING sin que ningun humano lo autorizara, vaciando el proposito del incremento"
+fichero = "control_plane.py"
+pruebas = ["test_red_waiting_for_human.py::test_c_waiting_for_human_a_working_sin_autoridad_humana_rechazada", "test_red_waiting_for_human.py::test_c_barrido_ninguna_autoridad_no_humana_reanuda"]
+buscar = '''    if previo in ESTADOS_SOLO_HUMANO and autoridad not in AUTORIDADES_HUMANAS:'''
+sustituir = '''    if False:  # la guarda de autoridad humana deja de exigirse: autoautorizacion'''
+
+[[mutante]]
+id = "WFH-M3"
+garantia = "WAITING_FOR_HUMAN SIGUE SIN SER CREABLE DIRECTO: declara espera humana sobre trabajo EN CURSO; crearla ya ahi fabricaria una decision pendiente que nadie pidio, violando la regla que el DP ya establecia para DECISION_REQUIRED"
+fichero = "control_plane.py"
+pruebas = ["test_red_waiting_for_human.py::test_f_crear_tarea_directamente_en_waiting_for_human_rechazada"]
+buscar = '''ESTADOS_CREABLES = (ESTADO_INICIAL_DE_TAREA, "WORKING", "WAITING_FOR_ENVIRONMENT",
+                    "WAITING_FOR_QUOTA", "FAILED")'''
+sustituir = '''ESTADOS_CREABLES = (ESTADO_INICIAL_DE_TAREA, "WORKING", "WAITING_FOR_ENVIRONMENT",
+                    "WAITING_FOR_QUOTA", "FAILED", "WAITING_FOR_HUMAN")  # creable directo, indebido'''
+
+[[mutante]]
+id = "WFH-M4"
+garantia = "LA SALIDA A FAILED TAMBIEN EXIGE HUMANO (SIMETRIA): re-introducir la excepcion que eximia WAITING_FOR_HUMAN -> FAILED reabre la EVASION EN DOS PASOS (una autoridad no humana hace WAITING_FOR_HUMAN -> FAILED exento, luego FAILED -> WORKING por reintento, componiendo la autoautorizacion que la guarda debia impedir). Fail-closed: la cadena se rompe en su primer paso"
+fichero = "control_plane.py"
+pruebas = ["test_red_waiting_for_human.py::test_d_waiting_for_human_a_failed_sin_autoridad_humana_rechazada", "test_red_waiting_for_human.py::test_cadena_waiting_for_human_failed_working_no_evade_la_autoridad_humana"]
+buscar = '''    if previo in ESTADOS_SOLO_HUMANO and autoridad not in AUTORIDADES_HUMANAS:'''
+sustituir = '''    if (previo in ESTADOS_SOLO_HUMANO and autoridad not in AUTORIDADES_HUMANAS
+            and not (previo == "WAITING_FOR_HUMAN" and valor == "FAILED")):  # reabre la evasion en dos pasos'''

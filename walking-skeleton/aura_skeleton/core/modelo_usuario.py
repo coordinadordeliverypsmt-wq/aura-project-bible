@@ -21,6 +21,8 @@ from __future__ import annotations
 import json
 import time
 
+from . import resultado_accion
+
 _TIPOS = ("semantica", "procedimental")
 
 
@@ -72,6 +74,33 @@ class ModeloUsuario:
             for i in self._entradas(user_id)
         ]
 
+    async def ver_acciones(self, user_id: str) -> list[dict]:
+        """Los registros de acciones del usuario (punto D, ADR-0017 §4), con LISTA BLANCA de campos. Aparte de `ver`
+        a proposito: «¿que sabes de mi?» describe lo que AURA CREE de la persona, y lo que AURA hizo no es eso."""
+        registros = resultado_accion.leer_auditando(self._memoria, user_id)
+        return [resultado_accion.exportable(r) for r in registros]
+
+    async def olvidar_acciones(self, user_id: str) -> int | None:
+        """«Olvida lo que hiciste» (T19): lapida de todos los `resultado_accion` del usuario, por el Motor Unico
+        (`olvidar_informacion_usuario` con `ambito="acciones"`). El audit conserva el metadato de las ejecuciones,
+        como para toda accion: olvido asimetrico DECLARADO, no resuelto aqui (D-AMP-3).
+
+        Devuelve `None` si el motor NO ejecuto la operacion (detenida o error): «no se hizo» no es «no habia nada»."""
+        resultado = (
+            await self._motor.ejecutar(
+                "olvidar_informacion_usuario",
+                {"user_id": user_id, "ambito": "acciones"},
+                user_id or "-",
+                "modelo-olvidar_informacion_usuario",
+                origen="modelo_usuario",
+            )
+            if self._motor is not None
+            else None
+        )
+        if not isinstance(resultado, dict) or resultado.get("estado") != "ejecutada":
+            return None
+        return int((resultado.get("resultado") or {}).get("n", 0))
+
     # ------------------------------------------------------------- corregir --
 
     async def corregir(self, user_id: str, anterior: str, correccion: str) -> None:
@@ -85,9 +114,7 @@ class ModeloUsuario:
         version del usuario—, y ambas atraviesan el camino unico. Si el kill switch esta armado, no
         ocurre ninguna de las dos.
         """
-        await self._por_el_motor(
-            "refutar_informacion_usuario", {"user_id": user_id, "contiene": anterior}
-        )
+        await self._por_el_motor("refutar_informacion_usuario", {"user_id": user_id, "contiene": anterior})
         await self._por_el_motor(
             "registrar_informacion_usuario",
             {
@@ -109,7 +136,12 @@ class ModeloUsuario:
     async def exportar(self, user_id: str) -> str:
         """JSON legible sin AURA (4.1 §5). Un formato que solo el sistema sabe leer no es soberania."""
         return json.dumps(
-            {"usuario": user_id, "exportado_ts": time.time(), "entradas": await self.ver(user_id)},
+            {
+                "usuario": user_id,
+                "exportado_ts": time.time(),
+                "entradas": await self.ver(user_id),
+                "acciones": await self.ver_acciones(user_id),
+            },
             ensure_ascii=False,
             indent=2,
         )
@@ -120,15 +152,14 @@ class ModeloUsuario:
         """Borra el modelo, entero o selectivamente, de forma PERSISTENTE (soberania, ADR-0017).
 
         NO toca la memoria episodica: borrar lo que AURA cree saber sobre alguien no puede borrarle
-        su propia conversacion. Delega en `memoria.olvidar`, que reescribe el almacen: el olvido
-        sobrevive al reinicio (antes solo se mutaba la lista en memoria y el dato reaparecia).
+        su propia conversacion. Va por el Motor Unico (`olvidar_informacion_usuario`), que delega en
+        `memoria.olvidar`: el olvido sobrevive al reinicio porque se anexa una lapida (G-7), no porque se
+        reescriba el almacen. El contenido olvidado sigue en el historial fisico (DP-S3-RELOJ-CM2 §4.1).
         """
 
         # MIGRADA en F4 (DP-D-M-8 §7, tramo «soberania»). Antes llamaba a `memoria.olvidar`
         # directamente: sin motor, sin permisos y sin kill switch. Ese era el agujero de ALERTA-006.
-        return await self._por_el_motor(
-            "olvidar_informacion_usuario", {"user_id": user_id, "contiene": contiene}
-        )
+        return await self._por_el_motor("olvidar_informacion_usuario", {"user_id": user_id, "contiene": contiene})
 
     # ---------------------------------------------------------------- refutar --
 
@@ -139,8 +170,29 @@ class ModeloUsuario:
         """
 
         # MIGRADA en F4, misma razon que `borrar`.
+        return await self._por_el_motor("refutar_informacion_usuario", {"user_id": user_id, "contiene": contiene})
+
+    # ------------------------------------------------------ una entrada concreta (DR-2) --
+
+    async def olvidar_entrada(self, user_id: str, entrada: dict) -> int:
+        """Olvida UNA entrada, la que el Core presento, localizada por su contenido y su sello `ts`.
+
+        DR-2 (CEO, 2026-09-15): cuando existe una entrada concreta, FORGET no opera por texto. `borrar`
+        localizaba por subcadena y, con dos versiones de texto identico, se llevaba tambien la historica.
+        Ademas retira de la recuperacion los ecos episodicos del mismo turno —sin borrarlos: son el
+        registro de lo que el usuario dijo— para que el dato olvidado no vuelva por el contexto del modelo.
+        Mismo camino que todo lo demas: motor, permisos, kill switch y auditoria.
+        """
         return await self._por_el_motor(
-            "refutar_informacion_usuario", {"user_id": user_id, "contiene": contiene}
+            "olvidar_informacion_usuario",
+            {"user_id": user_id, "entrada": {"contenido": entrada.get("contenido"), "ts": entrada.get("ts")}},
+        )
+
+    async def refutar_entrada(self, user_id: str, entrada: dict) -> int:
+        """Refuta UNA entrada concreta y retira sus ecos de la recuperacion. Ver `olvidar_entrada`."""
+        return await self._por_el_motor(
+            "refutar_informacion_usuario",
+            {"user_id": user_id, "entrada": {"contenido": entrada.get("contenido"), "ts": entrada.get("ts")}},
         )
 
     # ----------------------------------------------------------------- util --
@@ -162,8 +214,36 @@ def _marca_de_origen(entrada: dict) -> str:
 
 
 def describir_conocimiento(entradas: list[dict]) -> str:
-    """Lo que AURA sabe del usuario, sin lo refutado, con su procedencia. Comunicable, fiel al modelo."""
-    vivas = [e for e in entradas if not e.get("refutada")]
+    """Lo que AURA sabe HOY del usuario, con su procedencia. Comunicable, fiel al modelo.
+
+    Fuera lo refutado y fuera lo SUPERSEDED (AMP-AURA etapas 1-2). Una version cerrada con `valid_until`
+    pertenece al historial, no al presente —la misma regla que ya aplica `_responder_hecho`—: medido el
+    2026-09-15, tras redeclarar el cumpleaños este listado presentaba las dos fechas como conocimiento
+    actual, y el «eso» siguiente apuntaba a la antigua. El historial NO se oculta: sigue consultable con
+    «¿cual era mi X?» y sigue saliendo por `ver()` y `exportar()` (ADR-0017 §3).
+    """
+    vivas = [e for e in entradas if not e.get("refutada") and e.get("valid_until") is None]
+    # Un hecho declarado DOS VECES no son dos hechos. Medido `[EJEC]` el 2026-09-21: «me llamo
+    # Mauricio» dicho tres veces se listaba tres veces, y AURA presentaba una repeticion como si
+    # fuera conocimiento distinto. La dedupe va AQUI y no en la escritura a proposito: el historial
+    # conserva las tres declaraciones —ocurrieron— y ADR-0023 manda que lo unico persistente con
+    # valor semantico sea el historial, existiendo «todo lo demas unicamente como proyeccion
+    # reconstruible». Esto es esa proyeccion: no borra nada, solo deja de contar de mas.
+    #
+    # Se deduplica DESPUES del filtro de vigencia, nunca antes: colapsar primero podria dejar en pie
+    # una version cerrada con `valid_until` y resucitar un dato que el usuario ya superó.
+    #
+    # NO se toca la familia «me llamo X» en la escritura. Que un valor NUEVO deba superseder al
+    # anterior —«me llamo Pedro» tras «me llamo Mauricio»— cambia la vigencia y roza `D-AMP-3`:
+    # queda elevado como DECISION_REQUIRED, no resuelto por inferencia aqui.
+    vistas: set[str] = set()
+    unicas = []
+    for e in vivas:
+        if e["contenido"] in vistas:
+            continue
+        vistas.add(e["contenido"])
+        unicas.append(e)
+    vivas = unicas
     if not vivas:
         return "Todavía no sé nada sobre ti."
     lineas = "\n".join(f"• {e['contenido']} ({_marca_de_origen(e)})" for e in vivas)

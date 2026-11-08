@@ -1,0 +1,37 @@
+Arnés: muta una copia aislada (/tmp/aura-mutar-q1vhlkf8/m3-entry/walking-skeleton); el árbol original solo se lee.
+Arnes de mutacion: mutaciones/arnes-copia-aislada.toml
+Base en verde. Mutantes evaluados: 11
+  [OK] A1 (detectado): la base corre en el arbol original y no en la copia
+        FAILED tests/unit/test_arnes_mutacion.py::test_pytest_corre_en_una_copia_fuera_del_proyecto_que_se_borra_al_terminar
+        FAILED tests/unit/test_arnes_mutacion.py::test_en_un_repositorio_se_copia_el_proyecto_entero_sin_git
+  [OK] A2 (detectado): los mutantes se aplican en el arbol original (la vulnerabilidad que motivo la regla 6)
+        FAILED tests/unit/test_arnes_mutacion.py::test_mutante_cubierto_por_la_prueba_es_detectado
+        FAILED tests/unit/test_arnes_mutacion.py::test_mutante_no_cubierto_sobrevive_reproduce_el_fallo_historico
+        FAILED tests/unit/test_arnes_mutacion.py::test_patron_inexistente_es_no_aplicado_y_no_cuenta_como_detectado
+  [OK] A3 (detectado): la copia aislada no se borra al terminar (se acumulan copias con codigo mutado)
+        FAILED tests/unit/test_arnes_mutacion.py::test_pytest_corre_en_una_copia_fuera_del_proyecto_que_se_borra_al_terminar
+        FAILED tests/unit/test_arnes_mutacion.py::test_una_interrupcion_durante_el_mutante_no_toca_el_original_y_borra_la_copia
+        FAILED tests/unit/test_arnes_mutacion.py::test_si_la_copia_cayera_dentro_del_proyecto_el_arnes_se_niega_sin_mutar_nada
+  [OK] A4 (detectado): la copia arrastra el .git del repositorio
+        FAILED tests/unit/test_arnes_mutacion.py::test_en_un_repositorio_se_copia_el_proyecto_entero_sin_git
+  [OK] A5 (detectado): solo se copia la raiz pedida, no el repositorio: las pruebas que leen ficheros hermanos fallan por estructura
+        FAILED tests/unit/test_arnes_mutacion.py::test_en_un_repositorio_se_copia_el_proyecto_entero_sin_git
+        FAILED tests/unit/test_arnes_mutacion.py::test_control_un_fichero_hermano_dentro_del_repositorio_copiado_si_se_muta
+  [OK] A6 (detectado): se cede la raiz original en vez de la de la copia
+        FAILED tests/unit/test_arnes_mutacion.py::test_mutante_cubierto_por_la_prueba_es_detectado
+        FAILED tests/unit/test_arnes_mutacion.py::test_mutante_no_cubierto_sobrevive_reproduce_el_fallo_historico
+        FAILED tests/unit/test_arnes_mutacion.py::test_patron_inexistente_es_no_aplicado_y_no_cuenta_como_detectado
+  [OK] A7 (detectado): una copia dentro del proyecto (TMPDIR mal puesto) se acepta como «aislada»
+        FAILED tests/unit/test_arnes_mutacion.py::test_si_la_copia_cayera_dentro_del_proyecto_el_arnes_se_niega_sin_mutar_nada
+  [OK] A8 (detectado): un `fichero` absoluto o con ../ de mas se muta FUERA de la copia (revision de seguridad, MEDIO)
+        FAILED tests/unit/test_arnes_mutacion.py::test_un_fichero_declarado_fuera_de_la_raiz_no_se_muta_nunca[absoluto]
+        FAILED tests/unit/test_arnes_mutacion.py::test_un_fichero_declarado_fuera_de_la_raiz_no_se_muta_nunca[relativo_que_sale]
+  [OK] A9 (detectado): las copias que dejo un arnes muerto por SIGKILL no se retiran nunca (disco acumulado sin aviso)
+        FAILED tests/unit/test_arnes_mutacion.py::test_al_arrancar_se_retiran_las_copias_huerfanas_y_solo_ellas
+  [OK] A10 (detectado): se retira tambien la copia de un arnes VIVO (borraria el arbol sobre el que otro arnes esta midiendo)
+        FAILED tests/unit/test_arnes_mutacion.py::test_al_arrancar_se_retiran_las_copias_huerfanas_y_solo_ellas
+  [OK] A11 (detectado): sin git el arnes revienta en vez de copiar la raiz pedida
+        FAILED tests/unit/test_arnes_mutacion.py::test_sin_git_se_copia_la_raiz_pedida_y_el_arnes_sigue
+
+Total: 11 detectados, 0 sobreviven, 0 no aplicados, 0 ambiguos, 0 en timeout
+exit=0

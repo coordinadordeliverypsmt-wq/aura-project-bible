@@ -1,0 +1,27 @@
+incremento = '''RETIRADO 2026-10-25 · diario de la mutación en el sitio (AL-M4, AL-M5 de arnes-ciclo-de-vida.toml)'''
+# Protegían la ESCRITURA del diario `.mutar-en-curso.json` en la raíz del proyecto, para recuperar un fichero
+# mutado tras un SIGKILL. Desde la regla 6 del arnés (2026-10-25) la mutación ocurre en una COPIA aislada: el
+# proyecto nunca contiene el mutante y el diario no se escribe (escribirlo en la copia era código muerto: ambos
+# mutantes SOBREVIVÍAN). La garantía la cubren ahora `arnes-copia-aislada.toml` (A2) y la prueba
+# `test_tras_un_sigkill_el_proyecto_real_sigue_intacto_y_pytest_no_queda_huerfano`.
+pruebas = ["tests/unit/test_arnes_ciclo_de_vida.py"]
+timeout_s = 240
+
+[[mutante]]
+id = "AL-M4"
+garantia = '''sin diario, un SIGKILL deja el fichero mutado sin forma de recuperarlo'''
+fichero = "herramientas/mutar.py"
+buscar = '''        _anotar_diario(raiz, str(mutante["fichero"]), original_bytes, contenido_mutado.encode("utf-8"))
+'''
+sustituir = '''
+'''
+
+[[mutante]]
+id = "AL-M5"
+garantia = '''el diario queda tras una ejecución normal y la siguiente «restaura» sin motivo'''
+fichero = "herramientas/mutar.py"
+buscar = '''                _borrar_diario(raiz)
+            finally:'''
+sustituir = '''                pass
+            finally:'''
+

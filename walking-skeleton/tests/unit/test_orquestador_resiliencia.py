@@ -43,7 +43,8 @@ def _orch(salida):
 # fallar por ello (`assert res["say"]` lo satisface cualquier respuesta). Cada una comprueba ademas
 # `provider == "raw"`, para que la prueba se rompa -en vez de volverse decorativa- si una superficie
 # determinista futura vuelve a reclamar el turno.
-_ORDEN_QUE_LLEGA_AL_LLM = "enciende la luz de la sala"
+# Semana 2: «enciende la luz de la sala» ya la interpreta el Core y no llegaría al modelo.
+_ORDEN_QUE_LLEGA_AL_LLM = "quiero que enciendas la luz de la sala"
 
 
 @pytest.mark.asyncio

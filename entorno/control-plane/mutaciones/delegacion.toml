@@ -1,0 +1,229 @@
+incremento = "PIEZA 19 · DELEGACION A SUBAGENTES (CEO, 2026-09-21): cada barrera de la capacidad, degradada a proposito para comprobar que alguna prueba se entera"
+pruebas = ["test_red_delegacion.py"]
+timeout_s = 900
+
+# POR QUE CADA MUTANTE.
+#
+# Esta capacidad presta autoridad. Una barrera suya que estuviera declarada y no protegiera no seria
+# una deuda menor: seria una via de escalada. Por eso se muta **el cableado**, no solo la logica —
+# la leccion del mutante «la composicion no enciende las automatizaciones», que sobrevivio con 426
+# pruebas en verde.
+#
+# Las dos puertas —`delegar` y `ejecutar`— se mutan por separado a proposito: comprobar algo solo al
+# conceder deja una ventana entre conceder y usar, y ese es el hueco por el que se cuela una
+# credencial fabricada a mano.
+
+[[mutante]]
+id = "DL-M1"
+garantia = "PARADA AL DELEGAR: con el kill switch armado no se concede ninguna credencial nueva"
+fichero = "delegacion.py"
+pruebas = ["test_red_delegacion.py::test_con_PARADA_armada_no_se_delega_nada"]
+buscar = '''    if orq.parada_solicitada(directorio):
+        _rechazar(directorio, capacidad, "kill switch activado")'''
+sustituir = '''    if False:  # delegar deja de mirar el kill switch
+        _rechazar(directorio, capacidad, "kill switch activado")'''
+
+[[mutante]]
+id = "DL-M2"
+garantia = "PARADA AL EJECUTAR: un permiso concedido ANTES de que alguien pare el sistema no vale DESPUES. Sin esta segunda consulta quedaria una ventana entre autorizar y usar"
+fichero = "delegacion.py"
+pruebas = ["test_red_delegacion.py::test_PARADA_armada_DESPUES_de_delegar_impide_ejecutar"]
+buscar = '''    if orq.parada_solicitada(directorio):
+        raise DelegacionInvalida("kill switch activado: ninguna delegacion se ejecuta")'''
+sustituir = '''    if False:  # ejecutar deja de mirar el kill switch
+        raise DelegacionInvalida("kill switch activado: ninguna delegacion se ejecuta")'''
+
+[[mutante]]
+id = "DL-M3"
+garantia = "MATERIA RESERVADA: `D22` no admite excepcion. Sin esta puerta, `crear_autoridad` seria delegable y la capacidad se convertiria en la escalada que dice impedir"
+fichero = "delegacion.py"
+pruebas = ["test_red_delegacion.py::test_AISLADO_la_materia_reservada_manda_aunque_la_capacidad_este_construida", "test_red_delegacion.py::test_CONTROL_con_los_dos_guardias_satisfechos_la_delegacion_SI_se_concede"]
+buscar = '''    if rv.es_materia_reservada(capacidad):'''
+sustituir = '''    if False:  # la materia reservada deja de consultarse'''
+
+[[mutante]]
+id = "DL-M4"
+garantia = "EL ORIGEN DE LA AUTORIDAD: una delegacion no puede conceder lo que su origen no tenia. Sin esto se prestaria una capacidad que el CEO nunca autorizo en la politica"
+fichero = "delegacion.py"
+pruebas = ["test_red_delegacion.py::test_AISLADO_una_capacidad_CONSTRUIDA_pero_sin_autorizar_no_se_delega", "test_red_delegacion.py::test_CONTROL_con_los_dos_guardias_satisfechos_la_delegacion_SI_se_concede"]
+buscar = '''    if not ficha:'''
+sustituir = '''    if False:  # da igual que la capacidad no conste autorizada'''
+
+[[mutante]]
+id = "DL-M5"
+garantia = "SOLO LECTURA: delegar escritura exige acta del CEO. Si este filtro cayera, la capacidad concederia autonomia de escritura sin que nadie la hubiera aprobado"
+fichero = "delegacion.py"
+pruebas = ["test_red_delegacion.py::test_una_capacidad_de_ESCRITURA_no_se_delega"]
+buscar = '''    if str(ficha.get("tipo", "")).strip() != "lectura":'''
+sustituir = '''    if False:  # da igual el efecto declarado de la capacidad'''
+
+[[mutante]]
+id = "DL-M6"
+garantia = "INV-9: no se finge capacidad. Una mision sin ejecutor construido se rechaza en vez de devolver un resultado inventado"
+fichero = "delegacion.py"
+pruebas = ["test_red_delegacion.py::test_una_capacidad_sin_EJECUTOR_construido_se_rechaza_por_INV9"]
+buscar = '''    if capacidad not in MISIONES_CONSTRUIDAS:'''
+sustituir = '''    if False:  # se acepta cualquier capacidad, construida o no'''
+
+[[mutante]]
+id = "DL-M7"
+garantia = "PROFUNDIDAD AL DELEGAR: un subagente no crea subagentes. Sin la cota, una mision podria abrir un arbol sin fondo"
+fichero = "delegacion.py"
+pruebas = ["test_red_delegacion.py::test_un_subagente_NO_crea_otro_subagente", "test_red_delegacion.py::test_CONTROL_la_profundidad_inicial_SI_se_permite"]
+buscar = '''    if profundidad >= PROFUNDIDAD_MAXIMA:'''
+sustituir = '''    if False:  # la profundidad deja de acotarse al delegar'''
+
+[[mutante]]
+id = "DL-M8"
+garantia = "EL PERIMETRO AL DELEGAR: un argumento que apunta fuera del sandbox no se concede — ni con `..` ni por enlace simbolico, porque la ruta se resuelve antes de juzgarla"
+fichero = "delegacion.py"
+pruebas = ["test_red_delegacion.py::test_un_argumento_con_PUNTOS_no_escapa_del_sandbox", "test_red_delegacion.py::test_un_SYMLINK_hacia_fuera_no_concede_el_destino"]
+buscar = '''    if not _dentro_del_sandbox(caja, destino):'''
+sustituir = '''    if False:  # los argumentos dejan de comprobarse contra el sandbox'''
+
+[[mutante]]
+id = "DL-M9"
+garantia = "LA RUTA SE RESUELVE: sin `.resolve()` la comparacion seria sobre el TEXTO de la ruta, y `..` o un enlace simbolico bastarian para salir del sandbox"
+fichero = "delegacion.py"
+pruebas = ["test_red_delegacion.py::test_un_argumento_con_PUNTOS_no_escapa_del_sandbox", "test_red_delegacion.py::test_un_SYMLINK_hacia_fuera_no_concede_el_destino", "test_red_delegacion.py::test_CONTROL_un_argumento_DENTRO_del_sandbox_si_se_concede"]
+buscar = '''        base = pathlib.Path(sandbox).resolve(strict=False)
+        objetivo = pathlib.Path(ruta).resolve(strict=False)'''
+sustituir = '''        base = pathlib.Path(sandbox)
+        objetivo = pathlib.Path(ruta)'''
+
+[[mutante]]
+id = "DL-M10"
+garantia = "LA CREDENCIAL ESTA ATADA A SU MISION: cambiar la mision despues de autorizarla la invalida. Sin esta comprobacion, una autorizacion inocua serviria para otra cosa"
+fichero = "delegacion.py"
+pruebas = ["test_red_delegacion.py::test_la_mision_NO_puede_cambiar_despues_de_autorizarse", "test_red_delegacion.py::test_un_subagente_no_puede_concederse_MAS_de_lo_que_recibio"]
+buscar = '''    if delegacion.huella != mision.id or delegacion.mision_id != mision.id:'''
+sustituir = '''    if False:  # la credencial sirve para cualquier mision'''
+
+[[mutante]]
+id = "DL-M11"
+garantia = "UN SOLO USO: una credencial gastada no vuelve. Sin esto, una autorizacion legitima serviria indefinidamente y la delegacion dejaria de ser temporal"
+fichero = "delegacion.py"
+pruebas = ["test_red_delegacion.py::test_AISLADO_una_credencial_gastada_no_ensucia_el_log_con_otra_reserva", "test_red_delegacion.py::test_CONTROL_una_credencial_recien_emitida_SI_ejecuta"]
+buscar = '''    if usos_de(directorio, delegacion.id) >= 1:
+        return False, "la delegacion ya se gasto: es de un solo uso"'''
+sustituir = '''    if False:
+        return False, "la delegacion ya se gasto: es de un solo uso"'''
+
+[[mutante]]
+id = "DL-M12"
+garantia = "CADUCIDAD: una mision no se convierte en una autorizacion permanente. Es la otra mitad del lifecycle finito, junto al uso unico"
+fichero = "delegacion.py"
+pruebas = ["test_red_delegacion.py::test_una_credencial_CADUCADA_no_ejecuta"]
+buscar = '''    if _ahora() > delegacion.expira_en:
+        return False, "la delegacion caduco"'''
+sustituir = '''    if False:
+        return False, "la delegacion caduco"'''
+
+[[mutante]]
+id = "DL-M13"
+garantia = "REVOCACION EFECTIVA: revocar tiene que impedir la ejecucion, no solo dejar una nota bonita en el historial"
+fichero = "delegacion.py"
+pruebas = ["test_red_delegacion.py::test_una_credencial_REVOCADA_no_ejecuta"]
+buscar = '''    if esta_revocada(directorio, delegacion.id):
+        return False, "la delegacion fue revocada"'''
+sustituir = '''    if False:
+        return False, "la delegacion fue revocada"'''
+
+[[mutante]]
+id = "DL-M14"
+garantia = "EL USO SE RESERVA ANTES DE EJECUTAR: reservarlo al final deja una ventana del tamano de la ejecucion entera, y un timeout o un fallo se convierten en un reintento gratis"
+fichero = "delegacion.py"
+pruebas = ["test_red_delegacion.py::test_tras_agotar_el_plazo_la_credencial_queda_gastada", "test_red_delegacion.py::test_ATAQUE_dos_ejecuciones_CONCURRENTES_no_gastan_la_misma_credencial"]
+buscar = '''    reserva = cp.registrar_evento(directorio, _EVENTO_EJECUTADA, {'''
+sustituir = '''    reserva = _NO_RESERVAR(directorio, _EVENTO_EJECUTADA, {'''
+
+[[mutante]]
+id = "DL-M15"
+garantia = "EL ACTA ES OBLIGATORIA: sin acta no hay permiso, hay intencion. Es la misma regla que gobierna `review.habilitar`"
+fichero = "delegacion.py"
+pruebas = ["test_red_delegacion.py::test_sin_ACTA_no_hay_delegacion"]
+buscar = '''    if not str(acta or "").strip():'''
+sustituir = '''    if False:  # el acta deja de exigirse'''
+
+[[mutante]]
+id = "DL-M16"
+garantia = "LA PROFUNDIDAD SE COMPRUEBA TAMBIEN AL EJECUTAR: validarla solo al crear dejaria pasar una credencial fabricada a mano con la profundidad ya gastada"
+fichero = "delegacion.py"
+pruebas = ["test_red_delegacion.py::test_AISLADO_una_credencial_con_profundidad_por_encima_del_maximo_no_ejecuta", "test_red_delegacion.py::test_CONTROL_una_credencial_recien_emitida_SI_ejecuta"]
+buscar = '''    if delegacion.profundidad > PROFUNDIDAD_MAXIMA:
+        return False, f"profundidad {delegacion.profundidad} excede el maximo {PROFUNDIDAD_MAXIMA}"'''
+sustituir = '''    if False:
+        return False, f"profundidad {delegacion.profundidad} excede el maximo {PROFUNDIDAD_MAXIMA}"'''
+
+# --- LA BARRERA QUE NACIO DE UN ATAQUE QUE FUNCIONO (2026-09-21) ---
+#
+# `--exit-zero` como argumento devolvia `ok=True, codigo=0` sobre un arbol sucio: la capacidad
+# declaraba «calidad verificada» sin verificar nada. El perimetro no lo veia porque
+# `caja / "--exit-zero"` es nominalmente una ruta DENTRO del sandbox.
+
+[[mutante]]
+id = "DL-M17"
+garantia = "UN ARGUMENTO NO PUEDE SER UNA OPCION: sin esto, una mision compone la linea de ordenes de la herramienta y `--exit-zero` declara limpio lo sucio"
+fichero = "delegacion.py"
+pruebas = ["test_red_delegacion.py::test_AISLADO_un_argumento_que_parece_opcion_se_rechaza_AUNQUE_EXISTA", "test_red_delegacion.py::test_CONTROL_un_argumento_DENTRO_del_sandbox_si_se_concede"]
+buscar = '''    if texto.startswith("-"):'''
+sustituir = '''    if False:  # un argumento puede volver a parecerse a una opcion'''
+
+[[mutante]]
+id = "DL-M18"
+garantia = "EL ARGUMENTO TIENE QUE EXISTIR: una ruta inexistente no es trabajo — o es un error, o es un intento de que la herramienta la interprete de otro modo"
+fichero = "delegacion.py"
+pruebas = ["test_red_delegacion.py::test_un_argumento_que_NO_EXISTE_no_se_acepta", "test_red_delegacion.py::test_CONTROL_un_argumento_DENTRO_del_sandbox_si_se_concede"]
+buscar = '''    if not destino.exists():'''
+sustituir = '''    if False:  # da igual que el argumento no exista'''
+
+[[mutante]]
+id = "DL-M19"
+garantia = "EL SEPARADOR `--` ES LA SEGUNDA CAPA: cierra las opciones en la propia linea de ordenes, para que la defensa no dependa de una sola comprobacion"
+fichero = "delegacion.py"
+pruebas = ["test_red_delegacion.py::test_AISLADO_el_separador_protege_aunque_el_primer_filtro_caiga", "test_red_delegacion.py::test_la_segunda_capacidad_construida_tambien_ejecuta_de_verdad"]
+buscar = '''            [sys.executable, "-m", "ruff", "check", "--no-cache", "--", *rutas],'''
+sustituir = '''            [sys.executable, "-m", "ruff", "check", "--no-cache", *rutas],'''
+
+
+# --- LAS TRES QUE UNA AUDITORIA ADVERSARIAL ROMPIO (2026-09-21) ---
+
+[[mutante]]
+id = "DL-M20"
+garantia = "LA CREDENCIAL SE VERIFICA CONTRA EL LOG (ADR-0023): una `Delegacion` bien formada pero que no consta emitida no existe. Sin esto, cualquiera fabrica una a mano y `ejecutar` la acepta"
+fichero = "delegacion.py"
+pruebas = ["test_red_delegacion.py::test_ATAQUE_una_credencial_FABRICADA_a_mano_no_ejecuta", "test_red_delegacion.py::test_CONTROL_una_credencial_recien_emitida_SI_ejecuta"]
+buscar = '''    if not emitida:'''
+sustituir = '''    if False:  # da igual que no conste emitida en el historial'''
+
+[[mutante]]
+id = "DL-M21"
+garantia = "LOS CAMPOS QUE DECIDEN SE LEEN DEL HECHO REGISTRADO, no del objeto que trae el llamante. Sin esto, `dataclasses.replace` resucita una credencial caducada o le sube la profundidad"
+fichero = "delegacion.py"
+pruebas = ["test_red_delegacion.py::test_ATAQUE_una_credencial_caducada_no_se_RESUCITA_cambiandole_la_fecha", "test_red_delegacion.py::test_CONTROL_una_credencial_recien_emitida_SI_ejecuta"]
+buscar = '''    if float(emitida.get("expira_en", 0)) != float(delegacion.expira_en):'''
+sustituir = '''    if False:  # la caducidad registrada deja de comprobarse'''
+
+[[mutante]]
+id = "DL-M22"
+garantia = "LA PROFUNDIDAD SE HEREDA DEL PROCESO: fiarse de la que declara la mision fue el agujero — un subagente pedia otra mision con `profundidad=0` desde dentro de la suya y la cota no se enteraba"
+fichero = "delegacion.py"
+pruebas = ["test_red_delegacion.py::test_ATAQUE_un_proceso_YA_DELEGADO_no_puede_pedir_otra_mision", "test_red_delegacion.py::test_CONTROL_sin_marca_de_profundidad_la_delegacion_SI_se_concede"]
+buscar = '''    profundidad = max(int(mision.profundidad), profundidad_heredada())'''
+sustituir = '''    profundidad = int(mision.profundidad)  # vuelve a fiarse de lo declarado'''
+
+[[mutante]]
+id = "DL-M23"
+garantia = "EL DESEMPATE POR `seq` CIERRA LA CARRERA: sin el, cinco ejecuciones concurrentes pasan las cinco la comprobacion de «no gastada» y la credencial de un solo uso se gasta cinco veces"
+fichero = "delegacion.py"
+pruebas = ["test_red_delegacion.py::test_AISLADO_el_desempate_por_seq_decide_cuando_la_comprobacion_previa_no_ve_nada", "test_red_delegacion.py::test_CONTROL_una_credencial_recien_emitida_SI_ejecuta"]
+buscar = '''    if reservas and reservas[0].get("seq") != reserva.get("seq"):'''
+sustituir = '''    if False:  # gana cualquiera que llegue, no el primero'''
+
+[[mutante]]
+id = "DL-M24"
+garantia = "UNA MARCA DE PROFUNDIDAD CORRUPTA NO CONCEDE: ante la duda, roja (ADR-0003). Si un valor ilegible se tratara como cero, bastaria corromperlo para saltarse la cota"
+fichero = "delegacion.py"
+pruebas = ["test_red_delegacion.py::test_una_marca_de_profundidad_CORRUPTA_no_concede", "test_red_delegacion.py::test_CONTROL_sin_marca_de_profundidad_la_delegacion_SI_se_concede"]
+buscar = '''        return PROFUNDIDAD_MAXIMA'''
+sustituir = '''        return 0  # un valor corrupto se trata como «no estamos dentro»'''

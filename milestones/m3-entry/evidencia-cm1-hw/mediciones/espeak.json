@@ -1,0 +1,1 @@
+{"sr": 22050, "frases": {"Sí.": {"audio_s": 0.28, "p50_primer_audio_ms": 0.0, "p50_total_ms": 0.6, "p95_total_ms": 0.8}, "Te llamas Mauricio.": {"audio_s": 1.08, "p50_primer_audio_ms": 0.1, "p50_total_ms": 2.7, "p95_total_ms": 3.2}, "Tienes dos recordatorios para hoy.": {"audio_s": 2.06, "p50_primer_audio_ms": 0.1, "p50_total_ms": 4.3, "p95_total_ms": 4.5}}}

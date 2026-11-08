@@ -1,0 +1,433 @@
+incremento = "AURA Progress Dashboard: panel de progreso, censura y registro estructurado del Quality Gate"
+pruebas = [
+    "tests/unit/test_panel_progreso.py",
+    "tests/unit/test_registro_gate.py",
+]
+
+[[mutante]]
+id = "P1"
+garantia = "el indice de lanzamiento deja de usar el ambito MVP"
+fichero = "herramientas/panel_progreso.py"
+buscar = '''self.mvp = im.calcular(self.caps, "MVP")'''
+sustituir = '''self.mvp = im.calcular(self.caps, None)'''
+
+[[mutante]]
+id = "P2"
+garantia = "el indice de horizonte se calcula solo con MVP"
+fichero = "herramientas/panel_progreso.py"
+buscar = '''self.horizonte = im.calcular(self.caps, None)'''
+sustituir = '''self.horizonte = im.calcular(self.caps, "MVP")'''
+
+[[mutante]]
+id = "P3"
+garantia = "se pinta 100 % lo que redondea a 100 sin serlo (sin tope 99,9)"
+fichero = "herramientas/panel_progreso.py"
+buscar = '''if v < 1 and r >= 100:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "P4"
+garantia = "el porcentaje trunca en vez de redondear"
+fichero = "herramientas/panel_progreso.py"
+buscar = '''r = round(v * 100, 1)'''
+sustituir = '''r = int(v * 1000) / 10'''
+
+[[mutante]]
+id = "P5"
+garantia = "el porcentaje deja de acotarse a 0-100"
+fichero = "herramientas/panel_progreso.py"
+buscar = '''return max(0.0, min(100.0, r))'''
+sustituir = '''return r'''
+
+[[mutante]]
+id = "P6"
+garantia = "un ambito sin capacidades se pinta como 0 % en vez de «sin capacidades»"
+fichero = "herramientas/panel_progreso.py"
+buscar = '''if r["n"] == 0:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "P7"
+garantia = "un booleano se acepta como nivel de capacidad"
+fichero = "herramientas/panel_progreso.py"
+buscar = '''return isinstance(x, int) and not isinstance(x, bool)'''
+sustituir = '''return isinstance(x, int)'''
+
+[[mutante]]
+id = "P8"
+garantia = "una capacidad que no es objeto no se rechaza"
+fichero = "herramientas/panel_progreso.py"
+buscar = '''        if not isinstance(c, dict):
+            raise ValueError(f"capacidad #{i} no es un objeto")'''
+sustituir = '''        if not isinstance(c, dict):
+            continue'''
+
+[[mutante]]
+id = "P9"
+garantia = "un nivel fuera de 0-6 se acepta"
+fichero = "herramientas/panel_progreso.py"
+buscar = ''' or not 0 <= c["nivel"] <= 6:'''
+sustituir = ''':'''
+
+[[mutante]]
+id = "P10"
+garantia = "el registro del gate acepta un resultado arbitrario"
+fichero = "herramientas/panel_progreso.py"
+buscar = '''if d["resultado"] not in ("PASS", "FAIL"):'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "P11"
+garantia = "pytest null del registro deja de tener rama propia (se exige objeto)"
+fichero = "herramientas/panel_progreso.py"
+buscar = '''if py is not None and not ('''
+sustituir = '''if not ('''
+
+[[mutante]]
+id = "P12"
+garantia = "desactualizado invertido"
+fichero = "herramientas/panel_progreso.py"
+buscar = '''(ahora - ref) > timedelta(days=umbral)'''
+sustituir = '''(ahora - ref) < timedelta(days=umbral)'''
+
+[[mutante]]
+id = "P13"
+garantia = "sin fecha se trata como fresco (False) en vez de None"
+fichero = "herramientas/panel_progreso.py"
+buscar = '''desactualizado: bool | None = None'''
+sustituir = '''desactualizado: bool | None = False'''
+
+[[mutante]]
+id = "P14"
+garantia = "una fecha futura se compara con el umbral"
+fichero = "herramientas/panel_progreso.py"
+buscar = '''desactualizado = None if futura else (ahora - ref) > timedelta(days=umbral)'''
+sustituir = '''desactualizado = (ahora - ref) > timedelta(days=umbral)'''
+
+[[mutante]]
+id = "P15"
+garantia = "una fecha futura no se marca como futura"
+fichero = "herramientas/panel_progreso.py"
+buscar = '''futura = (ref - ahora) > TOLERANCIA_FUTURO'''
+sustituir = '''futura = False'''
+
+[[mutante]]
+id = "P16"
+garantia = "el sha del registro siempre coincide con HEAD"
+fichero = "herramientas/panel_progreso.py"
+buscar = '''return "coincide" if head.lower().startswith(sha.lower()) else "distinto"'''
+sustituir = '''return "coincide"'''
+
+[[mutante]]
+id = "P17"
+garantia = "el modelo se construye sin censurar las capacidades"
+fichero = "herramientas/panel_progreso.py"
+buscar = '''self.caps = [_censurar_capacidad(c) for c in _validar_capacidades(datos["capacidades"])]'''
+sustituir = '''self.caps = [c for c in _validar_capacidades(datos["capacidades"])]'''
+
+[[mutante]]
+id = "P18"
+garantia = "el HTML no escapa el texto"
+fichero = "herramientas/panel_progreso.py"
+buscar = '''return html.escape(str(x), quote=True)'''
+sustituir = '''return str(x)'''
+
+[[mutante]]
+id = "P19"
+garantia = "sin decisiones no se avisa «sin decisiones registradas»"
+fichero = "herramientas/panel_progreso.py"
+buscar = '''if b["total"] == 0:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "P20"
+garantia = "la columna MVP por dimension pinta los datos del horizonte"
+fichero = "herramientas/panel_progreso.py"
+buscar = '''mvp = m.mvp["dimensiones"].get(d)'''
+sustituir = '''mvp = m.horizonte["dimensiones"].get(d)'''
+
+[[mutante]]
+id = "P21"
+garantia = "la escala del mapa ya no exige los niveles 0-6"
+fichero = "herramientas/panel_progreso.py"
+buscar = '''if sorted(nombres) != list(range(7)):'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "P22"
+garantia = "un mapa ilegible no propaga su error a los bloques"
+fichero = "herramientas/panel_progreso.py"
+buscar = '''return _error(self.origen, self.error)'''
+sustituir = '''return _bloque(self.origen, None, ahora, umbral)'''
+
+[[mutante]]
+id = "P23"
+garantia = "el mapa del ecosistema se lee sin censurar"
+fichero = "herramientas/panel_progreso.py"
+buscar = '''texto = censurar(ruta.read_text(encoding="utf-8"))  # censura ANTES de construir nada'''
+sustituir = '''texto = ruta.read_text(encoding="utf-8")'''
+
+[[mutante]]
+id = "P24"
+garantia = "toda decision con linea de estado cuenta como resuelta"
+fichero = "herramientas/panel_progreso.py"
+buscar = '''bool(estado and estado.lower().startswith("resuelt"))'''
+sustituir = '''bool(estado)'''
+
+[[mutante]]
+id = "P25"
+garantia = "un bloqueo vacio recibe etiqueta «dependencia»"
+fichero = "herramientas/panel_progreso.py"
+buscar = '''    if not texto.strip():
+        return []'''
+sustituir = '''    if False:
+        return []'''
+
+[[mutante]]
+id = "P26"
+garantia = "las fechas con zona no se convierten al reloj de referencia"
+fichero = "herramientas/panel_progreso.py"
+buscar = '''return fecha.astimezone(ahora.tzinfo)'''
+sustituir = '''return fecha.replace(tzinfo=ahora.tzinfo)'''
+
+[[mutante]]
+id = "P27"
+garantia = "los pasos del gate se muestran sin censurar"
+fichero = "herramientas/panel_progreso.py"
+buscar = '''pasos={censurar(k): censurar(v) for k, v in d["pasos"].items()},'''
+sustituir = '''pasos=d["pasos"],'''
+
+[[mutante]]
+id = "P28"
+garantia = "el titulo del checkpoint no se censura"
+fichero = "herramientas/panel_progreso.py"
+buscar = '''b["titulo"] = censurar(titulos[-1].strip())'''
+sustituir = '''b["titulo"] = titulos[-1].strip()'''
+
+[[mutante]]
+id = "P29"
+garantia = "la escritura del HTML no es atomica"
+fichero = "herramientas/panel_progreso.py"
+buscar = '''os.replace(provisional, destino)'''
+sustituir = '''destino.write_text(provisional.read_text(encoding="utf-8"), encoding="utf-8")'''
+
+[[mutante]]
+id = "P30"
+garantia = "la fecha del mapa acepta digitos pegados a otro numero"
+fichero = "herramientas/panel_progreso.py"
+buscar = '''_FECHA = re.compile(r"(?<![\d-])(\d{4}-\d{2}-\d{2})(?![\d-])")'''
+sustituir = '''_FECHA = re.compile(r"(\d{4}-\d{2}-\d{2})")'''
+
+[[mutante]]
+id = "C1"
+garantia = "clave: la censura corta en un solo token en vez de hasta fin de linea"
+fichero = "herramientas/censura_panel.py"
+buscar = '''(\s*[:=：]\s*)[^\n|]*", re.I)'''
+sustituir = '''(\s*[:=：]\s*)[^\s|]*", re.I)'''
+
+[[mutante]]
+id = "C2"
+garantia = "Bearer deja de censurarse"
+fichero = "herramientas/censura_panel.py"
+buscar = '''texto = _BEARER.sub(lambda m: f"{m.group(1)} [censurado]", texto)'''
+sustituir = '''texto = texto'''
+
+[[mutante]]
+id = "C3"
+garantia = "credenciales en URL dejan de censurarse"
+fichero = "herramientas/censura_panel.py"
+buscar = '''texto = _URL_CREDENCIALES.sub("[censurado]@", texto)'''
+sustituir = '''texto = texto'''
+
+[[mutante]]
+id = "C4"
+garantia = "MAC con guiones deja de censurarse"
+fichero = "herramientas/censura_panel.py"
+buscar = '''(?:[:-][0-9A-Fa-f]{2}){5}'''
+sustituir = '''(?::[0-9A-Fa-f]{2}){5}'''
+
+[[mutante]]
+id = "C5"
+garantia = "uuid deja de censurarse"
+fichero = "herramientas/censura_panel.py"
+buscar = '''texto = _UUID.sub("[uuid]", texto)'''
+sustituir = '''texto = texto'''
+
+[[mutante]]
+id = "C6"
+garantia = "IPv4 deja de reducirse al ultimo octeto"
+fichero = "herramientas/censura_panel.py"
+buscar = '''texto = _IPV4.sub(_ip_a_sufijo, texto)'''
+sustituir = '''texto = texto'''
+
+[[mutante]]
+id = "C7"
+garantia = "numero de serie deja de censurarse"
+fichero = "herramientas/censura_panel.py"
+buscar = '''return _SERIE.sub("[serie]", texto)'''
+sustituir = '''return texto'''
+
+[[mutante]]
+id = "C8"
+garantia = "«password valor» (separado por espacio) deja de censurarse"
+fichero = "herramientas/censura_panel.py"
+buscar = '''texto = _SECRETO_ESPACIO.sub(lambda m: f"{m.group(1)}{m.group(2)}[censurado]", texto)'''
+sustituir = '''texto = texto'''
+
+[[mutante]]
+id = "C9"
+garantia = "clave:valor deja de censurarse"
+fichero = "herramientas/censura_panel.py"
+buscar = '''texto = _SECRETO_SEP.sub(lambda m: f"{m.group(1)}{m.group(2)}{m.group(3)}[censurado]", texto)'''
+sustituir = '''texto = texto'''
+
+[[mutante]]
+id = "C10"
+garantia = "un numero con forma de IP pero >255 se trata como IP"
+fichero = "herramientas/censura_panel.py"
+buscar = '''if all(int(o) <= 255 for o in octetos):'''
+sustituir = '''if True:'''
+
+[[mutante]]
+id = "C11"
+garantia = "urn:uuid con formato no estandar deja de censurarse"
+fichero = "herramientas/censura_panel.py"
+buscar = '''urn:uuid:[0-9A-Fa-f-]+|'''
+sustituir = '''urn:uuid:NOPE|'''
+
+[[mutante]]
+id = "R1"
+garantia = "PASS con cualquier paso OK"
+fichero = "herramientas/registro_gate.py"
+buscar = '''return "PASS" if all(pasos.get(p) == "OK" for p in PASOS) else "FAIL"'''
+sustituir = '''return "PASS" if any(pasos.get(p) == "OK" for p in PASOS) else "FAIL"'''
+
+[[mutante]]
+id = "R2"
+garantia = "un paso que falta no impide el PASS"
+fichero = "herramientas/registro_gate.py"
+buscar = '''return "PASS" if all(pasos.get(p) == "OK" for p in PASOS) else "FAIL"'''
+sustituir = '''return "PASS" if all(v == "OK" for v in pasos.values()) else "FAIL"'''
+
+[[mutante]]
+id = "R3"
+garantia = "conteos_pytest acepta cualquier linea con «in Ns»"
+fichero = "herramientas/registro_gate.py"
+buscar = '''if _RESUMEN_PYTEST.match(linea.strip())]'''
+sustituir = '''if re.search(r" in \d+(?:\.\d+)?s", linea)]'''
+
+[[mutante]]
+id = "R4"
+garantia = "main devuelve 1 si el registro falla"
+fichero = "herramientas/registro_gate.py"
+buscar = '''file=sys.stderr)
+    return 0'''
+sustituir = '''file=sys.stderr)
+    return 1'''
+
+[[mutante]]
+id = "R5"
+garantia = "main deja escapar el OSError"
+fichero = "herramientas/registro_gate.py"
+buscar = '''except (OSError, ValueError) as e:'''
+sustituir = '''except ValueError as e:'''
+
+[[mutante]]
+id = "R6"
+garantia = "la escritura del registro no es atomica"
+fichero = "herramientas/registro_gate.py"
+buscar = '''os.replace(nombre, destino)'''
+sustituir = '''destino.write_text(Path(nombre).read_text(encoding="utf-8"), encoding="utf-8")'''
+
+[[mutante]]
+id = "R7"
+garantia = "se usa la primera linea resumen en vez de la ultima"
+fichero = "herramientas/registro_gate.py"
+buscar = '''lineas[-1]'''
+sustituir = '''lineas[0]'''
+
+[[mutante]]
+id = "R8"
+garantia = "sha vacio no se sustituye por «desconocido»"
+fichero = "herramientas/registro_gate.py"
+buscar = '''"sha": sha or "desconocido",'''
+sustituir = '''"sha": sha,'''
+
+[[mutante]]
+id = "PV1"
+garantia = "[EJEC] deja de detectarse: la ejecucion real declarada se pierde"
+fichero = "herramientas/procedencia_panel.py"
+buscar = '''_EJEC = re.compile(r"\[EJEC\]")'''
+sustituir = '''_EJEC = re.compile(r"\[EJECX\]")'''
+
+[[mutante]]
+id = "PV2"
+garantia = "una evidencia con solo pruebas (tests/) se presenta como ejecucion real"
+fichero = "herramientas/procedencia_panel.py"
+buscar = '''    if _EJEC.search(texto):
+        return EJECUCION, con_pruebas'''
+sustituir = '''    if _EJEC.search(texto) or con_pruebas:
+        return EJECUCION, con_pruebas'''
+
+[[mutante]]
+id = "PV3"
+garantia = "un texto de evidencia desconocido se presenta como ejecucion real"
+fichero = "herramientas/procedencia_panel.py"
+buscar = '''return (PRUEBAS if con_pruebas else DESCONOCIDA), con_pruebas'''
+sustituir = '''return (PRUEBAS if con_pruebas else EJECUCION), con_pruebas'''
+
+[[mutante]]
+id = "PV4"
+garantia = "una evidencia vacia se presenta como «desconocida» en vez de «sin evidencia»"
+fichero = "herramientas/procedencia_panel.py"
+buscar = '''return SIN_EVIDENCIA, False'''
+sustituir = '''return DESCONOCIDA, False'''
+
+[[mutante]]
+id = "PV5"
+garantia = "el aviso de nivel alto sin ejecucion real desaparece"
+fichero = "herramientas/procedencia_panel.py"
+buscar = '''"aviso_procedencia": AVISO_NIVEL_ALTO if alto_sin_ejec else "",'''
+sustituir = '''"aviso_procedencia": "",'''
+
+[[mutante]]
+id = "PV6"
+garantia = "el umbral de nivel alto baja de 5 a 4 (avisos falsos)"
+fichero = "herramientas/procedencia_panel.py"
+buscar = '''NIVEL_ALTO = 5'''
+sustituir = '''NIVEL_ALTO = 4'''
+
+[[mutante]]
+id = "PV7"
+garantia = "el umbral de nivel alto sube de 5 a 6 (se calla el nivel 5)"
+fichero = "herramientas/procedencia_panel.py"
+buscar = '''NIVEL_ALTO = 5'''
+sustituir = '''NIVEL_ALTO = 6'''
+
+[[mutante]]
+id = "PV8"
+garantia = "el resultado del gate se presenta siempre como vigente"
+fichero = "herramientas/panel_progreso.py"
+buscar = '''b["vigente"] = b["sha_vs_head"] == "coincide"'''
+sustituir = '''b["vigente"] = True'''
+
+[[mutante]]
+id = "PV9"
+garantia = "un sha distinto del HEAD se declara «coincide»: un PASS ajeno se muestra como vigente"
+fichero = "herramientas/panel_progreso.py"
+buscar = '''return "coincide" if head.lower().startswith(sha.lower()) else "distinto"'''
+sustituir = '''return "coincide"'''
+
+[[mutante]]
+id = "PV10"
+garantia = "el motivo de un error del panel se muestra sin censurar"
+fichero = "herramientas/panel_progreso.py"
+buscar = '''"error": censurar(motivo),'''
+sustituir = '''"error": motivo,'''
+
+[[mutante]]
+id = "PV11"
+garantia = "el sha del registro del gate se muestra sin censurar"
+fichero = "herramientas/panel_progreso.py"
+buscar = '''sha=censurar(d["sha"]),'''
+sustituir = '''sha=d["sha"],'''

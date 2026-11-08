@@ -41,24 +41,25 @@ def sistema(tmp_path):
 
 # ============================================================ 1–9 · LAS CUENTAS SALEN --
 
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("frase", "esperado"),
     [
         ("1+1", "2."),
-        ("cuánto es 1+1", "2."),               # con acento
-        ("cuanto es 1+1", "2."),               # sin acento: la frase LITERAL del CEO
-        ("¿Cuánto es 1+1?", "2."),             # con signos
+        ("cuánto es 1+1", "2."),  # con acento
+        ("cuanto es 1+1", "2."),  # sin acento: la frase LITERAL del CEO
+        ("¿Cuánto es 1+1?", "2."),  # con signos
         ("10 + 5", "15."),
         ("20 - 3", "17."),
         ("7 * 8", "56."),
-        ("7 por 8", "56."),                    # el operador dicho en castellano
+        ("7 por 8", "56."),  # el operador dicho en castellano
         ("12 / 4", "3."),
-        ("2 + 3 * 4", "14."),                  # precedencia: NO es 20
-        ("(2 + 3) * 4", "20."),                # y los paréntesis la cambian
+        ("2 + 3 * 4", "14."),  # precedencia: NO es 20
+        ("(2 + 3) * 4", "20."),  # y los paréntesis la cambian
         ("100 menos 1", "99."),
         ("10 dividido entre 2", "5."),
-        ("-3 + 10", "7."),                     # signo unario
+        ("-3 + 10", "7."),  # signo unario
     ],
 )
 async def test_la_operacion_la_resuelve_EL_NUCLEO_y_es_correcta(sistema, frase, esperado):
@@ -87,6 +88,7 @@ def test_el_resultado_es_EXACTO_y_no_se_finge_precision():
 
 # ============================================================ 10–12 · LO QUE NO SE CONTESTA --
 
+
 @pytest.mark.asyncio
 async def test_la_DIVISION_POR_CERO_se_declara_y_no_se_inventa(sistema):
     """Es aritmética, y su respuesta es que no existe. Dejarla caer al modelo produciría cualquier
@@ -106,10 +108,19 @@ async def test_una_expresion_INVALIDA_no_inventa_un_numero(sistema, frase):
     assert not any(c.isdigit() for c in r["say"]) or r["provider"] != "core"
 
 
-@pytest.mark.parametrize("frase", [
-    "hola", "gracias por todo", "borra 2 archivos", "7", "¿qué tal?",
-    "en que estas trabajando", "me llamo Mauricio", "tengo 3 hijos y 2 gatos",
-])
+@pytest.mark.parametrize(
+    "frase",
+    [
+        "hola",
+        "gracias por todo",
+        "borra 2 archivos",
+        "7",
+        "¿qué tal?",
+        "en que estas trabajando",
+        "me llamo Mauricio",
+        "tengo 3 hijos y 2 gatos",
+    ],
+)
 def test_el_texto_NO_MATEMATICO_no_lo_intercepta(frase):
     """La guarda que sostiene todo lo demás: o la frase empieza por una entradilla declarada, o el
     texto ENTERO es una expresión. «borra 2 archivos» lleva un número y no es una cuenta."""
@@ -118,16 +129,20 @@ def test_el_texto_NO_MATEMATICO_no_lo_intercepta(frase):
 
 # ============================================================ 16 · NO EJECUTA CÓDIGO --
 
-@pytest.mark.parametrize("ataque", [
-    "__import__('os').system('ls')",
-    "cuanto es __import__('os').listdir('/')",
-    "open('/etc/passwd').read()",
-    "2**10",                                   # potencia: fuera del alcance declarado
-    "1 if True else 2",
-    "[x for x in range(10)]",
-    "cuanto es len('abc')",
-    "int('1')+1",
-])
+
+@pytest.mark.parametrize(
+    "ataque",
+    [
+        "__import__('os').system('ls')",
+        "cuanto es __import__('os').listdir('/')",
+        "open('/etc/passwd').read()",
+        "2**10",  # potencia: fuera del alcance declarado
+        "1 if True else 2",
+        "[x for x in range(10)]",
+        "cuanto es len('abc')",
+        "int('1')+1",
+    ],
+)
 def test_NINGUNA_expresion_ejecuta_codigo_arbitrario(ataque):
     """El texto viene del usuario. Un evaluador que acepte de más ejecuta código ajeno, así que la
     postura es la contraria: se acepta una lista de nodos y se rechaza todo lo demás."""
@@ -177,6 +192,7 @@ def test_las_COTAS_impiden_bloquear_el_turno():
 
 # ============================================================ 13–15 · REGRESIÓN --
 
+
 @pytest.mark.asyncio
 async def test_regresion_el_SALUDO_sigue_igual(sistema):
     r = await _di(sistema.orquestador, "hola")
@@ -200,9 +216,15 @@ async def test_regresion_el_ESTADO_AUTONOMO_sigue_respondiendo_desde_su_fuente(s
     class Fuente:
         def instantanea(self):
             lecturas.append(1)
-            return {"estado": "DECISION_REQUIRED", "cola": {"OPORTUNIDAD_REAL": 0},
-                    "trabajo_bloqueado": 6, "trabajo_elevado": 2, "decisiones_pendientes": [],
-                    "proximo_despertar": "2026-09-01T23:00:00", "ultima_tarea": "NO DISPONIBLE"}
+            return {
+                "estado": "DECISION_REQUIRED",
+                "cola": {"OPORTUNIDAD_REAL": 0},
+                "trabajo_bloqueado": 6,
+                "trabajo_elevado": 2,
+                "decisiones_pendientes": [],
+                "proximo_despertar": "2026-09-01T23:00:00",
+                "ultima_tarea": "NO DISPONIBLE",
+            }
 
     monkeypatch.setattr(sistema.orquestador, "estado_autonomo", Fuente())
     r = await _di(sistema.orquestador, "¿en qué estás trabajando ahora?")
@@ -214,9 +236,7 @@ async def test_regresion_el_ESTADO_AUTONOMO_sigue_respondiendo_desde_su_fuente(s
 @pytest.mark.asyncio
 async def test_la_aritmetica_NO_le_roba_el_turno_a_ninguna_superficie_previa(sistema):
     """El candado de no-interferencia. Cada frase la contesta quien la contestaba antes."""
-    casos = [("¿qué capacidades tienes?", "capacidad"),
-             ("¿quién eres?", ""),
-             ("hola", "hola")]
+    casos = [("¿qué capacidades tienes?", "capacidad"), ("¿quién eres?", ""), ("hola", "hola")]
     for frase, marca in casos:
         r = await _di(sistema.orquestador, frase)
         assert r["provider"] == "core", f"{frase!r} cambió de responsable"

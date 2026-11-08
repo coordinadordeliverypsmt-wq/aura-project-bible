@@ -9,6 +9,7 @@ from .. import observability as obs
 class VoiceAdapterMock:
     name = "voice"
     capabilities = ["stt", "tts"]
+    ultima_confianza = None  # el doble no transcribe: no hay confianza que medir (contrato C4)
 
     async def stt(self, audio_text, trace_id):  # simula transcripcion (canal dedicado, ALERTA-001)
         obs.log("VOICE", "voice-stt", f"transcripcion: '{audio_text}'", trace_id)

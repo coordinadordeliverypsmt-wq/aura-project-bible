@@ -26,6 +26,7 @@ from aura_skeleton.core.reglas import AlmacenReglas, ReglaUsuario, evaluar_condi
 async def _confirmar(accion, args, trace_id):
     return True
 
+
 def _almacen(ruta):
     """`AlmacenReglas` CABLEADO al motor unico (F4 tramo 2, 2026-08-25).
 
@@ -39,6 +40,7 @@ def _almacen(ruta):
     registro.registrar(EjecutorReglas(almacen))
     return almacen
 
+
 def _regla():
     return ReglaUsuario(
         rule_id="r-copia-antes-de-borrar",
@@ -51,12 +53,14 @@ def _regla():
         metadatos={"descripcion": "guardar una copia antes de borrar"},
     )
 
+
 def test_regla_tiene_los_cinco_campos_del_modelo():
     r = _regla()
     assert r.rule_id and r.evento == "action.command"
     assert r.condicion["op"] == "==" and r.accion == "copiar_archivo"
     assert r.args["ruta"] == "$evento.ruta"  # referencia, no valor
     assert r.estado == "activa" and "descripcion" in r.metadatos
+
 
 @pytest.mark.asyncio
 async def test_el_almacen_persiste_la_regla_tras_reiniciar(tmp_path):
@@ -68,6 +72,7 @@ async def test_el_almacen_persiste_la_regla_tras_reiniciar(tmp_path):
     assert reglas[0].rule_id == "r-copia-antes-de-borrar"
     assert reglas[0].args == {"ruta": "$evento.ruta"}
 
+
 @pytest.mark.asyncio
 async def test_el_almacen_aisla_por_usuario(tmp_path):
     alm = _almacen(os.path.join(tmp_path, "reglas.jsonl"))
@@ -78,10 +83,12 @@ async def test_el_almacen_aisla_por_usuario(tmp_path):
     await alm.crear(otra)
     assert [r.rule_id for r in alm.listar("mauricio")] == ["r-copia-antes-de-borrar"]
 
+
 def test_condicion_declarativa_igualdad():
     cond = {"campo": "action", "op": "==", "valor": "borrar_archivo"}
     assert evaluar_condicion(cond, {"action": "borrar_archivo", "args": {}})
     assert not evaluar_condicion(cond, {"action": "mover_archivo", "args": {}})
+
 
 def test_args_se_resuelven_como_referencias_al_evento():
     """$evento.ruta se sustituye por el valor del evento; un valor fijo se deja tal cual."""
@@ -92,6 +99,7 @@ def test_args_se_resuelven_como_referencias_al_evento():
 
 
 # --- Silencio selectivo de fallos del respaldo (auditoría independiente 2026-08-02) ----------------
+
 
 def test_solo_se_silencia_la_ausencia_del_origen_nunca_una_colision():
     """El nombre del archivo lo elige el USUARIO y viaja dentro del motivo de error.
@@ -115,6 +123,7 @@ def test_solo_se_silencia_la_ausencia_del_origen_nunca_una_colision():
 
 # --- Desactivar reglas (deuda D-A-9): el log se proyecta por (user_id, rule_id) -----------------------
 
+
 @pytest.mark.asyncio
 async def test_desactivar_hace_que_listar_y_aplicables_dejen_de_devolver_la_regla(tmp_path):
     ruta = os.path.join(tmp_path, "reglas.jsonl")
@@ -124,6 +133,7 @@ async def test_desactivar_hace_que_listar_y_aplicables_dejen_de_devolver_la_regl
     assert await alm.desactivar("mauricio", "r-copia-antes-de-borrar") is True
     assert alm.listar("mauricio") == []
     assert alm.aplicables("mauricio", "action.command") == []
+
 
 @pytest.mark.asyncio
 async def test_desactivar_conserva_el_historial_en_el_fichero(tmp_path):
@@ -142,6 +152,7 @@ async def test_desactivar_conserva_el_historial_en_el_fichero(tmp_path):
     assert len(lineas_despues) == 2  # creacion + desactivacion: ninguna linea se pierde
     assert lineas_despues[0] == lineas_antes[0]  # la linea original de creacion sigue literal
 
+
 @pytest.mark.asyncio
 async def test_desactivar_sobrevive_al_reinicio(tmp_path):
     """CRITERIO DEL CEO: una instancia nueva, leyendo el mismo fichero, no debe devolver la regla desactivada."""
@@ -152,6 +163,7 @@ async def test_desactivar_sobrevive_al_reinicio(tmp_path):
 
     alm2 = _almacen(ruta)  # reinicio: nueva instancia, mismo fichero
     assert alm2.listar("mauricio") == []
+
 
 @pytest.mark.asyncio
 async def test_desactivar_aisla_por_usuario_no_afecta_al_mismo_rule_id_de_otro_usuario(tmp_path):
@@ -185,6 +197,7 @@ async def test_desactivar_aisla_por_usuario_no_afecta_al_mismo_rule_id_de_otro_u
     assert [r.rule_id for r in alm2.listar("otro")] == ["r-copia-antes-de-borrar"]
     assert alm2.listar("mauricio") == []
 
+
 @pytest.mark.asyncio
 async def test_desactivar_devuelve_false_si_no_existe_o_ya_esta_inactiva_y_no_escribe_nada(tmp_path):
     ruta = os.path.join(tmp_path, "reglas.jsonl")
@@ -205,6 +218,7 @@ async def test_desactivar_devuelve_false_si_no_existe_o_ya_esta_inactiva_y_no_es
     with open(ruta, encoding="utf-8") as f:
         lineas_finales = f.readlines()
     assert lineas_finales == lineas_tras_primera_desactivacion  # no escribio nada de mas
+
 
 @pytest.mark.asyncio
 async def test_crear_no_duplica_la_proyeccion_tras_desactivar_y_volver_a_crear(tmp_path):

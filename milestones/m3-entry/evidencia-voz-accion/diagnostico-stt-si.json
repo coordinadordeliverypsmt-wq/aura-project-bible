@@ -1,0 +1,119 @@
+{
+ "fecha": "2026-10-04T21:18:24",
+ "frase": "sí",
+ "ganancia_micro": "Volume: front-left: 17694 /  27% / -34,12 dB,   front-right: 17694 /  27% / -34,12 dB\n        balance 0,00",
+ "rms_ruido": 0.0386,
+ "intentos": [
+  {
+   "intento": 1,
+   "rms_voz": 0.0544,
+   "snr_db": 3.0,
+   "tramos_ms": [
+    [
+     424,
+     2072
+    ]
+   ],
+   "ganancia": "27%",
+   "saturadas_pct": 0.0,
+   "A_vad_vocab": {
+    "texto": "Sí",
+    "ms": 14866,
+    "no_habla": 0.004,
+    "logprob": -0.534,
+    "reconocida": true,
+    "pasa_c4": true
+   }
+  },
+  {
+   "intento": 2,
+   "rms_voz": 0.0361,
+   "snr_db": -0.6,
+   "tramos_ms": [
+    [
+     552,
+     2200
+    ]
+   ],
+   "ganancia": "27%",
+   "saturadas_pct": 0.0,
+   "A_vad_vocab": {
+    "texto": "¿Sí?",
+    "ms": 16398,
+    "no_habla": 0.004,
+    "logprob": -0.595,
+    "reconocida": true,
+    "pasa_c4": true
+   }
+  },
+  {
+   "intento": 3,
+   "rms_voz": 0.0284,
+   "snr_db": -2.7,
+   "tramos_ms": [
+    [
+     424,
+     2136
+    ]
+   ],
+   "ganancia": "27%",
+   "saturadas_pct": 0.0,
+   "A_vad_vocab": {
+    "texto": "Sí.",
+    "ms": 15523,
+    "no_habla": 0.011,
+    "logprob": -0.906,
+    "reconocida": true,
+    "pasa_c4": true
+   }
+  },
+  {
+   "intento": 4,
+   "rms_voz": 0.0309,
+   "snr_db": -1.9,
+   "tramos_ms": [
+    [
+     296,
+     1976
+    ]
+   ],
+   "ganancia": "27%",
+   "saturadas_pct": 0.0,
+   "A_vad_vocab": {
+    "texto": "Sí.",
+    "ms": 16206,
+    "no_habla": 0.01,
+    "logprob": -0.873,
+    "reconocida": true,
+    "pasa_c4": true
+   }
+  },
+  {
+   "intento": 5,
+   "rms_voz": 0.0574,
+   "snr_db": 3.5,
+   "tramos_ms": [
+    [
+     424,
+     2104
+    ]
+   ],
+   "ganancia": "27%",
+   "saturadas_pct": 0.0,
+   "A_vad_vocab": {
+    "texto": "¿Sí?",
+    "ms": 16752,
+    "no_habla": 0.006,
+    "logprob": -0.744,
+    "reconocida": true,
+    "pasa_c4": true
+   }
+  }
+ ],
+ "reconocidas_por_variante": {
+  "A_vad_vocab": 5,
+  "por_ganancia": {
+   "27%": "5/5"
+  }
+ }
+}

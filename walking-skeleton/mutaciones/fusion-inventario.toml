@@ -1,0 +1,93 @@
+incremento = "Fusion del inventario DENTRO de una ronda (conflictos y orden)"
+pruebas = [
+    "tests/unit/test_conocimiento_entorno.py",
+    "tests/unit/test_entorno.py",
+    "tests/unit/test_mapa_vivo.py",
+    "tests/integration/test_hogar_en_conversacion.py",
+]
+
+[[mutante]]
+id = "F1"
+garantia = "con conflicto se adoptan igualmente las declaraciones"
+fichero = "aura_skeleton/core/entorno.py"
+buscar = '''        for o in [] if ip in conflictos else declaradas:'''
+sustituir = '''        for o in declaradas:'''
+
+[[mutante]]
+id = "F2"
+garantia = "dos tipos declarados distintos dejan de ser conflicto"
+fichero = "aura_skeleton/core/entorno.py"
+buscar = '''        if len(tipos) > 1:'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "F3"
+garantia = "dos identidades declaradas distintas dejan de ser conflicto"
+fichero = "aura_skeleton/core/entorno.py"
+buscar = '''        elif len(identidades) > 1:'''
+sustituir = '''        elif False:'''
+
+[[mutante]]
+id = "F4"
+garantia = "una declaracion que contradice al tipo deducido deja de ser conflicto"
+fichero = "aura_skeleton/core/entorno.py"
+buscar = '''        elif tipos and deducido not in ("desconocido", tipos[0]):'''
+sustituir = '''        elif False:'''
+
+[[mutante]]
+id = "F5"
+garantia = "el tipo deducido se calcula incluyendo las declaradas"
+fichero = "aura_skeleton/core/entorno.py"
+buscar = '''        resto = [o for o in lista if not o.tipo_declarado]'''
+sustituir = '''        resto = list(lista)'''
+
+[[mutante]]
+id = "F6"
+garantia = "se invierte la comparacion con el tipo deducido"
+fichero = "aura_skeleton/core/entorno.py"
+buscar = '''deducido not in ("desconocido", tipos[0])'''
+sustituir = '''deducido in ("desconocido", tipos[0])'''
+
+[[mutante]]
+id = "F7"
+garantia = "al crear el dispositivo no se propaga el conflicto de la ronda"
+fichero = "aura_skeleton/core/entorno.py"
+buscar = '''                    conflicto=conflictos_de_la_ronda.get(ip),'''
+sustituir = '''                    conflicto=None,'''
+
+[[mutante]]
+id = "F8"
+garantia = "al actualizar no se propaga el conflicto de la ronda"
+fichero = "aura_skeleton/core/entorno.py"
+buscar = '''conflicto or conflictos_de_la_ronda.get(ip) or previo.conflicto'''
+sustituir = '''conflicto or previo.conflicto'''
+
+[[mutante]]
+id = "F9"
+garantia = "el nombre publicado por cualquier servicio pisa siempre al ya conocido"
+fichero = "aura_skeleton/core/entorno.py"
+buscar = '''if o.tipo_declarado and o.nombre else junta'''
+sustituir = '''if o.nombre else junta'''
+
+[[mutante]]
+id = "F10"
+garantia = "con conflicto se pierde la observacion base de la IP"
+fichero = "aura_skeleton/core/entorno.py"
+buscar = '''        fusion[ip] = replace(base, estado_operativo=next(iter(estados)) if len(estados) == 1 else None)
+    return fusion, conflictos'''
+sustituir = '''        fusion[ip] = Observacion(ip=ip) if ip in conflictos else base
+    return fusion, conflictos'''
+
+[[mutante]]
+id = "F11"
+garantia = "un nombre que solo declara una fuente UDP (ONVIF/DDP) vuelve a casar con una entidad de HA y da CONTROLABLE"
+fichero = "aura_skeleton/core/entorno.py"
+buscar = '''        if not nombre or solo_declarado:'''
+sustituir = '''        if not nombre:'''
+
+[[mutante]]
+id = "F12"
+garantia = "con solo declaraciones en conflicto se pierde la evidencia de que algo respondio (fuentes, MAC)"
+fichero = "aura_skeleton/core/entorno.py"
+buscar = '''                fuentes=frozenset().union(*(o.fuentes for o in declaradas)),'''
+sustituir = '''                fuentes=frozenset(),'''

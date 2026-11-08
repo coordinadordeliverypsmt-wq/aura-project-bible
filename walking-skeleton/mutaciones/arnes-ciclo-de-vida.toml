@@ -1,0 +1,148 @@
+incremento = '''Ciclo de vida del arnés de mutación (2026-10-06): interrupciones, descendientes, diario y restauración atómica'''
+# El arnés se protege a sí mismo (precedente: arnes-timeout.toml). El pytest que lanza importa el mutar.py MUTADO.
+# 2026-10-25: AL-M4/AL-M5 (escritura del diario) retirados a `retiradas/arnes-ciclo-de-vida-diario-en-sitio.toml`:
+# el arnés muta una copia aislada (regla 6) y ya no escribe diario. La recuperación (AL-M6, M12, M13, M19) sigue.
+pruebas = ["tests/unit/test_arnes_ciclo_de_vida.py"]
+timeout_s = 240
+
+[[mutante]]
+id = "AL-M1"
+garantia = '''una interrupción vuelve a dejar el pytest del mutante huérfano'''
+fichero = "herramientas/mutar.py"
+buscar = '''        # esto quedaba huérfano, y con un mutante que cuelga, para siempre (`[EJEC]` 2026-10-06: 48 min).
+        _matar_arbol_de_procesos(proceso)'''
+sustituir = '''        # esto quedaba huérfano, y con un mutante que cuelga, para siempre (`[EJEC]` 2026-10-06: 48 min).
+        pass'''
+
+[[mutante]]
+id = "AL-M2"
+garantia = '''sin la foto de descendientes, el que abrió su propia sesión sobrevive al killpg'''
+fichero = "herramientas/mutar.py"
+buscar = '''    descendientes = _descendientes(proceso.pid)'''
+sustituir = '''    descendientes: list[tuple[int, str]] = []'''
+
+[[mutante]]
+id = "AL-M3"
+garantia = '''el descendiente fotografiado no llega a recibir la señal'''
+fichero = "herramientas/mutar.py"
+buscar = '''            if campos and len(campos) > 19 and campos[19] == inicio:
+                enviar(fd, signal.SIGKILL)'''
+sustituir = '''            if False:
+                enviar(fd, signal.SIGKILL)'''
+
+[[mutante]]
+id = "AL-M6"
+garantia = '''ejecutar() no recupera lo que dejó mutado una ejecución anterior'''
+fichero = "herramientas/mutar.py"
+buscar = '''    restaurados = recuperar_mutacion_interrumpida(raiz)'''
+sustituir = '''    restaurados: list[str] = []'''
+
+[[mutante]]
+id = "AL-M7"
+garantia = '''pytest no muere con el arnés: tras un SIGKILL queda huérfano'''
+fichero = "herramientas/mutar.py"
+buscar = '''        preexec_fn=_morir_con_el_arnes,
+'''
+sustituir = '''
+'''
+
+[[mutante]]
+id = "AL-M8"
+garantia = '''main no instala la parada limpia: SIGTERM mata al arnés sin restaurar'''
+fichero = "herramientas/mutar.py"
+buscar = '''        with _parada_limpia():
+            resultado = ejecutar(ruta_toml, raiz=raiz)'''
+sustituir = '''        if True:
+            resultado = ejecutar(ruta_toml, raiz=raiz)'''
+
+[[mutante]]
+id = "AL-M9"
+garantia = '''la escritura deja de ser atómica: un fallo a mitad trunca el fuente'''
+fichero = "herramientas/mutar.py"
+buscar = '''    temporal = ruta.with_name(f".{ruta.name}.mutar-tmp")'''
+sustituir = '''    temporal = ruta'''
+
+[[mutante]]
+id = "AL-M10"
+garantia = '''la restauración corre con las señales de parada desbloqueadas'''
+fichero = "herramientas/mutar.py"
+buscar = '''            mascara_previa = _bloquear_senales()'''
+sustituir = '''            mascara_previa = None'''
+
+[[mutante]]
+id = "AL-M11"
+garantia = '''el manejador no ignora las señales siguientes'''
+fichero = "herramientas/mutar.py"
+buscar = '''        for senal in _SENALES_DE_PARADA:
+            signal.signal(senal, signal.SIG_IGN)
+        raise _InterrupcionDelArnes'''
+sustituir = '''        raise _InterrupcionDelArnes'''
+
+[[mutante]]
+id = "AL-M12"
+garantia = '''la recuperación pisa la mutación en curso de otro arnés vivo'''
+fichero = "herramientas/mutar.py"
+buscar = '''    if campos and len(campos) > 19 and campos[19] == inicio and campos[0] != "Z":
+        raise RuntimeError('''
+sustituir = '''    if False:
+        raise RuntimeError('''
+
+[[mutante]]
+id = "AL-M13"
+garantia = '''la recuperación restaura a ciegas y pisa un fichero que la persona ya editó'''
+fichero = "herramientas/mutar.py"
+buscar = '''    if actual is None or hashlib.sha256(actual).hexdigest() != mutado_sha256:'''
+sustituir = '''    if actual is None:'''
+
+[[mutante]]
+id = "AL-M14"
+garantia = '''el arnés convierte en parada una señal que el llamador ignoraba (nohup)'''
+fichero = "herramientas/mutar.py"
+buscar = '''                if signal.getsignal(senal) is not signal.SIG_IGN:'''
+sustituir = '''                if True:'''
+
+[[mutante]]
+id = "AL-M15"
+garantia = '''al terminar la restauración se desbloquean señales que el llamador tenía bloqueadas'''
+fichero = "herramientas/mutar.py"
+buscar = '''        signal.pthread_sigmask(signal.SIG_SETMASK, mascara_previa)'''
+sustituir = '''        signal.pthread_sigmask(signal.SIG_UNBLOCK, _SENALES_DE_PARADA)'''
+
+[[mutante]]
+id = "AL-M16"
+garantia = '''una escritura fallida deja el temporal .mutar-tmp en el árbol'''
+fichero = "herramientas/mutar.py"
+buscar = '''            temporal.unlink()'''
+sustituir = '''            pass'''
+
+[[mutante]]
+id = "AL-M17"
+garantia = '''escribir sobre un enlace simbólico lo convierte en fichero regular'''
+fichero = "herramientas/mutar.py"
+buscar = '''    ruta = ruta.resolve() if ruta.is_symlink() else ruta'''
+sustituir = '''    ruta = ruta'''
+
+[[mutante]]
+id = "AL-M18"
+garantia = '''sin pidfd (ENOSYS) el descendiente ya no se mata'''
+fichero = "herramientas/mutar.py"
+buscar = '''        fd = None  # pidfd no disponible'''
+sustituir = '''        raise  # pidfd no disponible'''
+
+[[mutante]]
+id = "AL-M19"
+garantia = '''un diario corrupto revienta con un JSONDecodeError en vez de un error claro'''
+fichero = "herramientas/mutar.py"
+buscar = '''    except (ValueError, KeyError, TypeError) as e:
+        raise RuntimeError(f"El diario'''
+sustituir = '''    except KeyError as e:
+        raise RuntimeError(f"El diario'''
+
+[[mutante]]
+id = "AL-M20"
+garantia = '''se mata un PID sin comprobar que sigue siendo el mismo proceso (PID reutilizado)'''
+fichero = "herramientas/mutar.py"
+buscar = '''            if campos and len(campos) > 19 and campos[19] == inicio:
+                enviar(fd, signal.SIGKILL)'''
+sustituir = '''            if True:
+                enviar(fd, signal.SIGKILL)'''

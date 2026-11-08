@@ -1,0 +1,15 @@
+## Prueba 3 (v2, tras Wants=) — HC-1 sin bus → nodo vivo; bus de vuelta → todo se recupera · 2026-10-04T05:08:52-05:00
+pid agente: 8487
+nodo-01 [bac41ce9…]  ONLINE  — latido reciente y métricas mínimas completas
+  último latido: hace 6 s · primer contacto: 2026-10-04 05:03:47 · reinicios: 2 · secuencia 17 · agente nodo-agente/1
+receptor systemd: active
+nodo — estado local: {"nodo_id": "bac41ce92abc4fb9bac4187cec6d727d", "nombre": "nodo-01", "arranque": "9640bf75a9524ea1bbd42fbc58aa1119", "secuencia": 17, "conectado": false, "ultimo_envio_ok": 1791108530.6847541, "ultimo_error": "SinConexion", "actualizado": 1791108570.7002723}
+HC-1 —
+receptor de nodos: NO ESCUCHA (último latido hace 46 s)
+nodo-01 [bac41ce9…]  UNKNOWN  — HC-1 no está escuchando
+  último latido: hace 48 s · primer contacto: 2026-10-04 05:03:47 · reinicios: 2 · secuencia 17 · agente nodo-agente/1
+RESULTADO: ONLINE tras 6 s
+pid después: 8487 (mismo proceso: sí)
+receptor de nodos: VIVO (hace 3 s)
+nodo-01 [bac41ce9…]  ONLINE  — latido reciente y métricas mínimas completas
+  último latido: hace 5 s · primer contacto: 2026-10-04 05:03:47 · reinicios: 2 · secuencia 18 · agente nodo-agente/1

@@ -38,10 +38,12 @@ async def test_contexto_de_conversacion_en_el_prompt():
         VoiceAdapterMock(),
         HomeAssistantMock(),
     )
-    await orch.handle_utterance("u", "Enciende la luz de la sala", "T1")
+    # Semana 2: una orden limpia de hogar ya la atiende el Core sin pasar por el modelo; para probar la
+    # continuidad del PROMPT el primer turno tiene que llegar al modelo.
+    await orch.handle_utterance("u", "Quiero que enciendas la luz de la sala", "T1")
     await orch.wait("T1")
     await orch.handle_utterance("u", "Y ahora apagala", "T2")
     await orch.wait("T2")
     # el prompt del 2do turno debe incluir el contexto del 1ro (continuidad conversacional)
-    assert "Enciende la luz de la sala" in cap.prompts[1]
+    assert "Quiero que enciendas la luz de la sala" in cap.prompts[1]
     assert "conversacion reciente" in cap.prompts[1]

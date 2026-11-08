@@ -1,0 +1,22 @@
+{
+  "caso": "palabra",
+  "tipo": "conocimiento",
+  "variante": "actual",
+  "texto": "que significa la palabra resiliencia?",
+  "reloj_s": 189.17,
+  "total_s": 189.12,
+  "carga_s": 0.54,
+  "ingesta_tokens": 161,
+  "ingesta_s": 3.81,
+  "generacion_tokens": 333,
+  "generacion_s": 184.76,
+  "generacion_tok_s": 1.802,
+  "motivo_fin": "stop",
+  "json_valido": true,
+  "claves": [
+    "action",
+    "say"
+  ],
+  "say": "Resiliencia es una cualidad o habilidad que nos permite recuperar o mantenernos en el medio en un estado adverso. Se refiere a la capacidad de superar las dificultades y continuamente adquirir nuevas herramientas y habilidades para enfrentarnos a nuevas situaciones y desafíos. La resiliencia puede ser vista como la fortaleza de los cerebros cuando se enfrentan al dolor o el dolor inesperado, permitiendo que se vuelvan más fuertes y resilientes con respecto a lo que vemos o siento. El esfuerzo de la resiliencia implica no solo aprender de las experiencias adversas, sino también la capacidad para adaptarse y enfrentarlos en mejores condiciones. A medida que aumentamos la fuerza de los cerebros y nos reactivamos ante el desafío, podemos desarrollar una mayor resistencia hacia el dolor y mejorar nuestra capacidad para manejar cambios y desafíos adversos. Establecer un equilibrio entre la resiliencia y la flexibilidad es clave para sufrir en altas condiciones y continuar en la carrera con más confianza y atractivo en el futuro. Recuerda que, como todos, esta palabra no tiene un significado único o concreto, ya que puede ser apreciada de diversas maneras en diferentes contextos sociales. Por favor, consulta a través de tu propia experiencia para darte cuenta de cuál es la resiliencia más relevante para ti.",
+  "respuesta_cruda": "{\n  \"say\": \"Resiliencia es una cualidad o habilidad que nos permite recuperar o mantenernos en el medio en un estado adverso. Se refiere a la capacidad de superar las dificultades y continuamente adquirir nuevas herramientas y habilidades para enfrentarnos a nuevas situaciones y desafíos. La resiliencia puede ser vista como la fortaleza de los cerebros cuando se enfrentan al dolor o el dolor inesperado, permitiendo que se vuelvan más fuertes y resilientes con respecto a lo que vemos o siento. El esfuerzo de la resiliencia implica no solo aprender de las experiencias adversas, sino también la capacidad para adaptarse y enfrentarlos en mejores condiciones. A medida que aumentamos la fuerza de los cerebros y nos reactivamos ante el desafío, podemos desarrollar una mayor resistencia hacia el dolor y mejorar nuestra capacidad para manejar cambios y desafíos adversos. Establecer un equilibrio entre la resiliencia y la flexibilidad es clave para sufrir en altas condiciones y continuar en la carrera con más confianza y atractivo en el futuro. Recuerda que, como todos, esta palabra no tiene un significado único o concreto, ya que puede ser apreciada de diversas maneras en diferentes contextos sociales. Por favor, consulta a través de tu propia experiencia para darte cuenta de cuál es la resiliencia más relevante para ti.\",\n  \"action\": \"consulta\"\n}"
+}

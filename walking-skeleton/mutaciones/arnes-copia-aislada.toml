@@ -1,0 +1,87 @@
+incremento = "Arnes de mutacion: la mutacion NUNCA escribe en el arbol del proyecto (regla 6, 2026-10-25)"
+# Medido: aura-receptor-nodos carga 67 modulos del worktree y el despertador importa el plano de control antes de
+# comprobar PARADA; una bateria muto en el sitio dos modulos que el receptor carga. El arnes muta ahora una COPIA.
+# El propio arnes se muta sobre SU copia (regla 6): ejecutar esta bateria no toca herramientas/mutar.py real.
+pruebas = ["tests/unit/test_arnes_mutacion.py", "tests/unit/test_arnes_ciclo_de_vida.py"]
+timeout_s = 600
+
+[[mutante]]
+id = "A1"
+garantia = "la base corre en el arbol original y no en la copia"
+fichero = "herramientas/mutar.py"
+buscar = '''codigo_base, _, _ = _ejecutar_pytest(pruebas_a_verificar, raiz_copia, timeout_s)'''
+sustituir = '''codigo_base, _, _ = _ejecutar_pytest(pruebas_a_verificar, raiz, timeout_s)'''
+
+[[mutante]]
+id = "A2"
+garantia = "los mutantes se aplican en el arbol original (la vulnerabilidad que motivo la regla 6)"
+fichero = "herramientas/mutar.py"
+buscar = '''resultados.append(_evaluar_mutante(mutante, pruebas_del_mutante, raiz_copia, timeout_s, limite))'''
+sustituir = '''resultados.append(_evaluar_mutante(mutante, pruebas_del_mutante, raiz, timeout_s, limite))'''
+
+[[mutante]]
+id = "A3"
+garantia = "la copia aislada no se borra al terminar (se acumulan copias con codigo mutado)"
+fichero = "herramientas/mutar.py"
+buscar = '''shutil.rmtree(destino, ignore_errors=True)'''
+sustituir = '''pass'''
+
+[[mutante]]
+id = "A4"
+garantia = "la copia arrastra el .git del repositorio"
+fichero = "herramientas/mutar.py"
+buscar = '''_NO_SE_COPIA = (".git", '''
+sustituir = '''_NO_SE_COPIA = ('''
+
+[[mutante]]
+id = "A5"
+garantia = "solo se copia la raiz pedida, no el repositorio: las pruebas que leen ficheros hermanos fallan por estructura"
+fichero = "herramientas/mutar.py"
+buscar = '''return raiz if origen.is_relative_to(raiz) else origen'''
+sustituir = '''return origen'''
+
+[[mutante]]
+id = "A6"
+garantia = "se cede la raiz original en vez de la de la copia"
+fichero = "herramientas/mutar.py"
+buscar = '''yield str(copia / origen.relative_to(proyecto))'''
+sustituir = '''yield str(origen)'''
+
+[[mutante]]
+id = "A7"
+garantia = "una copia dentro del proyecto (TMPDIR mal puesto) se acepta como «aislada»"
+fichero = "herramientas/mutar.py"
+buscar = '''if destino.is_relative_to(proyecto):'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "A8"
+garantia = "un `fichero` absoluto o con ../ de mas se muta FUERA de la copia (revision de seguridad, MEDIO)"
+fichero = "herramientas/mutar.py"
+buscar = '''if not ruta_fichero.is_relative_to(Path(limite if limite is not None else raiz).resolve()):'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "A9"
+garantia = "las copias que dejo un arnes muerto por SIGKILL no se retiran nunca (disco acumulado sin aviso)"
+fichero = "herramientas/mutar.py"
+buscar = '''    huerfanas = _retirar_copias_huerfanas()'''
+sustituir = '''    huerfanas = []'''
+
+[[mutante]]
+id = "A10"
+garantia = "se retira tambien la copia de un arnes VIVO (borraria el arbol sobre el que otro arnes esta midiendo)"
+fichero = "herramientas/mutar.py"
+buscar = '''        if campos and len(campos) > 19 and campos[19] == inicio and campos[0] != "Z":
+            continue
+        shutil.rmtree(d, ignore_errors=True)'''
+sustituir = '''        shutil.rmtree(d, ignore_errors=True)'''
+
+[[mutante]]
+id = "A11"
+garantia = "sin git el arnes revienta en vez de copiar la raiz pedida"
+fichero = "herramientas/mutar.py"
+buscar = '''    except OSError as e:
+        print(f"AVISO: no se pudo consultar git'''
+sustituir = '''    except ZeroDivisionError as e:
+        print(f"AVISO: no se pudo consultar git'''

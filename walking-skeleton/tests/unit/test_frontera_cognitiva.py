@@ -21,6 +21,7 @@ general no es una consulta de recuerdo por el mero hecho de ser interrogativa.
 
 Todo lo demas es cognicion, y puede llegar al `ModelProvider`.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -33,22 +34,29 @@ from aura_skeleton.core.orchestrator import (
 
 # ---------------------------------------------- la frontera de memoria: MEDIDA, no deseada --
 
-@pytest.mark.parametrize("texto", [
-    "¿Como me llamo?",
-    "¿Cual es mi nombre?",
-    "¿Que recuerdas de mi?",
-    "¿Que acordamos sobre el presupuesto?",
-])
+
+@pytest.mark.parametrize(
+    "texto",
+    [
+        "¿Como me llamo?",
+        "¿Cual es mi nombre?",
+        "¿Que recuerdas de mi?",
+        "¿Que acordamos sobre el presupuesto?",
+    ],
+)
 def test_una_consulta_de_recuerdo_personal_es_memoria(texto):
     assert _es_consulta_de_memoria(texto) is True
 
 
-@pytest.mark.parametrize("texto", [
-    "¿Que color es el cielo?",
-    "¿Por que llueve?",
-    "Si tengo 2 caballos y vendo uno, ¿cuantos me quedan?",
-    "¿Que pasaria si manana llueve?",
-])
+@pytest.mark.parametrize(
+    "texto",
+    [
+        "¿Que color es el cielo?",
+        "¿Por que llueve?",
+        "Si tengo 2 caballos y vendo uno, ¿cuantos me quedan?",
+        "¿Que pasaria si manana llueve?",
+    ],
+)
 def test_HOY_una_pregunta_general_TAMBIEN_cuenta_como_memoria(texto):
     """**Comportamiento medido, no deseado.** `_es_consulta_de_memoria` incluye `or _es_pregunta`,
     asi que con la memoria vacia estas preguntas se contestan «No tengo ningun recuerdo» y **el
@@ -84,45 +92,56 @@ def test_EL_COSTE_MEDIDO_de_estrechar_la_puerta():
         if any(p in t for p in _PATRONES_CONSULTA_MEMORIA):
             return True
         return _es_pregunta(texto) and any(
-            r in f" {t} " for r in (" mi ", " mis ", " me ", " conmigo ", " yo ", "sobre mi"))
+            r in f" {t} " for r in (" mi ", " mis ", " me ", " conmigo ", " yo ", "sobre mi")
+        )
 
-    datos = json.loads((Path(__file__).parent.parent / "datos" / "bateria_memoria.json")
-                       .read_text(encoding="utf-8"))
+    datos = json.loads((Path(__file__).parent.parent / "datos" / "bateria_memoria.json").read_text(encoding="utf-8"))
     sin_recuerdo = [c for c in datos["consultas"] if c["esperado"] is None]
     assert len(sin_recuerdo) == 24, "la bateria cambio: vuelve a medir antes de decidir"
     assert sum(1 for c in sin_recuerdo if _es_consulta_de_memoria(c["texto"])) == 24, (
-        "la puerta actual protege las 24: esa es la garantia vigente")
+        "la puerta actual protege las 24: esa es la garantia vigente"
+    )
     assert sum(1 for c in sin_recuerdo if estrecho(c["texto"])) == 17, (
-        "estrecharla costaria 7 de 24; el numero es el que debe pesar en la decision")
+        "estrecharla costaria 7 de 24; el numero es el que debe pesar en la decision"
+    )
 
 
 # ------------------------------------------------------------------------ accion: intacta --
 
-@pytest.mark.parametrize("texto", [
-    "Abre el archivo informe.txt",
-    "Enciende la luz del salon",
-    "Busca el archivo notas.md",
-    "¿Puedes abrir el archivo informe.txt?",
-])
+
+@pytest.mark.parametrize(
+    "texto",
+    [
+        "Abre el archivo informe.txt",
+        "Enciende la luz del salon",
+        "Busca el archivo notas.md",
+        "¿Puedes abrir el archivo informe.txt?",
+    ],
+)
 def test_una_solicitud_de_accion_se_reconoce_como_accion(texto):
     assert _pide_accion(texto) is True
 
 
-@pytest.mark.parametrize("texto", [
-    "¿Que color es el cielo?",
-    "Hoy tuve un dia muy pesado",
-    "¿Que pasaria si manana llueve?",
-])
+@pytest.mark.parametrize(
+    "texto",
+    [
+        "¿Que color es el cielo?",
+        "Hoy tuve un dia muy pesado",
+        "¿Que pasaria si manana llueve?",
+    ],
+)
 def test_la_cognicion_pura_NO_pide_accion(texto):
     assert _pide_accion(texto) is False
 
 
 # ------------------------------------------------------- los dos prompts, y su diferencia --
 
+
 def test_el_prompt_cognitivo_NO_lleva_el_catalogo_de_acciones():
     """La otra mitad de la correccion: el catalogo cuesta el 71% de la latencia medida y empujaba al
     modelo a elegir una accion ante una pregunta de conocimiento."""
     from aura_skeleton.modules.providers_real import _SYSTEM, _SYSTEM_COGNITIVO, _catalogo_para_prompt
+
     catalogo = _catalogo_para_prompt()
     assert catalogo not in _SYSTEM_COGNITIVO
     for accion in ("verificar_calidad", "encender_dispositivo", "mover_archivo", "buscar_archivo"):
@@ -134,6 +153,7 @@ def test_el_prompt_cognitivo_NO_lleva_el_catalogo_de_acciones():
 def test_el_prompt_cognitivo_conserva_el_contrato_de_salida():
     """No se rompe `_parse_decision`: mismas cuatro claves."""
     from aura_skeleton.modules.providers_real import _SYSTEM_COGNITIVO
+
     for clave in ("intent", "action", "args", "say"):
         assert clave in _SYSTEM_COGNITIVO
 
@@ -141,10 +161,12 @@ def test_el_prompt_cognitivo_conserva_el_contrato_de_salida():
 def test_el_prompt_cognitivo_prohibe_fabricar_recuerdos():
     """Defensa en profundidad (`ADR-0014 §3`), nunca el mecanismo de cumplimiento."""
     from aura_skeleton.modules.providers_real import _SYSTEM_COGNITIVO
+
     assert "NUNCA afirmes recordar" in _SYSTEM_COGNITIVO
 
 
 # --------------------------------------------------------------------------- robustez --
+
 
 @pytest.mark.asyncio
 async def test_el_router_transporta_el_modo_y_tolera_un_proveedor_antiguo():
@@ -177,6 +199,7 @@ async def test_sin_proveedor_disponible_el_fallback_existente_sigue_actuando():
 
 def test_una_salida_invalida_del_modelo_no_rompe_nada():
     from aura_skeleton.core.orchestrator import _parse_decision
+
     accion, args, say = _parse_decision("esto no es json", "T-3")
     assert accion == "consulta" and args == {} and say
 
@@ -187,6 +210,7 @@ def test_una_respuesta_cognitiva_NO_se_convierte_en_memoria():
     import inspect
 
     from aura_skeleton.core.orchestrator import Orchestrator
+
     fuente = inspect.getsource(Orchestrator._finalizar_turno)
     assert "usuario dijo:" in fuente
     assert "memory.write" in fuente

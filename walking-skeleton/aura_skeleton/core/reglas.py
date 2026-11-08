@@ -130,8 +130,11 @@ class AlmacenReglas:
         if self._motor is None:
             return
         await self._motor.ejecutar(
-            "automatizacion", como_argumentos(regla), regla.user_id or "-",
-            f"regla-crear-{regla.rule_id}", origen="reglas",
+            "automatizacion",
+            como_argumentos(regla),
+            regla.user_id or "-",
+            f"regla-crear-{regla.rule_id}",
+            origen="reglas",
         )
 
     def _crear_en_disco(self, regla: ReglaUsuario) -> None:
@@ -156,8 +159,11 @@ class AlmacenReglas:
         if self._motor is None:
             return False
         r = await self._motor.ejecutar(
-            "automatizacion", {"operacion": "desactivar", "user_id": user_id, "rule_id": rule_id},
-            user_id or "-", f"regla-desactivar-{rule_id}", origen="reglas",
+            "automatizacion",
+            {"operacion": "desactivar", "user_id": user_id, "rule_id": rule_id},
+            user_id or "-",
+            f"regla-desactivar-{rule_id}",
+            origen="reglas",
         )
         if r.get("estado") != "ejecutada":
             return False

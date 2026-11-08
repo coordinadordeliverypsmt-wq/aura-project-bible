@@ -1,0 +1,23 @@
+{
+  "caso": "definicion",
+  "tipo": "conocimiento",
+  "variante": "legado",
+  "texto": "que es la fotosintesis?",
+  "reloj_s": 57.34,
+  "total_s": 57.27,
+  "carga_s": 1.02,
+  "ingesta_tokens": 158,
+  "ingesta_s": 6.9,
+  "generacion_tokens": 68,
+  "generacion_s": 49.34,
+  "generacion_tok_s": 1.378,
+  "motivo_fin": "stop",
+  "json_valido": true,
+  "claves": [
+    "action",
+    "intent",
+    "say"
+  ],
+  "say": "La fotosintesis es un método que utiliza la información contenida en los archivos de texto para producir imágenes. Esto se puede hacer a través de herramientas como Python o con API de terceros, pero la mayoría es manual y simple.",
+  "respuesta_cruda": "{ \"say\": \"La fotosintesis es un método que utiliza la información contenida en los archivos de texto para producir imágenes. Esto se puede hacer a través de herramientas como Python o con API de terceros, pero la mayoría es manual y simple.\", \"action\": \"consulta\", \"intent\": \"\" }"
+}

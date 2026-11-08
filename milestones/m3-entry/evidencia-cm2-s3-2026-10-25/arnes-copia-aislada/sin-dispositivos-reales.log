@@ -1,0 +1,28 @@
+Arnés: muta una copia aislada (/tmp/aura-mutar-tlk5hph4/m3-entry/walking-skeleton); el árbol original solo se lee.
+Arnes de mutacion: mutaciones/sin-dispositivos-reales.toml
+Base en verde. Mutantes evaluados: 9
+  [OK] D1 (detectado): la guardia deja de retirar las variables de dispositivo
+        FAILED tests/unit/test_sin_dispositivos_reales.py::test_control_con_un_entorno_hostil_la_guardia_las_retira
+  [OK] D2 (detectado): la guardia olvida el token del hogar (el secreto viajaria a la URL heredada)
+        FAILED tests/unit/test_sin_dispositivos_reales.py::test_control_con_un_entorno_hostil_la_guardia_las_retira
+  [OK] D3 (detectado): la guardia olvida la camara de audio
+        FAILED tests/unit/test_sin_dispositivos_reales.py::test_control_con_un_entorno_hostil_la_guardia_las_retira
+  [OK] D4 (detectado): la guardia deja de fijar AURA_DATOS: Configuracion() vuelve a valer ~/.aura (los datos reales)
+        FAILED tests/unit/test_sin_dispositivos_reales.py::test_la_configuracion_por_defecto_no_hereda_ni_datos_ni_stack_reales
+        FAILED tests/unit/test_sin_dispositivos_reales.py::test_control_un_shell_con_datos_y_stack_reales_no_llega_a_la_bateria
+  [OK] D5 (detectado): «retirar basta»: se borra AURA_DATOS en vez de fijarla, y el defecto ES el directorio real
+        FAILED tests/unit/test_sin_dispositivos_reales.py::test_la_configuracion_por_defecto_no_hereda_ni_datos_ni_stack_reales
+        FAILED tests/unit/test_sin_dispositivos_reales.py::test_control_un_shell_con_datos_y_stack_reales_no_llega_a_la_bateria
+  [OK] D6 (detectado): la guardia deja de neutralizar AURA_STACK_REAL: un =1 del shell enciende Ollama/Whisper en la bateria
+        FAILED tests/unit/test_sin_dispositivos_reales.py::test_control_un_shell_con_datos_y_stack_reales_no_llega_a_la_bateria
+  [OK] D7 (detectado): se quita el catalogo falso: las pruebas de voz vuelven a consultar el Ollama REAL del equipo
+        FAILED tests/integration/test_voz_degrada_con_honestidad.py::test_el_arranque_declara_que_NO_hay_voz_cuando_no_la_hay
+        FAILED tests/integration/test_voz_degrada_con_honestidad.py::test_CONTROL_el_arranque_declara_la_voz_cuando_existe
+  [OK] D8 (detectado): la guardia deja de desviar _RED_POR_DEFECTO: --nodos/--receptor-nodos en proceso resuelven el ~/.aura-red REAL
+        FAILED tests/unit/test_ruta_red.py::test_la_bateria_nunca_resuelve_la_red_real[ausente]
+        FAILED tests/unit/test_ruta_red.py::test_la_bateria_nunca_resuelve_la_red_real[vacia]
+  [OK] D9 (detectado): una prueba que lanza el CLI de nodos en subproceso deja de fijar AURA_RED (heredaria el ~/.aura-red real)
+        FAILED tests/unit/test_ruta_red.py::test_toda_prueba_que_lanza_el_cli_de_nodos_fija_su_propia_red
+
+Total: 9 detectados, 0 sobreviven, 0 no aplicados, 0 ambiguos, 0 en timeout
+exit=0

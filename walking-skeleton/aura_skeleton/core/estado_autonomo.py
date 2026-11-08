@@ -94,8 +94,9 @@ def redactar_actividad(inst: dict) -> str | None:
         return " ".join(partes)
 
     if estado == "BLOQUEADA":
-        return ("Estoy detenida: la parada de emergencia está armada. No voy a ejecutar ninguna "
-                "tarea hasta que se retire.")
+        return (
+            "Estoy detenida: la parada de emergencia está armada. No voy a ejecutar ninguna tarea hasta que se retire."
+        )
 
     if estado == "ERROR":
         # No se adorna: algo del historial o del último ciclo pide que alguien lo mire.
@@ -104,7 +105,7 @@ def redactar_actividad(inst: dict) -> str | None:
         cola = ". El historial dice: " + str(motivo) if _hay(motivo) and not detalle.get("integro") else ""
         return f"Mi último ciclo terminó de una forma que alguien tiene que revisar{cola}."
 
-    partes: list[str] = []
+    partes = []
 
     # (C) Sin trabajo autorizado. Es la respuesta correcta cuando no lo hay, y decirlo asi importa:
     #     una cola vacia NO es «no puedo hacer nada».
@@ -127,8 +128,11 @@ def redactar_actividad(inst: dict) -> str | None:
     if elevado:
         frase = f"Y {elevado} elevadas a decisión humana"
         pendientes = inst.get("decisiones_pendientes")
-        identificadores = [d["id"] for d in pendientes
-                           if isinstance(d, dict) and _hay(d.get("id"))] if isinstance(pendientes, list) else []
+        identificadores = (
+            [d["id"] for d in pendientes if isinstance(d, dict) and _hay(d.get("id"))]
+            if isinstance(pendientes, list)
+            else []
+        )
         if identificadores:
             frase += f" ({', '.join(identificadores)})"
         # «necesitan tu aprobacion» era impreciso, y la imprecision se notaba al chocar con la otra
@@ -190,8 +194,9 @@ def redactar_decisiones(inst: dict, identificador: str | None = None) -> str | N
     if not isinstance(pendientes, list):
         return "No me consta ninguna decisión pendiente en mi estado actual."
     if identificador:
-        halladas = [d for d in pendientes
-                    if isinstance(d, dict) and str(d.get("id", "")).lower() == identificador.lower()]
+        halladas = [
+            d for d in pendientes if isinstance(d, dict) and str(d.get("id", "")).lower() == identificador.lower()
+        ]
         if not halladas:
             return f"No encuentro una decisión llamada {identificador} en mi estado actual."
         return _detallar_decision(halladas[0])
@@ -252,13 +257,17 @@ def redactar_oportunidades(inst: dict) -> str | None:
     elif _numero(inst.get("trabajo_bloqueado")):
         # El recuento consta pero el detalle no. Se dice lo que se sabe y se declara lo que falta,
         # en vez de inventar seis motivos.
-        partes.append(f"\nTengo {inst['trabajo_bloqueado']} oportunidades bloqueadas, pero no me "
-                      f"consta el detalle de cada una en mi estado actual.")
+        partes.append(
+            f"\nTengo {inst['trabajo_bloqueado']} oportunidades bloqueadas, pero no me "
+            f"consta el detalle de cada una en mi estado actual."
+        )
 
     elevadas = _numero(inst.get("trabajo_elevado"))
     if elevadas:
-        partes.append(f"\nY {elevadas} elevadas a decisión humana. Pregúntame por mis decisiones "
-                      f"pendientes y te digo cuáles y qué opciones tienen.")
+        partes.append(
+            f"\nY {elevadas} elevadas a decisión humana. Pregúntame por mis decisiones "
+            f"pendientes y te digo cuáles y qué opciones tienen."
+        )
     return "\n".join(partes)
 
 
@@ -284,10 +293,18 @@ def redactar_evolucion(inst: dict, dia: str | None = None) -> str | None:
     for x in reversed(trabajos[-5:]):
         objeto = x.get("simbolo", NO_DISPONIBLE)
         fichero = os.path.basename(str(x.get("fichero", ""))) or NO_DISPONIBLE
-        lineas.append(f"· {x.get('momento', NO_DISPONIBLE)} — {objeto} en {fichero} "
-                      f"({x.get('resultado', NO_DISPONIBLE)})")
+        lineas.append(
+            f"· {x.get('momento', NO_DISPONIBLE)} — {objeto} en {fichero} ({x.get('resultado', NO_DISPONIBLE)})"
+        )
     return "\n".join(lineas)
 
 
-__all__ = ["FuenteEstadoAutonomo", "redactar_actividad", "redactar_ultima_tarea",
-           "redactar_decisiones", "redactar_oportunidades", "redactar_evolucion", "NO_DISPONIBLE"]
+__all__ = [
+    "FuenteEstadoAutonomo",
+    "redactar_actividad",
+    "redactar_ultima_tarea",
+    "redactar_decisiones",
+    "redactar_oportunidades",
+    "redactar_evolucion",
+    "NO_DISPONIBLE",
+]

@@ -1,0 +1,66 @@
+incremento = '''Latencia de voz (2026-10-04): captura con fin de habla, «¿Sí?» cacheado, precarga de Whisper/Piper'''
+pruebas = ["tests/unit/test_voz_latencia.py", "tests/unit/test_microfono.py", "tests/unit/test_escucha_continua.py"]
+timeout_s = 300
+
+[[mutante]]
+id = "VL-M1"
+garantia = '''la escucha continua vuelve a la grabación fija de 5 s (se pierde el ahorro)'''
+fichero = "aura_skeleton/__main__.py"
+buscar = '''con_fin_de_habla = getattr(microfono, "escuchar_hasta_silencio", None) if activado else None'''
+sustituir = '''con_fin_de_habla = None'''
+
+[[mutante]]
+id = "VL-M2"
+garantia = '''pulsar-para-hablar también corta por silencio (su contrato es la duración fija)'''
+fichero = "aura_skeleton/__main__.py"
+buscar = '''con_fin_de_habla = getattr(microfono, "escuchar_hasta_silencio", None) if activado else None'''
+sustituir = '''con_fin_de_habla = getattr(microfono, "escuchar_hasta_silencio", None)'''
+
+[[mutante]]
+id = "VL-M3"
+garantia = '''un golpe aislado de ruido abre el corte y AURA deja de escuchar antes de que la persona hable'''
+fichero = "aura_skeleton/adapters/microfono.py"
+buscar = '''if racha >= _HABLA_MINIMA_BLOQUES:'''
+sustituir = '''if racha >= 1:'''
+
+[[mutante]]
+id = "VL-M4"
+garantia = '''sin voz detectada se graba menos que antes (regresión: órdenes reales en sala ruidosa)'''
+fichero = "aura_skeleton/adapters/microfono.py"
+buscar = '''_ESPERA_SIN_VOZ_MS = 5000'''
+sustituir = '''_ESPERA_SIN_VOZ_MS = 4000'''
+
+[[mutante]]
+id = "VL-M5"
+garantia = '''la frase se corta a la primera pausa (una pausa entre palabras cerraría la orden)'''
+fichero = "aura_skeleton/adapters/microfono.py"
+buscar = '''if silencio_ms >= _SILENCIO_FINAL_MS:'''
+sustituir = '''if silencio_ms >= 0:'''
+
+[[mutante]]
+id = "VL-M6"
+garantia = '''el golpe de arranque de parecord cuenta como habla / ensordece el umbral'''
+fichero = "aura_skeleton/adapters/microfono.py"
+buscar = '''if len(bloques) <= _BLOQUES_CALIBRADO:'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "VL-M7"
+garantia = '''el «¿Sí?» se vuelve a sintetizar en cada llamada (~2 s)'''
+fichero = "aura_skeleton/__main__.py"
+buscar = '''if ruta and os.path.isfile(ruta):'''
+sustituir = '''if False:'''
+
+[[mutante]]
+id = "VL-M8"
+garantia = '''los modelos de voz dejan de precargarse y el primer turno paga ~10 s'''
+fichero = "aura_skeleton/__main__.py"
+buscar = '''    if callable(precargar):'''
+sustituir = '''    if False:'''
+
+[[mutante]]
+id = "VL-M9"
+garantia = '''el fin de la respuesta hablada (T10) deja de medirse y el E2E no puede cerrar el perfil'''
+fichero = "aura_skeleton/__main__.py"
+buscar = '''            obs.log("LAT", "voz", f"respuesta ms={_ms(t_respuesta)}", tid)'''
+sustituir = '''            pass'''

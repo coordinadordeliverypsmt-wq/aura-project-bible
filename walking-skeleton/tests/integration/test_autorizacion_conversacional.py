@@ -114,8 +114,8 @@ def _ciclo_autonomo(tmp_path):
     dir_dec = str(tmp_path / "decisiones")
     estado = AlmacenEstadoOperativo(str(tmp_path / "estado_ciclo.jsonl"))
     motor = MotorAutomatizacion(
-        RegistroAdaptadores([_EscritorDeObra()]),
-        PermissionManager(crear_confirmador_diferido(dir_dec)))
+        RegistroAdaptadores([_EscritorDeObra()]), PermissionManager(crear_confirmador_diferido(dir_dec))
+    )
     director = DirectorGeneral(estado, motor, RegistroEjecutores({"escritor": "escribir_archivo"}))
     buzon = AlmacenDecisiones(dir_dec)
     return estado, MotorDelCiclo(director, al_despertar=lambda: reabrir_aprobadas(buzon, estado)), buzon
@@ -130,9 +130,15 @@ async def _sembrar_solicitud_real(sistema, tmp_path) -> dict:
     estado, ciclo, buzon = _ciclo_autonomo(tmp_path)
     sistema._ciclo = (estado, ciclo, buzon)
     sistema._destino = tmp_path / "obra.txt"
-    estado.registrar(Tarea(objetivo_id="obj", tarea_id="t-cambio", descripcion="escribir la obra",
-                           responsable="escritor",
-                           args={"ruta": str(sistema._destino), "contenido": "hola"}))
+    estado.registrar(
+        Tarea(
+            objetivo_id="obj",
+            tarea_id="t-cambio",
+            descripcion="escribir la obra",
+            responsable="escritor",
+            args={"ruta": str(sistema._destino), "contenido": "hola"},
+        )
+    )
     await ciclo.correr("obj", max_latidos=3)
     pendientes = buzon.pendientes()
     assert pendientes, "el ciclo no llegó a pedir permiso: el escenario no es real"
@@ -142,23 +148,35 @@ async def _sembrar_solicitud_real(sistema, tmp_path) -> dict:
 
 # ============================================================ 5 y 6 · RECONOCER --
 
-@pytest.mark.parametrize("frase", ["Autorizo D-ORCH-6", "Apruebo D-ORCH-6", "Puedes ejecutar D-ORCH-6",
-                                   "Adelante con D-ORCH-6", "Tienes mi permiso para D-ORCH-6"])
+
+@pytest.mark.parametrize(
+    "frase",
+    [
+        "Autorizo D-ORCH-6",
+        "Apruebo D-ORCH-6",
+        "Puedes ejecutar D-ORCH-6",
+        "Adelante con D-ORCH-6",
+        "Tienes mi permiso para D-ORCH-6",
+    ],
+)
 def test_una_autorizacion_INEQUIVOCA_se_reconoce(frase):
     assert autz.es_autorizacion(frase) == "D-ORCH-6", frase
 
 
-@pytest.mark.parametrize("frase", [
-    "¿Qué es D-ORCH-6?",
-    "¿Qué opinas de D-ORCH-6?",
-    "¿Puedes ejecutar D-ORCH-6?",          # la misma frase que SÍ autoriza, con signos
-    "Trabaja en D-ORCH-6",                 # una orden de trabajo no es un permiso
-    "Creo que podrías hacerlo",
-    "haz lo que consideres",
-    "Quizá deberías autorizar D-ORCH-6",   # matizado: quien duda no ha decidido
-    "Si te parece, apruebo D-ORCH-6",
-    "autorizo",                            # sin objeto no hay autorización
-])
+@pytest.mark.parametrize(
+    "frase",
+    [
+        "¿Qué es D-ORCH-6?",
+        "¿Qué opinas de D-ORCH-6?",
+        "¿Puedes ejecutar D-ORCH-6?",  # la misma frase que SÍ autoriza, con signos
+        "Trabaja en D-ORCH-6",  # una orden de trabajo no es un permiso
+        "Creo que podrías hacerlo",
+        "haz lo que consideres",
+        "Quizá deberías autorizar D-ORCH-6",  # matizado: quien duda no ha decidido
+        "Si te parece, apruebo D-ORCH-6",
+        "autorizo",  # sin objeto no hay autorización
+    ],
+)
 def test_el_lenguaje_AMBIGUO_no_autoriza_nunca(frase):
     """Un falso positivo aquí abre una acción de lista roja que nadie pidió. La asimetría del daño
     manda: ante la duda, no autoriza."""
@@ -186,6 +204,7 @@ def test_el_mecanismo_NO_esta_atado_a_D_ORCH_6_ni_a_D_INT_1():
 
 
 # ============================================================ 1, 2, 8, 10 · REGISTRAR --
+
 
 @pytest.mark.asyncio
 async def test_una_autorizacion_VALIDA_se_registra_y_PERSISTE(sistema, tmp_path):
@@ -221,6 +240,7 @@ async def test_la_autorizacion_deja_rastro_en_la_AUDITORIA(sistema, tmp_path):
 
 # ============================================================ 3, 4, 11 · LOS CASOS QUE NO --
 
+
 @pytest.mark.asyncio
 async def test_una_decision_INEXISTENTE_no_registra_nada(sistema, tmp_path):
     r = await _di(sistema.orquestador, "Autorizo ZZ-404")
@@ -251,8 +271,10 @@ async def test_un_identificador_AMBIGUO_no_elige_por_el_usuario(sistema, tmp_pat
     roja por cuenta propia."""
     buzon = AlmacenDecisiones(str(tmp_path / "decisiones"))
     monkeypatch.setattr(sistema.orquestador, "decisiones", buzon)
-    falsas = [{"huella": "abc123aa", "accion": "escribir_archivo", "estado": "pendiente", "tarea": "t1"},
-              {"huella": "abc123bb", "accion": "borrar_archivo", "estado": "pendiente", "tarea": "t2"}]
+    falsas = [
+        {"huella": "abc123aa", "accion": "escribir_archivo", "estado": "pendiente", "tarea": "t1"},
+        {"huella": "abc123bb", "accion": "borrar_archivo", "estado": "pendiente", "tarea": "t2"},
+    ]
     monkeypatch.setattr(buzon, "pendientes", lambda: falsas)
     monkeypatch.setattr(buzon, "aprobadas", lambda: [])
     r = await _di(sistema.orquestador, "Autorizo abc123")
@@ -265,10 +287,13 @@ async def test_lo_que_requiere_OTRA_AUTORIDAD_se_declara_y_no_se_registra(sistem
     """Una decisión de gobernanza elevada al CEO no se resuelve con un permiso: tiene opciones, y
     ninguna se elige sola. Decir «registrada» afirmaría que algo queda desbloqueado cuando no lo
     queda — y ésa es exactamente la clase de frase tranquilizadora que este proyecto persigue."""
+
     class FuenteFalsa:
         def instantanea(self):
-            return {"decisiones_pendientes": [
-                {"id": "D-ORCH-6", "titulo": "algo", "opciones": ["(a) una", "(b) otra"]}]}
+            return {
+                "decisiones_pendientes": [{"id": "D-ORCH-6", "titulo": "algo", "opciones": ["(a) una", "(b) otra"]}]
+            }
+
     monkeypatch.setattr(sistema.orquestador, "estado_autonomo", FuenteFalsa())
     r = await _di(sistema.orquestador, "Autorizo D-ORCH-6")
     assert "No puedo registrar esa autorización con la autoridad disponible" in r["say"]
@@ -277,6 +302,7 @@ async def test_lo_que_requiere_OTRA_AUTORIDAD_se_declara_y_no_se_registra(sistem
 
 
 # ============================================================ 7 · EL CHAT NO EJECUTA --
+
 
 @pytest.mark.asyncio
 async def test_autorizar_NO_ejecuta_la_tarea_en_el_turno(sistema, tmp_path):
@@ -302,8 +328,7 @@ def test_la_superficie_de_autorizacion_NO_PUEDE_ejecutar_ni_despertar():
     arbol = ast.parse(pathlib.Path(autz.__file__).read_text(encoding="utf-8"))
     nombres = {n.attr for n in ast.walk(arbol) if isinstance(n, ast.Attribute)}
     nombres |= {n.id for n in ast.walk(arbol) if isinstance(n, ast.Name)}
-    for prohibido in ("ejecutar", "correr", "servir", "despertar", "authorize", "aprobar",
-                      "write_text", "registrar"):
+    for prohibido in ("ejecutar", "correr", "servir", "despertar", "authorize", "aprobar", "write_text", "registrar"):
         assert prohibido not in nombres, f"la superficie de reconocimiento no {prohibido}"
 
 
@@ -312,12 +337,13 @@ def test_la_autorizacion_NO_amplia_permisos():
     solicitud que ya estaba en el buzón."""
     fuente = pathlib.Path(autz.__file__).read_text(encoding="utf-8")
     import re as _re
-    for prohibido in ("PermissionManager", "lista_roja", "alcance_actual", "kill_switch",
-                      "habilitado"):
+
+    for prohibido in ("PermissionManager", "lista_roja", "alcance_actual", "kill_switch", "habilitado"):
         assert not _re.search(rf"\b{prohibido}\b", fuente), f"la superficie no debe conocer {prohibido}"
 
 
 # ============================================================ 9 y 14 · EL MOTOR LA VE --
+
 
 @pytest.mark.asyncio
 async def test_la_autorizacion_es_VISIBLE_para_el_siguiente_ciclo(sistema, tmp_path):
@@ -329,13 +355,13 @@ async def test_la_autorizacion_es_VISIBLE_para_el_siguiente_ciclo(sistema, tmp_p
 
     await _di(sistema.orquestador, f"Autorizo {solicitud['huella'][:8]}")
 
-    assert reabrir_aprobadas(buzon, estado) == 1, (
-        "el motor no vio la autorización registrada desde la conversación")
+    assert reabrir_aprobadas(buzon, estado) == 1, "el motor no vio la autorización registrada desde la conversación"
     tarea = {t.tarea_id: t for t in estado.tareas("obj")}["t-cambio"]
     assert tarea.estado != "bloqueada", "la tarea no volvió al trabajo"
 
 
 # ============================================================ 12, 13, 16 · AISLAMIENTO Y REGRESIÓN --
+
 
 def test_las_pruebas_estan_AISLADAS_del_plano_de_control_real(sistema):
     """La fixture global declara `AURA_CONTROL_PLANE=""`. Sin eso, esta batería leería el ciclo
@@ -376,6 +402,7 @@ def test_el_buzon_de_la_conversacion_es_EL_MISMO_que_el_del_motor(tmp_path):
 
 # ============================================================ 7 (FASE 7) · E2E COMPLETO --
 
+
 @pytest.mark.asyncio
 async def test_E2E_autorizo_por_chat_y_el_CICLO_AUTONOMO_lo_ejecuta(sistema, tmp_path):
     """La cadena entera, sin mocks y **sin que nadie llame al ejecutor a mano**.
@@ -410,7 +437,8 @@ async def test_E2E_autorizo_por_chat_y_el_CICLO_AUTONOMO_lo_ejecuta(sistema, tmp
 
     final = {t.tarea_id: t for t in estado.tareas("obj")}["t-cambio"]
     assert final.estado == "terminada", (
-        f"el ciclo autónomo no completó la tarea autorizada: {final.estado} · {final.bloqueos}")
+        f"el ciclo autónomo no completó la tarea autorizada: {final.estado} · {final.bloqueos}"
+    )
     # (8) EL EFECTO REAL, que es lo único que no se puede fingir.
     assert sistema._destino.read_text(encoding="utf-8") == "hola"
 

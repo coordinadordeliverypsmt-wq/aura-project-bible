@@ -1,0 +1,59 @@
+{
+  "fecha": "2026-09-15 21:31:11",
+  "rutas": {
+    "piper_voice": "/media/majo1230/AURORA_EXT/piper_voices/es_MX-ald-medium.onnx",
+    "hf_home": "/media/majo1230/AURORA_EXT/hf_cache",
+    "hf_hub_offline": "1",
+    "modelo_llm": "qwen2.5:0.5b",
+    "datos": "/tmp/aura-voz-e2e-4rk7y3sg"
+  },
+  "memoria_libre_mb_inicio": 1093,
+  "turnos": [
+    {
+      "etiqueta": "voz-completa-core",
+      "entrada": "/tmp/aura-voz-audio-6y2tjd9l/entrada.wav",
+      "say": "Esto lo genera mi modelo local y no está verificado: ¡Hola, Mauricio! Me llamo AURA. ¿Cómo estás hoy? ¿Qué te gustaría saber? ¿En qué puedo asistirte hoy?",
+      "provider": "ollama",
+      "dominio": "llm",
+      "estatus": "propuesta",
+      "voz": "ok",
+      "total_s": 374.68,
+      "marks_ms": {
+        "stt": 58724.8,
+        "memory": 58728.8,
+        "llm": 344650.0,
+        "tts": 374672.7
+      },
+      "latency_ms": 374672.7,
+      "memoria_libre_mb": 1002
+    },
+    {
+      "etiqueta": "memoria-tras-voz",
+      "entrada": "¿cómo me llamo?",
+      "say": "Todavía no me has dicho cómo te llamas.",
+      "provider": "core",
+      "dominio": "modelo_usuario",
+      "estatus": "ausencia",
+      "voz": "ok",
+      "total_s": 14.9,
+      "marks_ms": {
+        "stt": 0.1,
+        "tts": 14893.7
+      },
+      "latency_ms": 14893.8,
+      "memoria_libre_mb": 1004
+    }
+  ],
+  "tts_entrada_s": 12.55,
+  "wav_entrada_bytes": 79916,
+  "arranque_s": 0.14,
+  "audios_generados": [
+    {
+      "fichero": "resp_af1d17a36dd6.wav",
+      "bytes": 483884
+    }
+  ],
+  "memoria_libre_mb_fin": 1004,
+  "rss_max_mb": 359.2,
+  "hechos_en_memoria": []
+}

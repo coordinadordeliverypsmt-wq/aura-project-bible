@@ -1,0 +1,65 @@
+== git ==
+HEAD=6dad6af branch=worktree-m3-entry main=d933a08 l4=f81361a
+206
+== os/kernel ==
+Linux Mint 22.3
+6.14.0-37-generic
+== cpu/mem/disk ==
+2
+               total       usado       libre  compartido   búf/caché  disponible
+Mem:            3719        2674         157         112        1258        1044
+/dev/mmcblk0p2    57G    45G  9,0G  84% /
+== gpu ==
+total 0
+drwxr-xr-x  2 root root         80 sep 29 07:21 by-path
+crw-rw----+ 1 root video  226,   1 sep 29 07:21 card1
+crw-rw----+ 1 root render 226, 128 sep 29 07:21 renderD128
+i915                 4702208  3
+majo1230 adm lp dialout cdrom sudo dip plugdev users lpadmin bluetooth sambashare ollama
+== python ==
+/usr/bin/python3
+Python 3.12.3
+architecture_manifest.toml
+aura_skeleton
+demo_capacidad_m1.py
+demo_capacidad_m2.py
+evals_m1.py
+generar_m1_exit.py
+herramientas
+mutaciones
+__pycache__
+pyproject.toml
+quality-gate.sh
+README.md
+REAL-STACK-VALIDATION.md
+requirements-dev.txt
+requirements.txt
+requirements-validacion.txt
+run_demo_nats.py
+run_demo_real.py
+tests
+validar_m1.py
+validar_voz_t2.py
+VALIDATION.md
+== paquetes ==
+av                    18.0.0
+ctranslate2           4.8.1
+faster-whisper        1.2.1
+numpy                 2.5.1
+onnxruntime           1.27.0
+piper-tts             1.5.0
+vosk                  0.3.45
+ort 1.27.0 ['AzureExecutionProvider', 'CPUExecutionProvider']
+piper /home/majo1230/.local/lib/python3.12/site-packages/piper
+== espeak ==
+/home/majo1230/.local/bin/piper
+espeak-ng-data:amd64 1.51+dfsg-12build1
+intel-media-va-driver:amd64 24.1.0+dfsg1-1ubuntu0.2
+libespeak-ng1:amd64 1.51+dfsg-12build1
+ocl-icd-libopencl1:amd64 2.3.2-1build1
+speech-dispatcher-espeak-ng 0.12.0~rc2-2build3
+== modelos voz ==
+/home/majo1230/.ruvector/models/all-MiniLM-L6-v2/model.onnx
+/home/majo1230/.aura/models/paraphrase-multilingual-MiniLM-L12-v2/model.onnx
+/home/majo1230/.local/lib/python3.12/site-packages/piper/tashkeel/model.onnx
+/home/majo1230/.local/lib/python3.12/site-packages/faster_whisper/assets/silero_vad_v6.onnx

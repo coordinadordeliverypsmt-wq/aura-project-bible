@@ -1,0 +1,10 @@
+Arnes de mutacion: mutaciones/sin-dispositivos-reales.toml
+Base en verde. Mutantes evaluados: 3
+  [OK] D1 (detectado): la guardia deja de retirar las variables de dispositivo
+        FAILED tests/unit/test_sin_dispositivos_reales.py::test_control_con_un_entorno_hostil_la_guardia_las_retira
+  [OK] D2 (detectado): la guardia olvida el token del hogar (el secreto viajaria a la URL heredada)
+        FAILED tests/unit/test_sin_dispositivos_reales.py::test_control_con_un_entorno_hostil_la_guardia_las_retira
+  [OK] D3 (detectado): la guardia olvida la camara de audio
+        FAILED tests/unit/test_sin_dispositivos_reales.py::test_control_con_un_entorno_hostil_la_guardia_las_retira
+
+Total: 3 detectados, 0 sobreviven, 0 no aplicados, 0 ambiguos, 0 en timeout

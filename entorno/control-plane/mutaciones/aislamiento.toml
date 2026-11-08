@@ -1,0 +1,101 @@
+incremento = "AISLAMIENTO DE SISTEMA OPERATIVO (CEO, 2026-09-21): Landlock + rlimits, cada barrera degradada para comprobar que el escape se detecta"
+pruebas = ["test_red_aislamiento.py"]
+timeout_s = 900
+
+# POR QUE ESTE CATALOGO.
+#
+# Una auditoria adversarial demostro, ejecutandolo, que una mision delegada leia y escribia FUERA de
+# su sandbox. La correccion es confinamiento del kernel — pero un confinamiento que no se ejerce es
+# una promesa, y aqui la promesa es de seguridad.
+#
+# Cada mutante degrada una capa y la prueba correspondiente tiene que ver el escape. La condicion es
+# mas dura que de costumbre: no basta con que la prueba falle, tiene que fallar **porque el fichero
+# aparecio fuera del sandbox**, que es lo que las aserciones comprueban.
+
+[[mutante]]
+id = "AI-M1"
+garantia = "EL CONFINAMIENTO ESTA ENCHUFADO EN `ejecutar_pruebas`: sin el `preexec_fn`, la funcion existe, esta probada, y no protege nada — el cableado es la garantia, no la funcion"
+fichero = "delegacion.py"
+pruebas = ["test_red_aislamiento.py::test_una_mision_NO_puede_escribir_fuera_de_su_sandbox", "test_red_aislamiento.py::test_CONTROL_el_trabajo_legitimo_DENTRO_del_sandbox_sigue_funcionando"]
+buscar = '''    return ais.preparar(mision.sandbox)'''
+sustituir = '''    return None  # el subagente deja de confinarse'''
+
+[[mutante]]
+id = "AI-M2"
+garantia = "LAS DOS CAPACIDADES SE CONFINAN POR EL MISMO PUNTO: cablear el `preexec_fn` en cada rama hacia posible olvidarlo en una, y ninguna prueba de la otra se enteraba — ALERTA-005 aplicada al confinamiento"
+fichero = "delegacion.py"
+pruebas = ["test_red_aislamiento.py::test_las_DOS_capacidades_se_confinan_por_el_MISMO_punto"]
+buscar = '''            preexec_fn=_confinador_de(mision))'''
+sustituir = '''            preexec_fn=None)  # verificar_calidad deja de confinarse'''
+
+[[mutante]]
+id = "AI-M3"
+garantia = "FAIL-CLOSED SIN LANDLOCK: si el kernel no ofrece confinamiento, la capacidad se NIEGA. Ejecutar declarando un aislamiento inexistente es INV-9 con consecuencias de seguridad"
+fichero = "delegacion.py"
+pruebas = ["test_red_aislamiento.py::test_sin_LANDLOCK_la_capacidad_se_NIEGA_en_vez_de_fingir", "test_red_aislamiento.py::test_CONTROL_el_trabajo_legitimo_DENTRO_del_sandbox_sigue_funcionando"]
+buscar = '''    if EXIGIR_AISLAMIENTO and not ais.DISPONIBLE:'''
+sustituir = '''    if False:  # se delega aunque no haya confinamiento'''
+
+[[mutante]]
+id = "AI-M4"
+garantia = "LA ESCRITURA SE CONCEDE SOLO EN EL SANDBOX: si las rutas de lectura del interprete tambien recibieran escritura, el confinamiento dejaria escribir en /usr, /etc y el resto del sistema"
+fichero = "aislamiento.py"
+pruebas = ["test_red_aislamiento.py::test_una_mision_no_puede_escribir_en_las_RUTAS_DE_LECTURA_del_interprete", "test_red_aislamiento.py::test_CONTROL_el_trabajo_legitimo_DENTRO_del_sandbox_sigue_funcionando"]
+buscar = '''        for ruta in lectura:
+            permitir(ruta, LECTURA)'''
+sustituir = '''        for ruta in lectura:
+            permitir(ruta, TODO)  # las rutas de lectura reciben tambien escritura'''
+
+[[mutante]]
+id = "AI-M5"
+garantia = "`restrict_self` SE LLAMA DE VERDAD: construir el ruleset y no aplicarlo deja un confinamiento perfectamente configurado que no encierra a nadie"
+fichero = "aislamiento.py"
+pruebas = ["test_red_aislamiento.py::test_una_mision_NO_puede_escribir_fuera_de_su_sandbox", "test_red_aislamiento.py::test_una_mision_NO_puede_leer_fuera_de_su_sandbox"]
+buscar = '''        if _c().syscall(_SYS_RESTRICT_SELF, ctypes.c_int(fd), ctypes.c_uint32(0)) < 0:
+            raise OSError(ctypes.get_errno(), "landlock_restrict_self")'''
+sustituir = '''        if False:  # el ruleset se construye pero nunca se aplica
+            raise OSError(ctypes.get_errno(), "landlock_restrict_self")'''
+
+[[mutante]]
+id = "AI-M6"
+garantia = "LOS LIMITES DE RECURSOS SE APLICAN: Landlock acota el disco, no la memoria ni los procesos. Sin `rlimit`, una mision agota la maquina sin salir de su sandbox"
+fichero = "aislamiento.py"
+pruebas = ["test_red_aislamiento.py::test_los_limites_de_recursos_se_aplican_al_subagente"]
+buscar = '''        _limitar_recursos()
+        if abi > 0:'''
+sustituir = '''        pass  # el subagente corre sin limites de recursos
+        if abi > 0:'''
+
+[[mutante]]
+id = "AI-M7"
+garantia = "SE BAJA EL LIMITE DURO, NO SOLO EL BLANDO: un limite que el propio subagente puede volver a subir no limita nada"
+fichero = "aislamiento.py"
+pruebas = ["test_red_aislamiento.py::test_una_mision_no_puede_SUBIR_los_limites_que_recibio"]
+buscar = '''            resource.setrlimit(recurso, (tope, tope))'''
+sustituir = '''            resource.setrlimit(recurso, (tope, duro))  # el duro se deja como estaba'''
+
+[[mutante]]
+id = "AI-M8"
+garantia = "LA EVIDENCIA DECLARA EL AISLAMIENTO REAL: sin esto, un dia sin Landlock la capacidad diria exactamente lo mismo que un dia con el"
+fichero = "aislamiento.py"
+pruebas = ["test_red_aislamiento.py::test_la_descripcion_dice_RLIMITS_cuando_no_hay_landlock", "test_red_aislamiento.py::test_el_resultado_declara_QUE_aislamiento_se_aplico"]
+buscar = '''    return f"landlock:abi{abi}+rlimits" if abi > 0 else "rlimits"'''
+sustituir = '''    return "landlock:abi6+rlimits"  # se declara confinamiento siempre'''
+
+[[mutante]]
+id = "AI-M9"
+garantia = "LOS DERECHOS SE RECORTAN SEGUN EL TIPO DE RUTA: pedir derechos de directorio sobre un fichero devuelve EINVAL y revienta el confinamiento entero — la mision muere y la capacidad queda inservible"
+fichero = "aislamiento.py"
+pruebas = ["test_red_aislamiento.py::test_CONTROL_el_trabajo_legitimo_DENTRO_del_sandbox_sigue_funcionando"]
+buscar = '''                if not os.path.isdir(str(ruta)):
+                    permitidos &= ~_SOLO_DIRECTORIO'''
+sustituir = '''                if False:  # se piden derechos de directorio sobre ficheros
+                    pass'''
+
+[[mutante]]
+id = "AI-M10"
+garantia = "`DISPONIBLE` SE DERIVA DE PREGUNTARLE AL KERNEL: declararlo a mano haria que la puerta fail-closed se abriera en maquinas sin Landlock"
+fichero = "aislamiento.py"
+pruebas = ["test_red_aislamiento.py::test_DISPONIBLE_no_esta_CABLEADO_a_un_literal", "test_red_aislamiento.py::test_el_abi_se_pregunta_al_kernel_y_es_coherente"]
+buscar = '''DISPONIBLE = abi_disponible() > 0'''
+sustituir = '''DISPONIBLE = True  # se declara disponible sin preguntar'''

@@ -36,10 +36,8 @@ id = "AR-M3"
 garantia = "la resta resta y la division divide: no se confunden entre si"
 fichero = "aura_skeleton/core/aritmetica.py"
 pruebas = ["tests/integration/test_aritmetica_determinista.py::test_la_operacion_la_resuelve_EL_NUCLEO_y_es_correcta"]
-buscar = '''_OPERADORES = {ast.Add: lambda a, b: a + b, ast.Sub: lambda a, b: a - b,
-               ast.Mult: lambda a, b: a * b}'''
-sustituir = '''_OPERADORES = {ast.Add: lambda a, b: a + b, ast.Sub: lambda a, b: a + b,
-               ast.Mult: lambda a, b: a * b}'''
+buscar = '''_OPERADORES = {ast.Add: lambda a, b: a + b, ast.Sub: lambda a, b: a - b, ast.Mult: lambda a, b: a * b}'''
+sustituir = '''_OPERADORES = {ast.Add: lambda a, b: a + b, ast.Sub: lambda a, b: a + b, ast.Mult: lambda a, b: a * b}'''
 
 [[mutante]]
 id = "AR-M4"
@@ -185,12 +183,8 @@ id = "AR-M18"
 garantia = "la ENTRADILLA se retira: 'cuanto es 1+1' tiene que quedar en '1+1'"
 fichero = "aura_skeleton/core/aritmetica.py"
 pruebas = ["tests/integration/test_aritmetica_determinista.py::test_la_operacion_la_resuelve_EL_NUCLEO_y_es_correcta"]
-buscar = '''        if t.startswith(entradilla):
-            t = t[len(entradilla):].strip()
-            break'''
-sustituir = '''        if False:
-            t = t[len(entradilla):].strip()
-            break'''
+buscar = '''        if t.startswith(entradilla):'''
+sustituir = '''        if False:'''
 
 # --------- 6 · NO ROBAR TURNOS ---------
 

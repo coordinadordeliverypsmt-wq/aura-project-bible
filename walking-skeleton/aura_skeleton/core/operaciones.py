@@ -64,7 +64,15 @@ def texto_utilizable(valor: object) -> bool:
 ESPECIFICACIONES: dict[str, dict] = {
     "buscar_archivo": {"args": ("patron", "raiz"), "rutas": ("raiz",), "permite_comodin": True},
     "listar_directorio": {"args": ("ruta",), "rutas": ("ruta",), "permite_comodin": False},
-    "leer_archivo": {"args": ("ruta",), "rutas": ("ruta",), "permite_comodin": False},
+    # `devuelve_contenido_usuario`: la capacidad entrega CONTENIDO de un fichero del usuario. Es una marca
+    # DECLARATIVA (punto D, 2026-11-06), no una heuristica: ampliar la familia es declararla aqui. De ella
+    # depende que ese contenido no reentre en el prompt de turnos posteriores ni se persista.
+    "leer_archivo": {
+        "args": ("ruta",),
+        "rutas": ("ruta",),
+        "permite_comodin": False,
+        "devuelve_contenido_usuario": True,
+    },
     "abrir_archivo": {"args": ("ruta",), "rutas": ("ruta",), "permite_comodin": False},
     "consultar_estado_sistema": {"args": (), "rutas": (), "permite_comodin": False},
     "mover_archivo": {"args": ("origen", "destino"), "rutas": ("origen", "destino"), "permite_comodin": False},
@@ -76,6 +84,12 @@ ESPECIFICACIONES: dict[str, dict] = {
     # crea, nunca destruye. Habilita la automatizacion "guarda una copia antes de borrar" sin fricciones.
     "copiar_archivo": {"args": ("ruta",), "rutas": ("ruta",), "permite_comodin": False},
 }
+
+
+#: Capacidades marcadas `devuelve_contenido_usuario` en `ESPECIFICACIONES`. UNA fuente: se deriva, no se copia.
+CAPACIDADES_QUE_DEVUELVEN_CONTENIDO = frozenset(
+    accion for accion, espec in ESPECIFICACIONES.items() if espec.get("devuelve_contenido_usuario") is True
+)
 
 
 def raices_por_defecto() -> tuple[str, ...]:

@@ -1,0 +1,230 @@
+{
+ "fecha": "2026-10-04T21:03:48",
+ "frase": "enciende la televisión",
+ "ganancia_micro": "Volume: front-left: 98304 / 150% / 10,57 dB,   front-right: 98304 / 150% / 10,57 dB\n        balance 0,00",
+ "rms_ruido": 0.9309,
+ "intentos": [
+  {
+   "intento": 1,
+   "rms_voz": 0.9428,
+   "snr_db": 0.1,
+   "tramos_ms": [],
+   "A_vad_vocab": {
+    "texto": "",
+    "sin_habla": true
+   },
+   "B_vad": {
+    "texto": "",
+    "sin_habla": true
+   },
+   "C_vocab": {
+    "texto": "¿Qué enabling el resultado de los amigos? ¿Qué haría? United De PleasureN",
+    "ms": 228183,
+    "no_habla": 0.231,
+    "logprob": -3.629,
+    "reconocida": false
+   },
+   "D_nada": {
+    "texto": "y  y  y  y",
+    "ms": 70912,
+    "no_habla": 0.492,
+    "logprob": -1.235,
+    "reconocida": false
+   }
+  },
+  {
+   "intento": 2,
+   "rms_voz": 0.9243,
+   "snr_db": -0.1,
+   "tramos_ms": [
+    [
+     0,
+     1008
+    ],
+    [
+     1008,
+     3480
+    ]
+   ],
+   "A_vad_vocab": {
+    "texto": "¿Enciende la televisión?",
+    "ms": 8146,
+    "no_habla": 0.004,
+    "logprob": -0.533,
+    "reconocida": true
+   },
+   "B_vad": {
+    "texto": "Enciende la televisión.",
+    "ms": 17273,
+    "no_habla": 0.207,
+    "logprob": -0.661,
+    "reconocida": true
+   },
+   "C_vocab": {
+    "texto": "Enciende la televisión.",
+    "ms": 15538,
+    "no_habla": 0.003,
+    "logprob": -0.606,
+    "reconocida": true
+   },
+   "D_nada": {
+    "texto": "Enciende la televisión.",
+    "ms": 16140,
+    "no_habla": 0.231,
+    "logprob": -0.687,
+    "reconocida": true
+   }
+  },
+  {
+   "intento": 3,
+   "rms_voz": 0.9215,
+   "snr_db": -0.1,
+   "tramos_ms": [
+    [
+     328,
+     3384
+    ]
+   ],
+   "A_vad_vocab": {
+    "texto": "¿Encienden la división?",
+    "ms": 16530,
+    "no_habla": 0.019,
+    "logprob": -0.803,
+    "reconocida": false
+   },
+   "B_vad": {
+    "texto": "Ese endena de la visión.",
+    "ms": 23074,
+    "no_habla": 0.379,
+    "logprob": -1.095,
+    "reconocida": false
+   },
+   "C_vocab": {
+    "texto": "Ese en Octstop. ¡Ese en la situación! ¡Moral!",
+    "ms": 93542,
+    "no_habla": 0.008,
+    "logprob": -2.948,
+    "reconocida": false
+   },
+   "D_nada": {
+    "texto": "En el sien de la televisión.",
+    "ms": 34813,
+    "no_habla": 0.287,
+    "logprob": -1.212,
+    "reconocida": false
+   }
+  },
+  {
+   "intento": 4,
+   "rms_voz": 0.9338,
+   "snr_db": 0.0,
+   "tramos_ms": [],
+   "A_vad_vocab": {
+    "texto": "",
+    "sin_habla": true
+   },
+   "B_vad": {
+    "texto": "",
+    "sin_habla": true
+   },
+   "C_vocab": {
+    "texto": "OÍ puede ir a esta",
+    "ms": 188038,
+    "no_habla": 0.225,
+    "logprob": -4.469,
+    "reconocida": false
+   },
+   "D_nada": {
+    "texto": "¡Adiós!",
+    "ms": 59954,
+    "no_habla": 0.462,
+    "logprob": -1.563,
+    "reconocida": false
+   }
+  },
+  {
+   "intento": 5,
+   "rms_voz": 0.9421,
+   "snr_db": 0.1,
+   "tramos_ms": [
+    [
+     872,
+     3832
+    ]
+   ],
+   "A_vad_vocab": {
+    "texto": "¿Enciende la televisión? ¿Qué?",
+    "ms": 11298,
+    "no_habla": 0.036,
+    "logprob": -0.28,
+    "reconocida": false
+   },
+   "B_vad": {
+    "texto": "Enciende la televisión",
+    "ms": 11513,
+    "no_habla": 0.285,
+    "logprob": -0.556,
+    "reconocida": true
+   },
+   "C_vocab": {
+    "texto": "¿Enciende la televisión? ¿Qué?",
+    "ms": 22896,
+    "no_habla": 0.017,
+    "logprob": -0.33,
+    "reconocida": false
+   },
+   "D_nada": {
+    "texto": "Enciende la televisión.",
+    "ms": 17299,
+    "no_habla": 0.121,
+    "logprob": -0.67,
+    "reconocida": true
+   }
+  },
+  {
+   "intento": 6,
+   "rms_voz": 0.9569,
+   "snr_db": 0.2,
+   "tramos_ms": [
+    [
+     2280,
+     4860
+    ]
+   ],
+   "A_vad_vocab": {
+    "texto": "¿Enciende la televisión?",
+    "ms": 15399,
+    "no_habla": 0.01,
+    "logprob": -0.652,
+    "reconocida": true
+   },
+   "B_vad": {
+    "texto": "En el 100 de la televisión.",
+    "ms": 16693,
+    "no_habla": 0.134,
+    "logprob": -0.967,
+    "reconocida": false
+   },
+   "C_vocab": {
+    "texto": "El recién de la televisión.",
+    "ms": 100988,
+    "no_habla": 0.012,
+    "logprob": -1.203,
+    "reconocida": false
+   },
+   "D_nada": {
+    "texto": "En el siguiente letra de la audición",
+    "ms": 45074,
+    "no_habla": 0.152,
+    "logprob": -1.161,
+    "reconocida": false
+   }
+  }
+ ],
+ "reconocidas_por_variante": {
+  "A_vad_vocab": 2,
+  "B_vad": 2,
+  "C_vocab": 1,
+  "D_nada": 2
+ }
+}

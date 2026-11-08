@@ -67,8 +67,20 @@ VERBOS_DE_AUTORIZACION = (
 
 #: Lo condicional no decide. Quien matiza esta pensando en voz alta, no autorizando.
 CONDICIONALES = (
-    "creo que", "quiza", "quizas", "tal vez", "podrias", "podria", "si quieres", "si te parece",
-    "supongo", "imagino", "me parece que", "deberias", "a lo mejor", "no se si",
+    "creo que",
+    "quiza",
+    "quizas",
+    "tal vez",
+    "podrias",
+    "podria",
+    "si quieres",
+    "si te parece",
+    "supongo",
+    "imagino",
+    "me parece que",
+    "deberias",
+    "a lo mejor",
+    "no se si",
 )
 
 
@@ -116,9 +128,11 @@ def resolver(identificador: str, pendientes: list, aprobadas: list) -> tuple[dic
     solicitudes empiezan igual, no se elige una — se dice que es ambiguo. Adivinar cual queria el
     usuario seria autorizar una accion de lista roja por su cuenta."""
     aguja = identificador.strip().lower()
-    candidatas = [d for d in list(pendientes) + list(aprobadas)
-                  if str(d.get("huella", "")).startswith(aguja)
-                  or str(d.get("tarea", "")).lower() == aguja]
+    candidatas = [
+        d
+        for d in list(pendientes) + list(aprobadas)
+        if str(d.get("huella", "")).startswith(aguja) or str(d.get("tarea", "")).lower() == aguja
+    ]
     if not candidatas:
         return None, "no encontrada"
     huellas = {d.get("huella") for d in candidatas}
@@ -127,5 +141,4 @@ def resolver(identificador: str, pendientes: list, aprobadas: list) -> tuple[dic
     return candidatas[0], "encontrada"
 
 
-__all__ = ["es_autorizacion", "identificador_en", "resolver",
-           "VERBOS_DE_AUTORIZACION", "CONDICIONALES"]
+__all__ = ["es_autorizacion", "identificador_en", "resolver", "VERBOS_DE_AUTORIZACION", "CONDICIONALES"]

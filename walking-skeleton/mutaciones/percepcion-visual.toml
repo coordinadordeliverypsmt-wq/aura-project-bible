@@ -1,0 +1,48 @@
+incremento = "Percepción visual — primera grada (acta CEO 2026-09-27): frame ambiental, sin persona ni identidad ni almacenamiento"
+pruebas = ["tests/unit/test_percepcion_visual.py"]
+timeout_s = 300
+
+[[mutante]]
+id = "PV-M1"
+garantia = "ver un frame se disfraza de detectar una persona: se afirma detección no implementada (ALERTA-002)"
+fichero = "aura_skeleton/core/percepcion.py"
+pruebas = ["tests/unit/test_percepcion_visual.py::test_ver_un_frame_NO_es_detectar_una_persona_ni_identificarla"]
+buscar = '''        return LecturaVisual(frame_recibido=True, fuente=frame.fuente, ancho=frame.ancho, alto=frame.alto)'''
+sustituir = '''        return LecturaVisual(frame_recibido=True, fuente=frame.fuente, ancho=frame.ancho, alto=frame.alto,
+                             persona_detectada=True)'''
+
+[[mutante]]
+id = "PV-M2"
+garantia = "una cámara que no entrega frame se declara «frame recibido»: se inventa una percepción que no ocurrió"
+fichero = "aura_skeleton/core/percepcion.py"
+pruebas = ["tests/unit/test_percepcion_visual.py::test_si_la_camara_no_entrega_frame_se_dice_y_no_se_inventa"]
+buscar = '''        if frame is None:
+            obs.log("PERC", "vision", f"'{self._fuente.nombre}' no entregó frame", trace_id)
+            return LecturaVisual(frame_recibido=False, fuente=self._fuente.nombre)'''
+sustituir = '''        if frame is None:
+            obs.log("PERC", "vision", f"'{self._fuente.nombre}' no entregó frame", trace_id)
+            return LecturaVisual(frame_recibido=True, fuente=self._fuente.nombre)'''
+
+[[mutante]]
+id = "PV-M3"
+garantia = "la cámara deja de liberarse tras capturar: queda tomada entre turnos"
+fichero = "aura_skeleton/core/percepcion.py"
+pruebas = ["tests/unit/test_percepcion_visual.py::test_la_percepcion_libera_la_camara_y_no_guarda_la_imagen"]
+buscar = '''            if liberar is not None:
+                liberar()
+        if frame is None:'''
+sustituir = '''            if liberar is not None and False:
+                liberar()
+        if frame is None:'''
+
+[[mutante]]
+id = "PV-M4"
+garantia = "un sensor caído vuelve a derribar el turno en vez de degradar la lectura"
+fichero = "aura_skeleton/core/percepcion.py"
+pruebas = ["tests/unit/test_percepcion_visual.py::test_una_fuente_que_revienta_al_capturar_degrada_sin_derribar"]
+buscar = '''        except Exception as e:
+            # Un sensor desconectado es condición del entorno, no un crash (misma lección que contexto.py).
+            obs.log("PERC", "vision", f"fuente '{self._fuente.nombre}' no disponible: {e}", trace_id)
+            return LecturaVisual(frame_recibido=False, fuente=self._fuente.nombre)'''
+sustituir = '''        except Exception:
+            raise'''

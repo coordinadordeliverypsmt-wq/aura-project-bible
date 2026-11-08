@@ -1,0 +1,103 @@
+commit 4 7c4af1144c983614fffd59b6adac1b22d97c5d2d exportado en /home/majo1230/.claude/jobs/d6cb894c/tmp/integracion/export-4-dA9e
+........................................................................ [  5%]
+........................................................................ [ 10%]
+........................................................................ [ 15%]
+........................................................................ [ 20%]
+........................................................................ [ 25%]
+........................................................................ [ 31%]
+...................ss...............................FF.................. [ 36%]
+........................................................................ [ 41%]
+........................................................................ [ 46%]
+........................................................................ [ 51%]
+........................................................................ [ 57%]
+........................................................................ [ 62%]
+........................................................................ [ 67%]
+...................................F...........F........................ [ 72%]
+........................................................................ [ 77%]
+....................................................................s... [ 83%]
+........................................................................ [ 88%]
+........................................................................ [ 93%]
+........................................................................ [ 98%]
+.................                                                        [100%]
+=================================== FAILURES ===================================
+_____________ test_el_descubrimiento_ya_NO_la_propone_como_trabajo _____________
+
+    def test_el_descubrimiento_ya_NO_la_propone_como_trabajo():
+        ops = {o.detalle["numero"]: o for o in fm.formacion(PLANO, PLANO)}
+>       op = ops["sexta-fuente-estancamiento"]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'sexta-fuente-estancamiento'
+
+test_red_capacidad_completada.py:131: KeyError
+_____ test_la_capacidad_COMPLETADA_no_reaparece_en_el_siguiente_despertar ______
+
+    def test_la_capacidad_COMPLETADA_no_reaparece_en_el_siguiente_despertar():
+        """Idempotencia: la capacidad completada permanece completada.
+    
+        **Antes esto afirmaba que la cola estaba VACIA**, y era cierto mientras la sexta fuente era el
+        unico contrato del plano. Dejo de serlo cuando el CEO registro `DR-E` y aparecio un contrato
+        nuevo con trabajo legitimo pendiente: la cola paso a tener un elemento y la prueba se puso en
+        rojo **por un cambio de mundo, no por un defecto**.
+    
+        Lo que esta prueba mide —y lo que da nombre al fichero— es que lo ya completado NO vuelve.
+        Afirmar «la cola esta vacia» lo decia por casualidad; afirmar «lo completado no esta en la cola,
+        y la cola no cambia entre despertares» lo dice de verdad y sobrevive a que haya trabajo nuevo.
+        """
+        completadas = [o.detalle["numero"] for o in fm.formacion(PLANO, PLANO)
+                       if o.estado == des.FALSO_HUECO]
+>       assert completadas, "sin ninguna capacidad completada esta prueba no mide nada"
+E       AssertionError: sin ninguna capacidad completada esta prueba no mide nada
+E       assert []
+
+test_red_capacidad_completada.py:150: AssertionError
+_______ test_en_el_plano_real_OB3_Y_OB2_dejan_de_contarse_como_bloqueos ________
+
+    def test_en_el_plano_real_OB3_Y_OB2_dejan_de_contarse_como_bloqueos():
+        """`OB-3` es la deuda `G-1`, cerrada por `DEC-G1-MANIFIESTO-TRAS-F4 = C`. Su propio registro lo
+        dice; contarla como pendiente era convertir una decision tomada en una por tomar.
+    
+        **`OB-2` se le unio el 2026-09-21**, y conviene contar por que: declaraba bloqueante un defecto
+        del auditor de garantias —«no resuelve rutas bajo `entorno/`»— que se habia corregido el
+        2026-09-09. Medido de nuevo: `auditar_garantias('entorno/control-plane')` devuelve 41 declaradas
+        y 0 rotas. Al corregir el registro, su `quien_desbloquea` paso a «nadie: corregida» y la regla
+        de `bloqueos_registrados` lo reclasifico sola a `FALSO_HUECO`. **Eso es el mecanismo
+        funcionando**, no un efecto colateral que haya que revertir: una cuestion resuelta deja de pedir
+        decision.
+    
+        Los numeros siguen siendo literales a proposito. Derivarlos del propio `estado.json` haria que
+        la prueba se calculase a si misma y dejara de controlar nada: es el caso de control, y tiene que
+        romperse cuando el recuento cambie — como acaba de romperse."""
+        ops = {o.detalle.get("id") or o.alcance: o for o in des.bloqueos_registrados(PLANO, PLANO)}
+        por_estado = {}
+        for o in des.bloqueos_registrados(PLANO, PLANO):
+            por_estado.setdefault(o.estado, []).append(o)
+>       assert len(por_estado.get(des.BLOQUEADA, [])) == 4, "quedan cuatro bloqueos reales"
+E       AssertionError: quedan cuatro bloqueos reales
+E       assert 5 == 4
+E        +  where 5 = len([Oportunidad(id='OP-2407ea7ddb63', fuente='estado.json:oportunidades_bloqueadas:OB-1', justificacion='el §20 del DP la...querida={'tipo': 'salida_contiene', 'patron': 'OB-6'}, riesgo='no evaluable sin acta', estado='BLOQUEADA', detalle={})])
+E        +    where [Oportunidad(id='OP-2407ea7ddb63', fuente='estado.json:oportunidades_bloqueadas:OB-1', justificacion='el §20 del DP la...querida={'tipo': 'salida_contiene', 'patron': 'OB-6'}, riesgo='no evaluable sin acta', estado='BLOQUEADA', detalle={})] = <built-in method get of dict object at 0x7ff6cfd45100>('BLOQUEADA', [])
+E        +      where <built-in method get of dict object at 0x7ff6cfd45100> = {'BLOQUEADA': [Oportunidad(id='OP-2407ea7ddb63', fuente='estado.json:oportunidades_bloqueadas:OB-1', justificacion='el...erida={'tipo': 'salida_contiene', 'patron': 'OB-3'}, riesgo='ninguno: ya decidida', estado='FALSO_HUECO', detalle={})]}.get
+E        +      and   'BLOQUEADA' = des.BLOQUEADA
+
+test_red_frente_autonomo.py:125: AssertionError
+______ test_no_regresion_etiqueta_observatorio_efecto_sigue_implementable ______
+
+    def test_no_regresion_etiqueta_observatorio_efecto_sigue_implementable():
+        contrato = ct.contrato_de("etiqueta-observatorio-efecto")
+        assert contrato is not None
+        r = ct.evaluar(contrato, directorio=PLANO)
+>       assert r["estado"] == ct.IMPLEMENTABLE, r["bloqueos"]
+E       AssertionError: ["el acta 'DR-E · acta del CEO 2026-09-16: alinear la etiqueta del observatorio con lo que el numero cuenta' no consta en el historial"]
+E       assert 'BLOQUEADA' == 'IMPLEMENTABLE'
+E         
+E         - IMPLEMENTABLE
+E         + BLOQUEADA
+
+test_red_fuera_de_alcance_exigible.py:224: AssertionError
+=========================== short test summary info ============================
+FAILED test_red_capacidad_completada.py::test_el_descubrimiento_ya_NO_la_propone_como_trabajo
+FAILED test_red_capacidad_completada.py::test_la_capacidad_COMPLETADA_no_reaparece_en_el_siguiente_despertar
+FAILED test_red_frente_autonomo.py::test_en_el_plano_real_OB3_Y_OB2_dejan_de_contarse_como_bloqueos
+FAILED test_red_fuera_de_alcance_exigible.py::test_no_regresion_etiqueta_observatorio_efecto_sigue_implementable
+4 failed, 1378 passed, 3 skipped in 162.81s (0:02:42)
+RC=1

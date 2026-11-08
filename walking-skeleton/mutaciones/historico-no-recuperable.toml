@@ -18,15 +18,19 @@ sustituir = '''    return True'''
 id = "H-M2"
 garantia = "el nivel se declara pero queda vacio: nada se considera no recuperable"
 fichero = "aura_skeleton/contracts.py"
-buscar = '''KINDS_NO_RECUPERABLES = frozenset({HISTORICO})'''
+buscar = '''KINDS_NO_RECUPERABLES = frozenset({HISTORICO, RESULTADO_ACCION})'''
 sustituir = '''KINDS_NO_RECUPERABLES = frozenset()'''
 
 [[mutante]]
 id = "H-M3"
 garantia = "PersistentMemory deja de filtrar: el historico compite por el hueco `k` y desplaza memoria real"
 fichero = "aura_skeleton/modules/memory.py"
-buscar = '''                     for idx in sorted(candidatos) if es_recuperable(self._items[idx])]'''
-sustituir = '''                     for idx in sorted(candidatos)]'''
+buscar = '''        puntuados = [
+            (idx, len(consulta & self._terminos_item(idx)))
+            for idx in sorted(candidatos)
+            if es_recuperable(self._items[idx])
+        ]'''
+sustituir = '''        puntuados = [(idx, len(consulta & self._terminos_item(idx))) for idx in sorted(candidatos)]'''
 
 [[mutante]]
 id = "H-M4"

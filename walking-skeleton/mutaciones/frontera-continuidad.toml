@@ -1,0 +1,85 @@
+incremento = "Frontera de continuidad entre turnos + veracidad del registro forense (M7, CEO 2026-09-21)"
+# Dos correcciones y una frontera. Los mutantes atacan las tres formas de deshacerlas sin que nadie
+# se entere: volver a contar una repeticion como conocimiento distinto, volver a escribir «ejecutada»
+# en el registro forense pase lo que pase, y dejar que el resultado de una ejecucion se escape de la
+# memoria de trabajo hacia sitios donde hoy NO esta —que es como la decision pendiente se tomaria sola.
+pruebas = ["tests/unit/test_modelo_usuario_mvp.py",
+           "tests/integration/test_ordenes_de_capacidad.py",
+           "tests/integration/test_frontera_continuidad.py"]
+timeout_s = 600
+
+# --------------------------------------------------- la proyeccion no cuenta de mas --
+
+[[mutante]]
+id = "FC-M1"
+garantia = "sin dedupe, un hecho declarado tres veces vuelve a presentarse como tres conocimientos"
+fichero = "aura_skeleton/core/modelo_usuario.py"
+buscar = '''        if e["contenido"] in vistas:
+            continue'''
+sustituir = '''        if False:
+            continue'''
+
+[[mutante]]
+id = "FC-M2"
+garantia = "la dedupe colapsa hechos DISTINTOS: el usuario perderia todo menos el primero"
+fichero = "aura_skeleton/core/modelo_usuario.py"
+buscar = '''        vistas.add(e["contenido"])'''
+sustituir = '''        vistas.add("")'''
+
+[[mutante]]
+id = "FC-M3"
+garantia = "la dedupe se aplica ANTES del filtro de vigencia y resucita una version ya superada"
+fichero = "aura_skeleton/core/modelo_usuario.py"
+buscar = '''    vivas = [e for e in entradas if not e.get("refutada") and e.get("valid_until") is None]'''
+sustituir = '''    vivas = list(entradas)'''
+
+# ------------------------------------------- el registro forense cuenta lo que paso --
+
+[[mutante]]
+id = "FC-M4"
+garantia = "el audit log vuelve a afirmar «ejecutada» sobre ordenes DETENIDAS y con ERROR"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        desenlace = {"ejecutada": "ejecutada", "detenida": "detenida", "error": "error"}.get(
+            str(estado), f"con desenlace no reconocido ({estado!r})"
+        )'''
+sustituir = '''        desenlace = "ejecutada"'''
+
+[[mutante]]
+id = "FC-M5"
+garantia = "el desenlace deja de leerse del motor: el registro describe la intencion, no el hecho"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        estado = res.get("estado") if isinstance(res, dict) else None'''
+sustituir = '''        estado = "ejecutada"'''
+
+# ----------------------------- el resultado no se escapa de la memoria de trabajo --
+
+[[mutante]]
+id = "FC-M6"
+garantia = "la ventana de trabajo deja de retener el turno: DR-4 se desactiva sin que nadie lo note"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            buffer.append(recuperacion.Turno(text, say, e, dominio))'''
+sustituir = '''            buffer.append(recuperacion.Turno(text, "", e, dominio))'''
+
+[[mutante]]
+id = "FC-M7"
+garantia = "la respuesta de AURA —con el resultado dentro— pasa a persistirse como memoria del usuario"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''                await self.memory.write(uid, kind, f"usuario dijo: {text}", {"trace_id": tid, "fuente": "conversacion"})'''
+sustituir = '''                await self.memory.write(uid, kind, f"usuario dijo: {text} {say}", {"trace_id": tid, "fuente": "conversacion"})'''
+
+# ------------------------------------------ lo retenido deja rastro, y solo el metadato --
+
+[[mutante]]
+id = "FC-M8"
+garantia = "la retencion vuelve a ser invisible: ningun rastro de que el resultado quedo en la ventana"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            if dominio == "orden_de_capacidad":'''
+sustituir = '''            if False:'''
+
+[[mutante]]
+id = "FC-M9"
+garantia = "el rastro pasa a llevar el TEXTO retenido: el audit log se vuelve la copia persistente"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''                    f"resultado retenido en la ventana de trabajo: {len(buffer)}/{self._DIALOG_MAX} "
+                    f"turnos (DR-4); no persiste fuera del proceso",'''
+sustituir = '''                    f"resultado retenido en la ventana de trabajo: {say}",'''

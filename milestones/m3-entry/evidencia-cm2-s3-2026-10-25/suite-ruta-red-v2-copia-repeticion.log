@@ -1,0 +1,4 @@
+parche v2 aplicado en /tmp/aura-mutar-s10lfydr/m3-entry | carga inicial (0.9990234375, 1.76416015625, 2.935546875)
+$ pytest (suite completa, copia CON parche v2) rc=0 en 634s | carga final (1.0283203125, 1.12548828125, 1.98486328125)
+3842 passed, 3 skipped, 17 xfailed in 631.50s (0:10:31)
+exit=0

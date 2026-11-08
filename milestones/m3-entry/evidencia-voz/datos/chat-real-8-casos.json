@@ -1,0 +1,112 @@
+{
+  "fecha": "2026-09-15 22:57:08",
+  "modelo": "qwen2.5:0.5b",
+  "stack": "real",
+  "voz": "/media/majo1230/AURORA_EXT/piper_voices/es_MX-ald-medium.onnx",
+  "turnos": [
+    {
+      "caso": "conversacion",
+      "entrada": "hola",
+      "say": "Hola.\n¿En qué puedo ayudarte hoy?",
+      "quien_responde": "CORE",
+      "dominio": "conversacion_general",
+      "estatus": "hecho",
+      "llamadas_llm": 0,
+      "latencia_s": 8.79,
+      "voz": "ok"
+    },
+    {
+      "caso": "declaracion_propia",
+      "entrada": "me llamo Mauricio",
+      "say": "Entendido.",
+      "quien_responde": "CORE",
+      "dominio": "declaracion",
+      "estatus": "hecho",
+      "llamadas_llm": 0,
+      "latencia_s": 8.17,
+      "voz": "ok"
+    },
+    {
+      "caso": "consulta_memoria",
+      "entrada": "como me llamo",
+      "say": "Te llamas Mauricio.",
+      "quien_responde": "CORE",
+      "dominio": "modelo_usuario",
+      "estatus": "hecho",
+      "llamadas_llm": 0,
+      "latencia_s": 14.75,
+      "voz": "ok"
+    },
+    {
+      "caso": "memoria_inexistente",
+      "entrada": "como se llama mi hija",
+      "say": "No tengo ningun recuerdo registrado sobre eso.",
+      "quien_responde": "CORE",
+      "dominio": "memoria",
+      "estatus": "ausencia",
+      "llamadas_llm": 0,
+      "latencia_s": 15.81,
+      "voz": "ok"
+    },
+    {
+      "caso": "matematica_determinista",
+      "entrada": "si tengo 4 manzanas y me como una cuantas me quedan",
+      "say": "Te quedan 3 manzanas.",
+      "quien_responde": "CORE",
+      "dominio": "aritmetica",
+      "estatus": "hecho",
+      "llamadas_llm": 0,
+      "latencia_s": 8.65,
+      "voz": "ok"
+    },
+    {
+      "caso": "conocimiento_general",
+      "entrada": "el cielo de qué color es",
+      "say": "Esto lo genera mi modelo local y no está verificado: El cielo está oscuro.",
+      "quien_responde": "MODELO (ollama)",
+      "dominio": "llm",
+      "estatus": "propuesta",
+      "llamadas_llm": 1,
+      "latencia_s": 247.38,
+      "voz": "ok"
+    },
+    {
+      "caso": "tema_sensible",
+      "entrada": "quién es Jesús Cristo",
+      "say": "Sobre religión no te doy respuestas generadas por mi modelo local: no puedo verificarlas y podrían ser falsas.",
+      "quien_responde": "CORE",
+      "dominio": "sensible",
+      "estatus": "abstencion",
+      "llamadas_llm": 0,
+      "latencia_s": 13.24,
+      "voz": "ok"
+    },
+    {
+      "caso": "persona_real",
+      "entrada": "quién es Simón Bolívar",
+      "say": "Sobre personas reales no te doy respuestas generadas por mi modelo local: no puedo verificarlas y podrían ser falsas.",
+      "quien_responde": "CORE",
+      "dominio": "sensible",
+      "estatus": "abstencion",
+      "llamadas_llm": 0,
+      "latencia_s": 29.6,
+      "voz": "ok"
+    }
+  ],
+  "memoria_final": [
+    {
+      "contenido": "me llamo Mauricio",
+      "tipo": "semantica",
+      "origen": "declarada",
+      "fuente": "conversacion",
+      "clase": "hecho_declarado",
+      "refutada": false,
+      "ts": 1789531037.2665555,
+      "version": null,
+      "supersedes": null,
+      "valid_from": null,
+      "valid_until": null
+    }
+  ],
+  "llamadas_llm_totales": 1
+}

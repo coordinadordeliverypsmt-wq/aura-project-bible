@@ -1,0 +1,13 @@
+walking-skeleton/herramientas/mutar.py
+walking-skeleton/herramientas/registro_gate.py
+walking-skeleton/mutaciones/arnes-ciclo-de-vida.toml
+walking-skeleton/mutaciones/arnes-copia-aislada.toml
+walking-skeleton/mutaciones/arnes-timeout.toml
+walking-skeleton/mutaciones/arnes-validador-comandos.toml
+walking-skeleton/mutaciones/retiradas/LEEME.md
+walking-skeleton/mutaciones/retiradas/arnes-ciclo-de-vida-diario-en-sitio.toml
+walking-skeleton/mutaciones/retiradas/arnes-validador-comandos.toml
+walking-skeleton/quality-gate.sh
+walking-skeleton/tests/unit/test_arnes_ciclo_de_vida.py
+walking-skeleton/tests/unit/test_arnes_mutacion.py
+walking-skeleton/tests/unit/test_registro_gate.py

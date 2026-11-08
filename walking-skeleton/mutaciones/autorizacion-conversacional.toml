@@ -84,11 +84,15 @@ garantia = "autorizar NO ejecuta: si el chat ejecutara, autorizacion y ejecucion
 fichero = "aura_skeleton/core/orchestrator.py"
 pruebas = ["tests/integration/test_autorizacion_conversacional.py::test_autorizar_NO_ejecuta_la_tarea_en_el_turno",
            "tests/integration/test_autorizacion_conversacional.py::test_E2E_autorizo_por_chat_y_el_CICLO_AUTONOMO_lo_ejecuta"]
-buscar = '''        return (f"Autorización registrada para {identificador} ({decision.get('accion')}). "
-                f"No ejecuto la tarea desde la conversación: queda disponible para mi próximo "
-                f"ciclo autónomo, que volverá a comprobar el permiso antes de actuar.")'''
-sustituir = '''        return (f"Autorización registrada para {identificador} ({decision.get('accion')}) y "
-                f"ejecutada al momento.")'''
+buscar = '''        return (
+            f"Autorización registrada para {identificador} ({decision.get('accion')}). "
+            f"No ejecuto la tarea desde la conversación: queda disponible para mi próximo "
+            f"ciclo autónomo, que volverá a comprobar el permiso antes de actuar."
+        )'''
+sustituir = '''        return (
+            f"Autorización registrada para {identificador} ({decision.get('accion')}) y "
+            f"ejecutada al momento."
+        )'''
 
 # --------- REGISTRAR CON PROCEDENCIA ---------
 
@@ -121,8 +125,14 @@ id = "AU-M12"
 garantia = "queda rastro FORENSE de quien abrio una accion de lista roja (H2)"
 fichero = "aura_skeleton/core/orchestrator.py"
 pruebas = ["tests/integration/test_autorizacion_conversacional.py::test_la_autorizacion_deja_rastro_en_la_AUDITORIA"]
-buscar = '''        obs.log("HITL", "autorizacion", f"{decision.get('accion')} autorizada por {uid} desde la "
-                f"conversacion ({huella[:8]}): pendiente -> aprobada", tid, audit=True)'''
+buscar = '''        obs.log(
+            "HITL",
+            "autorizacion",
+            f"{decision.get('accion')} autorizada por {uid} desde la "
+            f"conversacion ({huella[:8]}): pendiente -> aprobada",
+            tid,
+            audit=True,
+        )'''
 sustituir = '''        pass'''
 
 # --------- NO DUPLICAR, NO INVENTAR AUTORIDAD ---------
@@ -149,8 +159,7 @@ garantia = "sin buzon conectado NO se finge haber registrado nada"
 fichero = "aura_skeleton/core/orchestrator.py"
 pruebas = ["tests/integration/test_autorizacion_conversacional.py::test_SIN_BUZON_conectado_no_se_finge_haber_registrado_nada"]
 buscar = '''        if self.decisiones is None:
-            return ("No tengo buzón de decisiones conectado, así que no puedo registrar ninguna "
-                    "autorización desde aquí.")'''
+            return "No tengo buzón de decisiones conectado, así que no puedo registrar ninguna autorización desde aquí."'''
 sustituir = '''        if self.decisiones is None:
             return "Autorización registrada."'''
 
@@ -162,10 +171,11 @@ garantia = "el buzon de la conversacion es EL MISMO del motor: dos serian dos fu
 fichero = "aura_skeleton/composicion.py"
 pruebas = ["tests/integration/test_autorizacion_conversacional.py::test_el_buzon_de_la_conversacion_es_EL_MISMO_que_el_del_motor",
            "tests/integration/test_autorizacion_conversacional.py::test_la_autorizacion_es_VISIBLE_para_el_siguiente_ciclo"]
-buscar = '''        decisiones=decisiones,
-    )'''
-sustituir = '''        decisiones=None,
-    )'''
+# RE-ANCLADO 2026-10-18 (avisos NODO-01, acta R1): `vigia_nodos=` se añadió DESPUÉS de `decisiones=` en el
+# `Orchestrator(...)` de la composición, así que el cierre `)` ya no sigue a esta línea. La línea es única en el
+# fichero; la degradación y la garantía son las mismas.
+buscar = '''        decisiones=decisiones,'''
+sustituir = '''        decisiones=None,'''
 
 [[mutante]]
 id = "AU-M17"

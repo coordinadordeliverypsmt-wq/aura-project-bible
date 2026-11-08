@@ -1,0 +1,22 @@
+# Resumen de evidencia (extraido de los logs del job d6cb894c, 2026-10-25)
+## Mutacion linea base (sin test_produccion_*)
+  [!!] C1 (SOBREVIVE): la composicion de produccion audita en otro fichero: --medir-cm2 no ve ningun hecho real
+  [OK] C2 (detectado): la composicion no inscribe el ejecutor del modelo de usuario: ningun hecho se registra
+  [OK] C3 (detectado): el reloj lee otro audit distinto del de la composicion
+  [OK] C4 (detectado): el ejecutor emite el registro del hecho con otro nombre de evento
+Total: 3 detectados, 1 sobreviven, 0 no aplicados, 0 ambiguos, 0 en timeout
+exit=2
+## Mutacion final (con test_produccion_*)
+  [OK] C1 (detectado): la composicion de produccion audita en otro fichero: --medir-cm2 no ve ningun hecho real
+  [OK] C2 (detectado): la composicion no inscribe el ejecutor del modelo de usuario: ningun hecho se registra
+  [OK] C3 (detectado): el reloj lee otro audit distinto del de la composicion
+  [OK] C4 (detectado): el ejecutor emite el registro del hecho con otro nombre de evento
+Total: 4 detectados, 0 sobreviven, 0 no aplicados, 0 ambiguos, 0 en timeout
+exit=0
+aura_skeleton/composicion.py: La suma coincide
+aura_skeleton/core/reloj_cm2.py: La suma coincide
+aura_skeleton/core/ejecutor_modelo_usuario.py: La suma coincide
+## Quality Gate
+3814 passed, 3 skipped, 17 xfailed in 533.84s (0:08:53)
+QUALITY GATE: PASS — listo para integrar/ejecutar
+EXIT=0

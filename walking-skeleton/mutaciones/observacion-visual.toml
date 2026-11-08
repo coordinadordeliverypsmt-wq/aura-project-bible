@@ -1,0 +1,74 @@
+incremento = 'FRAME → OBSERVACIÓN (DP aprobado 2026-09-28, Alt B / bajo demanda / imagen-cero): observación ambiental consumible, efímera, sin persona/identidad/evento/imagen'
+pruebas = ["tests/unit/test_observacion_visual.py", "tests/integration/test_observacion_en_conversacion.py"]
+timeout_s = 400
+
+[[mutante]]
+id = "OBS-M1"
+garantia = 'una superficie NO autorizada produce observación igualmente (se salta la política)'
+fichero = "aura_skeleton/core/percepcion.py"
+pruebas = ["tests/unit/test_observacion_visual.py::test_observar_una_superficie_NO_autorizada_no_captura"]
+buscar = '''        if self._politica is not None and not self._politica.puede_procesar_visual(surface_id):
+            return None'''
+sustituir = '''        if False:
+            return None'''
+
+[[mutante]]
+id = "OBS-M2"
+garantia = 'una superficie desconocida deja de devolver None (intenta observar algo inexistente)'
+fichero = "aura_skeleton/core/percepcion.py"
+pruebas = ["tests/unit/test_observacion_visual.py::test_observar_una_superficie_desconocida_devuelve_None"]
+buscar = '''        if entrada is None:
+            obs.log("PERC", "vision", f"superficie '{surface_id}' no registrada; no observo", trace_id)
+            return None'''
+sustituir = '''        if entrada is None:
+            obs.log("PERC", "vision", f"superficie '{surface_id}' no registrada; no observo", trace_id)
+            entrada = (None, "?")'''
+
+[[mutante]]
+id = "OBS-M3"
+garantia = 'el reconocedor de «¿qué ves en la cámara X?» deja de exigir el nombre de cámara: desviaría cualquier pregunta'
+fichero = "aura_skeleton/core/percepcion.py"
+pruebas = ["tests/unit/test_observacion_visual.py::test_reconocedor_exige_camara_y_nombre"]
+buscar = '''    m = re.search(patron_intencion + r".*?\bcamara\b\s+(.+)$", t)'''
+sustituir = '''    m = re.search(patron_intencion + r".*?(.+)$", t)'''
+
+[[mutante]]
+id = "OBS-M4"
+garantia = 'la observación de la superficie visual se escribe en memoria (deja de ser efímera)'
+fichero = "aura_skeleton/core/orchestrator.py"
+pruebas = ["tests/integration/test_observacion_en_conversacion.py::test_la_observacion_visual_NO_llama_a_memory_write"]
+buscar = '''            await self._finalizar_turno(
+                uid,
+                tid,
+                text,
+                resp,
+                "core",
+                t,
+                dominio="percepcion_visual",'''
+sustituir = '''            await self.memory.write(uid, "hecho", resp, {"trace_id": tid, "fuente": "vision"})
+            await self._finalizar_turno(
+                uid,
+                tid,
+                text,
+                resp,
+                "core",
+                t,
+                dominio="percepcion_visual",'''
+
+[[mutante]]
+id = "OBS-M5"
+garantia = 'describir_observacion deja de declarar que NO interpreta contenido/identidad (afirmaría de más)'
+fichero = "aura_skeleton/core/percepcion.py"
+pruebas = ["tests/unit/test_observacion_visual.py::test_describir_observacion_es_honesto_sobre_lo_que_no_sabe"]
+buscar = '''        f"No interpreto su contenido ni identifico a nadie: solo confirmo que hay señal de vídeo."'''
+sustituir = '''        ""'''
+
+[[mutante]]
+id = "OBS-M6"
+garantia = 'sin frame, la observación afirma dimensiones inventadas en vez de decir que no recibió imagen'
+fichero = "aura_skeleton/core/percepcion.py"
+pruebas = ["tests/unit/test_observacion_visual.py::test_describir_sin_frame_no_inventa_dimensiones"]
+buscar = '''    if not obs.frame_recibido:
+        return f"No recibí imagen de «{obs.superficie}» ahora mismo."'''
+sustituir = '''    if False:
+        return f"No recibí imagen de «{obs.superficie}» ahora mismo."'''

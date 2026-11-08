@@ -1,0 +1,183 @@
+incremento = "Voz -> accion, opcion C (CEO, 2026-10-04, DP-VOZ-ACCION §8): activacion, llave por entidad, resolucion explicita y confianza del STT"
+# Cada mutante deshace UNA salvaguarda de la frontera voz -> accion. Si sobrevive, falta una prueba.
+pruebas = ["tests/integration/test_voz_accion_opcion_c.py",
+           "tests/integration/test_hogar_en_conversacion.py",
+           "tests/unit/test_escucha_continua.py",
+           "tests/unit/test_ordenes_de_hogar.py",
+           "tests/unit/test_home_assistant_real.py"]
+timeout_s = 1200
+
+[[mutante]]
+id = "VA-M1"
+garantia = "la orden HABLADA ya no exige activacion: sin decir «Aurora» se propone"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''self._rechazo_de_voz(por_voz, activado, tid, "orden hablada")'''
+sustituir = '''self._rechazo_de_voz(por_voz, True, tid, "orden hablada")'''
+
+[[mutante]]
+id = "VA-M2"
+garantia = "el «si» hablado ya no exige activacion: se confirma sin decir «Aurora»"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''self._rechazo_de_voz(por_voz, activado, tid, "confirmacion hablada")'''
+sustituir = '''self._rechazo_de_voz(por_voz, True, tid, "confirmacion hablada")'''
+
+[[mutante]]
+id = "VA-M3"
+garantia = "la allowlist se ignora al resolver: «la tele» se busca entre TODAS las entidades y la TV .20 entra"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''return await asyncio.to_thread(resolver, dispositivo, self.voz_actua_en)'''
+sustituir = '''return await asyncio.to_thread(resolver, dispositivo, None)'''
+
+[[mutante]]
+id = "VA-M4"
+garantia = "la constante VOZ_ACTUA_EN se amplia a la TV .20: la voz puede accionar el televisor fuera de alcance"
+fichero = "aura_skeleton/composicion.py"
+buscar = '''VOZ_ACTUA_EN: frozenset[str] = frozenset({"media_player.tv_sala_fmilia_medina_un43ru7100fxza"})'''
+sustituir = '''VOZ_ACTUA_EN: frozenset[str] = frozenset(
+    {"media_player.tv_sala_fmilia_medina_un43ru7100fxza", "media_player.samsung_6_series_55_un55ku6000"}
+)'''
+
+[[mutante]]
+id = "VA-M5"
+garantia = "la resolucion del adaptador ignora el filtro `dentro_de`: «la tele» resuelve fuera de la llave"
+fichero = "aura_skeleton/adapters/home_assistant_real.py"
+buscar = '''        if dentro_de is not None:'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "VA-M6"
+garantia = "se elimina la comprobacion de confianza del STT: una transcripcion dudosa propone y confirma"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        if hogar.confianza_baja(getattr(self.voice, "ultima_confianza", None)):'''
+sustituir = '''        if False:'''
+
+[[mutante]]
+id = "VA-M7"
+garantia = "umbral de no_speech_prob invertido: solo se rechaza el audio que SI es habla"
+fichero = "aura_skeleton/core/hogar.py"
+buscar = '''confianza.get("no_speech_prob", 0.0) > UMBRAL_NO_HABLA'''
+sustituir = '''confianza.get("no_speech_prob", 0.0) < UMBRAL_NO_HABLA'''
+
+[[mutante]]
+id = "VA-M8"
+garantia = "umbral de avg_logprob invertido: se rechaza la transcripcion SEGURA y se acepta la dudosa"
+fichero = "aura_skeleton/core/hogar.py"
+buscar = '''confianza.get("avg_logprob", 0.0) < UMBRAL_LOGPROB'''
+sustituir = '''confianza.get("avg_logprob", 0.0) > UMBRAL_LOGPROB'''
+
+[[mutante]]
+id = "VA-M9"
+garantia = "el borde del umbral rechaza (>= en vez de >): la confianza justo en el umbral se descarta"
+fichero = "aura_skeleton/core/hogar.py"
+buscar = '''confianza.get("no_speech_prob", 0.0) > UMBRAL_NO_HABLA'''
+sustituir = '''confianza.get("no_speech_prob", 0.0) >= UMBRAL_NO_HABLA'''
+
+[[mutante]]
+id = "VA-M10"
+garantia = "la confirmacion hablada ejecuta SIN pasar por `_despachar_orden`: va directa al adaptador, sin Motor Unico ni PARADA"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''                resp = await self._despachar_orden(uid, capacidad, {"device": args["device"]}, tid)'''
+sustituir = '''                _ad = self.registro.para(capacidad)
+                await _ad.execute(capacidad, {"device": args["device"]}, tid, "mut-" + tid)
+                resp = "Hecho."'''
+
+[[mutante]]
+id = "VA-M11"
+garantia = "el payload del turno declara SIEMPRE la activacion: el teclado y pulsar-para-hablar se toman por llamada"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''{"text": text, "voz": text != audio_text, "activado": activado},'''
+sustituir = '''{"text": text, "voz": text != audio_text, "activado": True},'''
+
+[[mutante]]
+id = "VA-M12"
+garantia = "on_turn ignora la activacion publicada: cualquier turno hablado cuenta como activado"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        activado = bool(ev.payload.get("activado"))'''
+sustituir = '''        activado = True'''
+
+[[mutante]]
+id = "VA-M13"
+garantia = "la escucha continua deja de declarar la activacion: la orden hablada tras «Aurora» nunca actua"
+fichero = "aura_skeleton/__main__.py"
+buscar = '''        await _turno_de_voz(sistema, microfono, tid, activado=True)'''
+sustituir = '''        await _turno_de_voz(sistema, microfono, tid)'''
+
+[[mutante]]
+id = "VA-M14"
+garantia = "pulsar-para-hablar y el teclado pasan activado=True por defecto"
+fichero = "aura_skeleton/__main__.py"
+buscar = '''async def _turno_de_voz(sistema, microfono, tid: str, texto: str | None = None, activado: bool = False) -> None:'''
+sustituir = '''async def _turno_de_voz(sistema, microfono, tid: str, texto: str | None = None, activado: bool = True) -> None:'''
+
+[[mutante]]
+id = "VA-M15"
+garantia = "la frontera de voz se salta para todo turno: un turno hablado se trata como escrito en la guarda C1/C4"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        if not por_voz:
+            return None
+        if not activado:'''
+sustituir = '''        if True:
+            return None
+        if not activado:'''
+
+[[mutante]]
+id = "VA-M16"
+garantia = "la propuesta se guarda con la entidad equivocada: el «si» actua sobre lo que dijo la persona, no sobre la entidad resuelta"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''            self._propuestas_de_hogar[uid] = (capacidad, {"device": entidad, "nombre": nombre})'''
+sustituir = '''            self._propuestas_de_hogar[uid] = (capacidad, {"device": dispositivo, "nombre": nombre})'''
+
+# ---- Lenguaje humano (CEO, 2026-10-04): «la TV de la sala», nunca el entity_id ni el friendly_name técnico ----
+
+[[mutante]]
+id = "VA-N1"
+garantia = "la propuesta por voz usa el friendly_name tecnico aunque la entidad tenga nombre humano"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''hogar.proponer_humano(capacidad, humano) if humano else hogar.proponer(capacidad, nombre),'''
+sustituir = '''hogar.proponer(capacidad, nombre),'''
+
+[[mutante]]
+id = "VA-N2"
+garantia = "el resultado tras actuar vuelve a nombrar la entidad por su entity_id"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''    humano = (nombres or {}).get(dispositivo)'''
+sustituir = '''    humano = None'''
+
+[[mutante]]
+id = "VA-N3"
+garantia = "al despachar, el entity_id interno se sustituye por el nombre humano: HA recibiria un nombre, no la entidad"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''                resp = await self._despachar_orden(uid, capacidad, {"device": args["device"]}, tid)'''
+sustituir = '''                resp = await self._despachar_orden(
+                    uid, capacidad, {"device": self.nombres_de_voz.get(args["device"], args["device"])}, tid
+                )'''
+
+[[mutante]]
+id = "VA-N4"
+garantia = "el texto humano dice «listo» sin que el adaptador haya verificado el efecto"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''    if detalle.get("verificado") is True and detalle.get("evidencia") != "estado_asumido_por_ha":
+        # Nivel de evidencia'''
+sustituir = '''    if detalle.get("status") in ("ok", "sin_efecto"):
+        # Nivel de evidencia'''
+
+[[mutante]]
+id = "VA-N5"
+garantia = "la llave cerrada (confirmacion detenida) vuelve a nombrar la entidad con el nombre tecnico"
+fichero = "aura_skeleton/core/hogar.py"
+buscar = '''    objetivo = nombre_humano or f"«{args.get('nombre') or args.get('device')}»"'''
+sustituir = '''    objetivo = f"«{args.get('nombre') or args.get('device')}»"'''
+
+[[mutante]]
+id = "VA-N6"
+garantia = "la composicion no cablea el nombre humano al orquestador: la voz vuelve a hablar en tecnico"
+fichero = "aura_skeleton/composicion.py"
+buscar = '''    orquestador.nombres_de_voz = NOMBRE_HUMANO_DE_VOZ'''
+sustituir = '''    orquestador.nombres_de_voz = {}'''
+
+[[mutante]]
+id = "VA-N7"
+garantia = "el motivo de un error/detencion filtra el entity_id (no se sustituye por el nombre humano)"
+fichero = "aura_skeleton/core/orchestrator.py"
+buscar = '''        texto = texto.replace(f"«{entidad}»", nombre).replace(entidad, nombre)'''
+sustituir = '''        texto = texto'''

@@ -1,0 +1,44 @@
+incremento = "VOICE PERSISTENCE B (acta del CEO, 2026-09-16): lanzador con guardarrail tipo D27 — comprueba el DISPOSITIVO real, no la ruta, y degrada con honestidad"
+pruebas = ["tests/integration/test_guardarrail_de_voz.py"]
+timeout_s = 300
+
+[[mutante]]
+id = "GV-M1"
+garantia = "el lanzador deja de comprobar el DISPOSITIVO: acepta una ruta del disco interno como si fuera la USB, que es la leccion literal de D27"
+fichero = "../entorno/scripts/voz-usb.sh"
+pruebas = ["tests/integration/test_guardarrail_de_voz.py::test_no_basta_con_que_la_ruta_exista_hay_que_comprobar_el_DISPOSITIVO",
+           "tests/integration/test_guardarrail_de_voz.py::test_sin_la_USB_lo_dice_y_no_exporta_nada"]
+buscar = '''  if [ -z "$USB_DEV" ]; then'''
+sustituir = '''  if false; then'''
+
+[[mutante]]
+id = "GV-M2"
+garantia = "deja de exigir el .onnx.json: Piper abortara a mitad del turno con un error ilegible sobre un fichero que el usuario nunca nombro"
+fichero = "../entorno/scripts/voz-usb.sh"
+pruebas = ["tests/integration/test_guardarrail_de_voz.py::test_si_falta_el_json_de_la_voz_tambien_se_detecta"]
+buscar = '''[ -r "$VOZ_ONNX.json" ]   || FALLOS+=("falta o no es legible el .onnx.json de la voz: $VOZ_ONNX.json")'''
+sustituir = '''true'''
+
+[[mutante]]
+id = "GV-M3"
+garantia = "el lanzador deja de forzar el modo sin red: faster-whisper podria volver a descargar el modelo (D24/ADR-0001)"
+fichero = "../entorno/scripts/voz-usb.sh"
+pruebas = ["tests/integration/test_guardarrail_de_voz.py::test_con_la_USB_montada_y_los_modelos_dentro_declara_la_voz_disponible"]
+buscar = '''  echo "  HF_HUB_OFFLINE=1"'''
+sustituir = '''  echo "  (sin declarar)"'''
+
+[[mutante]]
+id = "GV-M4"
+garantia = "`--exigir-voz` deja de abortar: el modo estricto de D27 se vuelve decorativo"
+fichero = "../entorno/scripts/voz-usb.sh"
+pruebas = ["tests/integration/test_guardarrail_de_voz.py::test_con_exigir_voz_se_niega_a_arrancar_como_hace_D27"]
+buscar = '''if [ "$EXIGIR_VOZ" = "1" ]; then'''
+sustituir = '''if false; then'''
+
+[[mutante]]
+id = "GV-M5"
+garantia = "deja de exigir la cache de Whisper: el STT fallara en el primer audio en vez de declararse al arrancar"
+fichero = "../entorno/scripts/voz-usb.sh"
+pruebas = ["tests/integration/test_guardarrail_de_voz.py::test_si_falta_la_cache_de_whisper_se_detecta"]
+buscar = '''[ -d "$CACHE_HF" ]        || FALLOS+=("falta la cache de faster-whisper: $CACHE_HF")'''
+sustituir = '''true'''

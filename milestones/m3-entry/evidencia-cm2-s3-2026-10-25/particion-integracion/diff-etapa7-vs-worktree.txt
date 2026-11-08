@@ -1,0 +1,8 @@
+Sólo en ./.claude: ficha-evidencia.md
+Sólo en ./.claude: scheduled_tasks.lock
+Sólo en ./entorno/control-plane: .control-plane.lock
+Los archivos /home/majo1230/.claude/jobs/d6cb894c/tmp/particion/arbol-7/entorno/control-plane/estado.json y ./entorno/control-plane/estado.json son distintos
+Los archivos /home/majo1230/.claude/jobs/d6cb894c/tmp/particion/arbol-7/entorno/control-plane/eventos.jsonl y ./entorno/control-plane/eventos.jsonl son distintos
+Sólo en ./entorno/control-plane: PARADA
+Los archivos /home/majo1230/.claude/jobs/d6cb894c/tmp/particion/arbol-7/.githooks/omisiones.log y ./.githooks/omisiones.log son distintos
+Sólo en .: kernel.errors.txt

@@ -101,15 +101,19 @@ sustituir = '''    if False:
 
 [[mutante]]
 id = "AC-M9"
+# RE-ANCLADO 2026-09-16 (BLINDAJE): la linea lleva ahora un comentario que explica que `sano is None`
+# («no se verifico») tambien revierte. Misma garantia, mismo mutante, mismo efecto.
 garantia = "el cambio se REVIERTE si la verificacion falla: dejar el arbol roto es peor que no hacer nada"
 fichero = "autoconstruccion.py"
 pruebas = ["test_red_autoconstruccion.py::test_el_cambio_es_REVERSIBLE_y_se_revierte_si_la_verificacion_falla"]
+# RE-ANCLADO 2026-10-22 (candidato aislado): ya no hay `write_text(original)` que revertir; el equivalente
+# de «revertir» es RECHAZAR sin promover (el vivo no cambia). Misma degradacion: nunca se rechaza, asi
+# que un cambio con verificacion fallida se promueve al vivo.
+# RE-ANCLADO 2026-10-23 (fases A/B): el motivo se deriva ahora de `_MOTIVOS`. Misma degradacion.
 buscar = '''    if not (efecto and sano):
-        ruta.write_text(original, encoding="utf-8")
-        revertido = True'''
+        motivo = _MOTIVOS.get('''
 sustituir = '''    if False:
-        ruta.write_text(original, encoding="utf-8")
-        revertido = True'''
+        motivo = _MOTIVOS.get('''
 
 [[mutante]]
 id = "AC-M10"
@@ -119,11 +123,11 @@ fichero = "autoconstruccion.py"
 # borrarlo, asi que el efecto nunca llegaba a ser falso y el mutante sobrevivia sin faltar prueba —
 # faltaba el CASO: un borrado que no hace nada.
 pruebas = ["test_red_segunda_barrera.py::test_si_el_BORRADO_no_hace_nada_no_se_declara_efecto"]
-# Reapuntado 2026-08-31: la comprobacion pasa a releer el ARBOL —vale para las cinco formas y no se
-# deja enganar por una mencion en un comentario—, asi que el patron viejo dejo de existir.
-buscar = '''    efecto = _existe_simbolo(original, propuesta["simbolo"], forma) \
-        and not _existe_simbolo(tras_el_cambio, propuesta["simbolo"], forma)'''
-sustituir = '''    efecto = True'''
+# RE-ANCLADO 2026-10-22 (candidato aislado): la comprobacion vive ahora en `efecto_en`, dentro de
+# `_aplicar_en_copia`. Misma garantia y misma degradacion (el efecto se da por hecho). Unico en el fichero.
+buscar = '''        return _existe_simbolo(original, propuesta["simbolo"], forma) \
+            and not _existe_simbolo(tras_el_cambio, propuesta["simbolo"], forma)'''
+sustituir = '''        return True'''
 
 [[mutante]]
 id = "AC-M11"

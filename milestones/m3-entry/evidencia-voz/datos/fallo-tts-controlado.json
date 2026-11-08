@@ -1,0 +1,40 @@
+{
+  "fecha": "2026-09-15 21:47:56",
+  "turnos": [
+    {
+      "etiqueta": "voz-rota",
+      "say": "Todavía no sé nada sobre ti.",
+      "provider": "core",
+      "dominio": "modelo_usuario",
+      "estatus": "ausencia",
+      "voz": "no_disponible",
+      "total_s": 0.01
+    },
+    {
+      "etiqueta": "voz-restaurada",
+      "say": "Todavía no sé nada sobre ti.",
+      "provider": "core",
+      "dominio": "modelo_usuario",
+      "estatus": "ausencia",
+      "voz": "ok",
+      "total_s": 19.11
+    }
+  ],
+  "boot": [
+    "BOOT composicion voz: NO DISPONIBLE (la voz declarada no existe: /media/majo1230/AURORA_EXT/piper_voices/ESTA-VOZ-NO-EXISTE.onnx); los turnos se entregaran solo en texto -"
+  ],
+  "audios": [
+    {
+      "fichero": "resp_2f25eff9c705.wav",
+      "bytes": 101420
+    }
+  ],
+  "veredicto": {
+    "respuesta_conservada_con_voz_rota": true,
+    "fallo_observable": true,
+    "turno_completado": true,
+    "recuperacion": true,
+    "mismo_texto_en_ambos": true,
+    "audio_solo_tras_restaurar": true
+  }
+}

@@ -1,0 +1,4 @@
+=========================== short test summary info ============================
+FAILED test_red_capacidad_completada.py::test_el_descubrimiento_ya_NO_la_propone_como_trabajo
+FAILED test_red_capacidad_completada.py::test_la_capacidad_COMPLETADA_no_reaparece_en_el_siguiente_despertar
+2 failed, 1405 passed, 3 skipped in 167.90s (0:02:47)

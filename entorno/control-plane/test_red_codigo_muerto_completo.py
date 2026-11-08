@@ -213,7 +213,7 @@ def test_AURA_ejecuta_las_CUATRO_formas_encadenadas(tmp_path):
                                encoding="utf-8")
     _con_acta(tmp_path)
 
-    informe = motor.trabajar(tmp_path, zona, verificacion=lambda: True, max_tareas=6)
+    informe = motor.trabajar(tmp_path, zona, verificacion=lambda raiz: True, max_tareas=6)
 
     assert informe["ejecutadas"] == 4, informe
     assert informe["actos_humanos_durante_el_ciclo"] == 0
@@ -232,7 +232,7 @@ def test_si_la_verificacion_falla_se_REVIERTE_cualquiera_de_las_formas(tmp_path)
     (zona / "a.py").write_text("_SOBRA = 1\n\n\ndef v():\n    return 1\n", encoding="utf-8")
     _con_acta(tmp_path)
     original = (zona / "a.py").read_text(encoding="utf-8")
-    informe = motor.trabajar(tmp_path, zona, verificacion=lambda: False, max_tareas=3)
+    informe = motor.trabajar(tmp_path, zona, verificacion=lambda raiz: False, max_tareas=3)
     assert informe["ejecutadas"] == 0
     assert (zona / "a.py").read_text(encoding="utf-8") == original
 

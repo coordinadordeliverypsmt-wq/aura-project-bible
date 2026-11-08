@@ -86,17 +86,50 @@ def trabajar(directorio, raiz, verificacion=None, max_tareas: int = 5) -> dict:
                "actos_humanos_durante_el_ciclo": 0, "motivo_de_parada": "cola agotada",
                "detenida_en": None, "vueltas": 0}
 
-    arranque = cp.registrar_evento(directorio, "motor_iniciado",
-                                   {"raiz": str(raiz), "tope": tope,
-                                    "review": rv.habilitado(directorio)})["seq"]
+    # **Un solo supervisor por log** (DP-RECUPERACION-TRAS-CAIDAS §4). Si otro ciclo esta en marcha sobre este
+    # log, este para sin planificar nada: dos ciclos intercalados sobre tareas distintas se atribuirian los
+    # resultados uno al otro, porque `cambio_aplicado` se enlaza con su tarea por orden en el log.
+    #
+    # **El cerrojo ANTES de `motor_iniciado`.** El rechazado no abre ni cierra ciclo: si escribiera
+    # `motor_iniciado`/`ciclo_detenido`, el observatorio cerraria con ellos el ciclo LEGITIMO en curso, dejaria
+    # huerfanos sus cambios y diria ERROR mientras AURA trabaja. Deja constancia con un evento fuera de los ciclos.
+    with cp.supervisor_unico(directorio) as tomado:
+        if not tomado:
+            cp.registrar_evento(directorio, "supervisor_rechazado", {"raiz": str(raiz), "tope": tope})
+            return {**informe, "motivo_de_parada": "otro supervisor en curso"}
+        # **Un historial que no se puede verificar no sirve para DECIDIR** (decision del orquestador, 2026-10-26):
+        # planificar y promover leen el log para saber que esta hecho, que se intento y que esta autorizado. Si el
+        # log esta truncado, alterado, roto o sin ancla, no se planifica ni se promueve nada. Solo se LEE (la
+        # guardia AST de este modulo lo exige); el motivo queda escrito y NO es una parada normal (codigo de salida
+        # distinto de 0). El despertador y los eventos pasivos siguen escribiendo: la evidencia no se pierde.
+        integridad = cp.verificar_integridad_log(directorio)
+        arranque = cp.registrar_evento(directorio, "motor_iniciado",
+                                       {"raiz": str(raiz), "tope": tope,
+                                        "review": rv.habilitado(directorio)})["seq"]
+        if not integridad["integro"]:
+            return _detener(directorio, informe, f"historial no verificable: {integridad['motivo']}",
+                            desde=arranque)
+        return _ciclo(directorio, raiz, verificacion, tope, informe, arranque)
 
+
+def _ciclo(directorio, raiz, verificacion, tope: int, informe: dict, arranque: int) -> dict:
+    """El bucle de `trabajar`, ya con el supervisor unico tomado."""
     for _ in range(tope + 1):
         # El kill switch, en **cada** vuelta y antes de nada: un interruptor que solo se consulta al
         # arrancar no detiene lo que ya empezo, que es cuando hace falta detenerlo.
         if orq.parada_solicitada(directorio):
             return _detener(directorio, informe, "kill switch activado", desde=arranque)
 
+        # **Recuperar ANTES de planificar** (DP-RECUPERACION-TRAS-CAIDAS §6). Una muerte entre promover y registrar
+        # deja el cambio en disco y el log sin `cambio_aplicado`; como el patron ya no existe, ninguna tarea volveria
+        # a llamar a `ejecutar()` —que es quien recuperaba— y el log mentiria para siempre. Si hay un diario ambiguo
+        # u otro proceso esta recuperando, no se planifica nada: dos recuperaciones a la vez no existen.
+        recuperacion = ac.recuperar(directorio)
+        if recuperacion["bloqueado"] or recuperacion["ocupado"]:
+            return _detener(directorio, informe, "recuperacion pendiente", desde=arranque)
+
         oportunidades = des.descubrir(raiz, directorio)
+        _registrar_agotadas(directorio, oportunidades)
         informe["vueltas"] += 1
         resumen = plan.informe_de_cola(oportunidades)
         informe["descubiertas"] = len(oportunidades)
@@ -114,11 +147,16 @@ def trabajar(directorio, raiz, verificacion=None, max_tareas: int = 5) -> dict:
             # diferencia entre «no hay nada que hacer» y «no puedo hacer nada».
             return _detener(directorio, informe, "cola agotada", desde=arranque)
 
-        plan.registrar_planificada(directorio, tarea)
+        try:
+            planificada = plan.registrar_planificada(directorio, tarea)
+        except plan.TareaNoElegible:
+            # Otro supervisor la tomo entre `siguiente()` y aqui; el cerrojo del log lo impidio. **No es un fallo**:
+            # es la garantia de no duplicar funcionando, y se dice por que se para en lugar de abortar.
+            return _detener(directorio, informe, "tarea tomada por otro supervisor", tarea["id"], desde=arranque)
         try:
             resultado = rv.ejecutar_bajo_review(
                 directorio, tarea, propuesto_por="aura", autoridad="orquestador",
-                verificacion=verificacion)
+                verificacion=verificacion, intento=planificada["seq"])   # un dato: el seq de la planificada
         except (ac.ZonaProhibida, rv.MateriaReservada, rv.ReviewNoHabilitado) as exc:
             cp.registrar_evento(directorio, "decision_requerida",
                                 {"id": tarea["id"], "origen": tarea["origen"],
@@ -133,6 +171,7 @@ def trabajar(directorio, raiz, verificacion=None, max_tareas: int = 5) -> dict:
         if not resultado.get("ejecutado"):
             if resultado.get("revertido"):
                 informe["revertidas"] += 1
+                _registrar_si_agoto_su_presupuesto(directorio, tarea)
                 return _detener(directorio, informe, "verificacion fallida", tarea["id"], desde=arranque)
             return _detener(directorio, informe, "objeciones del revisor", tarea["id"], desde=arranque)
 
@@ -140,6 +179,55 @@ def trabajar(directorio, raiz, verificacion=None, max_tareas: int = 5) -> dict:
         informe["ejecutadas_ids"].append(tarea["id"])
 
     return _detener(directorio, informe, "limite de seguridad", desde=arranque)
+
+
+#: El evento que da constancia de que una tarea agoto su presupuesto de reintentos. **No es un
+#: evento gobernado**: no concede estado ni autoridad, informa. Gobernarlo seria confundir informar
+#: con permitir.
+EVENTO_PRESUPUESTO_AGOTADO = "presupuesto_de_tarea_agotado"
+
+
+def _registrar_agotadas(directorio, oportunidades) -> None:
+    """Una tarea agotada por **interrupciones** nunca llega a la rama `revertido`: sus intentos murieron antes y el
+    siguiente ya no es elegible. Sin esto se apagaria en silencio, que es exactamente lo que este evento existe
+    para impedir. Solo mira las oportunidades reales; el registro sigue siendo unico."""
+    for oportunidad in oportunidades:
+        if oportunidad.estado != des.OPORTUNIDAD_REAL:
+            continue
+        tarea = plan.a_tarea(oportunidad)
+        if tarea is not None and plan.estado_de(directorio, tarea["id"]) == "agotada":
+            _registrar_si_agoto_su_presupuesto(directorio, tarea)
+
+
+def _registrar_si_agoto_su_presupuesto(directorio, tarea: dict) -> None:
+    """Deja constancia de que esta tarea ya no volvera a intentarse.
+
+    **El silencio que cierra.** `planificador.elegible()` concede una tarea revertida *«mientras
+    quede presupuesto»* y la apaga al llegar a `TOPE_DE_REINTENTOS`: a partir de ahi devuelve
+    `False` para siempre y la tarea desaparece de la cola **sin que nada lo diga**. Auditando el
+    historial habia que reconstruir a mano `intentos_de(t) >= TOPE and not completada(t)` sobre cada
+    tarea para descubrir que una oportunidad autorizada habia quedado abandonada. Es el patron
+    «declarado != real» aplicado al trabajo pendiente: el diagnostico seguia informando de una
+    oportunidad real que el motor ya nunca iba a intentar.
+
+    **No cambia nada de lo que decide.** Ni el tope, ni `elegible()`, ni la cola: la tarea se apaga
+    exactamente cuando se apagaba. Lo unico que cambia es que ahora se sabe.
+
+    **No se registra dos veces.** Volver a mirar no es volver a agotar; un log que repite el mismo
+    hecho deja de ser un conteo."""
+    id_tarea = tarea.get("id")
+    if not id_tarea or plan.intentos_de(directorio, id_tarea) < plan.TOPE_DE_REINTENTOS:
+        return
+    ya_consta = any(e["tipo"] == EVENTO_PRESUPUESTO_AGOTADO
+                    and (e.get("datos") or {}).get("id") == id_tarea
+                    for e in cp.leer_eventos(pathlib.Path(directorio)))
+    if ya_consta:
+        return
+    cp.registrar_evento(directorio, EVENTO_PRESUPUESTO_AGOTADO,
+                        {"id": id_tarea, "origen": tarea.get("origen", ""),
+                         "intentos": plan.intentos_de(directorio, id_tarea),
+                         "motivo": "reintentos agotados sin dejar efecto; hace falta evidencia "
+                                   "nueva —otra oportunidad, con otra identidad— para volver"})
 
 
 def diagnostico(directorio, raiz) -> dict:

@@ -114,7 +114,8 @@ id = "F23-M10"
 garantia = "la lista de intocables incluye el propio modulo: quitarlo permite que se reescriba y se conceda lo que quiera"
 fichero = "orquestador.py"
 pruebas = ["test_red_f2_f3_orquestador.py::test_c3_el_orquestador_NO_puede_editarse_a_si_mismo"]
-buscar = '''_INTOCABLES = ("orquestador.py", "politica-orquestador.toml", "control_plane.py", "conftest.py")'''
+buscar = '''_INTOCABLES = ("orquestador.py", "politica-orquestador.toml", "control_plane.py", "conftest.py",
+               "autoconstruccion.py", "review.py", "ciclo_autonomo.py", "planificador.py")'''
 sustituir = '''_INTOCABLES = ("conftest.py",)'''
 
 [[mutante]]

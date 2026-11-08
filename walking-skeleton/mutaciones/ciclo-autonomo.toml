@@ -119,6 +119,11 @@ id = "CA-M12"
 garantia = "nada queda a medias si la verificacion revienta: se revierte antes de propagar"
 fichero = "autoconstruccion.py"
 pruebas = ["test_red_ciclo_autonomo.py::test_un_EJECUTOR_NO_DISPONIBLE_no_produce_exito_fingido"]
-buscar = '''        ruta.write_text(original, encoding="utf-8")
-        cp.registrar_evento(directorio, "cambio_revertido_por_error",'''
-sustituir = '''        cp.registrar_evento(directorio, "cambio_revertido_por_error",'''
+# RE-ANCLADO 2026-10-22 (candidato aislado, DP-CANDIDATO-AISLADO §11): el candidato ya no se escribe en el
+# vivo, asi que «revertir» dejo de existir como paso. La MISMA garantia (si la verificacion revienta, el
+# vivo no queda a medias) se degrada ahora escribiendo el candidato TAMBIEN en el vivo antes de verificar.
+buscar = '''    en_copia.write_text(nuevo, encoding="utf-8", newline="")
+    candidato = nuevo.encode("utf-8")'''
+sustituir = '''    ruta.write_text(nuevo, encoding="utf-8", newline="")
+    en_copia.write_text(nuevo, encoding="utf-8", newline="")
+    candidato = nuevo.encode("utf-8")'''

@@ -30,9 +30,14 @@ sustituir = '''    nombres = ", ".join(ast.unparse(d).split("(")[0] for d in get
 id = "PM-M3"
 descripcion = "el perimetro se compara como prefijo: concede milestones/ entero"
 fichero = "autoconstruccion.py"
-buscar = '''        if real.relative_to(_RAIZ_REPO).as_posix() in _FICHEROS_AUTORIZADOS:'''
-sustituir = '''        if any(real.relative_to(_RAIZ_REPO).as_posix().startswith(f.rsplit("/", 1)[0])
-               for f in _FICHEROS_AUTORIZADOS):'''
+# Reanclado 2026-09-20: la condicion se partio en dos lineas al acotar el perimetro del acta a este
+# repositorio. La garantia no cambia —comparar como PREFIJO concederia `milestones/` entero— y el
+# mutante conserva el guardia de la raiz para degradar solo lo suyo.
+buscar = '''        if (real.relative_to(_RAIZ_REPO).as_posix() in _FICHEROS_AUTORIZADOS
+                and _la_raiz_es_de_este_repositorio()):'''
+sustituir = '''        if (any(real.relative_to(_RAIZ_REPO).as_posix().startswith(f.rsplit("/", 1)[0])
+                for f in _FICHEROS_AUTORIZADOS)
+                and _la_raiz_es_de_este_repositorio()):'''
 
 [[mutante]]
 id = "PM-M4"

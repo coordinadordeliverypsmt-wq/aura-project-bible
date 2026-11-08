@@ -11964,3 +11964,28 @@ autoriza. Enlazado desde el índice.
 - **Sin cambios:** NO se modificó ~/.aura (solo lectura), estado.json/eventos.jsonl/ancla, PARADA, cron, producción,
   memorias/Correo/NODO, main (99f2109). Lectura confirmada write-free por mtimes.
 - **Siguiente:** F5 (D-INT-1 integración mínima trazable; D-ORCH-6 WAITING_FOR_HUMAN) — AUTORIZADA (2026-11-08).
+
+## 2026-11-08 · D-ORCH-6 — WAITING_FOR_HUMAN alcanzable y gobernado, CERRADA (control-plane; rama integracion/m3-entry)
+
+- **Autorización CEO (2026-11-08):** enmendar el contrato de transiciones. Gobierno en `DP-DEVELOPMENT-ORCHESTRATOR.md §6`
+  (tabla + diagrama + nota de enmienda); cierre en DP-INTEGRIDAD §14.
+- **Defecto:** `WAITING_FOR_HUMAN` tenía SALIDAS pero ningún estado lo listaba como DESTINO → inalcanzable (observación de
+  F1 no enmendada «por cuenta propia»). Corrección: `WORKING → WAITING_FOR_HUMAN` como auto-stop, y contrato de salida
+  **idéntico a `DECISION_REQUIRED`** (solo-humano, AMBAS salidas `→WORKING` y `→FAILED` exigen `AUTORIDADES_HUMANAS`).
+  Guarda genérica `ESTADOS_SOLO_HUMANO` en `validar_transicion`, única puerta, sin excepciones.
+- **Contrato alineado en tres capas** (literal, destino a destino): DP §6 ↔ espejo `TRANSICIONES_PROPUESTAS`
+  (`test_modelo_orquestador.py`) ↔ `cp.TRANSICIONES`. Verificado por `test_auditoria_h2` y la del modelo.
+- **Hallazgo CRÍTICO (clave):** el 1.er intento eximía `WAITING_FOR_HUMAN → FAILED` (vacío de diseño de la ficha del
+  Director). **Ambas auditorías independientes RECHAZARON** con sonda ejecutada: evasión de autoautorización en DOS pasos
+  `WFH → FAILED → WORKING` (reintento preexistente sin guarda) reanuda sin humano. Gana el dato (D47): corrección = quitar
+  la excepción, simetría total; rompe la cadena en el primer paso. Fail-closed (ADR-0003).
+- **Evidencia `[EJEC]`:** `test_red_waiting_for_human.py` 21 pruebas (incl. `test_cadena_..._no_evade_la_autoridad_humana`),
+  RED verificado contra la base con la excepción; regresión 139/139 con las dos pruebas de contrato; mutación
+  `waiting-for-human.toml` 4/4, 0 supervivientes (WFH-M4 vigila la no-reapertura de la evasión); `f1-orquestador.toml:F1-M25`
+  **reanclado** (mi cambio invirtió su premisa) y verificado que vuelve a morir con `test_auditoria_h2`; Quality Gate PASS
+  (4562, 0 failed). Los 4 fallos + 3 errores del 1.er QG (NATS/reloj/mDNS/PKI) reproducidos aislados en verde = ambientales
+  por carga (QG a 76 min), ninguno toca `control_plane`.
+- **Sin cambios:** NO se tocó `ESTADOS_CREABLES`, `ESTADO_REVISION`, la ruta de COMPLETED, F1/F2/F3/F4 ni funciones
+  protegidas; NO ~/.aura, estado.json/eventos.jsonl, PARADA, cron, producción, main (99f2109). Diff aditivo.
+- **Siguiente:** D-INT-1 (integración mínima trazable de `integracion/m3-entry` a `main` sin arrastrar los 17 commits
+  ajenos de `worktree-m3-entry`) — AUTORIZADA (2026-11-08), pendiente de ejecución.

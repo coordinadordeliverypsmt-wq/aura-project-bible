@@ -255,3 +255,48 @@ cazó la fuga que la de corrección, al asumir `tipo` enum, no vio.
 
 **Riesgos residuales:** el `seq` reportado de un ciclo abierto es FIFO-canónico, no causal, bajo solapamiento de la misma
 familia (el recuento siempre es correcto); asimetría bool/int inocua con datos reales. Ninguno afecta las respuestas de F4.
+
+## §14 · Cierre de D-ORCH-6 (WAITING_FOR_HUMAN alcanzable y gobernado, implementada 2026-11-08)
+
+**Autorizada por el CEO (2026-11-08)** para corregir el contrato de transiciones. El defecto: `WAITING_FOR_HUMAN`
+figuraba en `ESTADOS` y tenía SALIDAS en `TRANSICIONES` pero **ningún estado lo listaba como DESTINO** → inalcanzable
+desde el flujo (observación del cierre de F1, deliberadamente no enmendada «por cuenta propia»). La enmienda está en el
+documento de gobierno de la tabla, `DP-DEVELOPMENT-ORCHESTRATOR.md §6` (tabla, diagrama y nota de enmienda).
+
+**Qué cambió** en `entorno/control-plane/control_plane.py` (diff aditivo, dos hunks):
+- `WORKING` gana `WAITING_FOR_HUMAN` como destino (auto-stop legítimo, análogo a `DECISION_REQUIRED`).
+- `WAITING_FOR_HUMAN` es `ESTADO_SOLO_HUMANO` con contrato **idéntico a `DECISION_REQUIRED`**: **ambas** salidas
+  (`→ WORKING` y `→ FAILED`) exigen autoridad humana registrada (`AUTORIDADES_HUMANAS`). El agente no puede reanudarse
+  (`→ WORKING`) ni abandonar la espera (`→ FAILED`) sin un humano. La guarda es la genérica ya existente de
+  `ESTADOS_SOLO_HUMANO` en `validar_transicion` — **única puerta**, sin segunda copia, sin excepciones.
+- NO toca `ESTADOS_CREABLES` (sigue sin ser creable directo), `ESTADO_REVISION`, la ruta de COMPLETED ni F1/F2/F3/F4.
+
+**Contrato alineado en tres capas** (coherencia literal verificada por `test_auditoria_h2` y
+`test_los_estados_del_modelo_respetan_el_vocabulario_ya_aprobado`, destino a destino): DP §6 ↔ espejo
+`TRANSICIONES_PROPUESTAS` (`test_modelo_orquestador.py`) ↔ `cp.TRANSICIONES`.
+
+**Hallazgo CRÍTICO de las auditorías y su corrección (clave del incremento).** El primer intento eximía
+`WAITING_FOR_HUMAN → FAILED` de la guarda («abandonar no es reanudar» — un vacío de diseño de la ficha del Director).
+**Ambas auditorías independientes (seguridad + corrección) RECHAZARON**, demostrando con sondas ejecutadas una
+**evasión de autoautorización en dos pasos**: `WAITING_FOR_HUMAN → FAILED` (sin humano, por la excepción) seguido de
+`FAILED → WORKING` (reintento preexistente sin guarda) componía el efecto prohibido —el agente reanuda su trabajo sin
+humano—, cada paso legal por separado. Gana la evidencia sobre el diseño (D47): la corrección (opción unánime de ambos
+auditores) elimina la excepción y aplica **simetría total con `DECISION_REQUIRED`**, rompiendo la cadena en su primer
+paso. Fail-closed (ADR-0003).
+
+Evidencia `[EJEC]`: `test_red_waiting_for_human.py` **21 pruebas** (entrada, continuación humana, negativa de
+autoautorización + barrido, FAILED invertido a exigir-humano + positivo humano, transición inválida, no-creabilidad,
+alcanzabilidad estructural por barrido, frontera de PARADA, y `test_cadena_..._no_evade_la_autoridad_humana` que caza la
+evasión de dos pasos); RED verificado contra la base con la excepción puesta (2 fallos exactos = la evasión). Regresión
+suite control-plane **139/139** incluidas las dos pruebas de contrato. Mutación `waiting-for-human.toml` **4/4 detectados,
+0 supervivientes** (WFH-M4 re-introduce la excepción = reabre la evasión → detectado). `f1-orquestador.toml:F1-M25`
+**reanclado**: mi cambio invirtió su premisa (antes introducía `WAITING_FOR_HUMAN` como divergencia a detectar; ahora ese
+destino es correcto y la divergencia a cazar es quitarlo), verificado que vuelve a morir con `test_auditoria_h2`.
+Quality Gate **PASS** (4562 passed, 0 failed). Los 4 fallos + 3 errores del primer QG (NATS, reloj CM2, mDNS, PKI) fueron
+**reproducidos aislados en verde** — ambientales por carga (QG a 76 min), ninguno toca `control_plane`.
+
+**Riesgos residuales:** una tarea en `WAITING_FOR_HUMAN` que ningún humano atiende queda esperando a propósito (igual que
+`DECISION_REQUIRED`); un timeout automático de esperas humanas sería una capacidad nueva con su propio diseño y
+autorización, no un efecto colateral de esta tabla. El «reintento contado» de `FAILED → WORKING` que el DP menciona no
+tiene contador real en el código (observación preexistente, ajena a D-ORCH-6; irrelevante aquí porque la cadena se corta
+antes de llegar a FAILED sin humano).

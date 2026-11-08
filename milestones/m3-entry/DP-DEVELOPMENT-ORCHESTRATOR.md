@@ -331,6 +331,7 @@ Se conserva el vocabulario existente y se añade **un solo estado**, `WAITING_FO
             ▲                  │  │              │                (final)
             │                  │  │              └──► DECISION_REQUIRED ──► (solo humano)
             │                  │  │
+            │                  │  ├──► WAITING_FOR_HUMAN ──► WORKING (solo humano) · FAILED (abierto)
             │                  │  ├──► WAITING_FOR_ENVIRONMENT ──┐
             │                  │  ├──► WAITING_FOR_QUOTA ────────┤
             │                  │  └──► FAILED ───────────────────┤
@@ -343,16 +344,46 @@ Se conserva el vocabulario existente y se añade **un solo estado**, `WAITING_FO
 TRANSICIONES = {
     "WAITING_FOR_NEXT_TASK": ("WORKING",),
     "WORKING":               ("WAITING_FOR_REVIEW", "WAITING_FOR_ENVIRONMENT",
-                              "WAITING_FOR_QUOTA", "DECISION_REQUIRED", "FAILED", "COMPLETED"),
+                              "WAITING_FOR_QUOTA", "DECISION_REQUIRED",
+                              "WAITING_FOR_HUMAN", "FAILED", "COMPLETED"),
     "WAITING_FOR_REVIEW":    ("WORKING", "DECISION_REQUIRED", "COMPLETED", "FAILED"),
     "WAITING_FOR_ENVIRONMENT": ("WORKING", "FAILED"),
     "WAITING_FOR_QUOTA":     ("WORKING", "FAILED"),
-    "DECISION_REQUIRED":     ("WORKING", "FAILED"),   # solo por acto humano registrado
-    "WAITING_FOR_HUMAN":     ("WORKING", "FAILED"),   # solo por acto humano registrado
+    "DECISION_REQUIRED":     ("WORKING", "FAILED"),   # ambas salidas por acto humano registrado
+    "WAITING_FOR_HUMAN":     ("WORKING", "FAILED"),   # ambas salidas por acto humano registrado (igual que DECISION_REQUIRED)
     "COMPLETED":             (),                      # FINAL
     "FAILED":                ("WORKING",),            # reintento explícito y contado
 }
 ```
+
+**Enmienda F5/D-ORCH-6 (acta del CEO, 2026-11-08).** Hasta esta fecha `WAITING_FOR_HUMAN` tenía
+salidas en la tabla pero **ningún estado lo listaba como destino**, así que era inalcanzable desde el
+flujo. Una auditoría anterior (hallazgo 2 del cierre de F1) lo registró como observación y **no lo
+enmendó «por cuenta propia»**, porque añadir un destino a `WORKING` en silencio hubiera sido decidir
+por el CEO sobre su propia tabla. El CEO autorizó el alta explícitamente: **`WORKING → WAITING_FOR_HUMAN`**
+es un auto-stop legítimo (el agente declara que necesita un humano), análogo a `DECISION_REQUIRED`.
+
+El contrato de salida es **idéntico al de `DECISION_REQUIRED`**: `WAITING_FOR_HUMAN` es un
+`ESTADO_SOLO_HUMANO`, y **ambas** salidas (`→ WORKING` y `→ FAILED`) exigen una **autoridad humana
+registrada** (`AUTORIDADES_HUMANAS`). El propio agente no puede reanudar su trabajo (`→ WORKING`) **ni
+abandonar la espera** (`→ FAILED`) sin un acto humano. Lo garantiza la guarda ya existente de
+`ESTADOS_SOLO_HUMANO` en `validar_transicion`, **sin excepciones y sin una segunda puerta nueva**.
+
+> **Por qué sin excepción para `FAILED`** (auditoría de seguridad F5, rechazo CRÍTICO del primer intento):
+> un borrador inicial eximía `WAITING_FOR_HUMAN → FAILED` de la guarda humana («abandonar no es
+> reanudar»). Una sonda ejecutada demostró que eso abría una **puerta trasera de autoautorización en dos
+> pasos**: `WAITING_FOR_HUMAN → FAILED` (sin humano) seguido de `FAILED → WORKING` (reintento, sin humano)
+> compone exactamente el efecto que la guarda pretende impedir — el agente reanuda su propio trabajo sin
+> un humano. Cada paso era legal por separado; la composición no. La corrección es tratar
+> `WAITING_FOR_HUMAN` como el estado-espera-humana que es: igual que `DECISION_REQUIRED`, **ninguna salida
+> se resuelve sin humano**. Fail-closed, alineado con ADR-0003 («ante la duda, roja»). Una tarea en
+> `WAITING_FOR_HUMAN` que nadie atiende queda esperando a propósito; un timeout automático de esperas
+> humanas sería una capacidad nueva con su propio diseño y autorización, no un efecto colateral de esta
+> tabla.
+
+`ESTADOS_CREABLES` **no** incorpora `WAITING_FOR_HUMAN`: sigue sin poder crearse una tarea directamente
+en ese estado. `ESTADO_REVISION` (`WAITING_FOR_REVIEW`) **no** gana `WAITING_FOR_HUMAN` como destino: la
+espera humana que surge durante una revisión ya la cubre `DECISION_REQUIRED`.
 
 **`COMPLETED` no figura como origen de ninguna transición.** Es la traducción directa de la garantía
 que el producto ya tiene: *«`terminada` y `descartada` son estados finales… antes de esto cualquier

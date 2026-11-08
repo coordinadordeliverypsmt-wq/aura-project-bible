@@ -1,7 +1,7 @@
 ---
 documento: "Decision Package — Integridad, recuperación y consistencia del estado autónomo"
 fecha: 2026-11-06
-estado: "F1 y F2 APROBADAS por el CEO (2026-11-06) e IMPLEMENTADAS (§10, §11). F3, F4, F5 siguen PROPUESTAS, pendientes de aprobación. El Director no se aprueba a sí mismo las pendientes."
+estado: "F1, F2 y F3 APROBADAS por el CEO e IMPLEMENTADAS (§10, §11, §12). F4, F5 siguen PROPUESTAS, pendientes de aprobación. El Director no se aprueba a sí mismo las pendientes."
 tipo: "DP técnico de integridad/recuperación. Diagnóstico de solo lectura; ninguna corrección implementada."
 rama: "integracion/m3-entry · HEAD 2956c402bc347d2363e519ac9cd267e7e7750481"
 evidencia: "Análisis del CÓDIGO y los documentos del repo (sin leer ~/.aura, §7.3). Clasificación D47."
@@ -189,3 +189,32 @@ de F2 cuando el presupuesto de sesión lo permita.
 
 **Siguen pendientes de tu decisión:** F3 (indicador agregado), F4 (lectura agregada de `~/.aura`, decisión #3), F5
 (D-INT-1, D-ORCH-6).
+
+## §12 · Cierre de F3 (implementada, 2026-11-06)
+
+**Autorizada e implementada**: `integridad_del_control_plane(directorio)` en `entorno/control-plane/control_plane.py`,
+INDICADOR AGREGADO de integridad de SOLO LECTURA que consolida F1 (`estado_de_la_proyeccion`) en un veredicto
+`{integridad: "ok"|"degradada"|"no_verificable", verificable, proyeccion, regeneracion_pendiente, seq_confirmado,
+seq_proyeccion?, motivo, integridad_log?}`. Mapeo con fallo seguro (nunca "ok" ni verificable si el log no es
+verificable); `regeneracion_pendiente` = verificable ∧ proyección ∈ {OBSOLETA, AUSENTE, INVALIDA} (exactamente el
+conjunto donde F2 actuaría). **Separa integridad de autorización (PARADA) y de disponibilidad (cola/cuota):** no las
+consulta ni las mezcla. Es puro (no escribe, no llama a `regenerar_proyeccion`, no reclasifica: deriva de F1 una sola
+llamada), no crea una segunda fuente de verdad. El subinforme de `verificar_integridad_log` se expone bajo la clave
+propia `integridad_log` (no pisa el veredicto string). No se invoca desde ninguna lectura (no hay consumidor todavía).
+No modifica F1, F2, `proyectar`, `guardar`, `cargar`, `_leer_ancla` ni `verificar_integridad_log`.
+
+Evidencia `[EJEC]`: `test_red_integridad_agregada.py` **17 pruebas** (RED→GREEN; incluye el test de no-colisión de
+claves); suite del control-plane sin regresión; mutación `mutaciones/integridad-agregada.toml` **9/9** (IA1-IA9, IA9
+blinda la no-colisión); Quality Gate del repo **PASS** (4562; un primer intento dio un FAIL espurio por un test de
+tiempo intermitente de `test_nodo_agente`, ajeno a F3 —pasa 3/3 bajo carga normal—, confirmado y relanzado a PASS
+limpio). Auditorías independientes: corrección **CABE CON CONDICIONES** (condición 2 atendida con el test + IA9;
+condición 1 = el docstring de F2 omite INVALIDA, riesgo residual documental, F2 no se reabre); seguridad **APROBADO**,
+sin hallazgos. Diff aditivo (+75/−0 + el test/IA9); funciones protegidas intactas.
+
+**Riesgo residual declarado:** el docstring de F2 (§11) dice "OBSOLETA o AUSENTE" y omite INVALIDA, aunque el código de
+F2 sí la procesa; F3 está alineada con el COMPORTAMIENTO de F2, no con su docstring. Es deuda documental preexistente de
+F2; no se corrige aquí para no reabrir F2.
+
+**Siguen pendientes de tu decisión:** F4 (lectura agregada de `~/.aura`, decisión #3 — única vía para confirmar los
+ciclos 196/217 y la causa de BLOQUEADA) y F5 (D-INT-1, D-ORCH-6). Con F1+F2+F3, el Entregable C/D del DP queda cubierto
+salvo F4/F5.

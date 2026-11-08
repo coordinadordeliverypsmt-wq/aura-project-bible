@@ -11931,3 +11931,21 @@ autoriza. Enlazado desde el índice.
   orquestador en línea (implementador ≠ auditor) + mutación 7/7 + QG. Recomendada auditoría independiente futura.
 - **Sin cambios:** producción, runtime, `~/.aura`, eventos.jsonl, ancla, cron, PARADA, CM2/S3, memorias/Correo/NODO, `main` (99f2109).
 - **Pendiente del CEO:** F3, F4 (lectura agregada §7.3), F5.
+
+## 2026-11-06 · F3 — indicador agregado de integridad (control-plane; rama integracion/m3-entry)
+
+- **Autorización:** CEO, F3 del DP (ahora §12). F1 y F2 quedan intactas.
+- **Qué hace:** `integridad_del_control_plane(directorio)` consolida F1 en un veredicto agregado
+  (ok/degradada/no_verificable, verificable, regeneracion_pendiente, seq_confirmado/proyeccion). Fallo seguro (nunca ok
+  sin log verificable); regeneracion_pendiente = el conjunto donde F2 actuaría. Separa integridad de autorización
+  (PARADA) y de disponibilidad (cola). Puro: no escribe, no llama a regenerar_proyeccion, una sola fuente de verdad (el
+  log, vía F1). Subinforme bajo clave `integridad_log` (no pisa el veredicto). No lo invoca ninguna lectura.
+- **Evidencia `[EJEC]`:** test_red_integridad_agregada.py 17 pruebas (RED→GREEN, incluida la de no-colisión de claves);
+  mutación integridad-agregada.toml 9/9 (IA1-IA9, IA9 blinda la no-colisión); Quality Gate PASS 4562 (un FAIL previo fue
+  espurio por un test de tiempo intermitente de test_nodo_agente, ajeno a F3; relanzado a PASS). Auditorías: corrección
+  CABE CON CONDICIONES (atendidas), seguridad APROBADO sin hallazgos. Diff aditivo, funciones protegidas intactas.
+- **Riesgo residual:** docstring de F2 omite INVALIDA (deuda documental preexistente de F2; F3 alineada con el
+  comportamiento; no se reabre F2).
+- **Sin cambios:** producción, runtime, ~/.aura, estado.json, eventos.jsonl, ancla, cron, PARADA, CM2/S3,
+  memorias/Correo/NODO, main (99f2109).
+- **Pendiente del CEO:** F4 (lectura agregada §7.3), F5. Con F1+F2+F3 el Entregable C/D del DP queda cubierto salvo F4/F5.

@@ -2485,6 +2485,81 @@ def estado_de_la_proyeccion(directorio: pathlib.Path) -> dict:
             "motivo": "la proyeccion no refleja el ultimo estado del log: necesita regenerarse"}
 
 
+#: Veredictos agregados de `integridad_del_control_plane` (F3).
+INTEGRIDAD_OK = "ok"
+INTEGRIDAD_DEGRADADA = "degradada"
+INTEGRIDAD_NO_VERIFICABLE = "no_verificable"
+
+#: Estados de F1 (`estado_de_la_proyeccion`) que implican log verificable pero proyeccion
+#: desactualizada/ausente/invalida: F2 (`regenerar_proyeccion`) actuaria sobre ellos si se la
+#: invocara. F3 NO la invoca; solo lo REPORTA via `regeneracion_pendiente`.
+_PROYECCIONES_PENDIENTES_DE_REGENERACION = (PROYECCION_OBSOLETA, PROYECCION_AUSENTE,
+                                            PROYECCION_INVALIDA)
+
+
+def integridad_del_control_plane(directorio: pathlib.Path) -> dict:
+    """**F3 · INDICADOR AGREGADO de integridad, de SOLO LECTURA** (DP de integridad, Entregable D).
+
+    Consolida F1 (`estado_de_la_proyeccion`) en un veredicto unico, sin reimplementar ninguna
+    verificacion propia y sin crear una segunda fuente de verdad: todo lo que aqui se afirma viene
+    literalmente de F1.
+
+        {integridad: "ok"|"degradada"|"no_verificable", verificable, proyeccion,
+         regeneracion_pendiente, seq_confirmado, seq_proyeccion?, motivo, integridad_log?}
+
+    Mapeo (fallo seguro: nunca "ok" si no hay log verificable; ver docstring de F1):
+      - `PROYECCION_ACTUAL`     -> `integridad="ok"`,            `verificable=True`,  `pendiente=False`.
+      - `PROYECCION_OBSOLETA`,
+        `PROYECCION_AUSENTE`,
+        `PROYECCION_INVALIDA`  -> `integridad="degradada"`,     `verificable=True`,  `pendiente=True`.
+      - `ESTADO_NO_VERIFICABLE` -> `integridad="no_verificable"`, `verificable=False`, `pendiente=False`.
+
+    `regeneracion_pendiente` describe UNICAMENTE si F2 (`regenerar_proyeccion`) actuaria si se la
+    invocara a mano; esta funcion jamas la invoca (no es su alcance: solo lee y agrega F1). Lo no
+    verificable NUNCA se marca pendiente de regeneracion: F2 tampoco actua sobre un log cuya
+    completitud no esta demostrada (es responsabilidad de recuperacion, no de regeneracion).
+
+    Deliberadamente NO consulta ni mezcla:
+      - AUTORIZACION/PARADA (kill-switch, zonas, confinamiento): vive en otros modulos del
+        control-plane (orquestador/despertador), ninguno importado aqui.
+      - DISPONIBILIDAD (cola de tareas en espera, cuota): tampoco se consulta.
+    Este indicador responde UNICAMENTE "¿es fiable lo que el control-plane tiene materializado?",
+    nunca "¿se puede actuar ahora?" ni "¿hay capacidad libre?". Esas son preguntas de otras
+    garantias (5 y 6 del DP) y deben seguir siendo otras llamadas, hechas por el consumidor que las
+    necesite.
+
+    Funcion pura: ni un `open` de escritura, ni `guardar`, ni `registrar_evento`, ni
+    `regenerar_proyeccion`. Todo lo que hace es leer `estado_de_la_proyeccion(directorio)` una vez
+    y derivar el veredicto agregado de su resultado."""
+    informe = estado_de_la_proyeccion(directorio)
+    proyeccion = informe["estado"]
+    verificable = proyeccion != ESTADO_NO_VERIFICABLE
+    pendiente = verificable and proyeccion in _PROYECCIONES_PENDIENTES_DE_REGENERACION
+
+    if proyeccion == ESTADO_NO_VERIFICABLE:
+        integridad = INTEGRIDAD_NO_VERIFICABLE
+    elif proyeccion == PROYECCION_ACTUAL:
+        integridad = INTEGRIDAD_OK
+    else:
+        integridad = INTEGRIDAD_DEGRADADA
+
+    agregado = {
+        "integridad": integridad,
+        "verificable": verificable,
+        "proyeccion": proyeccion,
+        "regeneracion_pendiente": pendiente,
+        "seq_confirmado": informe.get("seq_confirmado"),
+        "motivo": informe.get("motivo"),
+    }
+    if "seq_proyeccion" in informe:
+        agregado["seq_proyeccion"] = informe["seq_proyeccion"]
+    if "integridad" in informe:
+        # Pasa a traves el informe de `verificar_integridad_log` que F1 ya adjunta, SIN
+        # renombrarlo con la misma clave que el veredicto agregado: se anida para no pisarla.
+        agregado["integridad_log"] = informe["integridad"]
+    return agregado
+
+
 def cargar_si_actual(directorio: pathlib.Path) -> dict:
     """Guarda delgada para consumidores/panel: devuelve la proyeccion almacenada SOLO si F1 la
     clasifica como `PROYECCION_ACTUAL`; en cualquier otro caso devuelve `proyeccion=None` y la

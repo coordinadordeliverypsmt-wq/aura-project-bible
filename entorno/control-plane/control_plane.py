@@ -2873,3 +2873,255 @@ def reconciliar_tras_caida(directorio: pathlib.Path, *, autoridad: str, causa: s
                     "autoridad": autoridad, "causa": causa, "reconciliada": True})
                 reconciliadas.append(id_tarea)
     return reconciliadas
+
+
+# ------------------------------------------------------------------- F4 · lectura agregada (DP-RESIDENCIA) --
+
+#: Pares (evento de apertura -> evento de cierre) de "ciclos" del control-plane. Un evento de
+#: apertura sin su cierre correspondiente es un ciclo ABANDONADO (abierto). El emparejamiento es
+#: FIFO por familia: la primera apertura sin cerrar de una familia se cierra con el primer cierre de
+#: esa misma familia que aparezca despues en el log.
+_CIERRES_DE_CICLO = {
+    "motor_iniciado": "ciclo_detenido",
+    "ciclo_autonomo_iniciado": "ciclo_autonomo_terminado",
+}
+
+#: Patron de nombre de segmento sellado de `AuditLog` (observability.py): `{basename}.{12
+#: digitos}-{12 digitos}`. F4 usa el MISMO patron para su parser propio, sin importar `AuditLog` ni
+#: `observability`: instanciar `AuditLog` ejecutaria su `__init__`, que reconcilia huerfanos (y por
+#: tanto escribe) — justo lo que una funcion PURA de solo lectura no puede hacer.
+_PATRON_SEGMENTO_AUDIT_FMT = r"\.(\d{12})-(\d{12})"
+
+#: **Vocabulario CERRADO de tipos de evento del control-plane** (privacidad, 5.a auditoria de F4).
+#: El `tipo` de un evento es una cadena LIBRE: `registrar_evento` solo rechaza los `EVENTOS_GOBERNADOS`,
+#: asi que un llamador puede registrar `tipo="...IBAN ES..."` y, si F4 lo usara como clave de
+#: `recuento_por_tipo`, ese texto libre acabaria en el informe — rompiendo la garantia «SIN CONTENIDO».
+#: Por eso el recuento solo expone por NOMBRE los tipos de este conjunto cerrado (derivado del codigo:
+#: `EVENTOS_GOBERNADOS` + aperturas/cierres de ciclo + los tipos que el plano emite realmente, incluidos
+#: los del orquestador de ciclo autonomo); cualquier `tipo` fuera de el se cuenta bajo la clave fija
+#: `"otros"`, con solo el total — nunca su nombre. Asi ningun texto libre llega al informe.
+_TIPOS_CONOCIDOS_DEL_CP = frozenset(EVENTOS_GOBERNADOS) | set(_CIERRES_DE_CICLO) | {
+    cierre for cierre in _CIERRES_DE_CICLO.values()
+} | {
+    # Emitidos por el control-plane y por el orquestador del ciclo autonomo (presentes en el log real).
+    "ancla_adoptada", "linea_truncada_descartada", "tarea_registrada", "tarea_planificada",
+    "aura_despertada", "despertar_rechazado", "descubrimiento_realizado", "veredicto_emitido",
+    "propuesta_registrada", "cambio_aplicado",
+}
+
+#: Clave fija bajo la que se agrupan los `tipo` fuera del vocabulario cerrado. Es un literal del codigo,
+#: no un dato de ningun evento: nunca lleva contenido.
+_TIPO_OTROS = "otros"
+
+
+def _ciclos_del_control_plane(eventos: list[dict]) -> tuple[int, list[int]]:
+    """(nº de ciclos cerrados, lista de `seq` de las aperturas sin cierre), recorriendo `eventos` en
+    orden. Solo mira `tipo` y `seq` — nunca los `datos` de cada evento (ahi vive el contenido:
+    `motivo`, `causa`, rutas...)."""
+    pendientes: dict[str, list[int]] = {apertura: [] for apertura in _CIERRES_DE_CICLO}
+    cerrados = 0
+    cierre_de = {cierre: apertura for apertura, cierre in _CIERRES_DE_CICLO.items()}
+    for evento in eventos:
+        tipo = evento.get("tipo")
+        seq = evento.get("seq")
+        if tipo in _CIERRES_DE_CICLO:
+            pendientes[tipo].append(seq)
+        elif tipo in cierre_de:
+            apertura = cierre_de[tipo]
+            if pendientes[apertura]:
+                pendientes[apertura].pop(0)   # FIFO: cierra la apertura mas antigua sin cerrar
+                cerrados += 1
+    abiertos = sorted(s for lista in pendientes.values() for s in lista if s is not None)
+    return cerrados, abiertos
+
+
+def _bloque_control_plane(directorio: pathlib.Path) -> dict:
+    """Bloque (1) de F4: metadatos agregados del control-plane. Reutiliza `leer_eventos` (ya pura) y
+    `estado_de_la_proyeccion` (F1) para el veredicto; de `cargar` solo toma `status`/`actualizado`/
+    nº de tareas/recuento por estado — nunca `descripcion`/`causa`/texto libre."""
+    eventos = leer_eventos(directorio)
+    seqs = [e.get("seq") for e in eventos if isinstance(e.get("seq"), int)]
+    vistos: dict[int, int] = {}
+    for s in seqs:
+        vistos[s] = vistos.get(s, 0) + 1
+    duplicados_ids = sorted(s for s, n in vistos.items() if n > 1)
+    huecos = 0
+    if seqs:
+        rango_completo = set(range(min(seqs), max(seqs) + 1))
+        huecos = len(rango_completo - set(seqs))
+
+    cerrados, abiertos = _ciclos_del_control_plane(eventos)
+
+    # Vocabulario CERRADO: un `tipo` es cadena libre (solo se rechaza si esta en EVENTOS_GOBERNADOS),
+    # asi que nunca se usa como clave a pelo — seria una fuga de contenido. Los conocidos se cuentan
+    # por su nombre; el resto va bajo la clave fija `"otros"` con solo el total.
+    recuento_por_tipo: dict[str, int] = {}
+    for e in eventos:
+        tipo = e.get("tipo")
+        if tipo is None:
+            continue
+        clave = tipo if tipo in _TIPOS_CONOCIDOS_DEL_CP else _TIPO_OTROS
+        recuento_por_tipo[clave] = recuento_por_tipo.get(clave, 0) + 1
+
+    almacenado = cargar(directorio / "estado.json")
+    if almacenado is None:
+        bloque_estado_json = None
+    else:
+        tareas = almacenado.get("tareas") or {}
+        recuento_por_estado: dict[str, int] = {}
+        for tarea in tareas.values():
+            estado_tarea = tarea.get("estado") if isinstance(tarea, dict) else None
+            if estado_tarea is not None:
+                recuento_por_estado[estado_tarea] = recuento_por_estado.get(estado_tarea, 0) + 1
+        bloque_estado_json = {
+            "status": almacenado.get("status"),
+            "actualizado": almacenado.get("actualizado"),
+            "num_tareas": len(tareas),
+            "recuento_por_estado": recuento_por_estado,
+        }
+
+    veredicto_proyeccion = estado_de_la_proyeccion(directorio)
+
+    return {
+        "num_eventos": len(eventos),
+        "seq_min": min(seqs) if seqs else None,
+        "seq_max": max(seqs) if seqs else None,
+        "seq_duplicados": len(duplicados_ids),
+        "seq_duplicados_ids": duplicados_ids,
+        "huecos": huecos,
+        "ciclos_cerrados": cerrados,
+        "ciclos_abiertos": abiertos,
+        "recuento_por_tipo": recuento_por_tipo,
+        "estado_json": bloque_estado_json,
+        "proyeccion": {"estado": veredicto_proyeccion.get("estado")},
+    }
+
+
+def _leer_jsonl_solo_metadatos(ruta: pathlib.Path) -> list[dict]:
+    """Lee un .jsonl linea a linea y se queda SOLO con `seq` (int) y el nombre de `evento`/`module`
+    de cada registro — nunca `msg` ni ningun otro campo. Una linea truncada o no-JSON se descarta
+    (igual criterio que `_leer_con_cola`/`AuditLog._leer_fichero`: robusto a una cola a medias, no a
+    corrupcion en medio del fichero; aqui, al ser lectura agregada y no un log encadenado, basta con
+    ignorar la linea ilegible sin distinguir posicion)."""
+    if not ruta.exists():
+        return []
+    out: list[dict] = []
+    for linea in ruta.read_text(encoding="utf-8").splitlines():
+        linea = linea.strip()
+        if not linea:
+            continue
+        try:
+            registro = json.loads(linea)
+        except (json.JSONDecodeError, ValueError, RecursionError):
+            # No solo JSON invalido: una linea con anidamiento profundo lanza `RecursionError` al
+            # decodificar. Propagarlo convertiria un audit.jsonl malformado (o malicioso) en una
+            # negacion de servicio de la lectura agregada. Se descarta la linea, igual que una no-JSON.
+            continue
+        if not isinstance(registro, dict):
+            continue
+        seq = registro.get("seq")
+        if isinstance(seq, bool) or not isinstance(seq, int):
+            continue
+        out.append({"seq": seq, "evento": registro.get("evento"), "module": registro.get("module")})
+    return out
+
+
+def _bloque_audit(ruta_audit: pathlib.Path) -> dict:
+    """Bloque (2) de F4: parser PROPIO del audit log (NUNCA `AuditLog`: su `__init__` reconcilia
+    huerfanos = escribe). Solo lee `seq` y nombre de `evento`/`module` — nunca `msg` ni contenido.
+
+    Reproduce en lectura, sin instanciar nada que escriba, la forma de disco de
+    `observability.AuditLog`: fichero activo (`ruta_audit`) + segmentos sellados con nombre
+    `{basename}.{seq_ini:012d}-{seq_fin:012d}` + manifiesto `{ruta_audit}.manifest` (jsonl de
+    entradas con `segmento`/`seq_ini`/`seq_fin`). Un segmento con nombre de esa forma que el
+    manifiesto no anota es un HUERFANO (sellado cortado entre renombrar y anotar, o manifiesto
+    perdido)."""
+    ruta_audit = pathlib.Path(ruta_audit)
+    directorio_audit = ruta_audit.parent
+    manifiesto = ruta_audit.with_name(ruta_audit.name + ".manifest")
+
+    entradas_manifiesto = _leer_jsonl_de_manifiesto(manifiesto)
+    nombres_anotados = {e.get("segmento") for e in entradas_manifiesto}
+
+    patron = re.escape(ruta_audit.name) + _PATRON_SEGMENTO_AUDIT_FMT
+    nombres_en_disco: list[str] = []
+    if directorio_audit.exists():
+        for nombre in sorted(os.listdir(directorio_audit)):
+            if re.fullmatch(patron, nombre):
+                nombres_en_disco.append(nombre)
+
+    huerfanos = [n for n in nombres_en_disco if n not in nombres_anotados]
+
+    registros: list[dict] = []
+    for nombre in nombres_en_disco:
+        registros.extend(_leer_jsonl_solo_metadatos(directorio_audit / nombre))
+    registros.extend(_leer_jsonl_solo_metadatos(ruta_audit))
+
+    seqs = [r["seq"] for r in registros]
+    vistos: dict[int, int] = {}
+    for s in seqs:
+        vistos[s] = vistos.get(s, 0) + 1
+    duplicados_ids = sorted(s for s, n in vistos.items() if n > 1)
+    huecos = 0
+    if seqs:
+        rango_completo = set(range(min(seqs), max(seqs) + 1))
+        huecos = len(rango_completo - set(seqs))
+
+    return {
+        "lineas": len(registros),
+        "seq_min": min(seqs) if seqs else None,
+        "seq_max": max(seqs) if seqs else None,
+        "seq_duplicados": len(duplicados_ids),
+        "seq_duplicados_ids": duplicados_ids,
+        "huecos": huecos,
+        "segmentos": len(nombres_en_disco),
+        "huerfanos": len(huerfanos),
+    }
+
+
+def _leer_jsonl_de_manifiesto(ruta: pathlib.Path) -> list[dict]:
+    """El manifiesto solo guarda metadatos de sellado (`segmento`/`sha256`/`seq_ini`/`seq_fin`): no
+    hay contenido que proteger aqui, pero se lee con el mismo criterio robusto a cola truncada."""
+    if not ruta.exists():
+        return []
+    out: list[dict] = []
+    for linea in ruta.read_text(encoding="utf-8").splitlines():
+        linea = linea.strip()
+        if not linea:
+            continue
+        try:
+            registro = json.loads(linea)
+        except (json.JSONDecodeError, ValueError, RecursionError):
+            # Igual que en `_leer_jsonl_solo_metadatos`: una linea profundamente anidada no debe
+            # propagar `RecursionError` ni tumbar la lectura del manifiesto.
+            continue
+        if isinstance(registro, dict):
+            out.append(registro)
+    return out
+
+
+def lectura_agregada(directorio: pathlib.Path, ruta_audit: pathlib.Path | None = None) -> dict:
+    """**F4 · lectura agregada de residencia, privacidad-segura.** Funcion PURA de SOLO LECTURA: ni
+    un `open` de escritura, ni `guardar`, ni `registrar_evento`, ni `AuditLog`, ni
+    `regenerar_proyeccion`. Produce un informe AGREGADO y SIN CONTENIDO — solo numeros, enums de
+    estado, nombres de tipo e ids de `seq`. CERO texto libre de `msg`/datos/descripcion/`content`/
+    `motivo`/`provenance`/tokens/rutas.
+
+    Dos bloques:
+
+    1. **control_plane** (siempre, desde `directorio`): nº de eventos, rango y duplicados de `seq`,
+       huecos, ciclos del control-plane cerrados/abiertos (emparejando `motor_iniciado`/
+       `ciclo_autonomo_iniciado` con sus cierres), recuento de tipos de evento por nombre, metadatos
+       de `estado.json` (`status`/`actualizado`/nº de tareas/recuento por estado — nunca
+       `descripcion`/`causa`) y el veredicto de `estado_de_la_proyeccion` (F1).
+    2. **audit** (solo si `ruta_audit` no es `None`): parser PROPIO (nunca `AuditLog`, cuyo
+       `__init__` reconcilia huerfanos = escribe) que extrae solo `seq` y nombre de `evento`/
+       `module`: nº de lineas, rango y duplicados de `seq`, huecos, segmentos en disco, huerfanos.
+
+    No modifica ni reimplementa F1/F2/F3/`proyectar`/`guardar`/`cargar`/`_leer_ancla`/
+    `verificar_integridad_log`/`leer_eventos`: los reutiliza tal cual."""
+    directorio = pathlib.Path(directorio)
+    informe = {"control_plane": _bloque_control_plane(directorio)}
+    if ruta_audit is not None:
+        informe["audit"] = _bloque_audit(pathlib.Path(ruta_audit))
+    return informe

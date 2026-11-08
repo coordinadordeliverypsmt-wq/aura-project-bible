@@ -1,0 +1,136 @@
+incremento = "F4: lectura agregada de residencia, privacidad-segura (lectura_agregada, solo lectura, sin contenido)"
+# Defecto que cierra: no habia forma reutilizable y probada de responder seq duplicados/huerfanos del
+# audit, ciclos del control-plane abandonados y obsolescencia de la proyeccion SIN exponer contenido
+# (msg/descripcion/causa/motivo) ni escribir nada. F4 es DETECCION agregada pura: no instancia
+# AuditLog, no guarda, no registra eventos. NADA en paralelo con este arnes (CLAUDE.md §2).
+pruebas = ["test_red_lectura_agregada.py"]
+timeout_s = 600
+
+[[mutante]]
+id = "LA1"
+# Reanclado 2026-11-08: la version anterior (anadir `msg` al parser interno) era EQUIVALENTE —`_bloque_audit`
+# nunca devuelve los registros, solo su `seq`, asi que el `msg` no afloraba (defensa en profundidad). El limite
+# REAL de privacidad del bloque audit es su RETORNO: si expusiera el campo `evento` (que puede llevar texto libre)
+# habria fuga. Este mutante la provoca y la prueba la mata.
+garantia = "el bloque audit expone el `evento` (texto libre) de cada registro en su retorno: fuga de privacidad"
+fichero = "control_plane.py"
+buscar = '''    return {
+        "lineas": len(registros),'''
+sustituir = '''    return {
+        "eventos": [r.get("evento") for r in registros],
+        "lineas": len(registros),'''
+
+[[mutante]]
+id = "LA2"
+garantia = "los seq duplicados del control-plane dejan de contarse (siempre 0): un log con eventos repetidos se informa como limpio"
+fichero = "control_plane.py"
+buscar = '''    duplicados_ids = sorted(s for s, n in vistos.items() if n > 1)
+    huecos = 0
+    if seqs:
+        rango_completo = set(range(min(seqs), max(seqs) + 1))
+        huecos = len(rango_completo - set(seqs))
+
+    cerrados, abiertos = _ciclos_del_control_plane(eventos)'''
+sustituir = '''    duplicados_ids = []
+    huecos = 0
+    if seqs:
+        rango_completo = set(range(min(seqs), max(seqs) + 1))
+        huecos = len(rango_completo - set(seqs))
+
+    cerrados, abiertos = _ciclos_del_control_plane(eventos)'''
+
+[[mutante]]
+id = "LA3"
+garantia = "los seq duplicados del audit dejan de contarse: un audit.jsonl con lineas de seq repetido se informa como integro"
+fichero = "control_plane.py"
+buscar = '''    duplicados_ids = sorted(s for s, n in vistos.items() if n > 1)
+    huecos = 0
+    if seqs:
+        rango_completo = set(range(min(seqs), max(seqs) + 1))
+        huecos = len(rango_completo - set(seqs))
+
+    return {
+        "lineas": len(registros),'''
+sustituir = '''    duplicados_ids = []
+    huecos = 0
+    if seqs:
+        rango_completo = set(range(min(seqs), max(seqs) + 1))
+        huecos = len(rango_completo - set(seqs))
+
+    return {
+        "lineas": len(registros),'''
+
+[[mutante]]
+id = "LA4"
+garantia = "un segmento de audit no anotado en el manifiesto deja de contarse como huerfano (siempre 0): un sellado cortado entre renombrar y anotar se informa como sano"
+fichero = "control_plane.py"
+buscar = '''    huerfanos = [n for n in nombres_en_disco if n not in nombres_anotados]'''
+sustituir = '''    huerfanos = []'''
+
+[[mutante]]
+id = "LA5"
+garantia = "un ciclo ABIERTO (motor_iniciado/ciclo_autonomo_iniciado sin su cierre) se cuenta como CERRADO en vez de listarse en ciclos_abiertos (fallo inseguro: un ciclo abandonado se presenta como resuelto)"
+fichero = "control_plane.py"
+buscar = '''    abiertos = sorted(s for lista in pendientes.values() for s in lista if s is not None)
+    return cerrados, abiertos'''
+sustituir = '''    cerrados += sum(len(lista) for lista in pendientes.values())
+    abiertos = []
+    return cerrados, abiertos'''
+
+[[mutante]]
+id = "LA6"
+garantia = "F4 instancia AuditLog sobre el audit en vez de usar el parser propio: rompe la pureza (el __init__ de AuditLog reconcilia huerfanos = escribe) con datos reales de residencia"
+fichero = "control_plane.py"
+buscar = '''    entradas_manifiesto = _leer_jsonl_de_manifiesto(manifiesto)'''
+sustituir = '''    from walking_skeleton.aura_skeleton.observability import AuditLog
+    AuditLog(str(ruta_audit))
+    entradas_manifiesto = _leer_jsonl_de_manifiesto(manifiesto)'''
+
+[[mutante]]
+id = "LA7"
+garantia = "F4 escribe el estado.json tras leerlo (guardar oculto dentro de una funcion que debe ser de solo lectura)"
+fichero = "control_plane.py"
+buscar = '''    almacenado = cargar(directorio / "estado.json")
+    if almacenado is None:
+        bloque_estado_json = None'''
+sustituir = '''    almacenado = cargar(directorio / "estado.json")
+    if almacenado is not None:
+        guardar(dict(almacenado), directorio / "estado.json")
+    if almacenado is None:
+        bloque_estado_json = None'''
+
+[[mutante]]
+id = "LA8"
+garantia = "el bloque estado_json expone la descripcion/causa de las tareas (recuento_por_estado sustituido por las tareas completas): fuga de privacidad desde estado.json"
+fichero = "control_plane.py"
+buscar = '''        bloque_estado_json = {
+            "status": almacenado.get("status"),
+            "actualizado": almacenado.get("actualizado"),
+            "num_tareas": len(tareas),
+            "recuento_por_estado": recuento_por_estado,
+        }'''
+sustituir = '''        bloque_estado_json = {
+            "status": almacenado.get("status"),
+            "actualizado": almacenado.get("actualizado"),
+            "num_tareas": len(tareas),
+            "recuento_por_estado": recuento_por_estado,
+            "tareas": tareas,
+        }'''
+
+[[mutante]]
+id = "LA9"
+garantia = "recuento_por_tipo vuelve a usar el `tipo` crudo como clave, sin vocabulario cerrado: un tipo de evento libre (texto con un secreto) se cuela en el informe (fuga de contenido, HALLAZGO 1)"
+fichero = "control_plane.py"
+buscar = '''        clave = tipo if tipo in _TIPOS_CONOCIDOS_DEL_CP else _TIPO_OTROS
+        recuento_por_tipo[clave] = recuento_por_tipo.get(clave, 0) + 1'''
+sustituir = '''        clave = tipo
+        recuento_por_tipo[clave] = recuento_por_tipo.get(clave, 0) + 1'''
+
+[[mutante]]
+id = "LA10"
+garantia = "el parser de metadatos del audit deja de capturar RecursionError: una linea con JSON profundamente anidado propaga la excepcion y tumba la lectura agregada (DoS, HALLAZGO 2)"
+fichero = "control_plane.py"
+buscar = '''        except (json.JSONDecodeError, ValueError, RecursionError):
+            # No solo JSON invalido: una linea con anidamiento profundo lanza `RecursionError` al'''
+sustituir = '''        except json.JSONDecodeError:
+            # No solo JSON invalido: una linea con anidamiento profundo lanza `RecursionError` al'''

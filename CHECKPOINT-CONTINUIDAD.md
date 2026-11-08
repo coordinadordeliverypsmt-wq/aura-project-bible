@@ -11989,3 +11989,22 @@ autoriza. Enlazado desde el índice.
   protegidas; NO ~/.aura, estado.json/eventos.jsonl, PARADA, cron, producción, main (99f2109). Diff aditivo.
 - **Siguiente:** D-INT-1 (integración mínima trazable de `integracion/m3-entry` a `main` sin arrastrar los 17 commits
   ajenos de `worktree-m3-entry`) — AUTORIZADA (2026-11-08), pendiente de ejecución.
+
+## 2026-11-08 · D-INT-1 — integración de integracion/m3-entry en main, EJECUTADA (F5 completa)
+
+- **Autorización CEO (2026-11-08):** integración mínima, trazable y segura; sin merge ciego, sin reescribir historial, sin
+  force push, sin alterar worktrees preexistentes.
+- **Hallazgo de topología (disenso de reporte, CLAUDE.md §6):** el supuesto de «17 commits ajenos» NO se materializó.
+  Verificado: `origin/main` (99f2109) es el merge del PR#1 y su árbol es IDÉNTICO a la base 6dad6af (no aporta contenido
+  divergente); `bf13a47` (producción) es ancestro lineal de `integracion/m3-entry` (HEAD..bf13a47 = 0); los 62 commits a
+  integrar son todos de Mauricio, ninguno ajeno; `git merge-tree origin/main integracion/m3-entry` produce exactamente el
+  árbol validado (533d9fc) sin conflictos. Es decir: 0 commits ajenos, no 17.
+- **Ejecución:** worktree temporal NUEVO desde origin/main (no se tocó ninguno preexistente) → `git merge --no-ff
+  integracion/m3-entry` → merge `1d23c78` (árbol 533d9fc idéntico al validado; padres 99f2109 + 1747c66). Push a main con
+  el gate del pre-push: QG PASS (4562 passed, 0 failed). Los 2 primeros push los bloqueó el hook por un flake ambiental
+  (`test_delegacion_e2e_nats.py::test_04`, NATS bajo carga; reproducido 3/3 verde aislado); el 3.er intento pasó limpio.
+  El gate NUNCA se omitió. Worktree temporal retirado, rama temporal borrada.
+- **Resultado:** `origin/main` = **1d23c78** (contiene F1-F4, D-ORCH-6 y todo el trabajo validado). `origin/integracion/
+  m3-entry` = 1747c66 (intacto). Producción `worktree-m3-entry` = bf13a47 (intacto). Los 5 worktrees preexistentes
+  intactos. Sin reescritura de historial, sin force push, sin git add -A.
+- **F5 COMPLETA:** D-ORCH-6 (cerrado en 1747c66) + D-INT-1 (integrada en main). Cierre de la misión F4+F5.

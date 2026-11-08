@@ -1186,12 +1186,24 @@ if ESTADO_REVISION not in ESTADOS:
 # producto ya prohibe.
 TRANSICIONES = {
     "WAITING_FOR_NEXT_TASK": ("WORKING",),
-    # Literalmente la de `§6`. `WAITING_FOR_HUMAN` **no** figura aqui como destino aunque el DP le
-    # de salidas, y eso lo deja inalcanzable desde el flujo. Se detecto al corregir el hallazgo 2 de
-    # la auditoria y **no se enmienda por cuenta propia**: anadirlo en silencio seria decidir por el
-    # CEO sobre su propia tabla. Queda registrado como observacion en el cierre de F1.
+    # F5/D-ORCH-6 (acta del CEO, 2026-11-08): `WAITING_FOR_HUMAN` ya tenia SALIDAS en esta tabla
+    # (linea de abajo) pero ningun estado lo tenia como DESTINO, asi que quedaba inalcanzable desde
+    # el flujo. Se detecto al corregir el hallazgo 2 de la auditoria y en ese momento no se enmendo
+    # "por cuenta propia" -quedo como observacion en el cierre de F1-, porque anadirlo en silencio
+    # hubiese sido decidir por el CEO sobre su propia tabla. El CEO autorizo explicitamente el alta
+    # el 2026-11-08: WORKING -> WAITING_FOR_HUMAN es ahora un auto-stop legitimo (el agente declara
+    # que necesita un humano), analogo a DECISION_REQUIRED. La guarda de `validar_transicion`
+    # (ESTADOS_SOLO_HUMANO) hace que `WAITING_FOR_HUMAN` sea solo-humano SIN excepciones: **ambas**
+    # salidas (-> WORKING y -> FAILED) exigen autoridad humana, exactamente como DECISION_REQUIRED.
+    # No basta con blindar la reanudacion: eximir la salida a FAILED abriria una evasion en dos
+    # pasos (WAITING_FOR_HUMAN -> FAILED sin humano, luego FAILED -> WORKING por reintento) que
+    # compone la autoautorizacion. Por eso el agente no puede ni reanudarse ni abandonarse solo.
     "WORKING": (ESTADO_REVISION, "WAITING_FOR_ENVIRONMENT", "WAITING_FOR_QUOTA",
-                "DECISION_REQUIRED", "FAILED", "COMPLETED"),
+                "DECISION_REQUIRED", "WAITING_FOR_HUMAN", "FAILED", "COMPLETED"),
+    # `ESTADO_REVISION` (WAITING_FOR_REVIEW) NO gana `WAITING_FOR_HUMAN` como destino: la espera
+    # humana que puede surgir *durante* una revision ya la cubre `DECISION_REQUIRED`, que es el
+    # mecanismo existente para ese papel en este estado. Anadir una segunda vía al mismo efecto
+    # duplicaria la regla sin necesidad observada; el defecto D-ORCH-6 solo se detecto en `WORKING`.
     ESTADO_REVISION: ("WORKING", "DECISION_REQUIRED", "COMPLETED", "FAILED"),
     "WAITING_FOR_ENVIRONMENT": ("WORKING", "FAILED"),
     "WAITING_FOR_QUOTA": ("WORKING", "FAILED"),
@@ -2753,6 +2765,16 @@ def validar_transicion(previo: str, valor: str, autoridad: str, causa: str) -> N
         # adaptador podia re-afirmar `DECISION_REQUIRED` y reescribir con ello `autoridad` y
         # `causa`: el estado no cambiaba, pero si el registro de **quien** sostiene la espera — que
         # es justo lo que la hace auditable.
+        #
+        # F5/D-ORCH-6: `WAITING_FOR_HUMAN` es solo-humano SIN excepciones, EXACTAMENTE igual que
+        # `DECISION_REQUIRED`: **ambas** salidas (`-> WORKING` y `-> FAILED`) exigen autoridad humana.
+        # Una version anterior eximia `WAITING_FOR_HUMAN -> FAILED` creyendo que "abandonar no es
+        # reanudar"; dos auditorias independientes (seguridad + correccion) demostraron ejecutando
+        # que esa excepcion abria una EVASION EN DOS PASOS: una autoridad no humana hacia
+        # `WAITING_FOR_HUMAN -> FAILED` (exento) y luego `FAILED -> WORKING` (reintento preexistente,
+        # sin guarda), componiendo justo lo que la guarda debia impedir —reanudarse sin humano—.
+        # `FAILED` nunca estuvo en `ESTADOS_SOLO_HUMANO` y su "reintento contado" no tiene contador
+        # real. Fail-closed (ADR-0003, ante la duda roja): se rompe la cadena en su primer paso.
         raise TransicionInvalida(
             f"salir de {previo} exige autoridad humana registrada ({AUTORIDADES_HUMANAS}); "
             f"{autoridad!r} no lo es")

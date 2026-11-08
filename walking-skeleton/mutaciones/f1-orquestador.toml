@@ -282,13 +282,13 @@ sustituir = '''    if previo in ESTADOS_SOLO_HUMANO and autoridad not in AUTORID
 
 [[mutante]]
 id = "F1-M25"
-garantia = "H2 · la tabla implementada es LITERALMENTE la de §6: la prueba anterior comparaba solo las claves y dejo viajar una divergencia real"
+garantia = "H2 · la tabla implementada es LITERALMENTE la de §6: la prueba anterior comparaba solo las claves y dejo viajar una divergencia real. REANCLADO en F5/D-ORCH-6: la enmienda del CEO (2026-11-08) anadio WAITING_FOR_HUMAN como destino de WORKING en §6, el espejo y el codigo; antes este mutante INTRODUCIA ese destino como divergencia a detectar, ahora ese destino es el correcto, asi que la divergencia a cazar es la inversa -QUITARLO-. La garantia H2 (coherencia literal tabla<->DP, destino a destino) es la misma."
 fichero = "control_plane.py"
 pruebas = ["test_red_f1_orquestador.py::test_auditoria_h2_la_tabla_implementada_es_LITERALMENTE_la_del_DP"]
 buscar = '''    "WORKING": (ESTADO_REVISION, "WAITING_FOR_ENVIRONMENT", "WAITING_FOR_QUOTA",
-                "DECISION_REQUIRED", "FAILED", "COMPLETED"),'''
-sustituir = '''    "WORKING": (ESTADO_REVISION, "WAITING_FOR_ENVIRONMENT", "WAITING_FOR_QUOTA",
                 "DECISION_REQUIRED", "WAITING_FOR_HUMAN", "FAILED", "COMPLETED"),'''
+sustituir = '''    "WORKING": (ESTADO_REVISION, "WAITING_FOR_ENVIRONMENT", "WAITING_FOR_QUOTA",
+                "DECISION_REQUIRED", "FAILED", "COMPLETED"),  # F5: divergencia -quita WAITING_FOR_HUMAN del DP'''
 
 [[mutante]]
 id = "F1-M26"

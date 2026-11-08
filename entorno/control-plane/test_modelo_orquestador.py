@@ -37,10 +37,18 @@ import revisores
 # que el DP §6 propone, escrita aqui para poder interrogarla.
 # ---------------------------------------------------------------------------
 
+# Enmienda F5/D-ORCH-6 (acta del CEO, 2026-11-08): `WORKING` gana `WAITING_FOR_HUMAN` como destino.
+# Hasta esta fecha el estado tenía salidas pero ningún origen lo listaba como destino, así que era
+# inalcanzable (observación del cierre de F1, no enmendada «por cuenta propia»). El CEO autorizó el
+# alta: `WORKING → WAITING_FOR_HUMAN` es un auto-stop legítimo análogo a `DECISION_REQUIRED`. Este
+# espejo refleja literalmente la tabla del DP §6 ya enmendado; la guarda anti-autoautorización
+# (`WAITING_FOR_HUMAN` es solo-humano, igual que `DECISION_REQUIRED`: AMBAS salidas —a WORKING y a
+# FAILED— exigen autoridad humana) vive en `validar_transicion`, no en esta tabla. Sin excepción para
+# FAILED: eximirla abría una evasión en dos pasos WFH→FAILED→WORKING (auditoría de seguridad F5).
 TRANSICIONES_PROPUESTAS: dict[str, tuple[str, ...]] = {
     "WAITING_FOR_NEXT_TASK": ("WORKING",),
     "WORKING": ("WAITING_FOR_REVIEW", "WAITING_FOR_ENVIRONMENT", "WAITING_FOR_QUOTA",
-                "DECISION_REQUIRED", "FAILED", "COMPLETED"),
+                "DECISION_REQUIRED", "WAITING_FOR_HUMAN", "FAILED", "COMPLETED"),
     "WAITING_FOR_REVIEW": ("WORKING", "DECISION_REQUIRED", "COMPLETED", "FAILED"),
     "WAITING_FOR_ENVIRONMENT": ("WORKING", "FAILED"),
     "WAITING_FOR_QUOTA": ("WORKING", "FAILED"),

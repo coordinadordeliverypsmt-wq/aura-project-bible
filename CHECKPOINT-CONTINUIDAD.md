@@ -11949,3 +11949,18 @@ autoriza. Enlazado desde el índice.
 - **Sin cambios:** producción, runtime, ~/.aura, estado.json, eventos.jsonl, ancla, cron, PARADA, CM2/S3,
   memorias/Correo/NODO, main (99f2109).
 - **Pendiente del CEO:** F4 (lectura agregada §7.3), F5. Con F1+F2+F3 el Entregable C/D del DP queda cubierto salvo F4/F5.
+
+## 2026-11-08 · F4 — lectura agregada de residencia, CERRADA (control-plane; rama integracion/m3-entry)
+
+- **Autorización CEO (2026-11-08):** lectura agregada de ~/.aura (decisión #3 DP-RESIDENCIA). DP §13.
+- **Función:** `lectura_agregada(directorio, ruta_audit=None)` — informe agregado y SIN CONTENIDO (vocabulario cerrado de
+  tipos + "otros"; parser propio del audit sin AuditLog), pura de solo lectura.
+- **Respuestas sobre datos reales `[EJEC]`, write-free:** audit `~/.aura/audit.jsonl` = 14 seq duplicados (daño pre-P1),
+  0 huecos, 0 huérfanos. Ciclos 196 y 217 = ABIERTOS, NO recuperados (366 cerrados / 2 abiertos). BLOQUEADA = proyección
+  obsoleta (estado.json 2026-09-01, WAITING_FOR_NEXT_TASK) + espera sin trabajo AUTO (despertar_rechazado domina), no una
+  caída. El control-plane log está limpio (0 dup/huecos); el daño de seq está solo en el audit del esqueleto.
+- **Evidencia:** 23 pruebas; mutación 10/10; Quality Gate PASS 4562. Auditorías: corrección CABE; privacidad RECHAZADO
+  (fuga por `tipo` libre CRÍTICO + DoS) → corregido → APROBADO. Diff aditivo, funciones protegidas intactas.
+- **Sin cambios:** NO se modificó ~/.aura (solo lectura), estado.json/eventos.jsonl/ancla, PARADA, cron, producción,
+  memorias/Correo/NODO, main (99f2109). Lectura confirmada write-free por mtimes.
+- **Siguiente:** F5 (D-INT-1 integración mínima trazable; D-ORCH-6 WAITING_FOR_HUMAN) — AUTORIZADA (2026-11-08).

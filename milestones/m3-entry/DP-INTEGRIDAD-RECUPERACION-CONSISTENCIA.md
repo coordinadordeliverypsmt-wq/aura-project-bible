@@ -1,7 +1,7 @@
 ---
 documento: "Decision Package — Integridad, recuperación y consistencia del estado autónomo"
 fecha: 2026-11-06
-estado: "F1, F2 y F3 APROBADAS por el CEO e IMPLEMENTADAS (§10, §11, §12). F4, F5 siguen PROPUESTAS, pendientes de aprobación. El Director no se aprueba a sí mismo las pendientes."
+estado: "F1, F2, F3 y F4 APROBADAS por el CEO e IMPLEMENTADAS (§10-§13). F5 (D-INT-1, D-ORCH-6) AUTORIZADA (2026-11-08), en ejecución. El Director no se aprueba a sí mismo lo no autorizado."
 tipo: "DP técnico de integridad/recuperación. Diagnóstico de solo lectura; ninguna corrección implementada."
 rama: "integracion/m3-entry · HEAD 2956c402bc347d2363e519ac9cd267e7e7750481"
 evidencia: "Análisis del CÓDIGO y los documentos del repo (sin leer ~/.aura, §7.3). Clasificación D47."
@@ -218,3 +218,40 @@ F2; no se corrige aquí para no reabrir F2.
 **Siguen pendientes de tu decisión:** F4 (lectura agregada de `~/.aura`, decisión #3 — única vía para confirmar los
 ciclos 196/217 y la causa de BLOQUEADA) y F5 (D-INT-1, D-ORCH-6). Con F1+F2+F3, el Entregable C/D del DP queda cubierto
 salvo F4/F5.
+
+## §13 · Cierre de F4 (lectura agregada de residencia, implementada 2026-11-08)
+
+**Autorizada por el CEO (2026-11-08)** la lectura agregada de `~/.aura` (decisión #3 del DP-RESIDENCIA). Dos entregas:
+
+**A. Función reutilizable** `lectura_agregada(directorio, ruta_audit=None)` en `entorno/control-plane/control_plane.py`:
+informe AGREGADO y SIN CONTENIDO (solo números, enums, ids de seq y nombres de tipo de un VOCABULARIO CERRADO; cualquier
+tipo libre → `"otros"`). Bloque control-plane (seq dup/huecos, ciclos cerrados/abiertos, recuento por tipo conocido,
+status/recuento de tareas por enum) y bloque audit (parser PROPIO, NUNCA `AuditLog` —su `__init__` reconcilia = escribe—:
+seq dup/huecos, segmentos, huérfanos). PURA de solo lectura. No modifica F1/F2/F3 ni las funciones protegidas.
+
+**B. Lectura agregada ejecutada sobre los DATOS REALES** `[EJEC]`, write-free (confirmado por mtimes), respondiendo F4:
+- **Decisión #3 — audit `~/.aura/audit.jsonl`:** 1345 líneas, seq 1..1331, **14 seq duplicados** (daño de concurrencia
+  anterior a P1, antes del cerrojo), **0 huecos, 0 huérfanos**, sin rotación. Sin exponer contenido.
+- **Ciclos 196/217:** el control-plane de producción (`m3-entry/entorno/control-plane/eventos.jsonl`, 4334 eventos, seq
+  1..4334, 0 duplicados/huecos) tiene 366 ciclos cerrados y **2 ABIERTOS = exactamente 196 y 217**: NO fueron cerrados/
+  recuperados. (El mecanismo de DP-RECUPERACION es idempotente, pero estos dos ciclos del pasado siguen abiertos.)
+- **Causa de BLOQUEADA:** no es una caída. `estado.json` está OBSOLETO (status `WAITING_FOR_NEXT_TASK`, actualizado
+  2026-09-01) frente al log vivo; `despertar_rechazado` domina (2655 de ~3000 despertares) = espera sin trabajo
+  AUTO-ejecutable. Es la obsolescencia de proyección que F1/F2/F3 atacan (F2 la regeneraría; F3 la marca `degradada`).
+
+Evidencia `[EJEC]`: `test_red_lectura_agregada.py` **23 pruebas** (RED→GREEN; privacidad con secretos plantados en msg/
+evento/módulo/descripción/causa/tipo/id/provenance/rutas/bidi, DoS por anidamiento, pureza bytes+mtime, sin AuditLog);
+suite control-plane sin regresión; mutación `lectura-agregada.toml` **10/10** (LA1 reanclado al vector real tras detectar
+que era equivalente; LA9/LA10 de los dos defectos corregidos); Quality Gate **PASS** (4562). Auditorías independientes:
+corrección **CABE**; privacidad/seguridad **RECHAZADO** en 1.ª ronda (fuga por `tipo` libre CRÍTICO + DoS ALTO) →
+corregido (vocabulario cerrado + captura de RecursionError) → **APROBADO** en 2.ª ronda (41 checks de ataque, 0 fugas).
+Diff aditivo; funciones protegidas intactas.
+
+**Defectos hallados y corregidos durante la integración:** (1) CRÍTICO — `recuento_por_tipo` usaba el `tipo` libre como
+clave y filtraba contenido; corregido con vocabulario cerrado + `"otros"`. (2) ALTO — DoS por `RecursionError` no
+capturado en los parsers del audit; corregido. (3) LA1 era un mutante equivalente (defensa en profundidad del bloque
+audit); reanclado al límite real. Las dos auditorías (corrección/privacidad) se repartieron el trabajo: la adversarial
+cazó la fuga que la de corrección, al asumir `tipo` enum, no vio.
+
+**Riesgos residuales:** el `seq` reportado de un ciclo abierto es FIFO-canónico, no causal, bajo solapamiento de la misma
+familia (el recuento siempre es correcto); asimetría bool/int inocua con datos reales. Ninguno afecta las respuestas de F4.

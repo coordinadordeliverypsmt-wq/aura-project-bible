@@ -1,0 +1,125 @@
+# DP-ALERTA-005 (Alternativa B) · CONTRATO DE CORRESPONDENCIA VERIFICABLE (CEO, 2026-11-08).
+#
+# Que se protege: la matriz de correspondencia declarada en
+# `milestones/m3-entry/DP-ALERTA-005-CORRESPONDENCIA.md` -una sola fuente de hechos, dos
+# proyecciones (Maquina A de estados de tarea, Maquina B del ciclo real), dos gates de autoridad
+# fail-closed, y la proteccion-por-prueba de la API legada `autoconstruccion.ciclo()`-.
+#
+# CA-M1/CA-M2/CA-M3/CA-M5 degradan el CABLEADO de la puerta gobernada comun (misma clase de
+# defecto que `eventos-de-autoridad.toml` ya probo: sacar un evento de la lista sin tocar la
+# puerta deja la puerta intacta y la via cruda abierta al lado). CA-M4 degrada la guarda de
+# autoridad humana de `WAITING_FOR_HUMAN`. CA-M6 simula la aparicion de un llamante de produccion
+# de la API legada, que es el escenario que el contrato §8 exige detectar.
+#
+# Como se ejecuta (nunca en paralelo con nada, CLAUDE.md §2):
+#   cd walking-skeleton
+#   python3 -m herramientas.mutar ../entorno/control-plane/mutaciones/correspondencia-alerta005.toml \
+#           --raiz ../entorno/control-plane
+
+incremento = "DP-ALERTA-005 (Alternativa B): contrato de correspondencia verificable del control-plane"
+pruebas = ["test_red_correspondencia_alerta005.py"]
+timeout_s = 300
+
+
+[[mutante]]
+id = "CA-M1"
+garantia = "`propuesta_autorizada` esta en EVENTOS_GOBERNADOS: fuera de la lista, registrar_evento la aceptaria cruda y burlaria la puerta de autoridad (INV-1)"
+fichero = "control_plane.py"
+pruebas = ["test_red_correspondencia_alerta005.py::test_inv1_todo_evento_gobernado_rechaza_la_via_cruda",
+           "test_red_correspondencia_alerta005.py::test_inv2_relacion_de_conjuntos_de_la_matriz_de_gobierno",
+           "test_red_correspondencia_alerta005.py::test_inv3_la_matriz_declarada_corresponde_al_comportamiento_real",
+           "test_red_correspondencia_alerta005.py::test_inv3_control_todo_gobernado_real_aparece_marcado_gobernado_en_la_tabla"]
+buscar = '''EVENTOS_GOBERNADOS = frozenset({_EVENTO_DE_ESTADO, "criterio_fijado", "criterio_verificado",
+                                "cuota_observada",
+                                "review_habilitado", "propuesta_autorizada"})'''
+sustituir = '''EVENTOS_GOBERNADOS = frozenset({_EVENTO_DE_ESTADO, "criterio_fijado", "criterio_verificado",
+                                "cuota_observada",
+                                "review_habilitado"})'''
+
+
+[[mutante]]
+id = "CA-M2"
+garantia = "cada evento de la puerta comun tiene su entrada en _PUERTA_DE: sin ella, el mensaje de _negar_gobernado no guia a ninguna puerta real (INV-2)"
+fichero = "control_plane.py"
+pruebas = ["test_red_correspondencia_alerta005.py::test_inv2_cada_evento_de_la_puerta_tiene_entrada_en_puerta_de",
+           "test_red_correspondencia_alerta005.py::test_inv2_relacion_de_conjuntos_de_la_matriz_de_gobierno"]
+buscar = '''    "propuesta_autorizada": "registrar_propuesta_autorizada()",
+}'''
+sustituir = '''}'''
+
+
+[[mutante]]
+id = "CA-M3"
+garantia = "`estado_de_tarea` NO debe estar en _EVENTOS_DE_ESTA_PUERTA: confundir estado con evento gobernado permitiria escribir estado de tarea por la puerta gobernada comun, sin pasar por transicion() (INV-2)"
+fichero = "control_plane.py"
+pruebas = ["test_red_correspondencia_alerta005.py::test_inv2_estado_de_tarea_no_es_de_la_puerta_gobernada_comun",
+           "test_red_correspondencia_alerta005.py::test_inv2_relacion_de_conjuntos_de_la_matriz_de_gobierno"]
+buscar = '''_EVENTOS_DE_ESTA_PUERTA = frozenset({"criterio_fijado", "criterio_verificado",
+                                     "cuota_observada",
+                                     "review_habilitado", "propuesta_autorizada"})'''
+sustituir = '''_EVENTOS_DE_ESTA_PUERTA = frozenset({"criterio_fijado", "criterio_verificado",
+                                     "cuota_observada", "estado_de_tarea",
+                                     "review_habilitado", "propuesta_autorizada"})'''
+
+
+[[mutante]]
+id = "CA-M4"
+garantia = "WAITING_FOR_HUMAN debe seguir en ESTADOS_SOLO_HUMANO: sin esa entrada, una autoridad no humana podria reanudarse a si misma sin que medie ningun acto humano (INV-4/INV-6)"
+fichero = "control_plane.py"
+pruebas = ["test_red_correspondencia_alerta005.py::test_inv4_waiting_for_human_es_solo_humano",
+           "test_red_correspondencia_alerta005.py::test_inv4_control_waiting_for_human_SI_es_alcanzable_por_transicion_con_autoridad_humana",
+           "test_red_correspondencia_alerta005.py::test_inv6_transicion_waiting_for_human_a_working_rechaza_autoridad_no_humana"]
+buscar = '''ESTADOS_SOLO_HUMANO = ("DECISION_REQUIRED", "WAITING_FOR_HUMAN")'''
+sustituir = '''ESTADOS_SOLO_HUMANO = ("DECISION_REQUIRED",)'''
+
+
+[[mutante]]
+id = "CA-M5"
+garantia = "un evento gobernado SIN entrada en _PUERTA_DE es una puerta sin gate: INV-2 debe detectar un EVENTOS_GOBERNADOS que crece sin que _PUERTA_DE lo acompane"
+fichero = "control_plane.py"
+pruebas = ["test_red_correspondencia_alerta005.py::test_inv2_relacion_de_conjuntos_de_la_matriz_de_gobierno",
+           "test_red_correspondencia_alerta005.py::test_inv2_cada_evento_de_la_puerta_tiene_entrada_en_puerta_de"]
+buscar = '''EVENTOS_GOBERNADOS = frozenset({_EVENTO_DE_ESTADO, "criterio_fijado", "criterio_verificado",
+                                "cuota_observada",
+                                "review_habilitado", "propuesta_autorizada"})'''
+sustituir = '''EVENTOS_GOBERNADOS = frozenset({_EVENTO_DE_ESTADO, "criterio_fijado", "criterio_verificado",
+                                "cuota_observada", "nuevo_evento_gobernado_sin_puerta",
+                                "review_habilitado", "propuesta_autorizada"})'''
+
+
+[[mutante]]
+id = "CA-M6"
+garantia = "si autoconstruccion.ciclo() ganara un llamante de produccion (aqui simulado en motor_autonomia.py, que ya importa `autoconstruccion as ac`), INV-7 debe detectarlo por AST antes de que abra una segunda via sin la quinta puerta de review (contrato §8)"
+fichero = "motor_autonomia.py"
+pruebas = ["test_red_correspondencia_alerta005.py::test_inv7_api_legada_ciclo_sin_llamante_de_produccion"]
+buscar = '''        recuperacion = ac.recuperar(directorio)'''
+sustituir = '''        recuperacion = ac.recuperar(directorio)
+        ac.ciclo(directorio, [], autoridad_humana=None, acta="")'''
+
+
+[[mutante]]
+id = "CA-M7"
+garantia = "`decision_requerida` NO es un evento gobernado: el evento informativo que narra «hace falta un humano» no debe concederse como estado ni autoridad (contrato §4). Si entra en EVENTOS_GOBERNADOS, se confunde el evento con el estado DECISION_REQUIRED (INV-5)"
+fichero = "control_plane.py"
+pruebas = ["test_red_correspondencia_alerta005.py::test_inv5_decision_requerida_no_es_evento_gobernado",
+           "test_red_correspondencia_alerta005.py::test_inv5_registrar_decision_requerida_no_crea_ni_cambia_estado_de_tarea",
+           "test_red_correspondencia_alerta005.py::test_inv3_la_matriz_declarada_corresponde_al_comportamiento_real"]
+buscar = '''EVENTOS_GOBERNADOS = frozenset({_EVENTO_DE_ESTADO, "criterio_fijado", "criterio_verificado",
+                                "cuota_observada",
+                                "review_habilitado", "propuesta_autorizada"})'''
+sustituir = '''EVENTOS_GOBERNADOS = frozenset({_EVENTO_DE_ESTADO, "criterio_fijado", "criterio_verificado",
+                                "cuota_observada", "decision_requerida",
+                                "review_habilitado", "propuesta_autorizada"})'''
+
+
+[[mutante]]
+id = "CA-M8"
+garantia = "el guard de `autoconstruccion.autorizar()` rechaza la autoridad no humana: `1.1:93` la autoridad de aprobacion no es delegable a ningun agente (INV-6). Al degradarlo, la defensa en profundidad de cp.registrar_propuesta_autorizada sigue cerrando, pero el test debe seguir matando el mutante por la GARANTIA (autorizar exige humano), no por un accidente de tipos de excepcion"
+fichero = "autoconstruccion.py"
+pruebas = ["test_red_correspondencia_alerta005.py::test_inv6_autorizar_rechaza_autoridad_no_humana_con_red_de_mutacion"]
+buscar = '''    if por not in AUTORIDADES_HUMANAS:
+        raise SinAutorizacion(
+            f"{por!r} no es autoridad humana registrada {AUTORIDADES_HUMANAS}: la autoridad de "'''
+sustituir = '''    if False:
+        raise SinAutorizacion(
+            f"{por!r} no es autoridad humana registrada {AUTORIDADES_HUMANAS}: la autoridad de "'''

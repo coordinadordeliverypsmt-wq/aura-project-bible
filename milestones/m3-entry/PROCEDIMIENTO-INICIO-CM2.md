@@ -77,10 +77,17 @@ final de CM2 (fase 5) tambien es del CEO; el resultado es un **indicador prelimi
   - Ese minimo es **20**. Su naturaleza normativa esta en la tabla 7.1.1.
 - **Evaluacion final de CM2:** es del **CEO (fase 5, §6 de este documento)** y el resultado es un indicador
   preliminar (Q3).
-- **Fabricacion:** sin revision humana por muestreo se informa «no evidenciada» (DP-S3 §7, recomendacion (b), ~L589).
-  Las recuperaciones `valor_retirado` son la muestra a revisar.
+- **Fabricacion (regla de informe; ratificada por el CEO el 2026-11-09):** sin revision humana por muestreo se informa
+  «fabricacion no evidenciada» (Resolucion S3 Q5 (b); DP-S3 §7, recomendacion (b), ~L589), y no puede afirmarse
+  «cero fabricacion» sin evidencia humana (DP-S3 ~L586). La revision humana forma parte de la **evaluacion final del
+  CEO (fase 5)**; **no es condicion literal del gate**. Las recuperaciones `valor_retirado` son la muestra a revisar;
+  el tamaño, la frecuencia y el criterio de aceptacion de la muestra siguen **sin definir**.
+- **CM1 (ratificado por el CEO el 2026-11-09):** CM1 (P50 ≤ 800 ms) es criterio de aceptacion de **R1**, **no**
+  condicion del gate D-CM2-1 (DP-S3 §1, L21; mapa §13-§14). Su criterio y su bloqueo de hardware en HC-1 no cambian.
+  Sigue **pendiente** la validez de los datos de CM2 si se sustituye HC-1 (DP-S3 L625-626).
 - **Lo que NO esta escrito, y no se presume:**
-  - Que la revision humana sea condicion del gate. Esta seccion corrige asi la redaccion anterior del mapa maestro.
+  - Que la revision humana sea condicion del gate. Esta seccion corrigio asi la redaccion anterior del mapa maestro, y
+    el CEO lo ratifico el 2026-11-09.
   - Un umbral porcentual para S3. El «≥ 90 %» es el criterio de Bible 2.5 §5.2 (DP-S3 L54, «propuesto» segun su nota †).
     Ningun documento leido lo fija como condicion del gate S3, y el DP solo exige que, sin datos, se diga
     «sin datos suficientes», nunca «90 %» (L360-361).
@@ -92,10 +99,12 @@ final de CM2 (fase 5) tambien es del CEO; el resultado es un **indicador prelimi
 | Umbral del gate | ≥ 20 sondas validas de dia 28 | D-CM2-1 L23 (orden del CEO, literal) | **Normativo** (decision del CEO). En el codigo, `MINIMO_SONDAS_DIA28` lleva el comentario «provisional (Q5), revisable»: el CEO puede revisarlo, pero hoy rige 20 |
 | Poblacion | Hechos tipados y espontaneos; ecos fuera | Resolucion S3 Q5 L43 + D-CM2-1 | **Normativo** («base provisional y revisable», aprobada por el CEO) |
 | Exclusion de retiradas | Solo las del usuario (olvido, refutacion) | Resolucion S3 Q5 (a) | **Normativo**, base provisional |
-| Revision humana | Sin ella, la fabricacion es «no evidenciada» | Resolucion S3 Q5 (b) | **Normativo como regla de informe**, **no** como condicion del gate |
+| Revision humana | Sin ella, la fabricacion es «no evidenciada» | Resolucion S3 Q5 (b); ratificado por el CEO el 2026-11-09 | **Normativo como regla de informe** y parte de la evaluacion final del CEO (fase 5), **no** como condicion del gate |
 | Version con ≥ 28 dias | Un valor cambiado el dia 27 no retiene a 28 | DP-S3 §5.2, adoptado como base por Q5 | Normativo, base provisional |
-| Tolerancia de la ventana | `[28, 35]` dias (`TOLERANCIA_SONDA_DIAS = 7`) | **Solo** el comentario del codigo «provisional (Q5), revisable» | **Parametro de implementacion sin decision explicita**: ni Q5, ni las actas, ni el DP fijan 7. **Ambiguedad abierta** (§7.6) |
-| Pausas de la ventana | No definidas | DP-S3 §5.2 «Pendiente» | **Indefinido** |
+| Tolerancia de la ventana | `[28, 35]` dias (`TOLERANCIA_SONDA_DIAS = 7`) | Decision del CEO del 2026-11-09 (antes, solo el comentario del codigo «provisional (Q5), revisable») | **Normativo** (ratificado por el CEO el 2026-11-09): ventana de 28 a 35 dias, sin adelantos; la tolerancia solo retrasa, nunca adelanta. Hasta esa fecha fue parametro de implementacion sin decision explicita (§7.6) |
+| Pausas de la ventana | No definidas | DP-S3 §5.2 «Pendiente» | **Indefinido**. No pueden usarse para extender ventanas automaticamente (CEO, 2026-11-09) |
+| CM1 (P50 ≤ 800 ms) | Criterio de aceptacion de R1 | DP-S3 §1 L21; mapa §13-§14; decision del CEO del 2026-11-09 | **No es condicion del gate D-CM2-1**. Criterio y bloqueo de hardware sin cambios |
+| Validez de los datos tras sustituir HC-1 | Sin decision | DP-S3 L625-626 | **Pendiente** (decision del CEO) |
 | Umbral porcentual de S3 | Ninguno | — | **No existe**; no se presume |
 
 **Sonda valida** = la que cuenta `tasa_dia28`. Es un evento `cm2.sonda` que cumple todo esto:
@@ -111,16 +120,29 @@ Solo `vigente` cuenta como recuperado; `nada`, `sin_consulta` y `valor_retirado`
 
 ### 7.2 La fecha del gate NO es una fecha del reloj
 
-- El dia 28 se cuenta **por hecho**: `origen + 28 d`, con `origen = max(valid_from, inicio)`, y `valid_from` es el
-  instante de la declaracion (`ejecutor_modelo_usuario.py` ~L316).
+**Regla vigente (ratificada por el CEO el 2026-11-09). No hay fecha fija: la cota se recalcula en cada observacion.**
+
+- El dia 28 se cuenta **por hecho**. Su origen es `max(valid_from, inicio del reloj)`, tomando el `valid_from` de la
+  **primera** declaracion espontanea del hecho (instante de la declaracion, `ejecutor_modelo_usuario.py` ~L316); una
+  re-declaracion no reinicia el origen.
+- **Ninguna sonda puede hacerse antes de `origen + 28 d`.** No hay adelantos.
+- Una sonda solo cuenta si se hace dentro de la **ventana ratificada de 28 a 35 dias** y cumple el resto de la
+  definicion de sonda valida (§7.1.1). La tolerancia solo puede retrasar, nunca adelantar. Las pausas siguen sin
+  definir y no extienden ventanas automaticamente.
+- El gate solo puede evaluarse cuando existan **al menos 20 sondas validas de dia 28**. Eso exige como minimo 20 hechos
+  espontaneos, tipados y elegibles, y su primera fecha posible es el origen del vigesimo hecho elegible + 28 d, medida
+  por el cron esa noche o la siguiente. Cerrar el gate no es aceptar CM2: eso es la evaluacion final del CEO (fase 5).
+
+**Notas historicas fechadas.** Se conservan como registro; **no son fechas objetivo vigentes**:
+
 - El 2026-11-04 (inicio + 28 d) es solo la fecha **teorica minima** para hechos que ya existieran en el inicio, y no
   habia ninguno.
 - Ultima medicion antes de esta revision `[EJEC]`: el 2026-10-24, ciclo de 21:32:43 a 21:34:33 (-05:00); el audit se lee al principio del ciclo, con poblacion 0 y 0 sondas
   (`~/.local/state/aura-cm2.dia` y `aura-cm2.log`).
-- **Cota derivada del modelo, no proyeccion:** ninguna sonda de dia 28 puede existir antes del **2026-11-21 21:32 (-05:00)**, salvo que llegue una senal con `ts` anterior a esa lectura, cosa que no ocurre en el uso real. El gate
+- *[Historico: calculado con la medicion del 2026-10-24; superado, no vigente.]* **Cota derivada del modelo, no proyeccion:** ninguna sonda de dia 28 puede existir antes del **2026-11-21 21:32 (-05:00)**, salvo que llegue una senal con `ts` anterior a esa lectura, cosa que no ocurre en el uso real. El gate
   necesita 20 hechos espontaneos con 28 dias cada uno, asi que su primera fecha posible es
   `valid_from del 20.º hecho + 28 d`, medida por el cron esa noche o la siguiente.
-- **Lectura esperada el 2026-11-04:** `sondas de dia 28 contadas: 0` y `CM2: sin datos suficientes`. Cualquier otra
+- *[Historico: escrito el 2026-10-25; fecha ya pasada, no vigente.]* **Lectura esperada el 2026-11-04:** `sondas de dia 28 contadas: 0` y `CM2: sin datos suficientes`. Cualquier otra
   lectura es una anomalia (§7.4).
 
 ### 7.3 Observacion (solo lectura; despues de las 23:45 hora local)
@@ -168,10 +190,13 @@ Las pruebas `test_produccion_*` de `test_reloj_cm2_integracion.py` recorren toda
 
 ### 7.6 Decisiones abiertas y riesgo operativo (2026-10-25 (s)). NO ejecutado
 
-**Tolerancia de 7 dias.** Hace falta una decision explicita del CEO: ratificar `[28, 35]` o fijar otro valor.
+**Tolerancia de 7 dias — RESUELTA (CEO, 2026-11-09).** Ventana ratificada: de 28 a 35 dias, sin adelantos. El codigo ya
+la aplica (`TOLERANCIA_SONDA_DIAS = 7`) y no se cambia.
 
 - Afecta a que sondas cuentan **solo** si el cron pierde mas de 7 dias seguidos de medicion.
-- Sin decision, se mantiene el valor actual: no se cambia el codigo.
+
+**Pausas de la ventana — PENDIENTE.** Sin definir (DP-S3 §5.2). Mientras no se definan, **no pueden usarse para extender
+ventanas automaticamente** (CEO, 2026-11-09).
 
 **Dependencia del cron respecto del worktree (riesgo CONFIRMADO, `~/.local/bin/aura-medir-cm2.sh`):**
 

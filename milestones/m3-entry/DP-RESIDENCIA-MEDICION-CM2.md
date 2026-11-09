@@ -36,7 +36,8 @@ evidencia: "Auditoría de solo lectura 2026-11-05: Graphify + 5 agentes ECC (arq
 2. El historial es la única fuente de verdad (ADR-0023); las proyecciones se pueden reconstruir.
 3. **`seq` único y monótono** entre todos los escritores y segmentos.
 4. Ningún evento se pierde por rotación, caída o concurrencia.
-5. Criterios de CM2 intactos (población = hechos declarados tipados, 20 sondas, [28,35], D-CM2-1).
+5. Criterios de CM2 intactos (población = hechos declarados tipados, 20 sondas, D-CM2-1). La ventana [28,35] es criterio
+   ratificado por el CEO el 2026-11-09; hasta esa fecha era un parámetro de implementación sin decisión explícita.
 6. Kill switch y PARADA sin cambios; lista roja falla cerrada (ADR-0003); ningún fallo del audit es silencioso (INV-9).
 7. Motor Único (ALERTA-005) intacto. Local-first (ADR-0001): `flock` POSIX, solo sistema de ficheros local.
 8. S3 abierto; sin siembra.

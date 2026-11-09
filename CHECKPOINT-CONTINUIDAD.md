@@ -12035,3 +12035,23 @@ autoriza. Enlazado desde el índice.
 - **Sin cambios:** producción `worktree-m3-entry` = bf13a47 (el cron sigue ejecutando ese motor), main = 1d23c78, cron,
   PARADA, ~/.aura, estado.json/eventos.jsonl, anclas. Despliegue de main sobre el cron = decisión pendiente del CEO
   (D-INT-1 opción a), fuera de este alcance.
+
+## 2026-11-09 · CM2/S3 — alineación documental de D-CM2-1 (rama integracion/m3-entry)
+
+- **Observación previa `[EJEC]`:** medidor 22/22 ejecuciones (2026-10-18 → 2026-11-08), población 0, sondas 0, sin
+  anomalías. Dictamen: OBSERVACIÓN INSUFICIENTE (instrumento sano, sin población que medir).
+- **Decisiones del CEO (2026-11-09), con su alcance:**
+  1. **Ventana de sondas de 28 a 35 días, sin adelantos.** Ratifica el parámetro que el código ya aplicaba
+     (`TOLERANCIA_SONDA_DIAS = 7`). Cierra la decisión abierta del procedimiento §7.6. El código no cambia.
+  2. **CM1 (P50 ≤ 800 ms) es criterio de aceptación de R1, no condición del gate D-CM2-1.** No altera el criterio de
+     CM1, su bloqueo de hardware ni la validez de los datos tras sustituir HC-1, que sigue pendiente.
+  3. **La revisión humana por muestreo es regla de informe y parte de la evaluación final del CEO (fase 5), no
+     condición literal del gate.** Sin ella se informa «fabricación no evidenciada» y no se afirma «cero fabricación».
+  - **Pausas:** siguen sin definir y no pueden usarse para extender ventanas automáticamente.
+- **Corrección del Director:** el informe del 2026-11-09 presentó la revisión humana como condición del gate. No lo es
+  (Q5 (b), procedimiento §7.1.1, auditoría del 2026-10-25 D3); la decisión 3 lo ratifica.
+- **Documentos alineados:** mapa maestro (fila S3 del §16 y entrada nueva 2026-11-09 (a) del registro), procedimiento
+  §7.1, §7.1.1, §7.2 (regla temporal; cotas del 21/11 y del 04/11 como notas históricas fechadas) y §7.6,
+  DP-RESIDENCIA-MEDICION-CM2 criterio 5. **Sin tocar:** acta D-CM2-1, DP-S3, código, entradas históricas, cronograma.
+- **Siguiente:** CM2 solo avanza con uso real y declaración espontánea de hechos. Primera sonda de día 28 posible =
+  origen del primer hecho + 28 d. Gate = origen del vigésimo hecho elegible + 28 d, como mínimo.

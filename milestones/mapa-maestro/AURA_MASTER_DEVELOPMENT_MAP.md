@@ -170,7 +170,7 @@ aprendizaje · reactivación de la autoevolución (decisión propia) ‖ todo lo
 |---|---|---|---|---|
 | **S1** ✅ técnico | **Voz presente** | TTS precargada ✅ · palabra de activación ✅ · voz→dispositivo* · TV E2E* | AURA **acude cuando la llaman por su nombre** ✅ demostrado por el aire | E2E por el aire ✅ + mutación 30/30 ✅ |
 | **S2** ✅ técnico | **Primer umbral de integración** | entorno físico ✅ · orden de hogar por el Core ✅ · memoria del resultado ✅ · fallos de red/HA/dispositivo ✅ · voz→acción ✅ (opción C, solo TV sala) · TV real ✅ | AURA **conoce su entorno por voz** ✅ y cierra orden → Motor Único → efecto verificado → recuerdo (✅ TV real por voz humana, 2026-10-04/06) | mutación 72/72 ✅ |
-| **S3** ‖ S2 · 🟡 mecanismo | **Memoria en la vida real** | reloj de CM2 ✅ implementado, validado e **iniciado el 2026-10-07** (`cm2.inicio`, seq 1314; el día 28 es **por hecho** — `max(valid_from, inicio)` + 28 d —; con 0 hechos a 2026-10-24, ninguna sonda de día 28 antes del 2026-11-21) · olvido: rutas lógicas cerradas (T11) ✅ · privacidad D* · borrado físico / D-AMP-3* | AURA **mide su propio recuerdo** en uso real | registro CM2 funcionando (⏳ iniciado; gate (D-CM2-1) = ≥20 sondas válidas de día 28 (mínimo provisional, Q5) + «todos los criterios vigentes»; evaluación final del CEO (fase 5); a 2026-10-24: 0 hechos y 0 sondas por D-CM2-1; procedimiento en `PROCEDIMIENTO-INICIO-CM2.md` §7) |
+| **S3** ‖ S2 · 🟡 mecanismo | **Memoria en la vida real** | reloj de CM2 ✅ implementado, validado e **iniciado el 2026-10-07** (`cm2.inicio`, seq 1314; el día 28 es **por hecho**: origen = `max(valid_from de la primera declaración, inicio)`; ninguna sonda antes de origen + 28 d; ventana ratificada de 28 a 35 d, sin adelantos (CEO 2026-11-09); **sin fecha fija**: la cota se recalcula en cada observación) · olvido: rutas lógicas cerradas (T11) ✅ · privacidad D* · borrado físico / D-AMP-3* | AURA **mide su propio recuerdo** en uso real | registro CM2 funcionando (⏳ iniciado; gate (D-CM2-1) = ≥20 sondas válidas de día 28 (mínimo provisional, Q5) de hechos espontáneos, tipados y elegibles + «todos los criterios vigentes»; **no son condición del gate** CM1 —criterio de aceptación de R1— ni la revisión humana por muestreo —regla de informe: sin ella, «fabricación no evidenciada»— (CEO 2026-11-09); evaluación final del CEO (fase 5); a 2026-11-08: 0 hechos y 0 sondas por D-CM2-1; procedimiento en `PROCEDIMIENTO-INICIO-CM2.md` §7) |
 | **S4–S5** | **Aprender y anticipar** | inferencia de patrones (M3.2b) · sugerencias (CM4)* | AURA **propone** algo útil que nadie le pidió | ≥1 sugerencia valorada |
 | **S5** ‖ | **Rostro** | avatar Live2D* | AURA **tiene una presencia visible** coherente con su voz | demo + gate M3 |
 | **S6** | **Integración y gates** | gates M2 y M3 · regresión completa | AURA opera como **un solo sistema** | gates del CEO |
@@ -967,4 +967,20 @@ botella es ahora el STT (Whisper base ≈ 5,5 s por turno en HC-1). Mejorar no e
   - `autoconstruccion`, con la cobertura D1-D3 completa;
   - delegación, con STRIDE formal y 5 ALTOS abiertos.
 - **Integración:** 7 commits verificados documentalmente, sin merge.
+- **Orden del §16 sin cambios. S3 sigue abierto.**
+
+### 2026-11-09 (a) · CM2/S3: alineación documental de D-CM2-1 (ventana, CM1, revisión humana), sin cambio de cronograma
+
+- **Decisiones del CEO (2026-11-09):**
+  1. Ventana de sondas ratificada: días 28 a 35, sin adelantos.
+  2. CM1 (P50 ≤ 800 ms) es criterio de aceptación de R1, no condición del gate D-CM2-1.
+  3. La revisión humana por muestreo es regla de informe y parte de la evaluación final del CEO, no condición literal
+     del gate. Sin ella se informa «fabricación no evidenciada» y no se afirma «cero fabricación».
+- **La fila S3 del §16 cambia de contenido.** La cota fija «ninguna sonda de día 28 antes del 2026-11-21», calculada con
+  datos del 2026-10-24, se sustituye por la regla por hecho: la cota se recalcula en cada observación y no hay fecha
+  objetivo. Las entradas anteriores (incluida 2026-10-25 (b)) se conservan como registro histórico.
+- **Sin cambios:** umbral de 20 sondas; población espontánea y tipada; exclusión de las retiradas del usuario; criterio
+  de CM1 y su bloqueo de hardware; validez de los datos si se sustituye HC-1 (pendiente); pausas de la ventana
+  (pendientes, sin extender ventanas). Código intacto.
+- **Observación a 2026-11-08:** 22/22 ejecuciones del medidor, población 0, sondas 0, sin anomalías.
 - **Orden del §16 sin cambios. S3 sigue abierto.**

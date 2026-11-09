@@ -12008,3 +12008,30 @@ autoriza. Enlazado desde el índice.
   m3-entry` = 1747c66 (intacto). Producción `worktree-m3-entry` = bf13a47 (intacto). Los 5 worktrees preexistentes
   intactos. Sin reescritura de historial, sin force push, sin git add -A.
 - **F5 COMPLETA:** D-ORCH-6 (cerrado en 1747c66) + D-INT-1 (integrada en main). Cierre de la misión F4+F5.
+
+## 2026-11-09 · ALERTA-005 — contrato de correspondencia verificable (Alternativa B), CERRADA (rama integracion/m3-entry)
+
+- **Autorización CEO (2026-11-08):** Alternativa B del Decision Package ALERTA-005. Descartado conectar el ciclo real a
+  `validar_transicion`/`WAITING_FOR_HUMAN` (habría destruido 7 garantías del motor sin ganar seguridad).
+- **Diagnóstico de partida (Autonomía 360° + DP):** una sola fuente de hechos (el log), dos proyecciones (Máquina A =
+  estados de tarea; Máquina B = ciclo real de autoconstrucción), dos gates de autoridad fail-closed (`validar_transicion`
+  y `EVENTOS_GOBERNADOS`→`registrar_propuesta_autorizada`). D-ORCH-6/`WAITING_FOR_HUMAN` pertenece al camino de delegación
+  (`agentes`/`revisores`, sin llamante de producción), no al ciclo real.
+- **Entregado (aditivo; 0 ficheros rastreados modificados — motor, `control_plane.py`, review, autoconstruccion intactos):**
+  `milestones/m3-entry/DP-ALERTA-005-CORRESPONDENCIA.md` (contrato) · `entorno/control-plane/test_red_correspondencia_alerta005.py`
+  (25 pruebas, INV-1..INV-7 con control) · `entorno/control-plane/mutaciones/correspondencia-alerta005.toml` (8 mutantes).
+- **Auditorías:** corrección APROBADO · seguridad APROBADO (ninguna crítica). Hallazgos atendidos: barrido AST de INV-7
+  ampliado de llamadas a toda referencia estática (asname, variable, argumento) + `rglob` recursivo, con controles
+  positivos y negativos en memoria; mutantes CA-M7 (INV-5) y CA-M8 (guard propio de `autorizar()`, muere por la capa
+  correcta); constante renombrada a `_VOCABULARIO_DEL_CICLO_REAL`; contrato §8 corregido para no sobrevender.
+- **Evidencia `[EJEC]`:** específicas 25/25 · regresión de autorización 254/254 · regresión del motor 235/235 · mutación
+  8/8 detectados, 0 supervivientes/no aplicados/ambiguos · Quality Gate PASS (4562, 0 fallos) · `auditar_garantias` del
+  plano de control 333/333 vigentes. Nota: el QG ejecuta la suite de `walking-skeleton/`, no la del plano; esta se validó
+  en los pasos anteriores.
+- **Riesgo residual (documentado en el contrato §8):** la indirección dinámica (`getattr`, `importlib`) hacia
+  `autoconstruccion.ciclo()` no es detectable por análisis estático; requiere intención y no abre un gate nuevo.
+  INV-1 por sí sola es ciega a la retirada de un evento de `EVENTOS_GOBERNADOS` (recorre el conjunto mutado): la cubre
+  la tabla independiente de INV-3 (CA-M1 lo demuestra).
+- **Sin cambios:** producción `worktree-m3-entry` = bf13a47 (el cron sigue ejecutando ese motor), main = 1d23c78, cron,
+  PARADA, ~/.aura, estado.json/eventos.jsonl, anclas. Despliegue de main sobre el cron = decisión pendiente del CEO
+  (D-INT-1 opción a), fuera de este alcance.

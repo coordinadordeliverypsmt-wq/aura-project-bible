@@ -106,6 +106,11 @@ Síntesis, matriz y diseño: `SINTESIS-2026-10-22-DVR-AGENTES-CAMARAS.md`.
 | IE-041 | agent-passport-system/agent-passport-system | redes-seguridad | adaptar ideas | Catálogo de rechazos «firma válida, afirmación inválida» (HAL-041-1) y vínculo tarea↔resultado obligatorio (HAL-041-2), para la delegación. Gateway fuera del repositorio. Apache-2.0 |
 | IE-042 | oxdeai/oxdeai | redes-seguridad | adaptar el patrón | Guard que falla cerrado; campos mínimos de la orden firmada (HAL-042-1); verificador sin modo permisivo (HAL-042-2). Ojo: su `verifyAuthorization` es permisivo por defecto. Apache-2.0 |
 | IE-043 | aws-samples/sample-agentstorming (threat-model.md) | redes-seguridad | adoptar el método | Método de modelo de amenazas y verificación de órdenes firmadas sobre los bytes exactos, con frescura y monotonía (HAL-043-1); SO_PEERCRED para el firmador (HAL-043-3). Ejemplo sin pentest. MIT-0 |
+| IE-044 | airemoteagent/AI-Remote-Agent | redes-seguridad | descartado como código | Razona en la nube (remoteagent.online), un Bearer único sin firma ni anti-replay, y el LLM verifica sus resultados. Identidad, JIT y recibos declarados pero no cableados. Único hueco parcial: techo de tasa en el Motor (INVESTIGAR MÁS; el 30/min no es transferible). MIT |
+| IE-045 | agent-wall/agent-wall | redes-seguridad | descartado como código | Proxy MCP (AURA no tiene MCP; sería segunda vía, ALERTA-005); dashboard sin autenticación; HMAC desactivado. Hueco NUEVO: redacción de secretos y PII (INVESTIGAR MÁS; se descarta si el grep de registros reales sale vacío). MIT |
+| IE-046 | openclaw/openclaw | redes-seguridad | referencia | Un solo operador de confianza, inyección no considerada vulnerabilidad, más de 190 extensiones de nube. Hueco NUEVO: alta asistida de nodos (INVESTIGAR MÁS; no amortiza con un solo NODO-01) y sandbox parcial. Solo se leyeron módulos citados. MIT |
+
+Síntesis de IE-044 … IE-046 (2026-11-09): `SINTESIS-2026-11-09-AGENTES-REMOTOS-FIREWALL-OPENCLAW.md`. No amplía M3 ni crea capacidades (D23).
 
 ## Candidatas pendientes (ordenadas; ninguna se construye sin DP o decisión)
 

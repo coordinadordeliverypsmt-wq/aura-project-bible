@@ -107,6 +107,12 @@ Síntesis, matriz y diseño: `SINTESIS-2026-10-22-DVR-AGENTES-CAMARAS.md`.
 | IE-042 | oxdeai/oxdeai | redes-seguridad | adaptar el patrón | Guard que falla cerrado; campos mínimos de la orden firmada (HAL-042-1); verificador sin modo permisivo (HAL-042-2). Ojo: su `verifyAuthorization` es permisivo por defecto. Apache-2.0 |
 | IE-043 | aws-samples/sample-agentstorming (threat-model.md) | redes-seguridad | adoptar el método | Método de modelo de amenazas y verificación de órdenes firmadas sobre los bytes exactos, con frescura y monotonía (HAL-043-1); SO_PEERCRED para el firmador (HAL-043-3). Ejemplo sin pentest. MIT-0 |
 
+### Móvil / control de dispositivos (estudio 2026-11-11)
+
+| ID | Repositorio | Área | Estado | Decisión en una línea |
+|---|---|---|---|---|
+| IE-044 | phone-harness/phone-harness | camaras-moviles / móvil | investigado (README, SKILL y código focal) | Adoptar como referencia técnica prioritaria para Claude Code: contrato multiplataforma, Android por ADB, iPhone por iPhone Mirroring y cloud HTTPS. No copiar ni instalar todavía; no es control total del dispositivo. Requiere DP y acta para integrar un adaptador AURA. MIT; Cloud es servicio externo y tiene telemetría opt-out. |
+
 ## Candidatas pendientes (ordenadas; ninguna se construye sin DP o decisión)
 
 1. `supported_features` antes de llamar (IE-004): necesita DP (cambia el contrato de `entorno`/`estado_actual`).
